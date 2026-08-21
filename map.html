@@ -133,20 +133,14 @@
     }
     .leaflet-container { font-family: 'Inter', sans-serif; cursor: default; }
     .leaflet-container.draw-mode { cursor: crosshair; }
-    .privacy-pin {
-      width: 44px; height: 44px;
-      border-radius: 999px;
-      border: 2px dashed #041627;
-      background: rgba(4,22,39,0.08);
-      display: flex; align-items: center; justify-content: center;
-      cursor: pointer;
-    }
-    .privacy-pin .lock-dot {
-      width: 22px; height: 22px;
+    .lock-marker {
+      width: 26px; height: 26px;
       border-radius: 999px;
       background: #041627;
       display: flex; align-items: center; justify-content: center;
       color: #fff;
+      box-shadow: 0 2px 6px rgba(4,22,39,0.35);
+      cursor: pointer;
     }
     .ai-glow { box-shadow: 0 0 15px rgba(233,193,118,0.4), inset 0 0 10px rgba(233,193,118,0.15); }
     .map-toast {
@@ -333,15 +327,30 @@ function isPrivateHidden(l) {
   return !!l.private && !revealed.has(l.id);
 }
 
+// Fixed real-world radius (meters), so the shaded area covers the same
+// ground distance at any zoom level — zooming in never narrows in on
+// the exact building, only makes the covered area look bigger on screen.
+const PRIVACY_RADIUS_M = 350;
+
+function approxCenter(l) {
+  // Deterministic pseudo-random offset (250-450m, any direction) derived
+  // from the listing id, so the circle shown never sits on the real point
+  // and stays stable across re-renders.
+  const seed = (l.id * 9301 + 49297) % 233280;
+  const angle = (seed % 360) * Math.PI / 180;
+  const dist = 250 + (seed % 200);
+  const R = 6371000;
+  const lat1 = l.lat * Math.PI / 180;
+  const lng1 = l.lng * Math.PI / 180;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist / R) + Math.cos(lat1) * Math.sin(dist / R) * Math.cos(angle));
+  const lng2 = lng1 + Math.atan2(
+    Math.sin(angle) * Math.sin(dist / R) * Math.cos(lat1),
+    Math.cos(dist / R) - Math.sin(lat1) * Math.sin(lat2)
+  );
+  return { lat: lat2 * 180 / Math.PI, lng: lng2 * 180 / Math.PI };
+}
+
 function priceIcon(listing, active) {
-  if (isPrivateHidden(listing)) {
-    return L.divIcon({
-      className: '',
-      html: `<div class="privacy-pin" data-id="${listing.id}"><div class="lock-dot"><span class="material-symbols-outlined text-[14px]">lock</span></div></div>`,
-      iconSize: [44, 44],
-      iconAnchor: [22, 22]
-    });
-  }
   return L.divIcon({
     className: '',
     html: `<div class="price-pin${active ? ' active' : ''}" data-id="${listing.id}">${listing.priceLabel}</div>`,
@@ -354,10 +363,36 @@ function buildMarkers() {
   Object.values(markers).forEach(m => map.removeLayer(m));
   markers = {};
   LISTINGS.forEach(l => {
-    const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
-    marker.on('click', () => selectListing(l.id, true));
-    marker.addTo(map);
-    markers[l.id] = marker;
+    if (isPrivateHidden(l)) {
+      const center = approxCenter(l);
+      const circle = L.circle([center.lat, center.lng], {
+        radius: PRIVACY_RADIUS_M,
+        color: '#041627',
+        weight: 2,
+        dashArray: '6 4',
+        fillColor: '#041627',
+        fillOpacity: 0.08
+      });
+      const lock = L.marker([center.lat, center.lng], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="lock-marker"><span class="material-symbols-outlined text-[14px]">lock</span></div>`,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13]
+        })
+      });
+      const group = L.layerGroup([circle, lock]);
+      group.on('click', () => selectListing(l.id, true));
+      circle.on('click', () => selectListing(l.id, true));
+      lock.on('click', () => selectListing(l.id, true));
+      group.addTo(map);
+      markers[l.id] = group;
+    } else {
+      const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
+      marker.on('click', () => selectListing(l.id, true));
+      marker.addTo(map);
+      markers[l.id] = marker;
+    }
   });
 }
 
@@ -468,11 +503,13 @@ function selectListing(id, fromMap) {
     el.classList.toggle('active', Number(el.dataset.id) === id);
   });
   Object.entries(markers).forEach(([mid, marker]) => {
+    if (!(marker instanceof L.Marker)) return;
     const listing = LISTINGS.find(x => x.id == mid);
     marker.setIcon(priceIcon(listing, Number(mid) === id));
   });
   if (l) {
-    map.panTo([l.lat, l.lng]);
+    const target = isPrivateHidden(l) ? approxCenter(l) : l;
+    map.panTo([target.lat, target.lng]);
     if (!fromMap) {
       const cardEl = document.querySelector(`.listing-card[data-id="${id}"]`);
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
