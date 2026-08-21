@@ -133,6 +133,22 @@
     }
     .leaflet-container { font-family: 'Inter', sans-serif; cursor: default; }
     .leaflet-container.draw-mode { cursor: crosshair; }
+    .private-city-badge {
+      background: #041627;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #775a19;
+      display: flex; align-items: center; gap: 5px;
+      box-shadow: 0 2px 6px rgba(4,22,39,0.3);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: transform .15s ease;
+    }
+    .private-city-badge:hover { transform: scale(1.06); }
     .ai-glow { box-shadow: 0 0 15px rgba(233,193,118,0.4), inset 0 0 10px rgba(233,193,118,0.15); }
     .map-toast {
       position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
@@ -322,6 +338,18 @@ function isPrivateHidden(l) {
   return !!l.private && !revealed.has(l.id);
 }
 
+// Fixed, publicly-known city centers — the same point a city label would
+// sit on. Never derived from any listing's real coordinates, so a badge
+// placed here carries no information about where a specific property is.
+const CITY_CENTERS = {
+  "Erbil": [36.1911, 44.0093],
+  "Sulaymaniyah": [35.5608, 45.4347],
+  "Duhok": [36.8642, 42.9903],
+  "Zakho": [37.1450, 42.6829],
+  "Soran": [36.6500, 44.5450],
+  "Koya": [36.0750, 44.6200]
+};
+
 function priceIcon(listing, active) {
   return L.divIcon({
     className: '',
@@ -331,19 +359,45 @@ function priceIcon(listing, active) {
   });
 }
 
+function cityBadgeIcon(count) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="private-city-badge"><span class="material-symbols-outlined text-[14px]">lock</span><span>${count} Private</span></div>`,
+    iconSize: null,
+    iconAnchor: [20, 14]
+  });
+}
+
 function buildMarkers() {
   Object.values(markers).forEach(m => map.removeLayer(m));
   markers = {};
+  // Private listings that haven't been revealed never get an individual
+  // pin — no marker, no circle, nothing tied to their real coordinates.
+  // Instead they're rolled up into one badge per city, sitting on that
+  // city's public center point, so the map never points at a specific
+  // building for a hidden listing, only says "some are somewhere in here."
+  const hiddenByCity = {};
   LISTINGS.forEach(l => {
-    // Private listings that haven't been revealed get nothing on the map
-    // at all — no pin, no circle, no marker of any kind — so there is
-    // nothing to look at or click on to find where they are. They only
-    // exist in the card list until "Request Exact Location" is used.
-    if (isPrivateHidden(l)) return;
+    if (isPrivateHidden(l)) {
+      hiddenByCity[l.city] = (hiddenByCity[l.city] || 0) + 1;
+      return;
+    }
     const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
     marker.on('click', () => selectListing(l.id, true));
     marker.addTo(map);
     markers[l.id] = marker;
+  });
+  Object.entries(hiddenByCity).forEach(([city, count]) => {
+    const center = CITY_CENTERS[city];
+    if (!center) return;
+    const badge = L.marker(center, { icon: cityBadgeIcon(count) });
+    badge.on('click', () => {
+      document.getElementById('citySearch').value = city;
+      refresh();
+      showToast(`${count} private listing${count > 1 ? 's' : ''} in ${city} — see the list`, 'lock');
+    });
+    badge.addTo(map);
+    markers['city-' + city] = badge;
   });
 }
 
@@ -456,6 +510,7 @@ function selectListing(id, fromMap) {
   Object.entries(markers).forEach(([mid, marker]) => {
     if (!(marker instanceof L.Marker)) return;
     const listing = LISTINGS.find(x => x.id == mid);
+    if (!listing) return;
     marker.setIcon(priceIcon(listing, Number(mid) === id));
   });
   if (l) {
