@@ -103,6 +103,11 @@
     body { min-height: max(884px, 100dvh); }
     .code-box { border: 2px dashed #775a19; }
   </style>
+  <!--
+    OWNER_WHATSAPP below is a placeholder (+964 000 000 0000).
+    Replace it with the real office WhatsApp number (digits only, country code, no +/spaces)
+    so the "Notify Office" button actually reaches you. See script at the bottom of this file.
+  -->
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
 <!-- TopAppBar -->
@@ -132,7 +137,39 @@
 <span class="font-label-caps text-label-caps">Exclusive Offer</span>
 </div>
 <h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-primary mb-2">You've Unlocked 10% Off</h1>
-<p class="font-body-lg text-body-lg text-on-surface-variant max-w-md mb-stack-lg">Show this code to your Darwesh Group agent for 10% off brokerage fees on your next Buy or Sell.</p>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-md mb-stack-lg">Verified in person by a Darwesh Group agent, worth 10% off brokerage fees on your next Buy or Sell.</p>
+
+<!-- Agent Check-In Gate -->
+<div class="bg-surface-container-lowest rounded-2xl p-stack-lg w-full mb-stack-md border border-outline-variant text-left" id="agentGate">
+<div class="flex items-center gap-2 mb-stack-sm">
+<span class="material-symbols-outlined text-primary">badge</span>
+<h2 class="font-headline-md text-headline-md text-primary">Agent Check-In</h2>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md">To keep every lead accounted for, the agent assisting this customer confirms their identity before the code is revealed. This creates a timestamped record on this device and can notify the office.</p>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Agent Name &amp; ID</label>
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface mb-stack-md" id="agentSelect">
+<option value="">Select your name...</option>
+<option data-id="DG-101" value="Ahmed Hassan">Ahmed Hassan — DG-101</option>
+<option data-id="DG-102" value="Sara Zana">Sara Zana — DG-102</option>
+<option data-id="DG-103" value="Dr. Kawa Amin">Dr. Kawa Amin — DG-103</option>
+<option data-id="DG-104" value="Eng. Tara Jaff">Eng. Tara Jaff — DG-104</option>
+</select>
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed" disabled="" id="verifyAgentBtn">
+<span class="material-symbols-outlined text-[18px]">verified</span> Verify &amp; Reveal Discount
+</button>
+<p class="font-body-md text-[11px] text-on-surface-variant text-center mt-2">Placeholder roster for testing — swap in your real staff list before going live.</p>
+</div>
+
+<!-- Discount Reveal (hidden until agent checks in) -->
+<div class="hidden w-full" id="discountReveal">
+<!-- Verified By Badge -->
+<div class="bg-tertiary-container/20 border border-tertiary-container rounded-xl px-4 py-3 mb-stack-md flex items-center gap-3 text-left">
+<span class="material-symbols-outlined text-on-tertiary-container">verified_user</span>
+<div>
+<p class="font-body-md text-body-md text-on-surface" id="verifiedByLine">Verified by —</p>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-xs" id="verifiedAtLine"></p>
+</div>
+</div>
 
 <!-- Discount Code Box -->
 <div class="code-box bg-surface-container-lowest rounded-2xl px-stack-lg py-stack-md w-full mb-stack-md">
@@ -145,6 +182,11 @@
 <span id="copyLabel">Copy Code</span>
 </button>
 </div>
+
+<!-- Notify Office -->
+<button class="w-full mb-stack-lg inline-flex items-center justify-center gap-2 border border-secondary text-secondary px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-secondary-container/30 transition-all" id="notifyOfficeBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">forward_to_inbox</span> Notify Office via WhatsApp
+</button>
 
 <!-- Terms -->
 <div class="bg-surface-container-low rounded-xl p-stack-md w-full text-left mb-stack-lg">
@@ -165,6 +207,14 @@
 <a class="flex-1 flex items-center justify-center gap-2 border border-outline-variant text-primary px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-surface-container transition-all" href="sell.html">
 <span class="material-symbols-outlined text-[18px]">sell</span> List Your Property
 </a>
+</div>
+</div>
+
+<!-- Recent Check-Ins (this device) -->
+<div class="hidden w-full mt-stack-lg text-left" id="scanLogWrap">
+<h2 class="font-label-caps text-label-caps text-on-surface-variant mb-2">Recent Check-Ins on This Device</h2>
+<div class="flex flex-col gap-2" id="scanLogList"></div>
+<p class="font-body-md text-[11px] text-on-surface-variant mt-2">This log lives only in this browser — it is not shared automatically with the office. Use "Notify Office" above to send a record.</p>
 </div>
 </section>
 </main>
@@ -193,6 +243,73 @@
 </nav>
 
 <script>
+/* TODO: replace with the real office WhatsApp number (digits only, with country code, no + or spaces) */
+const OWNER_WHATSAPP = '9640000000000';
+const SCAN_LOG_KEY = 'darwesh_agent_scan_log';
+
+const agentSelect = document.getElementById('agentSelect');
+const verifyAgentBtn = document.getElementById('verifyAgentBtn');
+const agentGate = document.getElementById('agentGate');
+const discountReveal = document.getElementById('discountReveal');
+const scanLogWrap = document.getElementById('scanLogWrap');
+const scanLogList = document.getElementById('scanLogList');
+
+agentSelect.addEventListener('change', () => {
+  verifyAgentBtn.disabled = !agentSelect.value;
+});
+
+function loadScanLog() {
+  try {
+    return JSON.parse(localStorage.getItem(SCAN_LOG_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function renderScanLog() {
+  const log = loadScanLog();
+  if (log.length === 0) {
+    scanLogWrap.classList.add('hidden');
+    return;
+  }
+  scanLogWrap.classList.remove('hidden');
+  scanLogList.innerHTML = log.slice(-5).reverse().map(entry => `
+    <div class="flex items-center justify-between bg-surface-container-low rounded-lg px-4 py-2.5">
+      <span class="font-body-md text-body-md text-on-surface">${entry.name} <span class="text-on-surface-variant font-data-mono text-data-mono text-xs">(${entry.id})</span></span>
+      <span class="font-data-mono text-data-mono text-on-surface-variant text-xs">${entry.time}</span>
+    </div>
+  `).join('');
+}
+
+verifyAgentBtn.addEventListener('click', () => {
+  const opt = agentSelect.selectedOptions[0];
+  if (!opt || !opt.value) return;
+  const name = opt.value;
+  const id = opt.dataset.id;
+  const now = new Date();
+  const timeStr = now.toLocaleString();
+
+  const log = loadScanLog();
+  log.push({ name, id, time: timeStr });
+  localStorage.setItem(SCAN_LOG_KEY, JSON.stringify(log));
+
+  document.getElementById('verifiedByLine').textContent = `Verified by ${name} · Agent ID ${id}`;
+  document.getElementById('verifiedAtLine').textContent = timeStr;
+
+  agentGate.classList.add('hidden');
+  discountReveal.classList.remove('hidden');
+  renderScanLog();
+});
+
+document.getElementById('notifyOfficeBtn').addEventListener('click', () => {
+  const log = loadScanLog();
+  const last = log[log.length - 1];
+  if (!last) return;
+  const message = `Darwesh Group discount check-in: Agent ${last.name} (${last.id}) verified a customer for the DARWESH10 offer at ${last.time}.`;
+  const url = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(message)}`;
+  window.open(url, '_blank');
+});
+
 document.getElementById('copyBtn').addEventListener('click', async () => {
   const code = document.getElementById('couponCode').textContent;
   try {
@@ -207,5 +324,7 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
     document.getElementById('copyLabel').textContent = 'Copy Code';
   }, 2000);
 });
+
+renderScanLog();
 </script>
 </body></html>
