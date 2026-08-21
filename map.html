@@ -131,7 +131,33 @@
       border-color: #775a19;
       box-shadow: 0 4px 20px rgba(26,43,60,0.12);
     }
-    .leaflet-container { font-family: 'Inter', sans-serif; }
+    .leaflet-container { font-family: 'Inter', sans-serif; cursor: default; }
+    .leaflet-container.draw-mode { cursor: crosshair; }
+    .privacy-pin {
+      width: 44px; height: 44px;
+      border-radius: 999px;
+      border: 2px dashed #041627;
+      background: rgba(4,22,39,0.08);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+    .privacy-pin .lock-dot {
+      width: 22px; height: 22px;
+      border-radius: 999px;
+      background: #041627;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff;
+    }
+    .ai-glow { box-shadow: 0 0 15px rgba(233,193,118,0.4), inset 0 0 10px rgba(233,193,118,0.15); }
+    .map-toast {
+      position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
+      background: #041627; color: #fff; padding: 10px 20px; border-radius: 999px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+      opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 70;
+      display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    }
+    .map-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    @media (min-width: 768px) { .map-toast { bottom: 1.5rem; } }
   </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -185,6 +211,31 @@
 <!-- Map panel -->
 <div id="mapPanel" class="relative w-full md:w-1/2 lg:w-3/5 h-full order-1 md:order-2">
 <div id="map" class="w-full h-full"></div>
+<!-- Map Overlay Controls -->
+<div class="absolute top-4 right-4 z-[60] flex flex-col gap-2 items-end">
+<button id="drawSearchBtn" title="Draw Search Area" class="bg-surface-container-lowest text-primary p-3 rounded-full shadow-lg hover:bg-surface-container-high transition-all duration-200 border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined">edit</span>
+</button>
+<button id="myLocationBtn" title="My Location" class="bg-surface-container-lowest text-primary p-3 rounded-full shadow-lg hover:bg-surface-container-high transition-all duration-200 border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined">my_location</span>
+</button>
+</div>
+<!-- Clear Search Area chip -->
+<button id="clearSearchAreaBtn" class="hidden absolute top-4 left-4 z-[60] bg-primary text-on-primary pl-4 pr-3 py-2 rounded-full shadow-lg flex items-center gap-2 font-label-caps text-label-caps">
+<span>Search Area Active</span>
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+<!-- Floating MAM AI Assistant -->
+<a href="mam-ai.html" id="mamAiWidget" class="ai-glow absolute bottom-4 right-4 z-[60] bg-surface-container-lowest border border-secondary text-primary rounded-2xl p-3 md:p-4 shadow-lg flex items-center gap-3 hover:scale-105 transition-transform bg-opacity-95">
+<div class="bg-secondary text-on-secondary w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-none">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+</div>
+<div class="text-left hidden md:block">
+<p class="font-label-caps text-label-caps text-secondary font-bold">MAM AI Assistant</p>
+<p class="font-body-md text-[12px] text-on-surface-variant leading-tight" id="mamAiWidgetSub">Analyze this market</p>
+</div>
+</a>
+<div class="map-toast" id="mapToast"></div>
 </div>
 <!-- List panel -->
 <div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full overflow-y-auto hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden md:block">
@@ -243,17 +294,30 @@ const IMAGES = [
 ];
 
 const LISTINGS = [
-  { id:1, city:"Erbil", address:"Italian Village, Villa 42", lat:36.2019, lng:43.9812, type:"sale", price:380000, priceLabel:"$380,000", beds:4, baths:3, sqft:400, img:IMAGES[0], verified:true },
+  { id:1, city:"Erbil", address:"Italian Village, Villa 42", lat:36.2019, lng:43.9812, type:"sale", price:380000, priceLabel:"$380,000", beds:4, baths:3, sqft:400, img:IMAGES[0], verified:true, private:true },
   { id:2, city:"Erbil", address:"Empire World, Tower B", lat:36.1798, lng:44.0231, type:"sale", price:210000, priceLabel:"$210,000", beds:3, baths:2, sqft:180, img:IMAGES[4], verified:true },
   { id:3, city:"Erbil", address:"Downtown, Near Citadel", lat:36.1911, lng:44.0093, type:"rent", price:900, priceLabel:"$900/mo", beds:2, baths:1, sqft:120, img:IMAGES[3], verified:false },
   { id:4, city:"Sulaymaniyah", address:"Salim Street, Office Tower", lat:35.5628, lng:45.4408, type:"rent", price:1200, priceLabel:"$1,200/mo", beds:5, baths:2, sqft:220, img:IMAGES[1], verified:true },
-  { id:5, city:"Sulaymaniyah", address:"Raparin District", lat:35.5474, lng:45.4192, type:"sale", price:165000, priceLabel:"$165,000", beds:3, baths:2, sqft:150, img:IMAGES[2], verified:true },
+  { id:5, city:"Sulaymaniyah", address:"Raparin District", lat:35.5474, lng:45.4192, type:"sale", price:165000, priceLabel:"$165,000", beds:3, baths:2, sqft:150, img:IMAGES[2], verified:true, private:true },
   { id:6, city:"Duhok", address:"Nwroz District, Villa 7", lat:36.8664, lng:42.9977, type:"sale", price:295000, priceLabel:"$295,000", beds:4, baths:3, sqft:350, img:IMAGES[0], verified:true },
   { id:7, city:"Duhok", address:"City Center Apartments", lat:36.8618, lng:42.9822, type:"rent", price:650, priceLabel:"$650/mo", beds:2, baths:1, sqft:110, img:IMAGES[3], verified:false },
   { id:8, city:"Zakho", address:"Family House, Grid District", lat:37.1444, lng:42.6810, type:"sale", price:140000, priceLabel:"$140,000", beds:3, baths:2, sqft:200, img:IMAGES[5], verified:false },
-  { id:9, city:"Soran", address:"Mountain View Villa", lat:36.6528, lng:44.5453, type:"sale", price:320000, priceLabel:"$320,000", beds:5, baths:4, sqft:420, img:IMAGES[0], verified:true },
+  { id:9, city:"Soran", address:"Mountain View Villa", lat:36.6528, lng:44.5453, type:"sale", price:320000, priceLabel:"$320,000", beds:5, baths:4, sqft:420, img:IMAGES[0], verified:true, private:true },
   { id:10, city:"Koya", address:"New Development, Block C", lat:36.0781, lng:44.6222, type:"rent", price:500, priceLabel:"$500/mo", beds:2, baths:1, sqft:95, img:IMAGES[2], verified:false }
 ];
+
+const revealed = new Set();
+let searchCircle = null;
+let drawMode = false;
+let drawStart = null;
+
+function showToast(msg, icon) {
+  const el = document.getElementById('mapToast');
+  el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>`;
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
 
 let activeType = "sale";
 let activeId = null;
@@ -265,7 +329,19 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18
 }).addTo(map);
 
+function isPrivateHidden(l) {
+  return !!l.private && !revealed.has(l.id);
+}
+
 function priceIcon(listing, active) {
+  if (isPrivateHidden(listing)) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="privacy-pin" data-id="${listing.id}"><div class="lock-dot"><span class="material-symbols-outlined text-[14px]">lock</span></div></div>`,
+      iconSize: [44, 44],
+      iconAnchor: [22, 22]
+    });
+  }
   return L.divIcon({
     className: '',
     html: `<div class="price-pin${active ? ' active' : ''}" data-id="${listing.id}">${listing.priceLabel}</div>`,
@@ -290,34 +366,65 @@ function filteredListings() {
   return LISTINGS.filter(l => {
     const typeMatch = activeType === 'all' || l.type === activeType;
     const qMatch = !q || l.city.toLowerCase().includes(q) || l.address.toLowerCase().includes(q);
-    return typeMatch && qMatch;
+    const areaMatch = !searchCircle || L.latLng(l.lat, l.lng).distanceTo(searchCircle.getLatLng()) <= searchCircle.getRadius();
+    return typeMatch && qMatch && areaMatch;
   });
 }
 
 function card(l) {
+  const hidden = isPrivateHidden(l);
   const badge = l.verified ? `<div class="absolute top-3 right-3 bg-tertiary-container/90 backdrop-blur-sm text-on-tertiary-container px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
       <span class="material-symbols-outlined text-[14px]">verified</span>
       <span class="font-label-caps text-label-caps text-[10px]">Verified</span>
     </div>` : '';
-  return `
-  <article data-id="${l.id}" class="listing-card cursor-pointer flex-none bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden">
-    <div class="absolute top-0 left-0 w-full h-1 bg-secondary z-20"></div>
+  const trustBar = l.verified ? `<div class="flex items-center gap-1.5 px-3 py-1.5 bg-tertiary-container/30 border-t border-outline-variant">
+      <span class="material-symbols-outlined text-[14px] text-on-tertiary-container">verified_user</span>
+      <span class="font-label-caps text-label-caps text-[10px] text-on-tertiary-container">Verified by Darwesh Group</span>
+    </div>` : '';
+
+  const imageBlock = hidden ? `
+    <div class="relative h-40 w-full overflow-hidden">
+      <img class="w-full h-full object-cover blur-md scale-110" src="${l.img}"/>
+      <div class="absolute inset-0 bg-primary/55 flex flex-col items-center justify-center gap-1 text-on-primary">
+        <span class="material-symbols-outlined text-[26px]">lock</span>
+        <span class="font-label-caps text-label-caps text-[11px]">Location Hidden</span>
+      </div>
+      <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? 'For Sale' : 'For Rent'}</div>
+    </div>` : `
     <div class="relative h-40 w-full overflow-hidden">
       <img class="w-full h-full object-cover" src="${l.img}"/>
       ${badge}
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? 'For Sale' : 'For Rent'}</div>
-    </div>
+    </div>`;
+
+  const addressLine = hidden
+    ? `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>Approximate area &middot; ${l.city}</p>`
+    : `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${l.address}, ${l.city}</p>`;
+
+  const actions = hidden ? `
+    <div class="flex gap-2 mt-3">
+      <button data-id="${l.id}" class="request-viewing-btn flex-1 border border-outline-variant rounded-full py-1.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">Request Viewing</button>
+      <button data-id="${l.id}" class="reveal-location-btn flex-1 bg-secondary text-on-secondary rounded-full py-1.5 font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors">Exact Location</button>
+    </div>` : `
+    <div class="mt-3">
+      <button data-id="${l.id}" class="request-viewing-btn w-full border border-outline-variant rounded-full py-1.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">Request Viewing</button>
+    </div>`;
+
+  return `
+  <article data-id="${l.id}" class="listing-card${l.id === activeId ? ' active' : ''} cursor-pointer flex-none bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden">
+    <div class="absolute top-0 left-0 w-full h-1 bg-secondary z-20"></div>
+    ${imageBlock}
     <div class="p-3">
-      <p class="font-headline-md text-[18px] text-primary mb-1">${l.priceLabel}</p>
+      <p class="font-headline-md text-[18px] text-primary mb-1">${hidden ? 'Price on request' : l.priceLabel}</p>
       <div class="flex gap-3 mb-2">
         <span class="font-data-mono text-data-mono text-on-surface flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px] text-outline">bed</span>${l.beds}</span>
         <span class="font-data-mono text-data-mono text-on-surface flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px] text-outline">bathtub</span>${l.baths}</span>
         <span class="font-data-mono text-data-mono text-on-surface flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px] text-outline">square_foot</span>${l.sqft}m²</span>
       </div>
-      <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]">
-        <span class="material-symbols-outlined text-[15px]">location_on</span>${l.address}, ${l.city}
-      </p>
+      ${addressLine}
+      ${actions}
     </div>
+    ${trustBar}
   </article>`;
 }
 
@@ -325,10 +432,33 @@ function renderList() {
   const list = filteredListings();
   document.getElementById('cardList').innerHTML = list.map(card).join('');
   document.querySelectorAll('.listing-card').forEach(el => {
-    el.addEventListener('click', () => selectListing(Number(el.dataset.id), false));
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      selectListing(Number(el.dataset.id), false);
+    });
+  });
+  document.querySelectorAll('.request-viewing-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showToast('Viewing request sent — an agent will contact you within 24 hours', 'event_available');
+    });
+  });
+  document.querySelectorAll('.reveal-location-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      revealListing(Number(btn.dataset.id));
+    });
   });
   document.getElementById('resultCount').textContent = `${list.length} homes in Kurdistan Region`;
   document.getElementById('resultCountMobile').textContent = `${list.length} homes found`;
+}
+
+function revealListing(id) {
+  if (revealed.has(id)) return;
+  revealed.add(id);
+  showToast('Exact location unlocked', 'lock_open');
+  refresh();
+  selectListing(id, false);
 }
 
 function selectListing(id, fromMap) {
@@ -387,6 +517,95 @@ viewToggle.addEventListener('click', () => {
     viewToggle.querySelector('.material-symbols-outlined').textContent = 'format_list_bulleted';
     setTimeout(() => map.invalidateSize(), 200);
   }
+});
+
+const drawSearchBtn = document.getElementById('drawSearchBtn');
+const clearSearchAreaBtn = document.getElementById('clearSearchAreaBtn');
+const mapEl = document.getElementById('map');
+
+function setDrawMode(on) {
+  drawMode = on;
+  mapEl.classList.toggle('draw-mode', drawMode);
+  drawSearchBtn.classList.toggle('bg-primary', drawMode);
+  drawSearchBtn.classList.toggle('text-on-primary', drawMode);
+  if (drawMode) {
+    map.dragging.disable();
+    showToast('Drag on the map to draw a search area', 'edit');
+  } else {
+    map.dragging.enable();
+  }
+}
+
+drawSearchBtn.addEventListener('click', () => setDrawMode(!drawMode));
+
+map.on('mousedown', (e) => {
+  if (!drawMode) return;
+  drawStart = e.latlng;
+  if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
+  searchCircle = L.circle(drawStart, {
+    radius: 1,
+    color: '#775a19',
+    weight: 2,
+    dashArray: '6 4',
+    fillColor: '#e9c176',
+    fillOpacity: 0.2
+  }).addTo(map);
+});
+
+map.on('mousemove', (e) => {
+  if (!drawMode || !drawStart || !searchCircle) return;
+  searchCircle.setRadius(drawStart.distanceTo(e.latlng));
+});
+
+map.on('mouseup', () => {
+  if (!drawMode || !drawStart) return;
+  drawStart = null;
+  setDrawMode(false);
+  if (searchCircle && searchCircle.getRadius() < 500) {
+    map.removeLayer(searchCircle);
+    searchCircle = null;
+    showToast('Search area too small — try again', 'close');
+    return;
+  }
+  if (searchCircle) {
+    clearSearchAreaBtn.classList.remove('hidden');
+    showToast('Search area applied', 'check_circle');
+    refresh();
+  }
+});
+
+clearSearchAreaBtn.addEventListener('click', () => {
+  if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
+  clearSearchAreaBtn.classList.add('hidden');
+  showToast('Search area cleared', 'close');
+  refresh();
+});
+
+let myLocationMarker = null;
+document.getElementById('myLocationBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    showToast('Location services are not available on this device', 'location_off');
+    return;
+  }
+  showToast('Finding your location…', 'my_location');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      map.setView([latitude, longitude], 13);
+      if (myLocationMarker) map.removeLayer(myLocationMarker);
+      myLocationMarker = L.marker([latitude, longitude], {
+        icon: L.divIcon({
+          className: '',
+          html: `<div style="width:16px;height:16px;border-radius:999px;background:#4f6073;border:3px solid #fff;box-shadow:0 0 0 4px rgba(79,96,115,0.3);"></div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
+        })
+      }).addTo(map);
+      showToast('Location found', 'check_circle');
+    },
+    () => showToast('Could not access your location — check permissions', 'location_off'),
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
 });
 
 refresh();
