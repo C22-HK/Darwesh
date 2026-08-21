@@ -149,6 +149,82 @@
       transition: transform .15s ease;
     }
     .private-city-badge:hover { transform: scale(1.06); }
+    .map-overlay-controls {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .map-overlay-btn {
+      background: #ffffff;
+      color: #041627;
+      font-family: 'Inter', sans-serif;
+      border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(4,22,39,0.2);
+      border: 1px solid #c4c6cd;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background .2s ease;
+    }
+    .map-overlay-btn:hover { background: #ebeef3; }
+    .map-overlay-btn.active { background: #041627; color: #ffffff; }
+    .map-overlay-btn-labeled { padding: 10px 16px 10px 12px; }
+    .map-overlay-btn-icon { padding: 12px; }
+    .map-overlay-btn .icon { font-size: 20px; }
+    .map-overlay-btn .label { font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; white-space: nowrap; }
+    .map-search-chip {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      z-index: 50;
+      background: #041627;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 8px 12px 8px 16px;
+      border-radius: 999px;
+      box-shadow: 0 2px 8px rgba(4,22,39,0.2);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .mam-ai-widget {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      z-index: 50;
+      background: #ffffff;
+      border: 1px solid #775a19;
+      color: #041627;
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 4px 12px rgba(4,22,39,0.2);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform .15s ease;
+    }
+    .mam-ai-widget:hover { transform: scale(1.05); }
+    .mam-ai-widget-icon {
+      background: #775a19;
+      color: #ffffff;
+      width: 36px; height: 36px;
+      border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+      flex: none;
+    }
     .ai-glow { box-shadow: 0 0 15px rgba(233,193,118,0.4), inset 0 0 10px rgba(233,193,118,0.15); }
     .map-toast {
       position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
@@ -213,24 +289,24 @@
 <div id="mapPanel" class="relative w-full md:w-1/2 lg:w-3/5 h-full order-1 md:order-2">
 <div id="map" class="w-full h-full"></div>
 <!-- Map Overlay Controls -->
-<div class="absolute top-4 right-4 z-50 flex flex-col gap-2 items-end">
-<button id="drawSearchBtn" title="Draw a circle on the map to search a neighborhood" class="bg-surface-container-lowest text-primary pl-3 pr-4 py-2.5 rounded-full shadow-lg hover:bg-surface-container-high transition-all duration-200 border border-outline-variant flex items-center gap-2">
-<span class="material-symbols-outlined text-[20px]">edit</span>
-<span class="font-label-caps text-label-caps">Draw Area</span>
+<div class="map-overlay-controls">
+<button id="drawSearchBtn" title="Draw a circle on the map to search a neighborhood" class="map-overlay-btn map-overlay-btn-labeled">
+<span class="material-symbols-outlined icon">edit</span>
+<span class="label">Draw Area</span>
 </button>
-<button id="myLocationBtn" title="My Location" class="bg-surface-container-lowest text-primary p-3 rounded-full shadow-lg hover:bg-surface-container-high transition-all duration-200 border border-outline-variant flex items-center justify-center">
-<span class="material-symbols-outlined">my_location</span>
+<button id="myLocationBtn" title="My Location" class="map-overlay-btn map-overlay-btn-icon">
+<span class="material-symbols-outlined icon">my_location</span>
 </button>
 </div>
 <!-- Clear Search Area chip -->
-<button id="clearSearchAreaBtn" class="hidden absolute top-4 left-4 z-50 bg-primary text-on-primary pl-4 pr-3 py-2 rounded-full shadow-lg flex items-center gap-2 font-label-caps text-label-caps">
+<button id="clearSearchAreaBtn" class="map-search-chip" style="display:none;">
 <span>Search Area Active</span>
-<span class="material-symbols-outlined text-[18px]">close</span>
+<span class="material-symbols-outlined" style="font-size:18px;">close</span>
 </button>
 <!-- Floating MAM AI Assistant -->
-<a href="mam-ai.html" id="mamAiWidget" class="ai-glow absolute bottom-4 right-4 z-50 bg-surface-container-lowest border border-secondary text-primary rounded-2xl p-3 md:p-4 shadow-lg flex items-center gap-3 hover:scale-105 transition-transform bg-opacity-95">
-<div class="bg-secondary text-on-secondary w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center flex-none">
-<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+<a href="mam-ai.html" id="mamAiWidget" class="ai-glow mam-ai-widget">
+<div class="mam-ai-widget-icon">
+<span class="material-symbols-outlined" style="font-size:20px;">smart_toy</span>
 </div>
 <div class="text-left hidden md:block">
 <p class="font-label-caps text-label-caps text-secondary font-bold">MAM AI Assistant</p>
@@ -573,8 +649,7 @@ const mapEl = document.getElementById('map');
 function setDrawMode(on) {
   drawMode = on;
   mapEl.classList.toggle('draw-mode', drawMode);
-  drawSearchBtn.classList.toggle('bg-primary', drawMode);
-  drawSearchBtn.classList.toggle('text-on-primary', drawMode);
+  drawSearchBtn.classList.toggle('active', drawMode);
   if (drawMode) {
     map.dragging.disable();
     showToast('Drag on the map to draw a search area', 'edit');
@@ -615,7 +690,7 @@ map.on('mouseup', () => {
     return;
   }
   if (searchCircle) {
-    clearSearchAreaBtn.classList.remove('hidden');
+    clearSearchAreaBtn.style.display = 'flex';
     showToast('Search area applied', 'check_circle');
     refresh();
   }
@@ -623,7 +698,7 @@ map.on('mouseup', () => {
 
 clearSearchAreaBtn.addEventListener('click', () => {
   if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
-  clearSearchAreaBtn.classList.add('hidden');
+  clearSearchAreaBtn.style.display = 'none';
   showToast('Search area cleared', 'close');
   refresh();
 });
