@@ -316,11 +316,15 @@ function showToast(msg, icon) {
 let activeType = "sale";
 let activeId = null;
 let markers = {};
-const map = L.map('map', { zoomControl: false }).setView([36.35, 44.3], 8);
+// Capped well below street/building level (OSM building outlines
+// typically render from z16+) so no one can zoom in far enough to make
+// out an individual property, private listing or not.
+const MAX_MAP_ZOOM = 15;
+const map = L.map('map', { zoomControl: false, maxZoom: MAX_MAP_ZOOM }).setView([36.35, 44.3], 8);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 18
+  maxZoom: MAX_MAP_ZOOM
 }).addTo(map);
 
 function isPrivateHidden(l) {
