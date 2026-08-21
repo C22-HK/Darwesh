@@ -133,15 +133,6 @@
     }
     .leaflet-container { font-family: 'Inter', sans-serif; cursor: default; }
     .leaflet-container.draw-mode { cursor: crosshair; }
-    .lock-marker {
-      width: 26px; height: 26px;
-      border-radius: 999px;
-      background: #041627;
-      display: flex; align-items: center; justify-content: center;
-      color: #fff;
-      box-shadow: 0 2px 6px rgba(4,22,39,0.35);
-      cursor: pointer;
-    }
     .ai-glow { box-shadow: 0 0 15px rgba(233,193,118,0.4), inset 0 0 10px rgba(233,193,118,0.15); }
     .map-toast {
       position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
@@ -331,29 +322,6 @@ function isPrivateHidden(l) {
   return !!l.private && !revealed.has(l.id);
 }
 
-// Fixed real-world radius (meters), so the shaded area covers the same
-// ground distance at any zoom level — zooming in never narrows in on
-// the exact building, only makes the covered area look bigger on screen.
-const PRIVACY_RADIUS_M = 350;
-
-function approxCenter(l) {
-  // Deterministic pseudo-random offset (250-450m, any direction) derived
-  // from the listing id, so the circle shown never sits on the real point
-  // and stays stable across re-renders.
-  const seed = (l.id * 9301 + 49297) % 233280;
-  const angle = (seed % 360) * Math.PI / 180;
-  const dist = 250 + (seed % 200);
-  const R = 6371000;
-  const lat1 = l.lat * Math.PI / 180;
-  const lng1 = l.lng * Math.PI / 180;
-  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dist / R) + Math.cos(lat1) * Math.sin(dist / R) * Math.cos(angle));
-  const lng2 = lng1 + Math.atan2(
-    Math.sin(angle) * Math.sin(dist / R) * Math.cos(lat1),
-    Math.cos(dist / R) - Math.sin(lat1) * Math.sin(lat2)
-  );
-  return { lat: lat2 * 180 / Math.PI, lng: lng2 * 180 / Math.PI };
-}
-
 function priceIcon(listing, active) {
   return L.divIcon({
     className: '',
@@ -367,36 +335,15 @@ function buildMarkers() {
   Object.values(markers).forEach(m => map.removeLayer(m));
   markers = {};
   LISTINGS.forEach(l => {
-    if (isPrivateHidden(l)) {
-      const center = approxCenter(l);
-      const circle = L.circle([center.lat, center.lng], {
-        radius: PRIVACY_RADIUS_M,
-        color: '#041627',
-        weight: 2,
-        dashArray: '6 4',
-        fillColor: '#041627',
-        fillOpacity: 0.08
-      });
-      const lock = L.marker([center.lat, center.lng], {
-        icon: L.divIcon({
-          className: '',
-          html: `<div class="lock-marker"><span class="material-symbols-outlined text-[14px]">lock</span></div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13]
-        })
-      });
-      const group = L.layerGroup([circle, lock]);
-      group.on('click', () => selectListing(l.id, true));
-      circle.on('click', () => selectListing(l.id, true));
-      lock.on('click', () => selectListing(l.id, true));
-      group.addTo(map);
-      markers[l.id] = group;
-    } else {
-      const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
-      marker.on('click', () => selectListing(l.id, true));
-      marker.addTo(map);
-      markers[l.id] = marker;
-    }
+    // Private listings that haven't been revealed get nothing on the map
+    // at all — no pin, no circle, no marker of any kind — so there is
+    // nothing to look at or click on to find where they are. They only
+    // exist in the card list until "Request Exact Location" is used.
+    if (isPrivateHidden(l)) return;
+    const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
+    marker.on('click', () => selectListing(l.id, true));
+    marker.addTo(map);
+    markers[l.id] = marker;
   });
 }
 
@@ -512,8 +459,11 @@ function selectListing(id, fromMap) {
     marker.setIcon(priceIcon(listing, Number(mid) === id));
   });
   if (l) {
-    const target = isPrivateHidden(l) ? approxCenter(l) : l;
-    map.panTo([target.lat, target.lng]);
+    // Never move the camera toward a hidden private listing's real
+    // coordinates — the map simply doesn't react to it until revealed.
+    if (!isPrivateHidden(l)) {
+      map.panTo([l.lat, l.lng]);
+    }
     if (!fromMap) {
       const cardEl = document.querySelector(`.listing-card[data-id="${id}"]`);
       if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
