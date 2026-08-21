@@ -384,6 +384,22 @@ const LISTINGS = [
   { id:10, city:"Koya", address:"New Development, Block C", lat:36.0781, lng:44.6222, type:"rent", price:500, priceLabel:"$500/mo", beds:2, baths:1, sqft:95, img:IMAGES[2], verified:false }
 ];
 
+// Merge in listings added via the Admin dashboard (localStorage) — only
+// visible on this same device/browser, since this site has no backend.
+(function mergeAdminListings() {
+  let admin = [];
+  try { admin = JSON.parse(localStorage.getItem('darwesh_admin_listings') || '[]'); } catch (e) { admin = []; }
+  admin.forEach(a => {
+    LISTINGS.push({
+      id: a.id, city: a.city, address: a.address, lat: a.lat, lng: a.lng,
+      type: a.dealType, price: a.price,
+      priceLabel: a.dealType === 'rent' ? ('$' + a.price.toLocaleString() + '/mo') : ('$' + a.price.toLocaleString()),
+      beds: a.beds, baths: a.baths, sqft: a.sqft, img: a.img || IMAGES[0],
+      verified: !!a.verified, private: !!a.private
+    });
+  });
+})();
+
 const revealed = new Set();
 let searchCircle = null;
 let drawMode = false;

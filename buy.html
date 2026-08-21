@@ -212,6 +212,20 @@ const LISTINGS = [
   { id:8, title:"Heritage Renovated Home", city:"Erbil", address:"Old Bazaar Quarter", type:"apartment", price:198000, beds:3, baths:2, sqft:170, img:IMAGES.renovated, verified:false }
 ];
 
+// Merge in for-sale listings added via the Admin dashboard (localStorage)
+// — only visible on this same device/browser, since this site has no backend.
+(function mergeAdminListings() {
+  let admin = [];
+  try { admin = JSON.parse(localStorage.getItem('darwesh_admin_listings') || '[]'); } catch (e) { admin = []; }
+  admin.filter(a => a.dealType === 'sale').forEach(a => {
+    LISTINGS.push({
+      id: a.id, title: a.title, city: a.city, address: a.address, type: a.propertyType,
+      price: a.price, beds: a.beds, baths: a.baths, sqft: a.sqft,
+      img: a.img || IMAGES[a.propertyType] || IMAGES.villa, verified: !!a.verified
+    });
+  });
+})();
+
 function fmtPrice(p) { return "$" + p.toLocaleString(); }
 
 function card(l) {

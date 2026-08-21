@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Darwesh Group - Admin</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f7f9ff",
+                        "on-secondary-fixed-variant": "#5d4201",
+                        "secondary": "#775a19",
+                        "on-secondary-fixed": "#261900",
+                        "on-primary-fixed": "#0b1d2d",
+                        "primary": "#041627",
+                        "error": "#ba1a1a",
+                        "inverse-primary": "#b7c8de",
+                        "surface-container-low": "#f1f4f9",
+                        "on-primary-fixed-variant": "#38485a",
+                        "tertiary-fixed": "#6bfe9c",
+                        "surface-variant": "#e0e3e8",
+                        "on-tertiary-fixed": "#00210c",
+                        "primary-fixed": "#d2e4fb",
+                        "on-primary": "#ffffff",
+                        "surface": "#f7f9ff",
+                        "surface-container-high": "#e5e8ee",
+                        "inverse-surface": "#2d3135",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#eef1f6",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c4c6cd",
+                        "outline": "#74777d",
+                        "primary-container": "#1a2b3c",
+                        "tertiary-container": "#003115",
+                        "tertiary-fixed-dim": "#4ae183",
+                        "primary-fixed-dim": "#b7c8de",
+                        "secondary-container": "#fed488",
+                        "secondary-fixed-dim": "#e9c176",
+                        "secondary-fixed": "#ffdea5",
+                        "surface-dim": "#d7dadf",
+                        "tertiary": "#001a08",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#181c20",
+                        "surface-container-highest": "#e0e3e8",
+                        "on-tertiary-container": "#00a656",
+                        "on-primary-container": "#8192a7",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#005228",
+                        "on-surface-variant": "#44474c",
+                        "surface-tint": "#4f6073",
+                        "on-secondary-container": "#785a1a",
+                        "surface-container": "#ebeef3",
+                        "background": "#f7f9ff",
+                        "on-surface": "#181c20"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "stack-lg": "32px",
+                        "stack-md": "16px",
+                        "margin-desktop": "48px",
+                        "stack-sm": "8px",
+                        "container-max": "1280px",
+                        "margin-mobile": "16px",
+                        "unit": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "label-caps": ["IBM Plex Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "data-mono": ["Inter"],
+                        "display-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { min-height: max(884px, 100dvh); }
+    #adminPinMap { background: #e5e8ee; }
+
+    .admin-tab {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #44474c;
+      padding: 12px 4px;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      background: none;
+      border-left: none; border-right: none; border-top: none;
+      margin-right: 28px;
+    }
+    .admin-tab.active { color: #041627; border-bottom-color: #775a19; }
+    .admin-tab-panel { display: none; }
+    .admin-tab-panel.active { display: block; }
+
+    .local-notice {
+      background: #fef6e6;
+      border: 1px solid #e9c176;
+      border-radius: 10px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: #5d4201;
+    }
+
+    .stat-mini { background: #ffffff; border: 1px solid #e5e8ee; border-radius: 10px; padding: 14px; }
+    .stat-mini .label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #44474c; }
+    .stat-mini .value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 700; color: #181c20; }
+
+    .admin-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13.5px; }
+    .admin-table th, .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e8ee; vertical-align: middle; }
+    .admin-table th { color: #44474c; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .admin-table td { color: #181c20; }
+    .admin-table tbody tr:hover { background: #f7f9ff; }
+
+    .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .badge-sale { background: #d2e4fb; color: #0b1d2d; }
+    .badge-rent { background: #fed488; color: #5d4201; }
+    .badge-verified { background: #003115; color: #4ae183; }
+    .badge-private { background: #e5e8ee; color: #44474c; }
+
+    .icon-btn { padding: 6px; border-radius: 8px; cursor: pointer; color: #44474c; background: none; border: none; }
+    .icon-btn:hover { background: #ebeef3; }
+    .icon-btn.danger:hover { background: #ffdad6; color: #ba1a1a; }
+
+    .admin-input {
+      width: 100%;
+      border: 1px solid #c4c6cd;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: #181c20;
+      background: #ffffff;
+    }
+    .admin-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
+    .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
+
+<!-- Password gate -->
+<div id="authGate" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(4,22,39,0.96);">
+  <div class="bg-surface-container-lowest rounded-xl shadow-lg p-8 max-w-sm w-full">
+    <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center mb-4">
+      <span class="material-symbols-outlined text-on-primary">admin_panel_settings</span>
+    </div>
+    <p class="font-headline-md text-headline-md text-primary mb-1">Admin Access</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mb-5">This area is for Darwesh Group staff only. Enter the admin password to continue.</p>
+    <label class="admin-label" for="authPassword">Password</label>
+    <input id="authPassword" type="password" class="admin-input mb-2" placeholder="••••••••" autocomplete="off"/>
+    <p id="authError" class="text-error text-[13px] mb-3 hidden">Incorrect password — try again.</p>
+    <button id="authSubmit" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors mt-2" type="button">Enter Dashboard</button>
+    <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary">Back to site</a>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="adminContent" class="hidden pb-16">
+  <header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
+      <span class="font-headline-md text-[20px] text-primary font-bold">Darwesh Admin</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="index.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline">Back to site</a>
+      <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-6">
+    <div class="local-notice mb-6">
+      <span class="material-symbols-outlined" style="font-size:18px;">info</span>
+      <span>This is a static, no-backend site — everything below is saved only in <strong>this browser, on this device</strong>. It won't show scans, listings, or activity from other devices unless you added them here. See the note at the bottom of each section.</span>
+    </div>
+
+    <div class="flex border-b border-outline-variant mb-6">
+      <button class="admin-tab active" data-tab="scanlog" type="button">Scan Log</button>
+      <button class="admin-tab" data-tab="market" type="button">Market Overview</button>
+      <button class="admin-tab" data-tab="listings" type="button">Listings</button>
+    </div>
+
+    <!-- TAB: Scan Log -->
+    <section id="tab-scanlog" class="admin-tab-panel active">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="stat-mini"><p class="label">Total scans</p><p class="value" id="statTotalScans">0</p></div>
+        <div class="stat-mini"><p class="label">Unique agents</p><p class="value" id="statUniqueAgents">0</p></div>
+        <div class="stat-mini"><p class="label">Most recent</p><p class="value" id="statLastScan" style="font-size:15px;">—</p></div>
+        <div class="stat-mini"><p class="label">Top agent</p><p class="value" id="statTopAgent" style="font-size:15px;">—</p></div>
+      </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th>Agent</th><th>Agent ID</th><th>Scanned at</th></tr></thead>
+            <tbody id="scanLogBody"></tbody>
+          </table>
+        </div>
+        <p id="scanLogEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">No scans recorded on this device yet. Scans happen when an agent checks in on the discount QR page (promo.html).</p>
+      </div>
+      <div class="flex justify-end mt-3">
+        <button id="clearScanLogBtn" class="font-label-caps text-label-caps text-error hover:underline" type="button">Clear this device's log</button>
+      </div>
+    </section>
+
+    <!-- TAB: Market Overview -->
+    <section id="tab-market" class="admin-tab-panel">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div class="stat-mini"><p class="label">Active listings</p><p class="value" id="mktListings">—</p></div>
+        <div class="stat-mini"><p class="label">Avg. sale price</p><p class="value" id="mktSale">—</p></div>
+        <div class="stat-mini"><p class="label">Avg. monthly rent</p><p class="value" id="mktRent">—</p></div>
+        <div class="stat-mini"><p class="label">Price trend</p><p class="value" style="color:#006300;" id="mktTrend">—</p></div>
+      </div>
+      <p class="font-body-md text-[13px] text-on-surface-variant mb-4">Condensed from the same aggregated market figures shown publicly on Market Insights — illustrative estimates, not a live feed.</p>
+      <a href="insights.html" class="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
+        <span class="material-symbols-outlined" style="font-size:18px;">bar_chart</span>View Full Market Insights
+      </a>
+    </section>
+
+    <!-- TAB: Listings -->
+    <section id="tab-listings" class="admin-tab-panel">
+      <div class="local-notice mb-5">
+        <span class="material-symbols-outlined" style="font-size:18px;">info</span>
+        <span>Listings you add here will show up on the <strong>Map</strong> and <strong>Buy</strong> pages, but only when viewed <strong>from this same browser</strong> — visitors on other devices won't see them until the site has a backend to sync data. Good for previewing how a listing will look before you add it for real.</span>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <!-- Form -->
+        <form id="listingForm" class="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 h-fit">
+          <p class="font-headline-md text-[17px] text-primary mb-4" id="formTitle">Add a Listing</p>
+          <input type="hidden" id="editingId" value=""/>
+
+          <div class="mb-3">
+            <label class="admin-label" for="fTitle">Title</label>
+            <input id="fTitle" class="admin-input" placeholder="e.g. Italian Village Villa 12" required/>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="admin-label" for="fCity">City</label>
+              <select id="fCity" class="admin-input">
+                <option>Erbil</option><option>Sulaymaniyah</option><option>Duhok</option>
+                <option>Soran</option><option>Zakho</option><option>Koya</option>
+              </select>
+            </div>
+            <div>
+              <label class="admin-label" for="fDealType">Deal type</label>
+              <select id="fDealType" class="admin-input">
+                <option value="sale">For Sale</option>
+                <option value="rent">For Rent</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="admin-label" for="fAddress">Address</label>
+            <input id="fAddress" class="admin-input" placeholder="e.g. Italian Village, Villa 12" required/>
+          </div>
+
+          <div class="mb-3">
+            <label class="admin-label">Pin exact location (click the map)</label>
+            <div class="rounded-lg overflow-hidden border border-outline-variant h-40" id="adminPinMap"></div>
+            <p class="font-data-mono text-data-mono text-[11px] text-on-surface-variant mt-1" id="pinReadout">No location pinned yet</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="admin-label" for="fPropertyType">Property type</label>
+              <select id="fPropertyType" class="admin-input">
+                <option value="villa">Villa</option>
+                <option value="apartment">Apartment</option>
+                <option value="office">Office</option>
+                <option value="land">Land</option>
+              </select>
+            </div>
+            <div>
+              <label class="admin-label" id="priceLabel" for="fPrice">Price (USD)</label>
+              <input id="fPrice" type="number" min="0" class="admin-input" placeholder="250000" required/>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3 mb-3">
+            <div><label class="admin-label" for="fBeds">Beds</label><input id="fBeds" type="number" min="0" class="admin-input" value="3"/></div>
+            <div><label class="admin-label" for="fBaths">Baths</label><input id="fBaths" type="number" min="0" class="admin-input" value="2"/></div>
+            <div><label class="admin-label" for="fSqft">m²</label><input id="fSqft" type="number" min="0" class="admin-input" value="150"/></div>
+          </div>
+
+          <div class="mb-3">
+            <label class="admin-label" for="fImg">Photo URL (optional)</label>
+            <input id="fImg" class="admin-input" placeholder="https://..."/>
+          </div>
+
+          <div class="flex items-center gap-5 mb-5">
+            <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fVerified" type="checkbox" class="rounded"/>Verified</label>
+            <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fPrivate" type="checkbox" class="rounded"/>Private (hide exact location)</label>
+          </div>
+
+          <p id="formError" class="text-error text-[13px] mb-3 hidden">Please pin a location on the map and fill in the required fields.</p>
+
+          <div class="flex gap-2">
+            <button type="submit" id="formSubmitBtn" class="flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors">Add Listing</button>
+            <button type="button" id="formCancelBtn" class="hidden px-4 py-2.5 border border-outline-variant rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">Cancel</button>
+          </div>
+        </form>
+
+        <!-- List -->
+        <div class="lg:col-span-3">
+          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead><tr><th>Listing</th><th>Type</th><th>Price</th><th>Flags</th><th></th></tr></thead>
+                <tbody id="listingsBody"></tbody>
+              </table>
+            </div>
+            <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">No listings added on this device yet. Use the form to add one — it'll appear on Map and Buy when you view them here.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// ---------------------------------------------------------------------
+// Auth (client-side only — a deterrent, not real security; the real
+// fix is a backend. Change this password before sharing the URL.)
+// ---------------------------------------------------------------------
+const ADMIN_PASSWORD = 'darwesh-admin-2026';
+const AUTH_KEY = 'darwesh_admin_authed';
+
+function showDashboard() {
+  document.getElementById('authGate').classList.add('hidden');
+  document.getElementById('adminContent').classList.remove('hidden');
+  initDashboard();
+}
+
+document.getElementById('authSubmit').addEventListener('click', () => {
+  const val = document.getElementById('authPassword').value;
+  if (val === ADMIN_PASSWORD) {
+    sessionStorage.setItem(AUTH_KEY, '1');
+    showDashboard();
+  } else {
+    document.getElementById('authError').classList.remove('hidden');
+  }
+});
+document.getElementById('authPassword').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('authSubmit').click();
+});
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  sessionStorage.removeItem(AUTH_KEY);
+  location.reload();
+});
+
+if (sessionStorage.getItem(AUTH_KEY) === '1') showDashboard();
+
+// ---------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------
+document.querySelectorAll('.admin-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'listings') setTimeout(() => { if (window.adminPinMap) window.adminPinMap.invalidateSize(); }, 50);
+  });
+});
+
+function initDashboard() {
+  renderScanLog();
+  renderMarketOverview();
+  initListingsTab();
+}
+
+// ---------------------------------------------------------------------
+// Scan Log tab
+// ---------------------------------------------------------------------
+const SCAN_LOG_KEY = 'darwesh_agent_scan_log';
+
+function loadScanLog() {
+  try { return JSON.parse(localStorage.getItem(SCAN_LOG_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+
+function renderScanLog() {
+  const log = loadScanLog();
+  const body = document.getElementById('scanLogBody');
+  const empty = document.getElementById('scanLogEmpty');
+
+  document.getElementById('statTotalScans').textContent = log.length;
+  const uniqueAgents = new Set(log.map(e => e.id));
+  document.getElementById('statUniqueAgents').textContent = uniqueAgents.size;
+  document.getElementById('statLastScan').textContent = log.length ? log[log.length - 1].time : '—';
+
+  if (log.length) {
+    const counts = {};
+    log.forEach(e => { counts[e.name] = (counts[e.name] || 0) + 1; });
+    const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    document.getElementById('statTopAgent').textContent = top[0];
+  } else {
+    document.getElementById('statTopAgent').textContent = '—';
+  }
+
+  if (log.length === 0) {
+    body.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  body.innerHTML = log.slice().reverse().map(e => `
+    <tr>
+      <td>${e.name}</td>
+      <td class="font-data-mono text-data-mono">${e.id}</td>
+      <td>${e.time}</td>
+    </tr>
+  `).join('');
+}
+
+document.getElementById('clearScanLogBtn').addEventListener('click', () => {
+  if (!confirm('Clear the scan log saved on this device? This cannot be undone.')) return;
+  localStorage.removeItem(SCAN_LOG_KEY);
+  renderScanLog();
+});
+
+// ---------------------------------------------------------------------
+// Market Overview tab (same figures as insights.html, condensed)
+// ---------------------------------------------------------------------
+const CITY_STATS = [
+  { city: "Erbil",         saleAvg: 295000, saleCount: 42, rentAvg: 950,  rentCount: 28 },
+  { city: "Sulaymaniyah",  saleAvg: 178000, saleCount: 25, rentAvg: 1150, rentCount: 19 },
+  { city: "Duhok",         saleAvg: 268000, saleCount: 18, rentAvg: 680,  rentCount: 14 },
+  { city: "Soran",         saleAvg: 310000, saleCount: 12, rentAvg: 520,  rentCount: 6  },
+  { city: "Zakho",         saleAvg: 142000, saleCount: 9,  rentAvg: 480,  rentCount: 5  },
+  { city: "Koya",          saleAvg: 118000, saleCount: 7,  rentAvg: 500,  rentCount: 9  }
+];
+const TREND_VALUES = [205000,208000,210000,212000,215000,218000,220000,224000,227000,230000,233000,236000];
+
+function fmtUSD(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
+
+function renderMarketOverview() {
+  let saleSum = 0, saleCount = 0, rentSum = 0, rentCount = 0;
+  CITY_STATS.forEach(c => {
+    saleSum += c.saleAvg * c.saleCount; saleCount += c.saleCount;
+    rentSum += c.rentAvg * c.rentCount; rentCount += c.rentCount;
+  });
+  document.getElementById('mktListings').textContent = (saleCount + rentCount).toLocaleString();
+  document.getElementById('mktSale').textContent = fmtUSD(saleSum / saleCount);
+  document.getElementById('mktRent').textContent = fmtUSD(rentSum / rentCount) + '/mo';
+  const yoy = ((TREND_VALUES[TREND_VALUES.length - 1] - TREND_VALUES[0]) / TREND_VALUES[0]) * 100;
+  document.getElementById('mktTrend').textContent = '+' + yoy.toFixed(1) + '% YoY';
+}
+
+// ---------------------------------------------------------------------
+// Listings tab — CRUD backed by localStorage, merged into Map/Buy
+// on this same device (see map.html / buy.html for the merge code)
+// ---------------------------------------------------------------------
+const ADMIN_LISTINGS_KEY = 'darwesh_admin_listings';
+
+function loadAdminListings() {
+  try { return JSON.parse(localStorage.getItem(ADMIN_LISTINGS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function saveAdminListings(list) {
+  localStorage.setItem(ADMIN_LISTINGS_KEY, JSON.stringify(list));
+}
+
+let adminPinMap, adminPinMarker, pinLat = null, pinLng = null;
+
+function initListingsTab() {
+  adminPinMap = L.map('adminPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+  window.adminPinMap = adminPinMap;
+  L.control.zoom({ position: 'bottomright' }).addTo(adminPinMap);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
+  }).addTo(adminPinMap);
+  adminPinMap.on('click', (e) => setAdminPin(e.latlng.lat, e.latlng.lng));
+  setTimeout(() => adminPinMap.invalidateSize(), 100);
+
+  document.getElementById('fDealType').addEventListener('change', (e) => {
+    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? 'Monthly rent (USD)' : 'Price (USD)';
+  });
+
+  document.getElementById('listingForm').addEventListener('submit', onListingFormSubmit);
+  document.getElementById('formCancelBtn').addEventListener('click', resetListingForm);
+
+  renderListingsTable();
+}
+
+function setAdminPin(lat, lng) {
+  pinLat = lat; pinLng = lng;
+  if (adminPinMarker) { adminPinMarker.setLatLng([lat, lng]); }
+  else { adminPinMarker = L.marker([lat, lng]).addTo(adminPinMap); }
+  document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+function resetListingForm() {
+  document.getElementById('listingForm').reset();
+  document.getElementById('editingId').value = '';
+  document.getElementById('formTitle').textContent = 'Add a Listing';
+  document.getElementById('formSubmitBtn').textContent = 'Add Listing';
+  document.getElementById('formCancelBtn').classList.add('hidden');
+  document.getElementById('formError').classList.add('hidden');
+  document.getElementById('priceLabel').textContent = 'Price (USD)';
+  pinLat = null; pinLng = null;
+  document.getElementById('pinReadout').textContent = 'No location pinned yet';
+  if (adminPinMarker) { adminPinMap.removeLayer(adminPinMarker); adminPinMarker = null; }
+}
+
+function onListingFormSubmit(e) {
+  e.preventDefault();
+  const title = document.getElementById('fTitle').value.trim();
+  const address = document.getElementById('fAddress').value.trim();
+  const price = Number(document.getElementById('fPrice').value);
+
+  if (!title || !address || !price || pinLat === null || pinLng === null) {
+    document.getElementById('formError').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('formError').classList.add('hidden');
+
+  const editingId = document.getElementById('editingId').value;
+  const list = loadAdminListings();
+
+  const entry = {
+    id: editingId || ('admin-' + Date.now()),
+    title,
+    city: document.getElementById('fCity').value,
+    address,
+    lat: pinLat, lng: pinLng,
+    dealType: document.getElementById('fDealType').value,
+    propertyType: document.getElementById('fPropertyType').value,
+    price,
+    beds: Number(document.getElementById('fBeds').value) || 0,
+    baths: Number(document.getElementById('fBaths').value) || 0,
+    sqft: Number(document.getElementById('fSqft').value) || 0,
+    img: document.getElementById('fImg').value.trim(),
+    verified: document.getElementById('fVerified').checked,
+    private: document.getElementById('fPrivate').checked
+  };
+
+  if (editingId) {
+    const idx = list.findIndex(l => l.id === editingId);
+    if (idx > -1) list[idx] = entry; else list.push(entry);
+  } else {
+    list.push(entry);
+  }
+  saveAdminListings(list);
+  resetListingForm();
+  renderListingsTable();
+}
+
+function editListing(id) {
+  const list = loadAdminListings();
+  const l = list.find(x => x.id === id);
+  if (!l) return;
+  document.getElementById('editingId').value = l.id;
+  document.getElementById('fTitle').value = l.title;
+  document.getElementById('fCity').value = l.city;
+  document.getElementById('fAddress').value = l.address;
+  document.getElementById('fDealType').value = l.dealType;
+  document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? 'Monthly rent (USD)' : 'Price (USD)';
+  document.getElementById('fPropertyType').value = l.propertyType;
+  document.getElementById('fPrice').value = l.price;
+  document.getElementById('fBeds').value = l.beds;
+  document.getElementById('fBaths').value = l.baths;
+  document.getElementById('fSqft').value = l.sqft;
+  document.getElementById('fImg').value = l.img || '';
+  document.getElementById('fVerified').checked = !!l.verified;
+  document.getElementById('fPrivate').checked = !!l.private;
+  setAdminPin(l.lat, l.lng);
+  adminPinMap.setView([l.lat, l.lng], 13);
+
+  document.getElementById('formTitle').textContent = 'Edit Listing';
+  document.getElementById('formSubmitBtn').textContent = 'Update Listing';
+  document.getElementById('formCancelBtn').classList.remove('hidden');
+  document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function deleteListing(id) {
+  if (!confirm('Delete this listing from this device?')) return;
+  const list = loadAdminListings().filter(l => l.id !== id);
+  saveAdminListings(list);
+  renderListingsTable();
+}
+
+function renderListingsTable() {
+  const list = loadAdminListings();
+  const body = document.getElementById('listingsBody');
+  const empty = document.getElementById('listingsEmpty');
+  if (list.length === 0) {
+    body.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  body.innerHTML = list.slice().reverse().map(l => `
+    <tr>
+      <td>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
+        <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+      </td>
+      <td>
+        <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? 'For Sale' : 'For Rent'}</span>
+        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+      </td>
+      <td>$${l.price.toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
+      <td>
+        ${l.verified ? '<span class="badge badge-verified">Verified</span>' : ''}
+        ${l.private ? '<span class="badge badge-private">Private</span>' : ''}
+      </td>
+      <td>
+        <button class="icon-btn" onclick="editListing('${l.id}')" title="Edit" type="button"><span class="material-symbols-outlined" style="font-size:18px;">edit</span></button>
+        <button class="icon-btn danger" onclick="deleteListing('${l.id}')" title="Delete" type="button"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>
+      </td>
+    </tr>
+  `).join('');
+}
+</script>
+</body></html>
