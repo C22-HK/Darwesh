@@ -7,6 +7,8 @@
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
@@ -102,6 +104,8 @@
 <style>
     body { min-height: max(884px, 100dvh); }
     input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #775a19; border-color: transparent; }
+    #pinMap { background: #e5e8ee; }
+    .dropzone.drag-over { background: #f1f4f9; border-color: #775a19; }
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
@@ -140,6 +144,17 @@
 <div class="grid grid-cols-1 md:grid-cols-12 gap-stack-lg pb-stack-lg">
 <!-- Listing Form -->
 <div class="md:col-span-8">
+<!-- Draft Restore Banner -->
+<div class="hidden mb-4 bg-secondary-container/40 border border-secondary/40 rounded-xl px-4 py-3 flex items-center justify-between gap-3" id="draftBanner">
+<p class="font-body-md text-body-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[18px]">history</span>
+                    You have a saved draft.
+                </p>
+<div class="flex gap-2 flex-none">
+<button class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors" id="restoreDraftBtn" type="button">Restore</button>
+<button class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" id="discardDraftBtn" type="button">Discard</button>
+</div>
+</div>
 <form class="bg-surface-container-lowest rounded-2xl shadow-[0_4px_20px_rgba(26,43,60,0.05)] border border-outline-variant overflow-hidden" id="sellForm">
 <div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
 <h2 class="font-headline-md text-headline-md font-bold text-primary">Property Details</h2>
@@ -147,11 +162,11 @@
 <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div class="sm:col-span-2">
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Property Title</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" placeholder="e.g. Modern Villa in Italian Village" required="" type="text"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="titleInput" placeholder="e.g. Modern Villa in Italian Village" required="" type="text"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Property Type</label>
-<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" required="">
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="typeSelect" required="">
 <option value="">Select type</option>
 <option value="villa">Villa</option>
 <option value="apartment">Apartment</option>
@@ -162,14 +177,14 @@
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Listing Type</label>
-<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" required="">
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="listingTypeSelect" required="">
 <option value="sale">For Sale</option>
 <option value="rent">For Rent</option>
 </select>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">City</label>
-<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" required="">
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="citySelect" required="">
 <option value="">Select city</option>
 <option>Erbil</option>
 <option>Sulaymaniyah</option>
@@ -182,33 +197,43 @@
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Neighborhood / Address</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" placeholder="e.g. Italian Village" type="text"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="addressInput" placeholder="e.g. Italian Village" type="text"/>
+</div>
+<div class="sm:col-span-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant flex items-center justify-between mb-2">
+<span>Pin Exact Location</span>
+<span class="font-body-md text-body-md text-on-surface-variant text-sm font-normal" id="pinReadout">Click the map to drop a pin</span>
+</label>
+<div class="rounded-lg overflow-hidden border border-outline-variant h-48" id="pinMap"></div>
+<input id="pinLat" type="hidden"/>
+<input id="pinLng" type="hidden"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Asking Price (USD)</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" min="0" placeholder="e.g. 250000" required="" type="number"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="priceInput" min="0" placeholder="e.g. 250000" required="" type="number"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Size (m²)</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" min="0" placeholder="e.g. 220" type="number"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="sizeInput" min="0" placeholder="e.g. 220" type="number"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Bedrooms</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" min="0" type="number"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="bedsInput" min="0" type="number"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Bathrooms</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" min="0" type="number"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="bathsInput" min="0" type="number"/>
 </div>
 <div class="sm:col-span-2">
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Description</label>
-<textarea class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" placeholder="Describe the property, its condition, and standout features..." rows="4"></textarea>
+<textarea class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="descriptionInput" placeholder="Describe the property, its condition, and standout features..." rows="4"></textarea>
 </div>
 <div class="sm:col-span-2">
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Photos</label>
-<label class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline-variant rounded-lg py-8 cursor-pointer hover:bg-surface-container-low transition-colors" for="photoUpload">
-<span class="material-symbols-outlined text-outline text-3xl">add_photo_alternate</span>
-<span id="photoLabel" class="font-body-md text-body-md text-on-surface-variant">Click to upload property photos</span>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2">Photos &amp; Floor Plans</label>
+<label class="dropzone flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline-variant rounded-lg py-8 cursor-pointer hover:bg-surface-container-low transition-colors" for="photoUpload" id="dropzone">
+<span class="material-symbols-outlined text-outline text-3xl">upload_file</span>
+<span id="photoLabel" class="font-body-md text-body-md text-on-surface font-bold">Upload Photos &amp; Floor Plans</span>
+<span class="font-body-md text-body-md text-on-surface-variant text-sm">Drag and drop or click to browse</span>
 <input accept="image/*" class="hidden" id="photoUpload" multiple="" type="file"/>
 </label>
 </div>
@@ -230,13 +255,17 @@
 <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" required="" type="email"/>
 </div>
 </div>
-<div class="p-6 pt-0">
-<button class="w-full bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" type="submit">
-<span class="material-symbols-outlined text-[18px]">send</span>
-                    Submit Listing
+<div class="p-6 pt-0 flex flex-col sm:flex-row gap-3">
+<button class="sm:w-48 flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="saveDraftBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                    Save Draft
                 </button>
-<p class="font-body-md text-body-md text-on-surface-variant text-center mt-3 text-sm">A Darwesh Group agent will review your listing and contact you within 24 hours.</p>
+<button class="flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" type="submit">
+<span class="material-symbols-outlined text-[18px]">send</span>
+                    Submit for Verification
+                </button>
 </div>
+<p class="font-body-md text-body-md text-on-surface-variant text-center px-6 pb-6 text-sm">A Darwesh Group agent will review your listing and contact you within 24 hours.</p>
 </form>
 
 <!-- Confirmation State -->
@@ -309,13 +338,107 @@
 </nav>
 
 <script>
-document.getElementById('photoUpload').addEventListener('change', function () {
-  const n = this.files.length;
-  document.getElementById('photoLabel').textContent = n > 0 ? `${n} photo${n > 1 ? 's' : ''} selected` : 'Click to upload property photos';
+/* Photo upload: click + drag-and-drop */
+const dropzone = document.getElementById('dropzone');
+const photoUpload = document.getElementById('photoUpload');
+const photoLabel = document.getElementById('photoLabel');
+
+function updatePhotoLabel(count) {
+  photoLabel.textContent = count > 0 ? `${count} file${count > 1 ? 's' : ''} selected` : 'Upload Photos & Floor Plans';
+}
+
+photoUpload.addEventListener('change', function () {
+  updatePhotoLabel(this.files.length);
 });
+
+['dragenter', 'dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+  });
+});
+dropzone.addEventListener('drop', (e) => {
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    photoUpload.files = files;
+    updatePhotoLabel(files.length);
+  }
+});
+
+/* Pin location map */
+const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 18
+}).addTo(pinMap);
+let pinMarker = null;
+function setPin(lat, lng, pan) {
+  if (pinMarker) {
+    pinMarker.setLatLng([lat, lng]);
+  } else {
+    pinMarker = L.marker([lat, lng]).addTo(pinMap);
+  }
+  if (pan) pinMap.panTo([lat, lng]);
+  document.getElementById('pinLat').value = lat.toFixed(5);
+  document.getElementById('pinLng').value = lng.toFixed(5);
+  document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+}
+pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
+setTimeout(() => pinMap.invalidateSize(), 100);
+
+/* Save Draft (localStorage) */
+const DRAFT_KEY = 'darwesh_sell_draft';
+const draftFieldIds = ['titleInput', 'typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'sizeInput', 'bedsInput', 'bathsInput', 'descriptionInput'];
+
+function collectDraft() {
+  const data = {};
+  draftFieldIds.forEach(id => { data[id] = document.getElementById(id).value; });
+  data.pinLat = document.getElementById('pinLat').value;
+  data.pinLng = document.getElementById('pinLng').value;
+  return data;
+}
+
+function applyDraft(data) {
+  draftFieldIds.forEach(id => {
+    if (data[id] !== undefined) document.getElementById(id).value = data[id];
+  });
+  if (data.pinLat && data.pinLng) {
+    setPin(parseFloat(data.pinLat), parseFloat(data.pinLng), true);
+  }
+}
+
+document.getElementById('saveDraftBtn').addEventListener('click', function () {
+  localStorage.setItem(DRAFT_KEY, JSON.stringify(collectDraft()));
+  const original = this.innerHTML;
+  this.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> Draft Saved';
+  setTimeout(() => { this.innerHTML = original; }, 1800);
+});
+
+document.getElementById('restoreDraftBtn').addEventListener('click', () => {
+  const saved = localStorage.getItem(DRAFT_KEY);
+  if (saved) applyDraft(JSON.parse(saved));
+  document.getElementById('draftBanner').classList.add('hidden');
+});
+
+document.getElementById('discardDraftBtn').addEventListener('click', () => {
+  localStorage.removeItem(DRAFT_KEY);
+  document.getElementById('draftBanner').classList.add('hidden');
+});
+
+if (localStorage.getItem(DRAFT_KEY)) {
+  document.getElementById('draftBanner').classList.remove('hidden');
+}
 
 document.getElementById('sellForm').addEventListener('submit', function (e) {
   e.preventDefault();
+  localStorage.removeItem(DRAFT_KEY);
   this.classList.add('hidden');
   document.getElementById('confirmation').classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
