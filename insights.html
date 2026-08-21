@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Darwesh Group - Market Insights</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f7f9ff",
+                        "on-secondary-fixed-variant": "#5d4201",
+                        "secondary": "#775a19",
+                        "on-secondary-fixed": "#261900",
+                        "on-primary-fixed": "#0b1d2d",
+                        "primary": "#041627",
+                        "error": "#ba1a1a",
+                        "inverse-primary": "#b7c8de",
+                        "surface-container-low": "#f1f4f9",
+                        "on-primary-fixed-variant": "#38485a",
+                        "tertiary-fixed": "#6bfe9c",
+                        "surface-variant": "#e0e3e8",
+                        "on-tertiary-fixed": "#00210c",
+                        "primary-fixed": "#d2e4fb",
+                        "on-primary": "#ffffff",
+                        "surface": "#f7f9ff",
+                        "surface-container-high": "#e5e8ee",
+                        "inverse-surface": "#2d3135",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#eef1f6",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c4c6cd",
+                        "outline": "#74777d",
+                        "primary-container": "#1a2b3c",
+                        "tertiary-container": "#003115",
+                        "tertiary-fixed-dim": "#4ae183",
+                        "primary-fixed-dim": "#b7c8de",
+                        "secondary-container": "#fed488",
+                        "secondary-fixed-dim": "#e9c176",
+                        "secondary-fixed": "#ffdea5",
+                        "surface-dim": "#d7dadf",
+                        "tertiary": "#001a08",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#181c20",
+                        "surface-container-highest": "#e0e3e8",
+                        "on-tertiary-container": "#00a656",
+                        "on-primary-container": "#8192a7",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#005228",
+                        "on-surface-variant": "#44474c",
+                        "surface-tint": "#4f6073",
+                        "on-secondary-container": "#785a1a",
+                        "surface-container": "#ebeef3",
+                        "background": "#f7f9ff",
+                        "on-surface": "#181c20"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "stack-lg": "32px",
+                        "stack-md": "16px",
+                        "margin-desktop": "48px",
+                        "stack-sm": "8px",
+                        "container-max": "1280px",
+                        "margin-mobile": "16px",
+                        "unit": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "label-caps": ["IBM Plex Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "data-mono": ["Inter"],
+                        "display-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { min-height: max(884px, 100dvh); }
+
+    /* ---- Chart design tokens (validated categorical palette; see dataviz skill) ---- */
+    .viz-root {
+      --chart-surface: #ffffff;
+      --ink-primary: #181c20;
+      --ink-secondary: #44474c;
+      --ink-muted: #898781;
+      --grid-line: #e5e8ee;
+      --axis-line: #c4c6cd;
+      --series-sale: #2a78d6;
+      --series-sale-dim: #b9d3f0;
+      --series-rent: #eb6834;
+      --series-rent-dim: #f6cdb6;
+      --good-text: #006300;
+    }
+
+    .kpi-card {
+      background: var(--chart-surface);
+      border: 1px solid #e5e8ee;
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .kpi-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-secondary); text-transform: uppercase; }
+    .kpi-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 28px; font-weight: 700; color: var(--ink-primary); line-height: 1.15; }
+    .kpi-delta { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; color: var(--good-text); display: flex; align-items: center; gap: 2px; }
+    .kpi-note { font-family: 'Inter', sans-serif; font-size: 12px; color: var(--ink-muted); }
+
+    .chart-card {
+      background: var(--chart-surface);
+      border: 1px solid #e5e8ee;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .chart-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700; color: var(--ink-primary); }
+    .chart-subtitle { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink-secondary); }
+
+    .chart-legend { display: flex; align-items: center; gap: 16px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--ink-secondary); }
+    .chart-legend .swatch { display: inline-flex; align-items: center; gap: 6px; }
+    .chart-legend .swatch-mark { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+    .chart-svg-wrap { position: relative; width: 100%; }
+    .chart-svg-wrap svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+    .bar-mark { transition: opacity .15s ease; cursor: pointer; }
+    .bar-mark:hover, .bar-mark:focus { opacity: 0.85; outline: none; }
+    .bar-mark.dim { opacity: 0.35; }
+
+    .chart-tip {
+      position: absolute;
+      pointer-events: none;
+      background: #041627;
+      color: #ffffff;
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px;
+      border-radius: 8px;
+      padding: 8px 12px;
+      box-shadow: 0 4px 16px rgba(4,22,39,0.28);
+      opacity: 0;
+      transform: translate(-50%, calc(-100% - 10px));
+      transition: opacity .12s ease;
+      z-index: 20;
+      white-space: nowrap;
+      line-height: 1.5;
+    }
+    .chart-tip.show { opacity: 1; }
+    .chart-tip .tip-value { font-weight: 700; font-size: 13.5px; }
+    .chart-tip .tip-row { display: flex; align-items: center; gap: 6px; }
+    .chart-tip .tip-key { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+
+    .crosshair-line { stroke: var(--axis-line); stroke-width: 1; pointer-events: none; opacity: 0; }
+    .crosshair-line.show { opacity: 1; }
+
+    .table-toggle {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #775a19;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    .data-table-wrap { display: none; margin-top: 12px; overflow-x: auto; }
+    .data-table-wrap.open { display: block; }
+    .data-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13px; }
+    .data-table th, .data-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e8ee; }
+    .data-table th { color: var(--ink-secondary); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .data-table td { color: var(--ink-primary); font-variant-numeric: tabular-nums; }
+
+    .city-filter-select {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      color: #181c20;
+      background: #ffffff;
+      border: 1px solid #c4c6cd;
+      border-radius: 999px;
+      padding: 8px 32px 8px 14px;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2344474c' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      background-size: 16px;
+      cursor: pointer;
+    }
+    .city-filter-select:focus { outline: 2px solid #775a19; outline-offset: 1px; }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
+<div class="flex items-center gap-4">
+<button aria-label="Language" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">language</span>
+</button>
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html">Home</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html">Map</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html">Services</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="profile.html">Profile</a>
+<a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
+</nav>
+<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+
+<main class="viz-root max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8">
+
+  <!-- Page intro -->
+  <div class="mb-6">
+    <p class="font-label-caps text-label-caps text-secondary mb-2">MARKET INSIGHTS</p>
+    <h1 class="font-headline-md text-[28px] md:text-display-lg-mobile text-primary mb-2">Kurdistan Region Market Overview</h1>
+    <p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">A snapshot of buying, renting, and pricing activity across Darwesh Group's active listings — filter by city to see how it compares to the regional picture.</p>
+  </div>
+
+  <!-- Filter row -->
+  <div class="flex items-center gap-3 mb-6">
+    <label for="cityFilter" class="font-label-caps text-label-caps text-on-surface-variant">Filter by city</label>
+    <select id="cityFilter" class="city-filter-select">
+      <option value="all">All Cities</option>
+      <option value="Erbil">Erbil</option>
+      <option value="Sulaymaniyah">Sulaymaniyah</option>
+      <option value="Duhok">Duhok</option>
+      <option value="Soran">Soran</option>
+      <option value="Zakho">Zakho</option>
+      <option value="Koya">Koya</option>
+    </select>
+  </div>
+
+  <!-- KPI row -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+    <div class="kpi-card">
+      <p class="kpi-label" id="kpiListingsLabel">Active listings</p>
+      <p class="kpi-value" id="kpiListings">—</p>
+      <p class="kpi-note" id="kpiListingsNote">&nbsp;</p>
+    </div>
+    <div class="kpi-card">
+      <p class="kpi-label" id="kpiSaleLabel">Avg. sale price</p>
+      <p class="kpi-value" id="kpiSale">—</p>
+      <div class="flex items-center justify-between mt-1">
+        <span class="kpi-delta" id="kpiSaleDelta">
+          <span class="material-symbols-outlined" style="font-size:15px;">trending_up</span><span id="kpiSaleDeltaText">—</span>
+        </span>
+        <svg id="kpiSparkline" width="72" height="24" viewBox="0 0 72 24"></svg>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <p class="kpi-label" id="kpiRentLabel">Avg. monthly rent</p>
+      <p class="kpi-value" id="kpiRent">—</p>
+      <p class="kpi-note">&nbsp;</p>
+    </div>
+    <div class="kpi-card">
+      <p class="kpi-label">Verified listings</p>
+      <p class="kpi-value">78%</p>
+      <p class="kpi-note">Platform-wide, all cities</p>
+    </div>
+  </div>
+
+  <!-- Chart 1: Avg sale price by city -->
+  <div class="chart-card mb-6">
+    <div class="flex items-start justify-between flex-wrap gap-2 mb-1">
+      <div>
+        <p class="chart-title">Average sale price by city</p>
+        <p class="chart-subtitle">USD, based on active for-sale listings</p>
+      </div>
+    </div>
+    <div class="chart-svg-wrap mt-4" id="chart1Wrap">
+      <svg id="chart1Svg" viewBox="0 0 600 300" role="img" aria-label="Bar chart of average sale price by city"></svg>
+      <div class="chart-tip" id="chart1Tip"></div>
+    </div>
+    <button class="table-toggle mt-3" data-target="chart1Table" type="button">
+      <span class="material-symbols-outlined" style="font-size:15px;">format_list_bulleted</span>View as table
+    </button>
+    <div class="data-table-wrap" id="chart1Table">
+      <table class="data-table">
+        <thead><tr><th>City</th><th>Avg. sale price</th><th>Active sale listings</th></tr></thead>
+        <tbody id="chart1TableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chart 2: Sale vs rent listings by city -->
+  <div class="chart-card mb-6">
+    <div class="flex items-start justify-between flex-wrap gap-3 mb-1">
+      <div>
+        <p class="chart-title">For-sale vs. for-rent listings by city</p>
+        <p class="chart-subtitle">Number of active listings</p>
+      </div>
+      <div class="chart-legend">
+        <span class="swatch"><span class="swatch-mark" style="background:#2a78d6;"></span>For Sale</span>
+        <span class="swatch"><span class="swatch-mark" style="background:#eb6834;"></span>For Rent</span>
+      </div>
+    </div>
+    <div class="chart-svg-wrap mt-4" id="chart2Wrap">
+      <svg id="chart2Svg" viewBox="0 0 600 300" role="img" aria-label="Grouped bar chart of for-sale versus for-rent listings by city"></svg>
+      <div class="chart-tip" id="chart2Tip"></div>
+    </div>
+    <button class="table-toggle mt-3" data-target="chart2Table" type="button">
+      <span class="material-symbols-outlined" style="font-size:15px;">format_list_bulleted</span>View as table
+    </button>
+    <div class="data-table-wrap" id="chart2Table">
+      <table class="data-table">
+        <thead><tr><th>City</th><th>For sale</th><th>For rent</th></tr></thead>
+        <tbody id="chart2TableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Chart 3: 12-month trend -->
+  <div class="chart-card mb-8">
+    <div>
+      <p class="chart-title">Average sale price — Kurdistan Region</p>
+      <p class="chart-subtitle">12-month trend, all cities combined · not affected by the city filter above</p>
+    </div>
+    <div class="chart-svg-wrap mt-4" id="chart3Wrap">
+      <svg id="chart3Svg" viewBox="0 0 600 260" role="img" aria-label="Line chart of average sale price over the last 12 months"></svg>
+      <div class="chart-tip" id="chart3Tip"></div>
+    </div>
+    <button class="table-toggle mt-3" data-target="chart3Table" type="button">
+      <span class="material-symbols-outlined" style="font-size:15px;">format_list_bulleted</span>View as table
+    </button>
+    <div class="data-table-wrap" id="chart3Table">
+      <table class="data-table">
+        <thead><tr><th>Month</th><th>Avg. sale price</th></tr></thead>
+        <tbody id="chart3TableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Methodology + CTAs -->
+  <div class="border-t border-outline-variant pt-6 pb-4">
+    <p class="font-body-md text-[13px] text-on-surface-variant max-w-2xl mb-6">Figures are aggregated estimates across active listings on the Darwesh Group platform, illustrative for this preview and refreshed periodically — not a live feed. For exact, individual listings, use the interactive map.</p>
+    <div class="flex flex-wrap gap-3">
+      <a href="map.html" class="bg-primary text-on-primary px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-all inline-flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:18px;">map</span>Browse the Map
+      </a>
+      <a href="sell.html" class="border border-outline-variant text-on-surface px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-surface-container transition-all inline-flex items-center gap-2">
+        <span class="material-symbols-outlined" style="font-size:18px;">sell</span>List Your Property
+      </a>
+    </div>
+  </div>
+
+</main>
+
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden shadow-[0_-4px_20px_rgba(26,43,60,0.05)] bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 rounded-t-xl pb-6">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="index.html">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-caps text-label-caps mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-caps text-label-caps mt-1">Map</span>
+</a>
+<a class="relative -top-4 flex flex-col items-center justify-center bg-primary text-on-primary w-16 h-16 rounded-full shadow-lg border-4 border-surface-container-lowest dark:border-inverse-surface hover:bg-primary-container transition-transform duration-300 ease-in-out active:scale-90" href="mam-ai.html">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="services.html">
+<span class="material-symbols-outlined">business_center</span>
+<span class="font-label-caps text-label-caps mt-1">Services</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="profile.html">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-caps text-label-caps mt-1">Profile</span>
+</a>
+</nav>
+
+<script>
+// ---------------------------------------------------------------------
+// Data (illustrative, aggregated — see methodology note on the page)
+// ---------------------------------------------------------------------
+const CITY_STATS = [
+  { city: "Erbil",         saleAvg: 295000, saleCount: 42, rentAvg: 950,  rentCount: 28 },
+  { city: "Sulaymaniyah",  saleAvg: 178000, saleCount: 25, rentAvg: 1150, rentCount: 19 },
+  { city: "Duhok",         saleAvg: 268000, saleCount: 18, rentAvg: 680,  rentCount: 14 },
+  { city: "Soran",         saleAvg: 310000, saleCount: 12, rentAvg: 520,  rentCount: 6  },
+  { city: "Zakho",         saleAvg: 142000, saleCount: 9,  rentAvg: 480,  rentCount: 5  },
+  { city: "Koya",          saleAvg: 118000, saleCount: 7,  rentAvg: 500,  rentCount: 9  }
+];
+
+const TREND_LABELS = ["Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug"];
+const TREND_VALUES = [205000,208000,210000,212000,215000,218000,220000,224000,227000,230000,233000,236000];
+
+const COLOR_SALE = "#2a78d6";
+const COLOR_SALE_DIM = "#b9d3f0";
+const COLOR_RENT = "#eb6834";
+const COLOR_RENT_DIM = "#f6cdb6";
+
+function fmtUSD(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
+function fmtCompactUSD(n) {
+  if (n >= 1000) return "$" + (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + "K";
+  return "$" + n;
+}
+function niceMax(v) {
+  const mag = Math.pow(10, Math.floor(Math.log10(v)));
+  const norm = v / mag;
+  let step;
+  if (norm <= 1) step = 1; else if (norm <= 2) step = 2; else if (norm <= 5) step = 5; else step = 10;
+  return step * mag;
+}
+
+// ---------------------------------------------------------------------
+// KPI computation (recomputed on filter change)
+// ---------------------------------------------------------------------
+function computeKPIs(cityName) {
+  const rows = cityName === "all" ? CITY_STATS : CITY_STATS.filter(c => c.city === cityName);
+  let saleSum = 0, saleCount = 0, rentSum = 0, rentCount = 0;
+  rows.forEach(c => {
+    saleSum += c.saleAvg * c.saleCount; saleCount += c.saleCount;
+    rentSum += c.rentAvg * c.rentCount; rentCount += c.rentCount;
+  });
+  return {
+    totalListings: saleCount + rentCount,
+    avgSale: saleCount ? saleSum / saleCount : 0,
+    avgRent: rentCount ? rentSum / rentCount : 0
+  };
+}
+
+function renderKPIs(cityName) {
+  const k = computeKPIs(cityName);
+  const scopeLabel = cityName === "all" ? "All cities" : cityName;
+  document.getElementById("kpiListings").textContent = k.totalListings.toLocaleString("en-US");
+  document.getElementById("kpiListingsNote").textContent = scopeLabel;
+  document.getElementById("kpiSale").textContent = k.avgSale ? fmtUSD(k.avgSale) : "—";
+  document.getElementById("kpiRent").textContent = k.avgRent ? fmtUSD(k.avgRent) + "/mo" : "—";
+
+  const yoy = ((TREND_VALUES[TREND_VALUES.length - 1] - TREND_VALUES[0]) / TREND_VALUES[0]) * 100;
+  document.getElementById("kpiSaleDeltaText").textContent = "+" + yoy.toFixed(1) + "% YoY (region)";
+
+  // Sparkline: de-emphasis gray line, last segment in accent blue, per stat-tile spec
+  const spark = document.getElementById("kpiSparkline");
+  const w = 72, h = 24, pad = 2;
+  const min = Math.min(...TREND_VALUES), max = Math.max(...TREND_VALUES);
+  const pts = TREND_VALUES.map((v, i) => {
+    const x = pad + (i / (TREND_VALUES.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / (max - min || 1)) * (h - pad * 2);
+    return [x, y];
+  });
+  const dim = pts.slice(0, -1).map(p => p.join(",")).join(" ");
+  const lastTwo = pts.slice(-2).map(p => p.join(",")).join(" ");
+  spark.innerHTML = `
+    <polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="#c4c6cd" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <polyline points="${lastTwo}" fill="none" stroke="${COLOR_SALE}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1]}" r="2.5" fill="${COLOR_SALE}"/>
+  `;
+}
+
+// ---------------------------------------------------------------------
+// Tooltip helper
+// ---------------------------------------------------------------------
+function showTip(tipEl, wrapEl, x, y, rowsHtml) {
+  tipEl.innerHTML = rowsHtml;
+  const wrapRect = wrapEl.getBoundingClientRect();
+  const scale = wrapRect.width / wrapEl.querySelector('svg').viewBox.baseVal.width;
+  tipEl.style.left = (x * scale) + "px";
+  tipEl.style.top = (y * scale) + "px";
+  tipEl.classList.add("show");
+}
+function hideTip(tipEl) { tipEl.classList.remove("show"); }
+
+// ---------------------------------------------------------------------
+// Chart 1 — Average sale price by city (single-series bar, emphasis on filter)
+// ---------------------------------------------------------------------
+function renderChart1(activeCity) {
+  const svg = document.getElementById("chart1Svg");
+  const tip = document.getElementById("chart1Tip");
+  const wrap = document.getElementById("chart1Wrap");
+  const W = 600, H = 300, ML = 56, MR = 12, MT = 28, MB = 44;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const maxY = niceMax(Math.max(...CITY_STATS.map(c => c.saleAvg)) * 1.08);
+  const yTicks = [0, maxY / 3, (maxY / 3) * 2, maxY];
+  const n = CITY_STATS.length;
+  const slot = plotW / n;
+  const barW = Math.min(28, slot * 0.5);
+
+  let gridSvg = "";
+  yTicks.forEach(t => {
+    const y = MT + plotH - (t / maxY) * plotH;
+    gridSvg += `<line x1="${ML}" y1="${y}" x2="${W - MR}" y2="${y}" class="grid-h" stroke="var(--grid-line)" stroke-width="1"/>`;
+    gridSvg += `<text x="${ML - 8}" y="${y + 4}" text-anchor="end" font-size="11" font-family="Inter, sans-serif" fill="var(--ink-muted)">${fmtCompactUSD(t)}</text>`;
+  });
+
+  let bars = "";
+  CITY_STATS.forEach((c, i) => {
+    const x = ML + i * slot + (slot - barW) / 2;
+    const barH = (c.saleAvg / maxY) * plotH;
+    const y = MT + plotH - barH;
+    const dim = activeCity !== "all" && activeCity !== c.city;
+    bars += `
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${c.city}, average sale price ${fmtUSD(c.saleAvg)}"
+         data-city="${c.city}" data-value="${c.saleAvg}" data-count="${c.saleCount}" data-cx="${x + barW / 2}" data-topy="${y}">
+        <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="4" fill="${COLOR_SALE}"/>
+        <text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" font-size="11.5" font-weight="700" font-family="Inter, sans-serif" fill="var(--ink-primary)">${fmtCompactUSD(c.saleAvg)}</text>
+        <text x="${x + barW / 2}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${c.city}</text>
+      </g>`;
+  });
+
+  svg.innerHTML = `${gridSvg}<line x1="${ML}" y1="${MT + plotH}" x2="${W - MR}" y2="${MT + plotH}" stroke="var(--axis-line)" stroke-width="1"/>${bars}`;
+
+  svg.querySelectorAll(".bar-mark").forEach(el => {
+    const onEnter = () => {
+      const city = el.dataset.city, value = Number(el.dataset.value), count = el.dataset.count;
+      const cx = Number(el.dataset.cx), topy = Number(el.dataset.topy);
+      showTip(tip, wrap, cx, topy, `
+        <div style="font-weight:700;margin-bottom:2px;">${city}</div>
+        <div class="tip-row"><span class="tip-key" style="background:${COLOR_SALE}"></span><span class="tip-value">${fmtUSD(value)}</span> avg. sale price</div>
+        <div style="color:#c4c6cd;">${count} active sale listing${count == 1 ? '' : 's'}</div>
+      `);
+    };
+    el.addEventListener("pointerenter", onEnter);
+    el.addEventListener("focus", onEnter);
+    el.addEventListener("pointerleave", () => hideTip(tip));
+    el.addEventListener("blur", () => hideTip(tip));
+  });
+
+  const tbody = document.getElementById("chart1TableBody");
+  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${c.city}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
+}
+
+// ---------------------------------------------------------------------
+// Chart 2 — Sale vs rent listing counts by city (grouped bar, 2 series)
+// ---------------------------------------------------------------------
+function renderChart2(activeCity) {
+  const svg = document.getElementById("chart2Svg");
+  const tip = document.getElementById("chart2Tip");
+  const wrap = document.getElementById("chart2Wrap");
+  const W = 600, H = 300, ML = 40, MR = 12, MT = 20, MB = 44;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const maxCount = Math.max(...CITY_STATS.map(c => Math.max(c.saleCount, c.rentCount)));
+  const maxY = niceMax(maxCount * 1.15);
+  const yTicks = [0, maxY / 2, maxY];
+  const n = CITY_STATS.length;
+  const slot = plotW / n;
+  const barW = Math.min(20, slot * 0.28);
+  const gap = 3;
+
+  let gridSvg = "";
+  yTicks.forEach(t => {
+    const y = MT + plotH - (t / maxY) * plotH;
+    gridSvg += `<line x1="${ML}" y1="${y}" x2="${W - MR}" y2="${y}" stroke="var(--grid-line)" stroke-width="1"/>`;
+    gridSvg += `<text x="${ML - 8}" y="${y + 4}" text-anchor="end" font-size="11" font-family="Inter, sans-serif" fill="var(--ink-muted)">${Math.round(t)}</text>`;
+  });
+
+  let bars = "";
+  CITY_STATS.forEach((c, i) => {
+    const groupX = ML + i * slot + slot / 2;
+    const dim = activeCity !== "all" && activeCity !== c.city;
+    const saleH = (c.saleCount / maxY) * plotH;
+    const rentH = (c.rentCount / maxY) * plotH;
+    const saleX = groupX - barW - gap / 2;
+    const rentX = groupX + gap / 2;
+    bars += `
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${c.city} for sale ${c.saleCount}"
+         data-city="${c.city}" data-type="For Sale" data-value="${c.saleCount}" data-color="${COLOR_SALE}" data-cx="${saleX + barW / 2}" data-topy="${MT + plotH - saleH}">
+        <rect x="${saleX}" y="${MT + plotH - saleH}" width="${barW}" height="${saleH}" rx="4" fill="${COLOR_SALE}"/>
+      </g>
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${c.city} for rent ${c.rentCount}"
+         data-city="${c.city}" data-type="For Rent" data-value="${c.rentCount}" data-color="${COLOR_RENT}" data-cx="${rentX + barW / 2}" data-topy="${MT + plotH - rentH}">
+        <rect x="${rentX}" y="${MT + plotH - rentH}" width="${barW}" height="${rentH}" rx="4" fill="${COLOR_RENT}"/>
+      </g>
+      <text x="${groupX}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${c.city}</text>`;
+  });
+
+  svg.innerHTML = `${gridSvg}<line x1="${ML}" y1="${MT + plotH}" x2="${W - MR}" y2="${MT + plotH}" stroke="var(--axis-line)" stroke-width="1"/>${bars}`;
+
+  svg.querySelectorAll(".bar-mark").forEach(el => {
+    const onEnter = () => {
+      const city = el.dataset.city, type = el.dataset.type, value = el.dataset.value, color = el.dataset.color;
+      const cx = Number(el.dataset.cx), topy = Number(el.dataset.topy);
+      showTip(tip, wrap, cx, topy, `
+        <div style="font-weight:700;margin-bottom:2px;">${city}</div>
+        <div class="tip-row"><span class="tip-key" style="background:${color}"></span><span class="tip-value">${value}</span> ${type} listing${value == 1 ? '' : 's'}</div>
+      `);
+    };
+    el.addEventListener("pointerenter", onEnter);
+    el.addEventListener("focus", onEnter);
+    el.addEventListener("pointerleave", () => hideTip(tip));
+    el.addEventListener("blur", () => hideTip(tip));
+  });
+
+  const tbody = document.getElementById("chart2TableBody");
+  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${c.city}</td><td>${c.saleCount}</td><td>${c.rentCount}</td></tr>`).join("");
+}
+
+// ---------------------------------------------------------------------
+// Chart 3 — 12-month average sale price trend (single line + crosshair)
+// ---------------------------------------------------------------------
+function renderChart3() {
+  const svg = document.getElementById("chart3Svg");
+  const tip = document.getElementById("chart3Tip");
+  const wrap = document.getElementById("chart3Wrap");
+  const W = 600, H = 260, ML = 56, MR = 16, MT = 24, MB = 36;
+  const plotW = W - ML - MR, plotH = H - MT - MB;
+  const minV = Math.min(...TREND_VALUES), maxV = Math.max(...TREND_VALUES);
+  const pad = (maxV - minV) * 0.25;
+  const yMin = Math.floor((minV - pad) / 10000) * 10000;
+  const yMax = Math.ceil((maxV + pad) / 10000) * 10000;
+  const yTicks = [yMin, (yMin + yMax) / 2, yMax];
+  const n = TREND_VALUES.length;
+
+  const xAt = i => ML + (i / (n - 1)) * plotW;
+  const yAt = v => MT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+  let gridSvg = "";
+  yTicks.forEach(t => {
+    const y = yAt(t);
+    gridSvg += `<line x1="${ML}" y1="${y}" x2="${W - MR}" y2="${y}" stroke="var(--grid-line)" stroke-width="1"/>`;
+    gridSvg += `<text x="${ML - 8}" y="${y + 4}" text-anchor="end" font-size="11" font-family="Inter, sans-serif" fill="var(--ink-muted)">${fmtCompactUSD(t)}</text>`;
+  });
+
+  const linePts = TREND_VALUES.map((v, i) => `${xAt(i)},${yAt(v)}`).join(" ");
+  const areaPts = `${xAt(0)},${MT + plotH} ${linePts} ${xAt(n - 1)},${MT + plotH}`;
+
+  let xLabels = "";
+  TREND_LABELS.forEach((lbl, i) => {
+    if (i % 2 === 0 || i === n - 1) {
+      xLabels += `<text x="${xAt(i)}" y="${H - MB + 18}" text-anchor="middle" font-size="11" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${lbl}</text>`;
+    }
+  });
+
+  const lastX = xAt(n - 1), lastY = yAt(TREND_VALUES[n - 1]);
+
+  let hitZones = "";
+  TREND_VALUES.forEach((v, i) => {
+    hitZones += `<rect class="hit-zone" x="${ML + (i / n) * plotW}" y="${MT}" width="${plotW / n}" height="${plotH}" fill="transparent" data-i="${i}" data-x="${xAt(i)}" data-y="${yAt(v)}" data-v="${v}"/>`;
+  });
+
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="chart3AreaFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${COLOR_SALE}" stop-opacity="0.10"/>
+        <stop offset="100%" stop-color="${COLOR_SALE}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    ${gridSvg}
+    <line x1="${ML}" y1="${MT + plotH}" x2="${W - MR}" y2="${MT + plotH}" stroke="var(--axis-line)" stroke-width="1"/>
+    <polygon points="${areaPts}" fill="url(#chart3AreaFill)"/>
+    <polyline points="${linePts}" fill="none" stroke="${COLOR_SALE}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lastX}" cy="${lastY}" r="4.5" fill="${COLOR_SALE}" stroke="#ffffff" stroke-width="2"/>
+    <text x="${lastX}" y="${lastY - 14}" text-anchor="end" font-size="12.5" font-weight="700" font-family="Inter, sans-serif" fill="var(--ink-primary)">${fmtCompactUSD(TREND_VALUES[n - 1])}</text>
+    ${xLabels}
+    <line id="chart3Crosshair" class="crosshair-line" x1="0" y1="${MT}" x2="0" y2="${MT + plotH}"/>
+    <circle id="chart3HoverDot" r="5" fill="${COLOR_SALE}" stroke="#ffffff" stroke-width="2" opacity="0"/>
+    ${hitZones}
+  `;
+
+  const crosshair = svg.querySelector("#chart3Crosshair");
+  const hoverDot = svg.querySelector("#chart3HoverDot");
+
+  svg.querySelectorAll(".hit-zone").forEach(el => {
+    const onEnter = () => {
+      const i = Number(el.dataset.i), x = Number(el.dataset.x), y = Number(el.dataset.y), v = Number(el.dataset.v);
+      crosshair.setAttribute("x1", x); crosshair.setAttribute("x2", x);
+      crosshair.classList.add("show");
+      hoverDot.setAttribute("cx", x); hoverDot.setAttribute("cy", y); hoverDot.setAttribute("opacity", 1);
+      showTip(tip, wrap, x, y, `
+        <div class="tip-row"><span class="tip-key" style="background:${COLOR_SALE}"></span><span class="tip-value">${fmtUSD(v)}</span></div>
+        <div style="color:#c4c6cd;">${TREND_LABELS[i]} · avg. sale price, Kurdistan Region</div>
+      `);
+    };
+    el.addEventListener("pointerenter", onEnter);
+    el.addEventListener("pointermove", onEnter);
+    el.addEventListener("focus", onEnter);
+    el.addEventListener("pointerleave", () => { crosshair.classList.remove("show"); hoverDot.setAttribute("opacity", 0); hideTip(tip); });
+    el.addEventListener("blur", () => { crosshair.classList.remove("show"); hoverDot.setAttribute("opacity", 0); hideTip(tip); });
+  });
+
+  const tbody = document.getElementById("chart3TableBody");
+  tbody.innerHTML = TREND_LABELS.map((lbl, i) => `<tr><td>${lbl}</td><td>${fmtUSD(TREND_VALUES[i])}</td></tr>`).join("");
+}
+
+// ---------------------------------------------------------------------
+// Wiring
+// ---------------------------------------------------------------------
+function renderAll(cityName) {
+  renderKPIs(cityName);
+  renderChart1(cityName);
+  renderChart2(cityName);
+}
+
+document.getElementById("cityFilter").addEventListener("change", (e) => renderAll(e.target.value));
+
+document.querySelectorAll(".table-toggle").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const target = document.getElementById(btn.dataset.target);
+    target.classList.toggle("open");
+    const icon = btn.querySelector(".material-symbols-outlined");
+    btn.lastChild.textContent = target.classList.contains("open") ? " Hide table" : " View as table";
+  });
+});
+
+renderAll("all");
+renderChart3();
+</script>
+</body></html>
