@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Darwesh Group - Map Search</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f7f9ff",
+                        "on-secondary-fixed-variant": "#5d4201",
+                        "secondary": "#775a19",
+                        "on-secondary-fixed": "#261900",
+                        "on-primary-fixed": "#0b1d2d",
+                        "primary": "#041627",
+                        "error": "#ba1a1a",
+                        "inverse-primary": "#b7c8de",
+                        "surface-container-low": "#f1f4f9",
+                        "on-primary-fixed-variant": "#38485a",
+                        "tertiary-fixed": "#6bfe9c",
+                        "surface-variant": "#e0e3e8",
+                        "on-tertiary-fixed": "#00210c",
+                        "primary-fixed": "#d2e4fb",
+                        "on-primary": "#ffffff",
+                        "surface": "#f7f9ff",
+                        "surface-container-high": "#e5e8ee",
+                        "inverse-surface": "#2d3135",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "inverse-on-surface": "#eef1f6",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c4c6cd",
+                        "outline": "#74777d",
+                        "primary-container": "#1a2b3c",
+                        "tertiary-container": "#003115",
+                        "tertiary-fixed-dim": "#4ae183",
+                        "primary-fixed-dim": "#b7c8de",
+                        "secondary-container": "#fed488",
+                        "secondary-fixed-dim": "#e9c176",
+                        "secondary-fixed": "#ffdea5",
+                        "surface-dim": "#d7dadf",
+                        "tertiary": "#001a08",
+                        "surface-container-lowest": "#ffffff",
+                        "on-background": "#181c20",
+                        "surface-container-highest": "#e0e3e8",
+                        "on-tertiary-container": "#00a656",
+                        "on-primary-container": "#8192a7",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#005228",
+                        "on-surface-variant": "#44474c",
+                        "surface-tint": "#4f6073",
+                        "on-secondary-container": "#785a1a",
+                        "surface-container": "#ebeef3",
+                        "background": "#f7f9ff",
+                        "on-surface": "#181c20"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "stack-lg": "32px",
+                        "stack-md": "16px",
+                        "margin-desktop": "48px",
+                        "stack-sm": "8px",
+                        "container-max": "1280px",
+                        "margin-mobile": "16px",
+                        "unit": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "label-caps": ["IBM Plex Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "data-mono": ["Inter"],
+                        "display-lg": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { min-height: max(884px, 100dvh); }
+    #map { background: #e5e8ee; }
+    .price-pin {
+      background: #ffffff;
+      color: #041627;
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid #c4c6cd;
+      box-shadow: 0 2px 6px rgba(4,22,39,0.18);
+      white-space: nowrap;
+      transition: all .15s ease;
+      cursor: pointer;
+    }
+    .price-pin.active, .price-pin:hover {
+      background: #041627;
+      color: #ffffff;
+      border-color: #041627;
+      transform: scale(1.08);
+      z-index: 1000 !important;
+    }
+    .listing-card.active {
+      border-color: #775a19;
+      box-shadow: 0 4px 20px rgba(26,43,60,0.12);
+    }
+    .leaflet-container { font-family: 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
+<div class="flex items-center gap-4">
+<button aria-label="Language" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">language</span>
+</button>
+<span class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">Darwesh Group</span>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html">Home</a>
+<a class="font-label-caps text-label-caps text-primary dark:text-primary-fixed-dim font-bold" href="map.html">Map</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="#">Services</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="#">Profile</a>
+<button class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all">MAM AI</button>
+</nav>
+<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+
+<!-- Filter Bar -->
+<div id="filterBarWrap" class="fixed top-16 left-0 w-full z-40 bg-surface-container-lowest border-b border-outline-variant">
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-3 flex items-center gap-3 overflow-x-auto hide-scrollbar">
+<div class="flex items-center bg-surface-container rounded-full p-1 flex-none">
+<button data-type-filter="sale" class="type-toggle px-4 py-1.5 rounded-full font-label-caps text-label-caps transition-all bg-primary text-on-primary">For Sale</button>
+<button data-type-filter="rent" class="type-toggle px-4 py-1.5 rounded-full font-label-caps text-label-caps transition-all text-on-surface-variant">For Rent</button>
+<button data-type-filter="all" class="type-toggle px-4 py-1.5 rounded-full font-label-caps text-label-caps transition-all text-on-surface-variant">All</button>
+</div>
+<div class="relative flex-none">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">location_on</span>
+<input id="citySearch" class="w-56 bg-surface-container rounded-full border-none focus:ring-2 focus:ring-secondary text-body-md text-on-surface pl-9 pr-4 py-2 placeholder-outline-variant" placeholder="City, e.g. Erbil, Duhok..." type="text"/>
+</div>
+<button class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
+                Price <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<button class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
+                Beds &amp; Baths <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<button class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
+                Home Type <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
+</div>
+</div>
+
+<!-- Main split view -->
+<main id="mainSplit" class="fixed bottom-24 md:bottom-0 left-0 w-full flex flex-col md:flex-row">
+<!-- Map panel -->
+<div id="mapPanel" class="relative w-full md:w-1/2 lg:w-3/5 h-full order-1 md:order-2">
+<div id="map" class="w-full h-full"></div>
+</div>
+<!-- List panel -->
+<div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full overflow-y-auto hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden md:block">
+<p class="font-headline-md text-headline-md text-on-surface mb-1">Kurdistan Region Listings</p>
+<p id="resultCountMobile" class="font-body-md text-body-md text-on-surface-variant mb-4"></p>
+<div id="cardList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4"></div>
+</div>
+</main>
+
+<!-- Mobile List/Map toggle -->
+<button id="viewToggle" class="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-primary text-on-primary px-6 py-3 rounded-full shadow-lg font-label-caps text-label-caps flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">format_list_bulleted</span>
+<span id="viewToggleLabel">List</span>
+</button>
+
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden shadow-[0_-4px_20px_rgba(26,43,60,0.05)] bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 rounded-t-xl pb-6">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="index.html">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-caps text-label-caps mt-1">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container dark:bg-on-secondary-fixed-variant text-on-secondary-container dark:text-secondary-fixed rounded-full px-4 py-1 transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-caps text-label-caps mt-1">Map</span>
+</a>
+<a class="relative -top-4 flex flex-col items-center justify-center bg-primary text-on-primary w-16 h-16 rounded-full shadow-lg border-4 border-surface-container-lowest dark:border-inverse-surface hover:bg-primary-container transition-transform duration-300 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined">business_center</span>
+<span class="font-label-caps text-label-caps mt-1">Services</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-caps text-label-caps mt-1">Profile</span>
+</a>
+</nav>
+
+<script>
+function layoutMain() {
+  const filterBar = document.getElementById('filterBarWrap');
+  const main = document.getElementById('mainSplit');
+  main.style.top = filterBar.getBoundingClientRect().bottom + 'px';
+}
+window.addEventListener('resize', layoutMain);
+window.addEventListener('load', layoutMain);
+layoutMain();
+
+const IMAGES = [
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z",
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuDii6xTkNXKTsc2msOvTgk_GQRcMSy050_Dub19-3hbsr_7hP2rG706xznOp3AeUptsrkRFQRdDAyRVv34ZC0SUkPNGIL-UJT7JD0cy09YlNtODFbsnXaEF8zJd8aCvsZTCEWBKPj1XViF2xaNk4S5ik9wCMk8rl0kk9lg4Fo1HxPTg6ko3xaad2_K6da2mIldQlUkjAAy1sB7EUWp2DDwZ3zv679mzelRkHr4tPHRSXmBA6Aq8Vhjs",
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuB9cucEo8wpqjJxzhEtls0zTrBUxNpyAlnIoBZDK9mZSYvoVeNEyqIAthGslbja0XOn_2Z2LCc0po-qlZJzHZvHdGCad9x-INBOBT7i9AjYAKzjG7asbXSxRdsimPiEzRE_jwb-GHj_6OiY1FjWBsruEwHLEDtHiKW81r4zuyV1VGwBmvZbXJ68537lf9ufKsd5NyXXgnYbtwUazS-Uz_VyxnQK2udlP2WPabFfuDQ9N0dZr9-tFX9K",
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz",
+  "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
+];
+
+const LISTINGS = [
+  { id:1, city:"Erbil", address:"Italian Village, Villa 42", lat:36.2019, lng:43.9812, type:"sale", price:380000, priceLabel:"$380,000", beds:4, baths:3, sqft:400, img:IMAGES[0], verified:true },
+  { id:2, city:"Erbil", address:"Empire World, Tower B", lat:36.1798, lng:44.0231, type:"sale", price:210000, priceLabel:"$210,000", beds:3, baths:2, sqft:180, img:IMAGES[4], verified:true },
+  { id:3, city:"Erbil", address:"Downtown, Near Citadel", lat:36.1911, lng:44.0093, type:"rent", price:900, priceLabel:"$900/mo", beds:2, baths:1, sqft:120, img:IMAGES[3], verified:false },
+  { id:4, city:"Sulaymaniyah", address:"Salim Street, Office Tower", lat:35.5628, lng:45.4408, type:"rent", price:1200, priceLabel:"$1,200/mo", beds:5, baths:2, sqft:220, img:IMAGES[1], verified:true },
+  { id:5, city:"Sulaymaniyah", address:"Raparin District", lat:35.5474, lng:45.4192, type:"sale", price:165000, priceLabel:"$165,000", beds:3, baths:2, sqft:150, img:IMAGES[2], verified:true },
+  { id:6, city:"Duhok", address:"Nwroz District, Villa 7", lat:36.8664, lng:42.9977, type:"sale", price:295000, priceLabel:"$295,000", beds:4, baths:3, sqft:350, img:IMAGES[0], verified:true },
+  { id:7, city:"Duhok", address:"City Center Apartments", lat:36.8618, lng:42.9822, type:"rent", price:650, priceLabel:"$650/mo", beds:2, baths:1, sqft:110, img:IMAGES[3], verified:false },
+  { id:8, city:"Zakho", address:"Family House, Grid District", lat:37.1444, lng:42.6810, type:"sale", price:140000, priceLabel:"$140,000", beds:3, baths:2, sqft:200, img:IMAGES[5], verified:false },
+  { id:9, city:"Soran", address:"Mountain View Villa", lat:36.6528, lng:44.5453, type:"sale", price:320000, priceLabel:"$320,000", beds:5, baths:4, sqft:420, img:IMAGES[0], verified:true },
+  { id:10, city:"Koya", address:"New Development, Block C", lat:36.0781, lng:44.6222, type:"rent", price:500, priceLabel:"$500/mo", beds:2, baths:1, sqft:95, img:IMAGES[2], verified:false }
+];
+
+let activeType = "sale";
+let activeId = null;
+let markers = {};
+const map = L.map('map', { zoomControl: false }).setView([36.35, 44.3], 8);
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 18
+}).addTo(map);
+
+function priceIcon(listing, active) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="price-pin${active ? ' active' : ''}" data-id="${listing.id}">${listing.priceLabel}</div>`,
+    iconSize: null,
+    iconAnchor: [30, 15]
+  });
+}
+
+function buildMarkers() {
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  markers = {};
+  LISTINGS.forEach(l => {
+    const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
+    marker.on('click', () => selectListing(l.id, true));
+    marker.addTo(map);
+    markers[l.id] = marker;
+  });
+}
+
+function filteredListings() {
+  const q = document.getElementById('citySearch').value.trim().toLowerCase();
+  return LISTINGS.filter(l => {
+    const typeMatch = activeType === 'all' || l.type === activeType;
+    const qMatch = !q || l.city.toLowerCase().includes(q) || l.address.toLowerCase().includes(q);
+    return typeMatch && qMatch;
+  });
+}
+
+function card(l) {
+  const badge = l.verified ? `<div class="absolute top-3 right-3 bg-tertiary-container/90 backdrop-blur-sm text-on-tertiary-container px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+      <span class="material-symbols-outlined text-[14px]">verified</span>
+      <span class="font-label-caps text-label-caps text-[10px]">Verified</span>
+    </div>` : '';
+  return `
+  <article data-id="${l.id}" class="listing-card cursor-pointer flex-none bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden">
+    <div class="absolute top-0 left-0 w-full h-1 bg-secondary z-20"></div>
+    <div class="relative h-40 w-full overflow-hidden">
+      <img class="w-full h-full object-cover" src="${l.img}"/>
+      ${badge}
+      <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? 'For Sale' : 'For Rent'}</div>
+    </div>
+    <div class="p-3">
+      <p class="font-headline-md text-[18px] text-primary mb-1">${l.priceLabel}</p>
+      <div class="flex gap-3 mb-2">
+        <span class="font-data-mono text-data-mono text-on-surface flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px] text-outline">bed</span>${l.beds}</span>
+        <span class="font-data-mono text-data-mono text-on-surface flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px] text-outline">bathtub</span>${l.baths}</span>
+        <span class="font-data-mono text-data-mono text-on-surface flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px] text-outline">square_foot</span>${l.sqft}m²</span>
+      </div>
+      <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]">
+        <span class="material-symbols-outlined text-[15px]">location_on</span>${l.address}, ${l.city}
+      </p>
+    </div>
+  </article>`;
+}
+
+function renderList() {
+  const list = filteredListings();
+  document.getElementById('cardList').innerHTML = list.map(card).join('');
+  document.querySelectorAll('.listing-card').forEach(el => {
+    el.addEventListener('click', () => selectListing(Number(el.dataset.id), false));
+  });
+  document.getElementById('resultCount').textContent = `${list.length} homes in Kurdistan Region`;
+  document.getElementById('resultCountMobile').textContent = `${list.length} homes found`;
+}
+
+function selectListing(id, fromMap) {
+  activeId = id;
+  const l = LISTINGS.find(x => x.id === id);
+  document.querySelectorAll('.listing-card').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.id) === id);
+  });
+  Object.entries(markers).forEach(([mid, marker]) => {
+    const listing = LISTINGS.find(x => x.id == mid);
+    marker.setIcon(priceIcon(listing, Number(mid) === id));
+  });
+  if (l) {
+    map.panTo([l.lat, l.lng]);
+    if (!fromMap) {
+      const cardEl = document.querySelector(`.listing-card[data-id="${id}"]`);
+      if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+}
+
+function refresh() {
+  buildMarkers();
+  renderList();
+}
+
+document.querySelectorAll('.type-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeType = btn.dataset.typeFilter;
+    document.querySelectorAll('.type-toggle').forEach(b => {
+      b.classList.remove('bg-primary', 'text-on-primary');
+      b.classList.add('text-on-surface-variant');
+    });
+    btn.classList.add('bg-primary', 'text-on-primary');
+    btn.classList.remove('text-on-surface-variant');
+    refresh();
+  });
+});
+document.getElementById('citySearch').addEventListener('input', refresh);
+
+const viewToggle = document.getElementById('viewToggle');
+const listPanel = document.getElementById('listPanel');
+const mapPanel = document.getElementById('mapPanel');
+let mobileView = 'map';
+viewToggle.addEventListener('click', () => {
+  mobileView = mobileView === 'map' ? 'list' : 'map';
+  if (mobileView === 'list') {
+    listPanel.classList.remove('hidden');
+    mapPanel.classList.add('hidden');
+    document.getElementById('viewToggleLabel').textContent = 'Map';
+    viewToggle.querySelector('.material-symbols-outlined').textContent = 'map';
+  } else {
+    listPanel.classList.add('hidden');
+    mapPanel.classList.remove('hidden');
+    document.getElementById('viewToggleLabel').textContent = 'List';
+    viewToggle.querySelector('.material-symbols-outlined').textContent = 'format_list_bulleted';
+    setTimeout(() => map.invalidateSize(), 200);
+  }
+});
+
+refresh();
+setTimeout(() => { layoutMain(); map.invalidateSize(); }, 100);
+setTimeout(() => { layoutMain(); map.invalidateSize(); }, 600);
+</script>
+</body></html>
