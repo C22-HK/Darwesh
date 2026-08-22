@@ -340,8 +340,9 @@
 
           <div class="mb-3">
             <label class="admin-label" data-i18n="agentDash.pinLocation">Pin exact location (click the map)</label>
-            <div class="rounded-lg overflow-hidden border border-outline-variant h-40" id="adminPinMap"></div>
+            <div class="rounded-lg overflow-hidden border border-outline-variant h-56" id="adminPinMap"></div>
             <p class="font-data-mono text-data-mono text-[11px] text-on-surface-variant mt-1" id="pinReadout" data-i18n="agentDash.noPinYet">No location pinned yet</p>
+            <div id="nearbyAmenitiesStatus" class="hidden mt-2 space-y-1"></div>
           </div>
 
           <div class="grid grid-cols-2 gap-3 mb-3">
@@ -703,6 +704,8 @@ function setAdminPin(lat, lng) {
   if (adminPinMarker) { adminPinMarker.setLatLng([lat, lng]); }
   else { adminPinMarker = L.marker([lat, lng]).addTo(adminPinMap); }
   document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  if (adminPinMap.getZoom() < 14) adminPinMap.setView([lat, lng], 14);
+  loadNearbyAmenities(lat, lng);
 }
 
 function resetListingForm() {
@@ -716,6 +719,131 @@ function resetListingForm() {
   pinLat = null; pinLng = null;
   document.getElementById('pinReadout').textContent = trAdmin('agentDash.noPinYet','No location pinned yet');
   if (adminPinMarker) { adminPinMap.removeLayer(adminPinMarker); adminPinMarker = null; }
+  clearAmenityLayers();
+  document.getElementById('nearbyAmenitiesStatus').classList.add('hidden');
+}
+
+// ---------------------------------------------------------------------
+// Nearby amenities — after pinning a listing, draw a line from the pin
+// to the nearest hospital/clinic, market, school, and mosque, each
+// labeled with distance. Data comes live from OpenStreetMap's public
+// Overpass API (no key needed); nothing is stored, it's just a visual
+// aid for admins when writing up or pricing a listing.
+// ---------------------------------------------------------------------
+const POI_CATEGORIES = {
+  hospital: { labelKey: 'admin.catHospital', label: 'Hospital', icon: 'local_hospital', color: '#ba1a1a' },
+  market:   { labelKey: 'admin.catMarket',   label: 'Market',   icon: 'storefront',     color: '#775a19' },
+  school:   { labelKey: 'admin.catSchool',   label: 'School',   icon: 'school',         color: '#0b1d2d' },
+  mosque:   { labelKey: 'admin.catMosque',   label: 'Mosque',   icon: 'mosque',         color: '#00a656' }
+};
+const AMENITY_RADIUS_M = 3000;
+
+function classifyPOI(tags) {
+  if (!tags) return null;
+  if (['hospital', 'clinic', 'pharmacy'].includes(tags.amenity)) return 'hospital';
+  if (['supermarket', 'mall', 'convenience', 'greengrocer'].includes(tags.shop) || tags.amenity === 'marketplace') return 'market';
+  if (['school', 'university', 'college', 'kindergarten'].includes(tags.amenity)) return 'school';
+  if (tags.amenity === 'place_of_worship' && tags.religion === 'muslim') return 'mosque';
+  return null;
+}
+
+let amenityLayers = [];
+function clearAmenityLayers() {
+  amenityLayers.forEach(layer => adminPinMap.removeLayer(layer));
+  amenityLayers = [];
+}
+
+let amenityRequestId = 0;
+
+async function loadNearbyAmenities(lat, lng) {
+  const myRequestId = ++amenityRequestId;
+  const statusEl = document.getElementById('nearbyAmenitiesStatus');
+  clearAmenityLayers();
+  statusEl.classList.remove('hidden');
+  statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-on-surface-variant">${trAdmin('admin.nearbyFinding', 'Finding nearby important places...')}</p>`;
+
+  const query = `[out:json][timeout:15];(` +
+    `node["amenity"~"^(hospital|clinic|pharmacy)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
+    `node["shop"~"^(supermarket|mall|convenience|greengrocer)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
+    `node["amenity"="marketplace"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
+    `node["amenity"~"^(school|university|college|kindergarten)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
+    `node["amenity"="place_of_worship"]["religion"="muslim"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
+    `);out body;`;
+
+  let elements;
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query)
+    });
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    elements = data.elements || [];
+  } catch (err) {
+    if (myRequestId !== amenityRequestId) return;
+    statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-error">${trAdmin('admin.nearbyFailed', "Couldn't load nearby places — try again.")}</p>`;
+    return;
+  }
+  if (myRequestId !== amenityRequestId) return;
+
+  const origin = L.latLng(lat, lng);
+  const nearest = {};
+  elements.forEach(el => {
+    const cat = classifyPOI(el.tags);
+    if (!cat || el.lat == null || el.lon == null) return;
+    const dist = origin.distanceTo(L.latLng(el.lat, el.lon));
+    if (!nearest[cat] || dist < nearest[cat].dist) {
+      nearest[cat] = { dist, name: (el.tags && el.tags.name) || POI_CATEGORIES[cat].label, lat: el.lat, lon: el.lon };
+    }
+  });
+
+  const cats = Object.keys(POI_CATEGORIES).filter(c => nearest[c]);
+  if (cats.length === 0) {
+    statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-on-surface-variant">${trAdmin('admin.nearbyNone', 'No important places found within 3 km.')}</p>`;
+    return;
+  }
+
+  statusEl.innerHTML = cats.map(cat => {
+    const cfg = POI_CATEGORIES[cat];
+    const poi = nearest[cat];
+    const km = (poi.dist / 1000).toFixed(2);
+    return `<p class="font-body-md text-[11.5px] text-on-surface flex items-center gap-1">
+      <span class="material-symbols-outlined" style="font-size:14px;color:${cfg.color};">${cfg.icon}</span>
+      <strong>${trAdmin(cfg.labelKey, cfg.label)}:</strong> ${poi.name} — ${km} km
+    </p>`;
+  }).join('');
+
+  cats.forEach(cat => {
+    const cfg = POI_CATEGORIES[cat];
+    const poi = nearest[cat];
+    const poiLatLng = L.latLng(poi.lat, poi.lon);
+
+    const marker = L.marker(poiLatLng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:22px;height:22px;border-radius:999px;background:${cfg.color};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);"><span class="material-symbols-outlined" style="font-size:14px;color:#fff;">${cfg.icon}</span></div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
+      })
+    }).addTo(adminPinMap);
+    marker.bindTooltip(`${poi.name} — ${(poi.dist / 1000).toFixed(2)} km`);
+    amenityLayers.push(marker);
+
+    const line = L.polyline([origin, poiLatLng], {
+      color: cfg.color, weight: 2, dashArray: '4 5', opacity: 0.85
+    }).addTo(adminPinMap);
+    amenityLayers.push(line);
+
+    const label = L.marker([(origin.lat + poiLatLng.lat) / 2, (origin.lng + poiLatLng.lng) / 2], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="background:#ffffff;border:1px solid ${cfg.color};border-radius:6px;padding:1px 5px;font-size:10px;font-weight:700;color:${cfg.color};white-space:nowrap;">${(poi.dist / 1000).toFixed(2)} km</div>`,
+        iconSize: null
+      }),
+      interactive: false
+    }).addTo(adminPinMap);
+    amenityLayers.push(label);
+  });
 }
 
 async function onListingFormSubmit(e) {

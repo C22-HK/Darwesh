@@ -412,6 +412,14 @@ const translations = {
     'admin.roleAgent': 'ئەیجێنت',
     'admin.roleAdmin': 'بەڕێوەبەر',
 
+    'admin.nearbyFinding': 'گەڕان بەدوای نزیکترین شوێنە گرنگەکان...',
+    'admin.nearbyFailed': 'نەتوانرا شوێنە نزیکەکان باربکرێن — تکایە دووبارە هەوڵبدەرەوە.',
+    'admin.nearbyNone': 'لە ماوەی ٣ کیلۆمەتردا هیچ شوێنێکی گرنگ نەدۆزرایەوە.',
+    'admin.catHospital': 'نەخۆشخانە',
+    'admin.catMarket': 'بازاڕ',
+    'admin.catSchool': 'قوتابخانە',
+    'admin.catMosque': 'مزگەوت',
+
     'auth.email': 'ئیمەیل',
     'auth.password': 'وشەی نهێنی',
     'auth.signIn': 'چوونەژوورەوە',
@@ -828,6 +836,14 @@ const translations = {
     'admin.roleCustomer': 'عميل',
     'admin.roleAgent': 'وكيل',
     'admin.roleAdmin': 'مشرف',
+
+    'admin.nearbyFinding': 'جارٍ البحث عن أقرب الأماكن المهمة...',
+    'admin.nearbyFailed': 'تعذّر تحميل الأماكن القريبة — يرجى المحاولة مرة أخرى.',
+    'admin.nearbyNone': 'لم يتم العثور على أماكن مهمة ضمن 3 كم.',
+    'admin.catHospital': 'مستشفى',
+    'admin.catMarket': 'سوق',
+    'admin.catSchool': 'مدرسة',
+    'admin.catMosque': 'مسجد',
 
     'auth.email': 'البريد الإلكتروني',
     'auth.password': 'كلمة المرور',
