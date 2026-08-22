@@ -96,6 +96,28 @@
   </header>
 
   <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-6">
+    <section class="bg-primary-container rounded-2xl p-6 md:p-8 mb-6 relative overflow-hidden flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-secondary opacity-10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="relative z-10 flex-shrink-0">
+        <div class="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg mx-auto">
+          <span class="material-symbols-outlined text-on-primary text-[44px]">badge</span>
+        </div>
+      </div>
+      <div class="relative z-10 flex-1">
+        <h1 class="font-headline-md text-[26px] md:text-[30px] text-on-primary font-bold mb-1" id="agentWelcomeName">Welcome</h1>
+        <p class="font-body-md text-body-md text-primary-fixed-dim opacity-90 mb-4" id="agentWelcomeEmail"></p>
+        <div class="flex flex-wrap justify-center md:justify-start gap-3">
+          <div class="bg-surface-tint bg-opacity-20 backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-2">
+            <span class="material-symbols-outlined text-on-primary text-[18px]">list_alt</span>
+            <span class="font-data-mono text-data-mono text-on-primary" id="statMyListings">0 listings</span>
+          </div>
+          <div class="bg-surface-tint bg-opacity-20 backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-2">
+            <span class="material-symbols-outlined text-on-primary text-[18px]">groups</span>
+            <span class="font-data-mono text-data-mono text-on-primary" id="statTeamListings">0 team listings</span>
+          </div>
+        </div>
+      </div>
+    </section>
     <p class="font-body-md text-[13px] text-on-surface-variant mb-6">Listings you add here are saved to the shared database and appear on the public Map and Buy pages for every visitor. You can only edit or delete listings assigned to you.</p>
 
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -358,6 +380,7 @@
     const empty = document.getElementById('listingsEmpty');
     const q = query(collection(db, 'listings'), where('agentId', '==', currentUid));
     const snap = await getDocs(q);
+    document.getElementById('statMyListings').textContent = snap.size + (snap.size === 1 ? ' listing' : ' listings');
     if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     body.innerHTML = '';
@@ -406,6 +429,7 @@
       const l = d.data();
       if (!l.companyId || l.companyId === currentCompanyId) rows.push(l);
     });
+    document.getElementById('statTeamListings').textContent = rows.length + (rows.length === 1 ? ' team listing' : ' team listings');
     if (rows.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     body.innerHTML = '';
@@ -446,10 +470,13 @@
     currentAgentName = profile.displayName || user.email;
     currentCompanyId = profile.companyId || null;
     document.getElementById('agentNameLabel').textContent = currentAgentName;
+    document.getElementById('agentWelcomeName').textContent = 'Welcome, ' + currentAgentName;
+    document.getElementById('agentWelcomeEmail').textContent = user.email;
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('dashContent').classList.remove('hidden');
     initMap();
     loadMyListings();
+    loadTeamListings();
   });
 </script>
 </body></html>
