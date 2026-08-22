@@ -93,10 +93,17 @@ service cloud.firestore {
 
     // ---- Submissions (Sell form, viewing requests) ----
     // A signed-in customer can create a submission tagged with their own
-    // uid, and can only ever read their own submissions back.
+    // uid, and can only ever read their own submissions back. A viewing
+    // request (map.html) may also be submitted by a guest (uid == null) —
+    // Request Viewing doesn't require an account. Only an admin can read
+    // the full collection (Customer Services tab in admin.html) or change
+    // a submission's status.
     match /submissions/{submissionId} {
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if request.resource.data.status == 'pending'
+                    && request.resource.data.type in ['sell', 'viewing']
+                    && (request.resource.data.uid == null
+                        || (isSignedIn() && request.resource.data.uid == request.auth.uid));
+      allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow update, delete: if isAdmin();
     }
   }

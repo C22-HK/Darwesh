@@ -364,6 +364,37 @@
 </a>
 </nav>
 
+<!-- Request Viewing Modal -->
+<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="viewingModalOverlay">
+<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="viewingModalBackdrop"></div>
+<div class="relative bg-surface-container-lowest w-full md:max-w-md rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="viewingModalClose" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="map.requestViewing">Request Viewing</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md text-[13px]" id="viewingModalListingLine"></p>
+<form id="viewingRequestForm">
+<div class="mb-3">
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.fullName">Full Name</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="viewingName" required type="text"/>
+</div>
+<div class="mb-3">
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.phoneNumber">Phone Number</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="viewingPhone" placeholder="+964 750 000 0000" required type="tel"/>
+</div>
+<div class="mb-4">
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="auth.email">Email</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="viewingEmail" type="email"/>
+</div>
+<p id="viewingRequestError" class="text-error text-[13px] mb-3 hidden"></p>
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="viewingSubmitBtn" type="submit">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span data-i18n="map.sendRequest">Send Request</span>
+</button>
+</form>
+</div>
+</div>
+
 <script>
 function layoutMain() {
   const filterBar = document.getElementById('filterBarWrap');
@@ -470,6 +501,68 @@ async function toggleFavorite(id) {
   }
   refresh();
 }
+
+// ---------------------------------------------------------------------
+// Request Viewing modal — writes a real submission doc to Firestore so
+// staff can see and triage it in admin.html's Customer Services tab.
+// Works for guests too (no account required), not just logged-in users.
+// ---------------------------------------------------------------------
+let viewingListingId = null;
+
+function openViewingModal(id) {
+  viewingListingId = id;
+  const l = LISTINGS.find(x => x.id === id);
+  document.getElementById('viewingModalListingLine').textContent = l ? `${l.address}, ${l.city}` : '';
+  document.getElementById('viewingRequestError').classList.add('hidden');
+  document.getElementById('viewingRequestForm').reset();
+  if (favAuth && favAuth.currentUser && favAuth.currentUser.email) {
+    document.getElementById('viewingEmail').value = favAuth.currentUser.email;
+  }
+  document.getElementById('viewingModalOverlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeViewingModal() {
+  document.getElementById('viewingModalOverlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('viewingModalClose').addEventListener('click', closeViewingModal);
+document.getElementById('viewingModalBackdrop').addEventListener('click', closeViewingModal);
+
+document.getElementById('viewingRequestForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('viewingRequestError');
+  errEl.classList.add('hidden');
+  if (!favFns || !favDb) {
+    errEl.textContent = tr('map.viewingRequestError', 'Could not send your request — please try again in a moment.');
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const l = LISTINGS.find(x => x.id === viewingListingId);
+  const name = document.getElementById('viewingName').value.trim();
+  const phone = document.getElementById('viewingPhone').value.trim();
+  const email = document.getElementById('viewingEmail').value.trim();
+  const submitBtn = document.getElementById('viewingSubmitBtn');
+  submitBtn.disabled = true;
+  try {
+    await favFns.addDoc(favFns.collection(favDb, 'submissions'), {
+      type: 'viewing',
+      listingId: viewingListingId,
+      address: l ? l.address : '', city: l ? l.city : '', priceLabel: l ? l.priceLabel : '',
+      name, phone, email,
+      uid: (favAuth && favAuth.currentUser) ? favAuth.currentUser.uid : null,
+      status: 'pending', createdAt: favFns.serverTimestamp()
+    });
+    closeViewingModal();
+    showToast(tr('map.viewingRequestSent', 'Viewing request sent — an agent will contact you within 24 hours'), 'event_available');
+  } catch (err) {
+    errEl.textContent = tr('map.viewingRequestError', 'Could not send your request — please try again in a moment.');
+    errEl.classList.remove('hidden');
+  } finally {
+    submitBtn.disabled = false;
+  }
+});
 
 async function saveCurrentSearch() {
   if (!favAuth || !favAuth.currentUser) {
@@ -663,7 +756,7 @@ function renderList() {
   document.querySelectorAll('.request-viewing-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      showToast('Viewing request sent — an agent will contact you within 24 hours', 'event_available');
+      openViewingModal(Number(btn.dataset.id));
     });
   });
   document.querySelectorAll('.reveal-location-btn').forEach(btn => {

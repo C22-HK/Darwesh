@@ -127,6 +127,21 @@
     .admin-tab-panel { display: none; }
     .admin-tab-panel.active { display: block; }
 
+    .filter-chip {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #44474c;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid #e5e8ee;
+      background: #ffffff;
+      cursor: pointer;
+    }
+    .filter-chip.active { background: #041627; color: #ffffff; border-color: #041627; }
+
     .local-notice {
       background: #fef6e6;
       border: 1px solid #e9c176;
@@ -243,6 +258,7 @@
     <div class="flex border-b border-outline-variant mb-6 flex-wrap">
       <button class="admin-tab active" data-tab="users" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
+      <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
     </div>
@@ -401,6 +417,35 @@
         </div>
       </div>
     </section>
+
+    <!-- TAB: Customer Services -->
+    <section id="tab-services" class="admin-tab-panel">
+      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.servicesNote">Property submissions from Sell and viewing requests from the Map, all in one place. Update a request's status as your team works through it.</p>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <div class="stat-mini"><p class="label" data-i18n="admin.totalRequests">Total requests</p><p class="value" id="statTotalRequests">0</p></div>
+        <div class="stat-mini"><p class="label" data-i18n="admin.statusPending">Pending</p><p class="value" id="statPendingRequests">0</p></div>
+        <div class="stat-mini"><p class="label" data-i18n="admin.statusInProgress">In Progress</p><p class="value" id="statInProgressRequests">0</p></div>
+        <div class="stat-mini"><p class="label" data-i18n="admin.statusResolved">Resolved</p><p class="value" id="statResolvedRequests">0</p></div>
+      </div>
+
+      <div class="flex gap-2 mb-4 flex-wrap" id="servicesFilterBar">
+        <button class="filter-chip active" data-filter="all" type="button" data-i18n="admin.filterAll">All</button>
+        <button class="filter-chip" data-filter="pending" type="button" data-i18n="admin.statusPending">Pending</button>
+        <button class="filter-chip" data-filter="in-progress" type="button" data-i18n="admin.statusInProgress">In Progress</button>
+        <button class="filter-chip" data-filter="resolved" type="button" data-i18n="admin.statusResolved">Resolved</button>
+      </div>
+
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th data-i18n="admin.thType">Type</th><th data-i18n="admin.thDetails">Details</th><th data-i18n="admin.thFrom">From</th><th data-i18n="admin.thSubmitted">Submitted</th><th data-i18n="admin.thStatus">Status</th></tr></thead>
+            <tbody id="servicesBody"></tbody>
+          </table>
+        </div>
+        <p id="servicesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -510,19 +555,31 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
       renderListingsTable();
     }
     if (tab.dataset.tab === 'users') renderUsers();
+    if (tab.dataset.tab === 'services') renderServicesTab();
+  });
+});
+
+document.querySelectorAll('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    servicesFilter = chip.dataset.filter;
+    renderServicesRows();
   });
 });
 
 function initDashboard() {
-  if (dashboardInited) { renderUsers(); renderListingsTable(); return; }
+  if (dashboardInited) { renderUsers(); renderListingsTable(); renderServicesTab(); return; }
   dashboardInited = true;
   renderScanLog();
   renderMarketOverview();
   renderUsers();
   initListingsTab();
+  renderServicesTab();
   document.addEventListener('darwesh:langchange', () => {
     renderUsers();
     renderListingsTable();
+    renderServicesRows();
   });
 }
 
@@ -996,6 +1053,93 @@ async function renderListingsTable() {
     delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
     delBtn.addEventListener('click', () => window.deleteListing(l.id));
     tr.lastElementChild.append(editBtn, delBtn);
+    body.appendChild(tr);
+  });
+}
+
+// ---------------------------------------------------------------------
+// Customer Services tab — property submissions (sell.html) and viewing
+// requests (map.html "Request Viewing"), both stored in the shared
+// `submissions` collection with a status an admin can update.
+// ---------------------------------------------------------------------
+let allSubmissionsCache = [];
+let servicesFilter = 'all';
+
+const SERVICES_STATUS_LABEL_FN = () => ({
+  pending: trAdmin('admin.statusPending', 'Pending'),
+  'in-progress': trAdmin('admin.statusInProgress', 'In Progress'),
+  resolved: trAdmin('admin.statusResolved', 'Resolved')
+});
+async function renderServicesTab() {
+  const snap = await getDocs(collection(db, 'submissions'));
+  allSubmissionsCache = [];
+  snap.forEach(d => allSubmissionsCache.push({ id: d.id, ...d.data() }));
+  allSubmissionsCache.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+  document.getElementById('statTotalRequests').textContent = allSubmissionsCache.length;
+  document.getElementById('statPendingRequests').textContent = allSubmissionsCache.filter(s => s.status === 'pending').length;
+  document.getElementById('statInProgressRequests').textContent = allSubmissionsCache.filter(s => s.status === 'in-progress').length;
+  document.getElementById('statResolvedRequests').textContent = allSubmissionsCache.filter(s => s.status === 'resolved').length;
+
+  renderServicesRows();
+}
+
+function renderServicesRows() {
+  const body = document.getElementById('servicesBody');
+  const empty = document.getElementById('servicesEmpty');
+  const statusLabel = SERVICES_STATUS_LABEL_FN();
+
+  const rows = servicesFilter === 'all' ? allSubmissionsCache : allSubmissionsCache.filter(s => s.status === servicesFilter);
+
+  if (rows.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  body.innerHTML = '';
+  rows.forEach(s => {
+    const tr = document.createElement('tr');
+    const isSell = s.type === 'sell';
+    const typeLabel = isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
+    const typeIcon = isSell ? 'sell' : 'event_available';
+    const details = isSell
+      ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.title || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.address || ''}, ${s.city || ''}${s.price ? ' &middot; $' + Number(s.price).toLocaleString() : ''}</p>`
+      : `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.address || ''}, ${s.city || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.priceLabel || ''}</p>`;
+    const from = isSell
+      ? `<p class="font-body-md text-[13px] text-on-surface">${s.uid ? trAdmin('admin.viaAccount', 'Registered customer') : ''}</p>`
+      : `<p class="font-body-md text-[13px] text-on-surface">${s.name || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.phone || ''}${s.email ? ' &middot; ' + s.email : ''}</p>`;
+    const submitted = s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000).toLocaleDateString() : '—';
+
+    tr.innerHTML = `
+      <td><span class="badge badge-private"><span class="material-symbols-outlined" style="font-size:13px;">${typeIcon}</span>${typeLabel}</span></td>
+      <td>${details}</td>
+      <td>${from}</td>
+      <td>${submitted}</td>
+      <td></td>
+    `;
+    const select = document.createElement('select');
+    select.className = 'admin-input';
+    select.style.padding = '5px 8px';
+    select.style.fontSize = '12.5px';
+    select.style.width = 'auto';
+    ['pending', 'in-progress', 'resolved'].forEach(st => {
+      const opt = document.createElement('option');
+      opt.value = st; opt.textContent = statusLabel[st];
+      if (s.status === st) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', async () => {
+      select.disabled = true;
+      try {
+        await updateDoc(doc(db, 'submissions', s.id), { status: select.value });
+        s.status = select.value;
+        document.getElementById('statPendingRequests').textContent = allSubmissionsCache.filter(x => x.status === 'pending').length;
+        document.getElementById('statInProgressRequests').textContent = allSubmissionsCache.filter(x => x.status === 'in-progress').length;
+        document.getElementById('statResolvedRequests').textContent = allSubmissionsCache.filter(x => x.status === 'resolved').length;
+        if (servicesFilter !== 'all' && servicesFilter !== select.value) renderServicesRows();
+      } finally {
+        select.disabled = false;
+      }
+    });
+    tr.lastElementChild.appendChild(select);
     body.appendChild(tr);
   });
 }
