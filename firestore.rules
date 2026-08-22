@@ -20,14 +20,19 @@ service cloud.firestore {
     function isAdmin() { return myRole() == 'admin'; }
 
     // ---- User profiles ----
-    // Anyone signed in can read/create their own profile. A user can
-    // update their own profile but NOT change their own role (that would
-    // let a customer self-promote to agent). Only an admin profile can
-    // change someone else's role.
+    // Anyone signed in can read/create their own profile. A signed-in
+    // user can also read an AGENT's profile (name/email) — that's how a
+    // customer sees who their assigned agent is. A user can update their
+    // own profile but NOT change their own role or assign themselves an
+    // agent (both are set by you, manually, in the Firestore console —
+    // see the note in agent-dashboard.html / the chat for how). Only an
+    // admin profile can change someone else's role or agent assignment.
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin();
+      allow read: if isOwner(uid) || isAdmin() || (isSignedIn() && resource.data.role == 'agent');
       allow create: if isOwner(uid) && request.resource.data.role == 'customer';
-      allow update: if (isOwner(uid) && request.resource.data.role == resource.data.role)
+      allow update: if (isOwner(uid)
+                          && request.resource.data.role == resource.data.role
+                          && request.resource.data.assignedAgentId == resource.data.assignedAgentId)
                     || isAdmin();
       allow delete: if isAdmin();
 

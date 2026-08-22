@@ -77,7 +77,29 @@
       <button class="acct-tab active" data-tab="favorites" type="button">Favorites</button>
       <button class="acct-tab" data-tab="submissions" type="button">My Submissions</button>
       <button class="acct-tab" data-tab="searches" type="button">Saved Searches</button>
+      <button class="acct-tab" data-tab="agent" type="button">My Agent</button>
     </div>
+
+    <!-- My Agent -->
+    <section id="tab-agent" class="acct-panel">
+      <div id="agentAssigned" class="hidden">
+        <div class="fav-card p-5 mb-6 flex items-center gap-4">
+          <div class="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center flex-none">
+            <span class="material-symbols-outlined text-[26px]">badge</span>
+          </div>
+          <div>
+            <p class="font-headline-md text-[18px] text-primary" id="agentName">—</p>
+            <p class="font-body-md text-[13px] text-on-surface-variant" id="agentEmail">—</p>
+          </div>
+        </div>
+        <p class="font-label-caps text-label-caps text-secondary mb-3">Listings from your agent</p>
+        <div id="agentListingsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <p id="agentListingsEmpty" class="hidden font-body-md text-[13px] text-on-surface-variant py-4">Your agent hasn't added any listings yet.</p>
+      </div>
+      <p id="agentEmpty" class="hidden font-body-md text-[14px] text-on-surface-variant py-8 text-center">
+        You don't have an assigned agent yet. Contact the Darwesh Group office to get connected with one, or browse <a href="map.html" class="text-secondary hover:underline">Map</a> in the meantime.
+      </p>
+    </section>
 
     <!-- Favorites -->
     <section id="tab-favorites" class="acct-panel active">
@@ -229,6 +251,52 @@
     });
   }
 
+  async function loadMyAgent(profile) {
+    const assigned = document.getElementById('agentAssigned');
+    const empty = document.getElementById('agentEmpty');
+    if (!profile.assignedAgentId) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    const agentSnap = await getDoc(doc(db, 'users', profile.assignedAgentId));
+    if (!agentSnap.exists()) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    const agent = agentSnap.data();
+    document.getElementById('agentName').textContent = agent.displayName || 'Darwesh Group Agent';
+    document.getElementById('agentEmail').textContent = agent.email || '';
+    assigned.classList.remove('hidden');
+
+    const grid = document.getElementById('agentListingsGrid');
+    const listingsEmpty = document.getElementById('agentListingsEmpty');
+    const q = query(collection(db, 'listings'), where('agentId', '==', profile.assignedAgentId));
+    const snap = await getDocs(q);
+    if (snap.empty) { listingsEmpty.classList.remove('hidden'); return; }
+    listingsEmpty.classList.add('hidden');
+    grid.innerHTML = '';
+    snap.forEach(d => {
+      const l = d.data();
+      const card = document.createElement('div');
+      card.className = 'fav-card';
+      const img = document.createElement('img');
+      img.className = 'w-full h-36 object-cover';
+      img.src = l.img || '';
+      img.alt = '';
+      const body = document.createElement('div');
+      body.className = 'p-3';
+      const price = document.createElement('p');
+      price.className = 'font-headline-md text-[16px] text-primary';
+      price.textContent = '$' + Number(l.price).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
+      const addr = document.createElement('p');
+      addr.className = 'font-body-md text-[12.5px] text-on-surface-variant';
+      addr.textContent = (l.address || '') + (l.city ? ', ' + l.city : '');
+      body.append(price, addr);
+      card.append(img, body);
+      grid.appendChild(card);
+    });
+  }
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       window.location.href = 'login.html';
@@ -247,6 +315,7 @@
     loadFavorites(user.uid);
     loadSubmissions(user.uid);
     loadSearches(user.uid);
+    loadMyAgent(profile);
   });
 </script>
 </body></html>
