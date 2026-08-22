@@ -18,3 +18,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+
+// The only company on this platform so far. Every signup is stamped
+// with this until there's a real "which company" flow for multi-tenant
+// use — see the note at the top of firestore.rules.
+export const DEFAULT_COMPANY_ID = 'darwesh-group';

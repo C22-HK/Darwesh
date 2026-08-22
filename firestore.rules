@@ -6,6 +6,14 @@ rules_version = '2';
 // Roles live on users/{uid}.role: "customer" (default, self-assigned at
 // signup) or "agent" (assigned manually by you in the Firestore console —
 // see the note in agent-dashboard.html / the chat for how).
+//
+// Every user and listing also carries a companyId (see companies/{id}
+// below) — the foundation for eventually hosting more than one real
+// estate company on this same platform, each with its own agents/team
+// visibility. Right now every signup is stamped with the one default
+// company; public browsing (Map/Buy) still pools all companies'
+// listings together — only the agent-facing Team Listings view is
+// scoped per company so far.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -18,21 +26,39 @@ service cloud.firestore {
     }
     function isAgent() { return myRole() == 'agent'; }
     function isAdmin() { return myRole() == 'admin'; }
+    function myCompanyId() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.companyId
+        : null;
+    }
+
+    // ---- Companies ----
+    // A real estate company using this platform. Every user and listing
+    // is tagged with a companyId. Creating/editing companies is an admin
+    // action (for now, done manually by you in the Firestore console —
+    // there's no "add a company" UI yet). Company names are readable by
+    // any signed-in user (needed to display "which company" on a profile).
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
 
     // ---- User profiles ----
     // Anyone signed in can read/create their own profile. A signed-in
     // user can also read an AGENT's profile (name/email) — that's how a
     // customer sees who their assigned agent is. A user can update their
-    // own profile but NOT change their own role or assign themselves an
-    // agent (both are set by you, manually, in the Firestore console —
-    // see the note in agent-dashboard.html / the chat for how). Only an
-    // admin profile can change someone else's role or agent assignment.
+    // own profile but NOT change their own role, company, or assign
+    // themselves an agent (all three are set by you, manually, in the
+    // Firestore console — see the note in agent-dashboard.html / the
+    // chat for how). Only an admin profile can change someone else's
+    // role, company, or agent assignment.
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin() || (isSignedIn() && resource.data.role == 'agent');
       allow create: if isOwner(uid) && request.resource.data.role == 'customer';
       allow update: if (isOwner(uid)
                           && request.resource.data.role == resource.data.role
-                          && request.resource.data.assignedAgentId == resource.data.assignedAgentId)
+                          && request.resource.data.assignedAgentId == resource.data.assignedAgentId
+                          && request.resource.data.companyId == resource.data.companyId)
                     || isAdmin();
       allow delete: if isAdmin();
 
@@ -47,11 +73,17 @@ service cloud.firestore {
 
     // ---- Listings ----
     // Publicly readable (Map/Buy show these to every visitor, logged in
-    // or not). Only an agent can create a listing (assigned to themself),
-    // and only that same agent — or an admin — can edit/delete it.
+    // or not) — this platform doesn't yet separate public browsing by
+    // company, only the agent-facing Team Listings view does that. Only
+    // an agent can create a listing (assigned to themself and tagged
+    // with their own company), and only that same agent — or an admin —
+    // can edit/delete it.
     match /listings/{listingId} {
       allow read: if true;
-      allow create: if (isAgent() && request.resource.data.agentId == request.auth.uid) || isAdmin();
+      allow create: if (isAgent()
+                          && request.resource.data.agentId == request.auth.uid
+                          && request.resource.data.companyId == myCompanyId())
+                    || isAdmin();
       allow update, delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
     }
 

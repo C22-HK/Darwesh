@@ -221,6 +221,7 @@
 
   let currentUid = null;
   let currentAgentName = '';
+  let currentCompanyId = null;
   let agentPinMap, agentPinMarker, pinLat = null, pinLng = null;
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -303,6 +304,7 @@
       private: document.getElementById('fPrivate').checked,
       agentId: currentUid,
       agentName: currentAgentName,
+      companyId: currentCompanyId,
       updatedAt: serverTimestamp()
     };
 
@@ -394,11 +396,18 @@
     const body = document.getElementById('teamListingsBody');
     const empty = document.getElementById('teamListingsEmpty');
     const snap = await getDocs(collection(db, 'listings'));
-    if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    // Scope to this agent's own company. Listings created before the
+    // company field existed have no companyId at all — treat those as
+    // belonging here too, rather than having them vanish from the team
+    // view just because they predate this change.
+    const rows = [];
+    snap.forEach(d => {
+      const l = d.data();
+      if (!l.companyId || l.companyId === currentCompanyId) rows.push(l);
+    });
+    if (rows.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     body.innerHTML = '';
-    const rows = [];
-    snap.forEach(d => rows.push(d.data()));
     rows.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
     rows.forEach(l => {
       const tr = document.createElement('tr');
@@ -434,6 +443,7 @@
     }
     currentUid = user.uid;
     currentAgentName = profile.displayName || user.email;
+    currentCompanyId = profile.companyId || null;
     document.getElementById('agentNameLabel').textContent = currentAgentName;
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('dashContent').classList.remove('hidden');
