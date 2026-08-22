@@ -122,6 +122,7 @@
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html">Map</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html">Services</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="profile.html">Profile</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Account</a>
 <a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
 </nav>
 <button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
@@ -436,8 +437,41 @@ if (localStorage.getItem(DRAFT_KEY)) {
   document.getElementById('draftBanner').classList.remove('hidden');
 }
 
-document.getElementById('sellForm').addEventListener('submit', function (e) {
+// If the visitor is logged in, save the submission to their account so
+// they can track it on account.html. Guests still get the normal
+// confirmation, but a guest submission isn't saved anywhere retrievable
+// — there's no way to tie it back to them without an account.
+let submitAuth = null, submitDb = null, submitFns = null;
+(async function initSubmissionAuth() {
+  const [{ auth, db }, authMod, storeMod] = await Promise.all([
+    import('./js/firebase-init.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+  ]);
+  submitAuth = auth; submitDb = db;
+  submitFns = { ...authMod, ...storeMod };
+})();
+
+document.getElementById('sellForm').addEventListener('submit', async function (e) {
   e.preventDefault();
+  const draft = collectDraft();
+
+  if (submitAuth && submitAuth.currentUser) {
+    try {
+      await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), {
+        uid: submitAuth.currentUser.uid,
+        type: 'sell',
+        title: draft.titleInput, propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
+        city: draft.citySelect, address: draft.addressInput, price: draft.priceInput,
+        size: draft.sizeInput, beds: draft.bedsInput, baths: draft.bathsInput,
+        description: draft.descriptionInput, pinLat: draft.pinLat, pinLng: draft.pinLng,
+        status: 'pending', createdAt: submitFns.serverTimestamp()
+      });
+    } catch (err) {
+      console.error('Could not save submission to account:', err);
+    }
+  }
+
   localStorage.removeItem(DRAFT_KEY);
   this.classList.add('hidden');
   document.getElementById('confirmation').classList.remove('hidden');

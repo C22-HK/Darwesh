@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Darwesh Group — Firestore Security Rules
+// Paste this into Firebase Console → Firestore Database → Rules → Publish.
+//
+// Roles live on users/{uid}.role: "customer" (default, self-assigned at
+// signup) or "agent" (assigned manually by you in the Firestore console —
+// see the note in agent-dashboard.html / the chat for how).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function myRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+    function isAgent() { return myRole() == 'agent'; }
+    function isAdmin() { return myRole() == 'admin'; }
+
+    // ---- User profiles ----
+    // Anyone signed in can read/create their own profile. A user can
+    // update their own profile but NOT change their own role (that would
+    // let a customer self-promote to agent). Only an admin profile can
+    // change someone else's role.
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid) && request.resource.data.role == 'customer';
+      allow update: if (isOwner(uid) && request.resource.data.role == resource.data.role)
+                    || isAdmin();
+      allow delete: if isAdmin();
+
+      // Per-user favorites and saved searches — only that user (ever) reads/writes.
+      match /favorites/{listingId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /savedSearches/{searchId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ---- Listings ----
+    // Publicly readable (Map/Buy show these to every visitor, logged in
+    // or not). Only an agent can create a listing (assigned to themself),
+    // and only that same agent — or an admin — can edit/delete it.
+    match /listings/{listingId} {
+      allow read: if true;
+      allow create: if (isAgent() && request.resource.data.agentId == request.auth.uid) || isAdmin();
+      allow update, delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+    }
+
+    // ---- Submissions (Sell form, viewing requests) ----
+    // A signed-in customer can create a submission tagged with their own
+    // uid, and can only ever read their own submissions back.
+    match /submissions/{submissionId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

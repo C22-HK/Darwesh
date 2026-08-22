@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Darwesh Group - Agent Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f7f9ff", "on-secondary-fixed-variant": "#5d4201", "secondary": "#775a19",
+                        "on-secondary-fixed": "#261900", "on-primary-fixed": "#0b1d2d", "primary": "#041627",
+                        "error": "#ba1a1a", "inverse-primary": "#b7c8de", "surface-container-low": "#f1f4f9",
+                        "on-primary-fixed-variant": "#38485a", "tertiary-fixed": "#6bfe9c", "surface-variant": "#e0e3e8",
+                        "on-tertiary-fixed": "#00210c", "primary-fixed": "#d2e4fb", "on-primary": "#ffffff",
+                        "surface": "#f7f9ff", "surface-container-high": "#e5e8ee", "inverse-surface": "#2d3135",
+                        "on-error-container": "#93000a", "on-secondary": "#ffffff", "error-container": "#ffdad6",
+                        "inverse-on-surface": "#eef1f6", "on-error": "#ffffff", "outline-variant": "#c4c6cd",
+                        "outline": "#74777d", "primary-container": "#1a2b3c", "tertiary-container": "#003115",
+                        "tertiary-fixed-dim": "#4ae183", "primary-fixed-dim": "#b7c8de", "secondary-container": "#fed488",
+                        "secondary-fixed-dim": "#e9c176", "secondary-fixed": "#ffdea5", "surface-dim": "#d7dadf",
+                        "tertiary": "#001a08", "surface-container-lowest": "#ffffff", "on-background": "#181c20",
+                        "surface-container-highest": "#e0e3e8", "on-tertiary-container": "#00a656", "on-primary-container": "#8192a7",
+                        "on-tertiary": "#ffffff", "on-tertiary-fixed-variant": "#005228", "on-surface-variant": "#44474c",
+                        "surface-tint": "#4f6073", "on-secondary-container": "#785a1a", "surface-container": "#ebeef3",
+                        "background": "#f7f9ff", "on-surface": "#181c20"
+                    },
+                    "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                    "spacing": { "gutter": "24px", "stack-lg": "32px", "stack-md": "16px", "margin-desktop": "48px", "stack-sm": "8px", "container-max": "1280px", "margin-mobile": "16px", "unit": "8px" },
+                    "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "label-caps": ["IBM Plex Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-mono": ["Inter"], "display-lg": ["Plus Jakarta Sans"] },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+  body { min-height: 100dvh; }
+  #agentPinMap { background: #e5e8ee; }
+  .admin-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13.5px; }
+  .admin-table th, .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e8ee; vertical-align: middle; }
+  .admin-table th { color: #44474c; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .admin-table td { color: #181c20; }
+  .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .badge-sale { background: #d2e4fb; color: #0b1d2d; }
+  .badge-rent { background: #fed488; color: #5d4201; }
+  .badge-verified { background: #003115; color: #4ae183; }
+  .badge-private { background: #e5e8ee; color: #44474c; }
+  .icon-btn { padding: 6px; border-radius: 8px; cursor: pointer; color: #44474c; background: none; border: none; }
+  .icon-btn:hover { background: #ebeef3; }
+  .icon-btn.danger:hover { background: #ffdad6; color: #ba1a1a; }
+  .admin-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; }
+  .admin-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
+  .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
+</style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased">
+
+<div id="loadingGate" class="fixed inset-0 flex items-center justify-center bg-background z-50">
+  <p class="font-body-md text-on-surface-variant">Loading…</p>
+</div>
+
+<div id="notAgentGate" class="hidden fixed inset-0 flex items-center justify-center bg-background z-50 p-6">
+  <div class="max-w-sm text-center">
+    <p class="font-headline-md text-headline-md text-primary mb-2">Agent access only</p>
+    <p class="font-body-md text-[14px] text-on-surface-variant mb-4">This dashboard is for Darwesh Group agent accounts. If you believe your account should have agent access, contact the office.</p>
+    <a href="account.html" class="inline-block bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps">Go to My Account</a>
+  </div>
+</div>
+
+<div id="dashContent" class="hidden pb-16">
+  <header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
+    <div class="flex items-center gap-3">
+      <span class="material-symbols-outlined text-primary">badge</span>
+      <span class="font-headline-md text-[20px] text-primary font-bold">Agent Dashboard</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="agentNameLabel"></span>
+      <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-6">
+    <p class="font-body-md text-[13px] text-on-surface-variant mb-6">Listings you add here are saved to the shared database and appear on the public Map and Buy pages for every visitor. You can only edit or delete listings assigned to you.</p>
+
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <!-- Form -->
+      <form id="listingForm" class="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 h-fit">
+        <p class="font-headline-md text-[17px] text-primary mb-4" id="formTitle">Add a Listing</p>
+        <input type="hidden" id="editingId" value=""/>
+
+        <div class="mb-3">
+          <label class="admin-label" for="fTitle">Title</label>
+          <input id="fTitle" class="admin-input" placeholder="e.g. Italian Village Villa 12" required/>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="admin-label" for="fCity">City</label>
+            <select id="fCity" class="admin-input">
+              <option>Erbil</option><option>Sulaymaniyah</option><option>Duhok</option>
+              <option>Soran</option><option>Zakho</option><option>Koya</option>
+            </select>
+          </div>
+          <div>
+            <label class="admin-label" for="fDealType">Deal type</label>
+            <select id="fDealType" class="admin-input">
+              <option value="sale">For Sale</option>
+              <option value="rent">For Rent</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="admin-label" for="fAddress">Address</label>
+          <input id="fAddress" class="admin-input" placeholder="e.g. Italian Village, Villa 12" required/>
+        </div>
+
+        <div class="mb-3">
+          <label class="admin-label">Pin exact location (click the map)</label>
+          <div class="rounded-lg overflow-hidden border border-outline-variant h-40" id="agentPinMap"></div>
+          <p class="font-data-mono text-data-mono text-[11px] text-on-surface-variant mt-1" id="pinReadout">No location pinned yet</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <label class="admin-label" for="fPropertyType">Property type</label>
+            <select id="fPropertyType" class="admin-input">
+              <option value="villa">Villa</option>
+              <option value="apartment">Apartment</option>
+              <option value="office">Office</option>
+              <option value="land">Land</option>
+            </select>
+          </div>
+          <div>
+            <label class="admin-label" id="priceLabel" for="fPrice">Price (USD)</label>
+            <input id="fPrice" type="number" min="0" class="admin-input" placeholder="250000" required/>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div><label class="admin-label" for="fBeds">Beds</label><input id="fBeds" type="number" min="0" class="admin-input" value="3"/></div>
+          <div><label class="admin-label" for="fBaths">Baths</label><input id="fBaths" type="number" min="0" class="admin-input" value="2"/></div>
+          <div><label class="admin-label" for="fSqft">m²</label><input id="fSqft" type="number" min="0" class="admin-input" value="150"/></div>
+        </div>
+
+        <div class="mb-3">
+          <label class="admin-label" for="fImg">Photo URL (optional)</label>
+          <input id="fImg" class="admin-input" placeholder="https://..."/>
+        </div>
+
+        <div class="flex items-center gap-5 mb-5">
+          <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fVerified" type="checkbox" class="rounded"/>Verified</label>
+          <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fPrivate" type="checkbox" class="rounded"/>Private (hide exact location)</label>
+        </div>
+
+        <p id="formError" class="text-error text-[13px] mb-3 hidden"></p>
+
+        <div class="flex gap-2">
+          <button type="submit" id="formSubmitBtn" class="flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors">Add Listing</button>
+          <button type="button" id="formCancelBtn" class="hidden px-4 py-2.5 border border-outline-variant rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">Cancel</button>
+        </div>
+      </form>
+
+      <!-- List -->
+      <div class="lg:col-span-3">
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table">
+              <thead><tr><th>Listing</th><th>Type</th><th>Price</th><th>Flags</th><th></th></tr></thead>
+              <tbody id="listingsBody"></tbody>
+            </table>
+          </div>
+          <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">You haven't added any listings yet. Use the form to add your first one.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+  import { auth, db } from './js/firebase-init.js';
+  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import {
+    doc, getDoc, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+  let currentUid = null;
+  let agentPinMap, agentPinMarker, pinLat = null, pinLng = null;
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await signOut(auth);
+    window.location.href = 'index.html';
+  });
+
+  document.getElementById('fDealType').addEventListener('change', (e) => {
+    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? 'Monthly rent (USD)' : 'Price (USD)';
+  });
+
+  function initMap() {
+    agentPinMap = L.map('agentPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(agentPinMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
+    }).addTo(agentPinMap);
+    agentPinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
+    setTimeout(() => agentPinMap.invalidateSize(), 150);
+  }
+
+  function setPin(lat, lng) {
+    pinLat = lat; pinLng = lng;
+    if (agentPinMarker) { agentPinMarker.setLatLng([lat, lng]); }
+    else { agentPinMarker = L.marker([lat, lng]).addTo(agentPinMap); }
+    document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  }
+
+  function resetForm() {
+    document.getElementById('listingForm').reset();
+    document.getElementById('editingId').value = '';
+    document.getElementById('formTitle').textContent = 'Add a Listing';
+    document.getElementById('formSubmitBtn').textContent = 'Add Listing';
+    document.getElementById('formCancelBtn').classList.add('hidden');
+    document.getElementById('formError').classList.add('hidden');
+    document.getElementById('priceLabel').textContent = 'Price (USD)';
+    pinLat = null; pinLng = null;
+    document.getElementById('pinReadout').textContent = 'No location pinned yet';
+    if (agentPinMarker) { agentPinMap.removeLayer(agentPinMarker); agentPinMarker = null; }
+  }
+  document.getElementById('formCancelBtn').addEventListener('click', resetForm);
+
+  document.getElementById('listingForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('formError');
+    const title = document.getElementById('fTitle').value.trim();
+    const address = document.getElementById('fAddress').value.trim();
+    const price = Number(document.getElementById('fPrice').value);
+
+    if (!title || !address || !price || pinLat === null || pinLng === null) {
+      errEl.textContent = 'Please pin a location on the map and fill in the required fields.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+
+    const editingId = document.getElementById('editingId').value;
+    const data = {
+      title, address,
+      city: document.getElementById('fCity').value,
+      lat: pinLat, lng: pinLng,
+      dealType: document.getElementById('fDealType').value,
+      propertyType: document.getElementById('fPropertyType').value,
+      price,
+      beds: Number(document.getElementById('fBeds').value) || 0,
+      baths: Number(document.getElementById('fBaths').value) || 0,
+      sqft: Number(document.getElementById('fSqft').value) || 0,
+      img: document.getElementById('fImg').value.trim(),
+      verified: document.getElementById('fVerified').checked,
+      private: document.getElementById('fPrivate').checked,
+      agentId: currentUid,
+      updatedAt: serverTimestamp()
+    };
+
+    try {
+      if (editingId) {
+        await updateDoc(doc(db, 'listings', editingId), data);
+      } else {
+        data.createdAt = serverTimestamp();
+        await addDoc(collection(db, 'listings'), data);
+      }
+      resetForm();
+      loadMyListings();
+    } catch (err) {
+      errEl.textContent = 'Could not save this listing: ' + err.message;
+      errEl.classList.remove('hidden');
+    }
+  });
+
+  window.editListing = async function (id, l) {
+    document.getElementById('editingId').value = id;
+    document.getElementById('fTitle').value = l.title;
+    document.getElementById('fCity').value = l.city;
+    document.getElementById('fAddress').value = l.address;
+    document.getElementById('fDealType').value = l.dealType;
+    document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? 'Monthly rent (USD)' : 'Price (USD)';
+    document.getElementById('fPropertyType').value = l.propertyType;
+    document.getElementById('fPrice').value = l.price;
+    document.getElementById('fBeds').value = l.beds;
+    document.getElementById('fBaths').value = l.baths;
+    document.getElementById('fSqft').value = l.sqft;
+    document.getElementById('fImg').value = l.img || '';
+    document.getElementById('fVerified').checked = !!l.verified;
+    document.getElementById('fPrivate').checked = !!l.private;
+    setPin(l.lat, l.lng);
+    agentPinMap.setView([l.lat, l.lng], 13);
+    document.getElementById('formTitle').textContent = 'Edit Listing';
+    document.getElementById('formSubmitBtn').textContent = 'Update Listing';
+    document.getElementById('formCancelBtn').classList.remove('hidden');
+    document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  window.deleteListing = async function (id) {
+    if (!confirm('Delete this listing? It will be removed from the public site immediately.')) return;
+    await deleteDoc(doc(db, 'listings', id));
+    loadMyListings();
+  };
+
+  async function loadMyListings() {
+    const body = document.getElementById('listingsBody');
+    const empty = document.getElementById('listingsEmpty');
+    const q = query(collection(db, 'listings'), where('agentId', '==', currentUid));
+    const snap = await getDocs(q);
+    if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    body.innerHTML = '';
+    snap.forEach(docSnap => {
+      const l = docSnap.data();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
+          <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+        </td>
+        <td>
+          <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? 'For Sale' : 'For Rent'}</span>
+          <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+        </td>
+        <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
+        <td>
+          ${l.verified ? '<span class="badge badge-verified">Verified</span>' : ''}
+          ${l.private ? '<span class="badge badge-private">Private</span>' : ''}
+        </td>
+        <td></td>
+      `;
+      const editBtn = document.createElement('button');
+      editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = 'Edit';
+      editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
+      editBtn.addEventListener('click', () => window.editListing(docSnap.id, l));
+      const delBtn = document.createElement('button');
+      delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = 'Delete';
+      delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
+      delBtn.addEventListener('click', () => window.deleteListing(docSnap.id));
+      tr.lastElementChild.append(editBtn, delBtn);
+      body.appendChild(tr);
+    });
+  }
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { window.location.href = 'login.html'; return; }
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    const profile = snap.exists() ? snap.data() : {};
+    if (profile.role !== 'agent') {
+      document.getElementById('loadingGate').classList.add('hidden');
+      document.getElementById('notAgentGate').classList.remove('hidden');
+      return;
+    }
+    currentUid = user.uid;
+    document.getElementById('agentNameLabel').textContent = profile.displayName || user.email;
+    document.getElementById('loadingGate').classList.add('hidden');
+    document.getElementById('dashContent').classList.remove('hidden');
+    initMap();
+    loadMyListings();
+  });
+</script>
+</body></html>

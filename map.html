@@ -251,6 +251,7 @@
 <a class="font-label-caps text-label-caps text-primary dark:text-primary-fixed-dim font-bold" href="map.html">Map</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html">Services</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="profile.html">Profile</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Account</a>
 <a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
 </nav>
 <button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
@@ -278,6 +279,9 @@
 </button>
 <button class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
                 Home Type <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<button id="saveSearchBtn" type="button" class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[16px]">bookmark_add</span>Save Search
 </button>
 <span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
 </div>
@@ -405,6 +409,76 @@ let searchCircle = null;
 let drawMode = false;
 let drawStart = null;
 
+// ---------------------------------------------------------------------
+// Favorites & saved searches (Firebase). Loaded via dynamic import so
+// this stays a plain classic script — no module-scope isolation issues
+// with the rest of this file's functions/variables.
+// ---------------------------------------------------------------------
+let favAuth = null, favDb = null, favFns = null;
+let favoriteIds = new Set();
+
+async function initFavorites() {
+  const [{ auth, db }, authMod, storeMod] = await Promise.all([
+    import('./js/firebase-init.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+  ]);
+  favAuth = auth; favDb = db;
+  favFns = { ...authMod, ...storeMod };
+  favFns.onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const snap = await favFns.getDocs(favFns.collection(db, 'users', user.uid, 'favorites'));
+      favoriteIds = new Set();
+      snap.forEach(d => favoriteIds.add(d.id));
+    } else {
+      favoriteIds = new Set();
+    }
+    refresh();
+  });
+}
+initFavorites();
+
+async function toggleFavorite(id) {
+  if (!favAuth || !favAuth.currentUser) {
+    showToast('Log in to save favorites', 'favorite');
+    setTimeout(() => { window.location.href = 'login.html'; }, 900);
+    return;
+  }
+  const uid = favAuth.currentUser.uid;
+  const idStr = 'map-' + id;
+  const l = LISTINGS.find(x => x.id === id);
+  const ref = favFns.doc(favDb, 'users', uid, 'favorites', idStr);
+  if (favoriteIds.has(idStr)) {
+    favoriteIds.delete(idStr);
+    await favFns.deleteDoc(ref);
+    showToast('Removed from favorites', 'favorite');
+  } else {
+    favoriteIds.add(idStr);
+    await favFns.setDoc(ref, {
+      listingId: idStr, address: l.address, city: l.city,
+      priceLabel: l.priceLabel, img: l.img, savedAt: favFns.serverTimestamp()
+    });
+    showToast('Saved to favorites', 'favorite');
+  }
+  refresh();
+}
+
+async function saveCurrentSearch() {
+  if (!favAuth || !favAuth.currentUser) {
+    showToast('Log in to save searches', 'bookmark_add');
+    setTimeout(() => { window.location.href = 'login.html'; }, 900);
+    return;
+  }
+  const uid = favAuth.currentUser.uid;
+  const cityVal = document.getElementById('citySearch').value.trim();
+  const label = `${activeType === 'all' ? 'All types' : (activeType === 'sale' ? 'For Sale' : 'For Rent')}${cityVal ? ' in ' + cityVal : ' — Kurdistan Region'}`;
+  await favFns.addDoc(favFns.collection(favDb, 'users', uid, 'savedSearches'), {
+    label, url: 'map.html', filters: { type: activeType, city: cityVal }, createdAt: favFns.serverTimestamp()
+  });
+  showToast('Search saved to your account', 'check_circle');
+}
+document.getElementById('saveSearchBtn').addEventListener('click', saveCurrentSearch);
+
 function showToast(msg, icon) {
   const el = document.getElementById('mapToast');
   el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>`;
@@ -515,9 +589,15 @@ function card(l) {
       <span class="font-label-caps text-label-caps text-[10px] text-on-tertiary-container">Verified by Darwesh Group</span>
     </div>` : '';
 
+  const favActive = favoriteIds.has('map-' + l.id);
+  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite(${l.id});" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
+      <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
+    </button>`;
+
   const imageBlock = hidden ? `
     <div class="relative h-40 w-full overflow-hidden">
       <img class="w-full h-full object-cover blur-md scale-110" src="${l.img}"/>
+      ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex flex-col items-center justify-center gap-1 text-on-primary">
         <span class="material-symbols-outlined text-[26px]">lock</span>
         <span class="font-label-caps text-label-caps text-[11px]">Location Hidden</span>
@@ -526,6 +606,7 @@ function card(l) {
     </div>` : `
     <div class="relative h-40 w-full overflow-hidden">
       <img class="w-full h-full object-cover" src="${l.img}"/>
+      ${favBtn}
       ${badge}
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? 'For Sale' : 'For Rent'}</div>
     </div>`;
