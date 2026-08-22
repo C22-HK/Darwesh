@@ -10,10 +10,12 @@ rules_version = '2';
 // Every user and listing also carries a companyId (see companies/{id}
 // below) — the foundation for eventually hosting more than one real
 // estate company on this same platform, each with its own agents/team
-// visibility. Right now every signup is stamped with the one default
-// company; public browsing (Map/Buy) still pools all companies'
-// listings together — only the agent-facing Team Listings view is
-// scoped per company so far.
+// visibility. signup.html asks for a company name and creates the
+// company doc automatically the first time that name is used — every
+// signup after that with the same name just joins it, no manual
+// Firestore edit needed. Public browsing (Map/Buy) still pools all
+// companies' listings together — only the agent-facing Team Listings
+// view is scoped per company so far.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -34,13 +36,15 @@ service cloud.firestore {
 
     // ---- Companies ----
     // A real estate company using this platform. Every user and listing
-    // is tagged with a companyId. Creating/editing companies is an admin
-    // action (for now, done manually by you in the Firestore console —
-    // there's no "add a company" UI yet). Company names are readable by
-    // any signed-in user (needed to display "which company" on a profile).
+    // is tagged with a companyId. Any signed-in user can CREATE a new
+    // company doc — that's how signup.html auto-creates one the first
+    // time a name is used — but only if it doesn't already exist, so a
+    // later signup can't overwrite an established company's name.
+    // Editing or deleting an existing company is admin-only.
     match /companies/{companyId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isSignedIn() && !exists(/databases/$(database)/documents/companies/$(companyId));
+      allow update, delete: if isAdmin();
     }
 
     // ---- User profiles ----
