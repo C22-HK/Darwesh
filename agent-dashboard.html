@@ -48,6 +48,9 @@
 <style>
   body { min-height: 100dvh; }
   #agentPinMap { background: #e5e8ee; }
+  .listings-tab { font-family: 'IBM Plex Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; padding: 10px 4px; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; margin-right: 24px; }
+  .listings-tab.active { color: #041627; border-bottom-color: #775a19; }
+  .listings-panel.hidden { display: none; }
   .admin-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13.5px; }
   .admin-table th, .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e8ee; vertical-align: middle; }
   .admin-table th { color: #44474c; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -175,14 +178,34 @@
 
       <!-- List -->
       <div class="lg:col-span-3">
-        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="admin-table">
-              <thead><tr><th>Listing</th><th>Type</th><th>Price</th><th>Flags</th><th></th></tr></thead>
-              <tbody id="listingsBody"></tbody>
-            </table>
+        <div class="flex border-b border-outline-variant mb-4">
+          <button class="listings-tab active" data-tab="mine" type="button">My Listings</button>
+          <button class="listings-tab" data-tab="team" type="button">Team Listings</button>
+        </div>
+
+        <div id="listingsPanel-mine" class="listings-panel">
+          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead><tr><th>Listing</th><th>Type</th><th>Price</th><th>Flags</th><th></th></tr></thead>
+                <tbody id="listingsBody"></tbody>
+              </table>
+            </div>
+            <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">You haven't added any listings yet. Use the form to add your first one.</p>
           </div>
-          <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">You haven't added any listings yet. Use the form to add your first one.</p>
+        </div>
+
+        <div id="listingsPanel-team" class="listings-panel hidden">
+          <p class="font-body-md text-[13px] text-on-surface-variant mb-3">Every listing your colleagues have added — read-only here; each agent can only edit their own.</p>
+          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead><tr><th>Listing</th><th>Agent</th><th>Type</th><th>Price</th><th>Flags</th></tr></thead>
+                <tbody id="teamListingsBody"></tbody>
+              </table>
+            </div>
+            <p id="teamListingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">No listings from the team yet.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -197,11 +220,22 @@
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   let currentUid = null;
+  let currentAgentName = '';
   let agentPinMap, agentPinMarker, pinLat = null, pinLng = null;
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
     window.location.href = 'index.html';
+  });
+
+  document.querySelectorAll('.listings-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.listings-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.listings-panel').forEach(p => p.classList.add('hidden'));
+      tab.classList.add('active');
+      document.getElementById('listingsPanel-' + tab.dataset.tab).classList.remove('hidden');
+      if (tab.dataset.tab === 'team') loadTeamListings();
+    });
   });
 
   document.getElementById('fDealType').addEventListener('change', (e) => {
@@ -268,6 +302,7 @@
       verified: document.getElementById('fVerified').checked,
       private: document.getElementById('fPrivate').checked,
       agentId: currentUid,
+      agentName: currentAgentName,
       updatedAt: serverTimestamp()
     };
 
@@ -355,6 +390,39 @@
     });
   }
 
+  async function loadTeamListings() {
+    const body = document.getElementById('teamListingsBody');
+    const empty = document.getElementById('teamListingsEmpty');
+    const snap = await getDocs(collection(db, 'listings'));
+    if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+    empty.classList.add('hidden');
+    body.innerHTML = '';
+    const rows = [];
+    snap.forEach(d => rows.push(d.data()));
+    rows.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+    rows.forEach(l => {
+      const tr = document.createElement('tr');
+      const isMine = l.agentId === currentUid;
+      tr.innerHTML = `
+        <td>
+          <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
+          <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+        </td>
+        <td>${isMine ? '<span class="font-label-caps text-label-caps text-secondary">You</span>' : (l.agentName || 'Unknown agent')}</td>
+        <td>
+          <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? 'For Sale' : 'For Rent'}</span>
+          <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+        </td>
+        <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
+        <td>
+          ${l.verified ? '<span class="badge badge-verified">Verified</span>' : ''}
+          ${l.private ? '<span class="badge badge-private">Private</span>' : ''}
+        </td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
     const snap = await getDoc(doc(db, 'users', user.uid));
@@ -365,7 +433,8 @@
       return;
     }
     currentUid = user.uid;
-    document.getElementById('agentNameLabel').textContent = profile.displayName || user.email;
+    currentAgentName = profile.displayName || user.email;
+    document.getElementById('agentNameLabel').textContent = currentAgentName;
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('dashContent').classList.remove('hidden');
     initMap();
