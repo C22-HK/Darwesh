@@ -766,9 +766,9 @@ function setDrawMode(on) {
 
 drawSearchBtn.addEventListener('click', () => setDrawMode(!drawMode));
 
-map.on('mousedown', (e) => {
+function startDraw(latlng) {
   if (!drawMode) return;
-  drawStart = e.latlng;
+  drawStart = latlng;
   if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
   searchCircle = L.circle(drawStart, {
     radius: 1,
@@ -778,14 +778,14 @@ map.on('mousedown', (e) => {
     fillColor: '#e9c176',
     fillOpacity: 0.2
   }).addTo(map);
-});
+}
 
-map.on('mousemove', (e) => {
+function moveDraw(latlng) {
   if (!drawMode || !drawStart || !searchCircle) return;
-  searchCircle.setRadius(drawStart.distanceTo(e.latlng));
-});
+  searchCircle.setRadius(drawStart.distanceTo(latlng));
+}
 
-map.on('mouseup', () => {
+function endDraw() {
   if (!drawMode || !drawStart) return;
   drawStart = null;
   setDrawMode(false);
@@ -800,7 +800,37 @@ map.on('mouseup', () => {
     showToast('Search area applied', 'check_circle');
     refresh();
   }
-});
+}
+
+map.on('mousedown', (e) => startDraw(e.latlng));
+map.on('mousemove', (e) => moveDraw(e.latlng));
+map.on('mouseup', endDraw);
+
+// Leaflet's map only synthesizes mouse events from simple taps, not
+// touch-drags — without these, drawing a search circle never worked
+// on phones/tablets since map.dragging.disable() (needed so the drag
+// draws instead of panning) leaves nothing else listening to touch.
+function touchToLatLng(e) {
+  const touch = e.touches[0] || e.changedTouches[0];
+  return touch ? map.mouseEventToLatLng(touch) : null;
+}
+mapEl.addEventListener('touchstart', (e) => {
+  if (!drawMode) return;
+  e.preventDefault();
+  const latlng = touchToLatLng(e);
+  if (latlng) startDraw(latlng);
+}, { passive: false });
+mapEl.addEventListener('touchmove', (e) => {
+  if (!drawMode || !drawStart) return;
+  e.preventDefault();
+  const latlng = touchToLatLng(e);
+  if (latlng) moveDraw(latlng);
+}, { passive: false });
+mapEl.addEventListener('touchend', (e) => {
+  if (!drawMode || !drawStart) return;
+  e.preventDefault();
+  endDraw();
+}, { passive: false });
 
 clearSearchAreaBtn.addEventListener('click', () => {
   if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
