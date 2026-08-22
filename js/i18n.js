@@ -420,6 +420,10 @@ const translations = {
     'admin.catSchool': 'قوتابخانە',
     'admin.catMosque': 'مزگەوت',
 
+    'admin.signInFailedPrefix': 'نەتوانرا بچێتەژوورەوە: ',
+    'admin.enterEmailFirst': 'سەرەتا ئیمەیلەکەت لەسەرەوە بنووسە، پاشان کلیک لەسەر "وشەی نهێنیت لەبیرچووە؟" بکە.',
+    'admin.resetEmailSent': 'ئیمەیلی گەڕاندنەوەی وشەی نهێنی نێردرا — بۆکسی ئیمەیلەکەت بپشکنە.',
+
     'auth.email': 'ئیمەیل',
     'auth.password': 'وشەی نهێنی',
     'auth.signIn': 'چوونەژوورەوە',
@@ -844,6 +848,10 @@ const translations = {
     'admin.catMarket': 'سوق',
     'admin.catSchool': 'مدرسة',
     'admin.catMosque': 'مسجد',
+
+    'admin.signInFailedPrefix': 'تعذّر تسجيل الدخول: ',
+    'admin.enterEmailFirst': 'أدخل بريدك الإلكتروني أعلاه أولاً، ثم انقر على "هل نسيت كلمة المرور؟".',
+    'admin.resetEmailSent': 'تم إرسال بريد إعادة تعيين كلمة المرور — تحقق من صندوق الوارد.',
 
     'auth.email': 'البريد الإلكتروني',
     'auth.password': 'كلمة المرور',
