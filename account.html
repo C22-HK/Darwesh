@@ -52,6 +52,8 @@
   .fav-card { background: #ffffff; border: 1px solid #e5e8ee; border-radius: 12px; overflow: hidden; }
   .status-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
   .status-pending { background: #fed488; color: #5d4201; }
+  .settings-input { border: 1px solid #c4c6cd; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; }
+  .settings-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -70,14 +72,37 @@
   </header>
 
   <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8">
-    <p class="font-label-caps text-label-caps text-secondary mb-1">MY ACCOUNT</p>
-    <h1 class="font-headline-md text-[26px] text-primary mb-6" id="welcomeName">Welcome</h1>
+
+    <!-- Profile hero -->
+    <section class="bg-primary-container rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
+      <div class="absolute -top-24 -right-24 w-64 h-64 bg-secondary opacity-10 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="relative z-10 flex-shrink-0">
+        <div class="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg mx-auto">
+          <span class="material-symbols-outlined text-on-primary text-[44px]">person</span>
+        </div>
+      </div>
+      <div class="relative z-10 flex-1">
+        <h1 class="font-headline-md text-[26px] md:text-[30px] text-on-primary font-bold mb-1" id="welcomeName">Welcome</h1>
+        <p class="font-body-md text-body-md text-primary-fixed-dim opacity-90 mb-4" id="welcomeEmail"></p>
+        <div class="flex flex-wrap justify-center md:justify-start gap-3">
+          <div class="bg-surface-tint bg-opacity-20 backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-2">
+            <span class="material-symbols-outlined text-on-primary text-[18px]" style="font-variation-settings: 'FILL' 1;">favorite</span>
+            <span class="font-data-mono text-data-mono text-on-primary" id="statFavorites">0 favorites</span>
+          </div>
+          <div class="bg-surface-tint bg-opacity-20 backdrop-blur-sm rounded-xl px-4 py-2.5 flex items-center gap-2">
+            <span class="material-symbols-outlined text-on-primary text-[18px]">bookmark</span>
+            <span class="font-data-mono text-data-mono text-on-primary" id="statSearches">0 saved searches</span>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="flex border-b border-outline-variant mb-6">
       <button class="acct-tab active" data-tab="favorites" type="button">Favorites</button>
       <button class="acct-tab" data-tab="submissions" type="button">My Submissions</button>
       <button class="acct-tab" data-tab="searches" type="button">Saved Searches</button>
       <button class="acct-tab" data-tab="agent" type="button">My Agent</button>
+      <button class="acct-tab" data-tab="settings" type="button">Settings</button>
     </div>
 
     <!-- My Agent -->
@@ -124,13 +149,40 @@
         No saved searches yet. Set your filters on <a href="map.html" class="text-secondary hover:underline">Map</a> or <a href="buy.html" class="text-secondary hover:underline">Buy</a> and use "Save this search."
       </p>
     </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="acct-panel">
+      <div class="max-w-lg">
+        <div class="fav-card mb-5">
+          <div class="px-5 py-4 border-b border-outline-variant">
+            <p class="font-body-md text-[14px] text-on-surface font-medium mb-3">Display name</p>
+            <div class="flex gap-2">
+              <input id="displayNameInput" class="settings-input flex-1" type="text"/>
+              <button id="saveNameBtn" class="bg-primary text-on-primary px-4 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="button">Save</button>
+            </div>
+            <p id="nameSaveMsg" class="hidden text-[12px] mt-2" style="color:#006300;">Saved.</p>
+          </div>
+          <div class="px-5 py-4 flex items-center justify-between gap-3">
+            <div>
+              <p class="font-body-md text-[14px] text-on-surface font-medium">Password</p>
+              <p class="font-body-md text-[12.5px] text-on-surface-variant">We'll email you a link to set a new one.</p>
+            </div>
+            <button id="resetPasswordBtn" class="flex-none border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" type="button">Send Reset Email</button>
+          </div>
+        </div>
+        <p id="resetPasswordMsg" class="hidden text-[12px] mb-5" style="color:#006300;">Reset email sent — check your inbox.</p>
+        <button id="settingsLogoutBtn" class="w-full py-3 rounded-lg border border-error text-error font-label-caps text-label-caps hover:bg-error-container transition-colors flex items-center justify-center gap-2" type="button">
+          <span class="material-symbols-outlined text-[18px]">logout</span>Sign Out
+        </button>
+      </div>
+    </section>
   </main>
 </div>
 
 <script type="module">
   import { auth, db } from './js/firebase-init.js';
-  import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { doc, getDoc, collection, getDocs, deleteDoc, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc, getDoc, updateDoc, collection, getDocs, deleteDoc, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   document.querySelectorAll('.acct-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -152,6 +204,7 @@
     const grid = document.getElementById('favoritesGrid');
     const empty = document.getElementById('favoritesEmpty');
     const snap = await getDocs(collection(db, 'users', uid, 'favorites'));
+    document.getElementById('statFavorites').textContent = snap.size + (snap.size === 1 ? ' favorite' : ' favorites');
     if (snap.empty) { empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     grid.innerHTML = '';
@@ -219,6 +272,7 @@
     const list = document.getElementById('searchesList');
     const empty = document.getElementById('searchesEmpty');
     const snap = await getDocs(collection(db, 'users', uid, 'savedSearches'));
+    document.getElementById('statSearches').textContent = snap.size + (snap.size === 1 ? ' saved search' : ' saved searches');
     if (snap.empty) { empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     list.innerHTML = '';
@@ -297,6 +351,32 @@
     });
   }
 
+  function wireSettings(user, profile) {
+    const nameInput = document.getElementById('displayNameInput');
+    nameInput.value = profile.displayName || '';
+
+    document.getElementById('saveNameBtn').addEventListener('click', async () => {
+      const newName = nameInput.value.trim();
+      if (!newName) return;
+      await updateProfile(user, { displayName: newName });
+      await updateDoc(doc(db, 'users', user.uid), { displayName: newName });
+      document.getElementById('welcomeName').textContent = 'Welcome, ' + newName;
+      const msg = document.getElementById('nameSaveMsg');
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 2500);
+    });
+
+    document.getElementById('resetPasswordBtn').addEventListener('click', async () => {
+      await sendPasswordResetEmail(auth, user.email);
+      document.getElementById('resetPasswordMsg').classList.remove('hidden');
+    });
+
+    document.getElementById('settingsLogoutBtn').addEventListener('click', async () => {
+      await signOut(auth);
+      window.location.href = 'index.html';
+    });
+  }
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) {
       window.location.href = 'login.html';
@@ -309,6 +389,7 @@
       return;
     }
     document.getElementById('welcomeName').textContent = 'Welcome, ' + (profile.displayName || user.email);
+    document.getElementById('welcomeEmail').textContent = user.email;
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('accountContent').classList.remove('hidden');
 
@@ -316,6 +397,7 @@
     loadSubmissions(user.uid);
     loadSearches(user.uid);
     loadMyAgent(profile);
+    wireSettings(user, profile);
   });
 </script>
 </body></html>
