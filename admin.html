@@ -174,19 +174,35 @@
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
 
-<!-- Password gate -->
-<div id="authGate" class="fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(4,22,39,0.96);">
+<!-- Loading -->
+<div id="loadingGate" class="fixed inset-0 z-50 flex items-center justify-center bg-background">
+  <p class="font-body-md text-on-surface-variant">Loading…</p>
+</div>
+
+<!-- Sign-in gate (real Firebase Auth, not a shared password) -->
+<div id="authGate" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6" style="background: rgba(4,22,39,0.96);">
   <div class="bg-surface-container-lowest rounded-xl shadow-lg p-8 max-w-sm w-full">
     <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center mb-4">
       <span class="material-symbols-outlined text-on-primary">admin_panel_settings</span>
     </div>
     <p class="font-headline-md text-headline-md text-primary mb-1">Admin Access</p>
-    <p class="font-body-md text-[13px] text-on-surface-variant mb-5">This area is for Darwesh Group staff only. Enter the admin password to continue.</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mb-5">Sign in with your Darwesh Group admin account.</p>
+    <label class="admin-label" for="authEmail">Email</label>
+    <input id="authEmail" type="email" class="admin-input mb-3" placeholder="you@darwesh.com" autocomplete="username"/>
     <label class="admin-label" for="authPassword">Password</label>
-    <input id="authPassword" type="password" class="admin-input mb-2" placeholder="••••••••" autocomplete="off"/>
-    <p id="authError" class="text-error text-[13px] mb-3 hidden">Incorrect password — try again.</p>
-    <button id="authSubmit" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors mt-2" type="button">Enter Dashboard</button>
+    <input id="authPassword" type="password" class="admin-input mb-2" placeholder="••••••••" autocomplete="current-password"/>
+    <p id="authError" class="text-error text-[13px] mb-3 hidden"></p>
+    <button id="authSubmit" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors mt-2" type="button">Sign In</button>
     <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary">Back to site</a>
+  </div>
+</div>
+
+<!-- Signed in, but not an admin -->
+<div id="notAdminGate" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-background p-6">
+  <div class="max-w-sm text-center">
+    <p class="font-headline-md text-headline-md text-primary mb-2">Admins only</p>
+    <p class="font-body-md text-[14px] text-on-surface-variant mb-4">This account is signed in but doesn't have admin access. An existing admin can grant it from the Users &amp; Roles tab of this same dashboard.</p>
+    <a href="index.html" class="inline-block bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps">Back to site</a>
   </div>
 </div>
 
@@ -199,6 +215,7 @@
     </div>
     <div class="flex items-center gap-4">
       <a href="index.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline">Back to site</a>
+      <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="adminNameLabel"></span>
       <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button">Log out</button>
     </div>
   </header>
@@ -206,17 +223,38 @@
   <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-6">
     <div class="local-notice mb-6">
       <span class="material-symbols-outlined" style="font-size:18px;">info</span>
-      <span>This is a static, no-backend site — everything below is saved only in <strong>this browser, on this device</strong>. It won't show scans, listings, or activity from other devices unless you added them here. See the note at the bottom of each section.</span>
+      <span>Users, Roles, and Listings below are read from and written to the real Darwesh Group database — visible from any device, for every agent and admin. Only the <strong>Scan Log</strong> tab stays local to this browser.</span>
     </div>
 
-    <div class="flex border-b border-outline-variant mb-6">
-      <button class="admin-tab active" data-tab="scanlog" type="button">Scan Log</button>
-      <button class="admin-tab" data-tab="market" type="button">Market Overview</button>
+    <div class="flex border-b border-outline-variant mb-6 flex-wrap">
+      <button class="admin-tab active" data-tab="users" type="button">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="listings" type="button">Listings</button>
+      <button class="admin-tab" data-tab="market" type="button">Market Overview</button>
+      <button class="admin-tab" data-tab="scanlog" type="button">Scan Log</button>
     </div>
+
+    <!-- TAB: Users & Roles -->
+    <section id="tab-users" class="admin-tab-panel active">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div class="stat-mini"><p class="label">Total users</p><p class="value" id="statTotalUsers">0</p></div>
+        <div class="stat-mini"><p class="label">Agents</p><p class="value" id="statTotalAgents">0</p></div>
+        <div class="stat-mini"><p class="label">Customers</p><p class="value" id="statTotalCustomers">0</p></div>
+        <div class="stat-mini"><p class="label">Companies</p><p class="value" id="statTotalCompanies">0</p></div>
+      </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th>User</th><th>Company</th><th>Listings</th><th>Joined</th><th>Role</th></tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+        <p id="usersEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">No users yet.</p>
+      </div>
+      <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
+    </section>
 
     <!-- TAB: Scan Log -->
-    <section id="tab-scanlog" class="admin-tab-panel active">
+    <section id="tab-scanlog" class="admin-tab-panel">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <div class="stat-mini"><p class="label">Total scans</p><p class="value" id="statTotalScans">0</p></div>
         <div class="stat-mini"><p class="label">Unique agents</p><p class="value" id="statUniqueAgents">0</p></div>
@@ -253,10 +291,7 @@
 
     <!-- TAB: Listings -->
     <section id="tab-listings" class="admin-tab-panel">
-      <div class="local-notice mb-5">
-        <span class="material-symbols-outlined" style="font-size:18px;">info</span>
-        <span>Listings you add here will show up on the <strong>Map</strong> and <strong>Buy</strong> pages, but only when viewed <strong>from this same browser</strong> — visitors on other devices won't see them until the site has a backend to sync data. Good for previewing how a listing will look before you add it for real.</span>
-      </div>
+      <p class="font-body-md text-[13px] text-on-surface-variant mb-5">This is the same shared listings database every agent's Agent Dashboard reads and writes. As an admin, you can edit or delete any listing here, not just your own.</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <!-- Form -->
@@ -342,11 +377,11 @@
           <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
               <table class="admin-table">
-                <thead><tr><th>Listing</th><th>Type</th><th>Price</th><th>Flags</th><th></th></tr></thead>
+                <thead><tr><th>Listing</th><th>Agent</th><th>Type</th><th>Price</th><th>Flags</th><th></th></tr></thead>
                 <tbody id="listingsBody"></tbody>
               </table>
             </div>
-            <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">No listings added on this device yet. Use the form to add one — it'll appear on Map and Buy when you view them here.</p>
+            <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant">No listings yet. Use the form to add one.</p>
           </div>
         </div>
       </div>
@@ -354,38 +389,71 @@
   </main>
 </div>
 
-<script>
-// ---------------------------------------------------------------------
-// Auth (client-side only — a deterrent, not real security; the real
-// fix is a backend. Change this password before sharing the URL.)
-// ---------------------------------------------------------------------
-const ADMIN_PASSWORD = 'ZDOfaCsQ7yPxwj';
-const AUTH_KEY = 'darwesh_admin_authed';
+<script type="module">
+import { auth, db } from './js/firebase-init.js';
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import {
+  doc, getDoc, updateDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-function showDashboard() {
-  document.getElementById('authGate').classList.add('hidden');
-  document.getElementById('adminContent').classList.remove('hidden');
-  initDashboard();
-}
+let currentUid = null;
+let currentAdminName = '';
 
-document.getElementById('authSubmit').addEventListener('click', () => {
-  const val = document.getElementById('authPassword').value;
-  if (val === ADMIN_PASSWORD) {
-    sessionStorage.setItem(AUTH_KEY, '1');
-    showDashboard();
-  } else {
-    document.getElementById('authError').classList.remove('hidden');
+// ---------------------------------------------------------------------
+// Auth — real Firebase sign-in; access is enforced by users/{uid}.role
+// === "admin" in Firestore (see firestore.rules), not by a shared
+// password. Promote the first admin manually in the Firebase console.
+// ---------------------------------------------------------------------
+document.getElementById('authSubmit').addEventListener('click', async () => {
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const errEl = document.getElementById('authError');
+  errEl.classList.add('hidden');
+  if (!email || !password) return;
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    errEl.textContent = 'Could not sign in: ' + err.message;
+    errEl.classList.remove('hidden');
   }
 });
 document.getElementById('authPassword').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('authSubmit').click();
 });
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  sessionStorage.removeItem(AUTH_KEY);
-  location.reload();
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await signOut(auth);
+  window.location.href = 'index.html';
 });
 
-if (sessionStorage.getItem(AUTH_KEY) === '1') showDashboard();
+let dashboardInited = false;
+
+onAuthStateChanged(auth, async (user) => {
+  document.getElementById('loadingGate').classList.add('hidden');
+
+  if (!user) {
+    document.getElementById('authGate').classList.remove('hidden');
+    document.getElementById('notAdminGate').classList.add('hidden');
+    document.getElementById('adminContent').classList.add('hidden');
+    return;
+  }
+
+  const snap = await getDoc(doc(db, 'users', user.uid));
+  const profile = snap.exists() ? snap.data() : {};
+  if (profile.role !== 'admin') {
+    document.getElementById('authGate').classList.add('hidden');
+    document.getElementById('notAdminGate').classList.remove('hidden');
+    document.getElementById('adminContent').classList.add('hidden');
+    return;
+  }
+
+  currentUid = user.uid;
+  currentAdminName = profile.displayName || user.email;
+  document.getElementById('adminNameLabel').textContent = currentAdminName;
+  document.getElementById('authGate').classList.add('hidden');
+  document.getElementById('notAdminGate').classList.add('hidden');
+  document.getElementById('adminContent').classList.remove('hidden');
+  initDashboard();
+});
 
 // ---------------------------------------------------------------------
 // Tabs
@@ -396,14 +464,111 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'listings') setTimeout(() => { if (window.adminPinMap) window.adminPinMap.invalidateSize(); }, 50);
+    if (tab.dataset.tab === 'listings') {
+      setTimeout(() => { if (window.adminPinMap) window.adminPinMap.invalidateSize(); }, 50);
+      renderListingsTable();
+    }
+    if (tab.dataset.tab === 'users') renderUsers();
   });
 });
 
 function initDashboard() {
+  if (dashboardInited) { renderUsers(); renderListingsTable(); return; }
+  dashboardInited = true;
   renderScanLog();
   renderMarketOverview();
+  renderUsers();
   initListingsTab();
+}
+
+// ---------------------------------------------------------------------
+// Users & Roles tab
+// ---------------------------------------------------------------------
+const ROLE_LABEL = { customer: 'Customer', agent: 'Agent', admin: 'Admin' };
+const ROLE_BADGE_CLASS = { customer: 'badge-private', agent: 'badge-sale', admin: 'badge-verified' };
+
+async function renderUsers() {
+  const body = document.getElementById('usersBody');
+  const empty = document.getElementById('usersEmpty');
+
+  const [usersSnap, companiesSnap, listingsSnap] = await Promise.all([
+    getDocs(collection(db, 'users')),
+    getDocs(collection(db, 'companies')),
+    getDocs(collection(db, 'listings'))
+  ]);
+
+  const companyNames = {};
+  companiesSnap.forEach(d => { companyNames[d.id] = d.data().name || d.id; });
+
+  const listingCounts = {};
+  listingsSnap.forEach(d => {
+    const agentId = d.data().agentId;
+    if (agentId) listingCounts[agentId] = (listingCounts[agentId] || 0) + 1;
+  });
+
+  const users = [];
+  usersSnap.forEach(d => users.push({ uid: d.id, ...d.data() }));
+
+  document.getElementById('statTotalUsers').textContent = users.length;
+  document.getElementById('statTotalAgents').textContent = users.filter(u => u.role === 'agent').length;
+  document.getElementById('statTotalCustomers').textContent = users.filter(u => u.role === 'customer' || !u.role).length;
+  document.getElementById('statTotalCompanies').textContent = companiesSnap.size;
+
+  if (users.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+
+  users.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+  body.innerHTML = '';
+  users.forEach(u => {
+    const tr = document.createElement('tr');
+    const joined = u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString() : '—';
+    const listingCount = listingCounts[u.uid] || 0;
+    const isSelf = u.uid === currentUid;
+    const role = u.role || 'customer';
+    tr.innerHTML = `
+      <td>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}</p>
+        <p class="font-body-md text-[12px] text-on-surface-variant">${u.email || ''}</p>
+      </td>
+      <td>${companyNames[u.companyId] || u.companyId || '—'}</td>
+      <td>${listingCount}</td>
+      <td>${joined}</td>
+      <td></td>
+    `;
+    const roleCell = tr.lastElementChild;
+    if (isSelf) {
+      roleCell.innerHTML = `<span class="badge ${ROLE_BADGE_CLASS[role]}">${ROLE_LABEL[role]}</span>`;
+    } else {
+      const select = document.createElement('select');
+      select.className = 'admin-input';
+      select.style.width = 'auto';
+      select.style.padding = '5px 8px';
+      select.style.fontSize = '12.5px';
+      ['customer', 'agent', 'admin'].forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r; opt.textContent = ROLE_LABEL[r];
+        if (role === r) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', () => onRoleChange(u.uid, u.displayName || u.email, select));
+      roleCell.appendChild(select);
+    }
+    body.appendChild(tr);
+  });
+}
+
+async function onRoleChange(uid, name, selectEl) {
+  const newRole = selectEl.value;
+  const ok = confirm(`Change ${name}'s role to "${ROLE_LABEL[newRole]}"?` + (newRole === 'admin' ? ' This grants full admin access.' : ''));
+  if (!ok) { renderUsers(); return; }
+  try {
+    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    renderUsers();
+  } catch (err) {
+    alert('Could not update role: ' + err.message);
+    renderUsers();
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -485,19 +650,12 @@ function renderMarketOverview() {
 }
 
 // ---------------------------------------------------------------------
-// Listings tab — CRUD backed by localStorage, merged into Map/Buy
-// on this same device (see map.html / buy.html for the merge code)
+// Listings tab — Firestore-backed, the same "listings" collection
+// every agent's Agent Dashboard reads and writes. Admin can edit or
+// delete any listing (see firestore.rules — isAdmin() bypasses the
+// "only your own listing" restriction agents have).
 // ---------------------------------------------------------------------
-const ADMIN_LISTINGS_KEY = 'darwesh_admin_listings';
-
-function loadAdminListings() {
-  try { return JSON.parse(localStorage.getItem(ADMIN_LISTINGS_KEY) || '[]'); }
-  catch (e) { return []; }
-}
-function saveAdminListings(list) {
-  localStorage.setItem(ADMIN_LISTINGS_KEY, JSON.stringify(list));
-}
-
+let allListingsCache = [];
 let adminPinMap, adminPinMarker, pinLat = null, pinLng = null;
 
 function initListingsTab() {
@@ -540,26 +698,24 @@ function resetListingForm() {
   if (adminPinMarker) { adminPinMap.removeLayer(adminPinMarker); adminPinMarker = null; }
 }
 
-function onListingFormSubmit(e) {
+async function onListingFormSubmit(e) {
   e.preventDefault();
+  const errEl = document.getElementById('formError');
   const title = document.getElementById('fTitle').value.trim();
   const address = document.getElementById('fAddress').value.trim();
   const price = Number(document.getElementById('fPrice').value);
 
   if (!title || !address || !price || pinLat === null || pinLng === null) {
-    document.getElementById('formError').classList.remove('hidden');
+    errEl.textContent = 'Please pin a location on the map and fill in the required fields.';
+    errEl.classList.remove('hidden');
     return;
   }
-  document.getElementById('formError').classList.add('hidden');
+  errEl.classList.add('hidden');
 
   const editingId = document.getElementById('editingId').value;
-  const list = loadAdminListings();
-
-  const entry = {
-    id: editingId || ('admin-' + Date.now()),
-    title,
+  const data = {
+    title, address,
     city: document.getElementById('fCity').value,
-    address,
     lat: pinLat, lng: pinLng,
     dealType: document.getElementById('fDealType').value,
     propertyType: document.getElementById('fPropertyType').value,
@@ -569,23 +725,30 @@ function onListingFormSubmit(e) {
     sqft: Number(document.getElementById('fSqft').value) || 0,
     img: document.getElementById('fImg').value.trim(),
     verified: document.getElementById('fVerified').checked,
-    private: document.getElementById('fPrivate').checked
+    private: document.getElementById('fPrivate').checked,
+    updatedAt: serverTimestamp()
   };
 
-  if (editingId) {
-    const idx = list.findIndex(l => l.id === editingId);
-    if (idx > -1) list[idx] = entry; else list.push(entry);
-  } else {
-    list.push(entry);
+  try {
+    if (editingId) {
+      await updateDoc(doc(db, 'listings', editingId), data);
+    } else {
+      data.agentId = currentUid;
+      data.agentName = currentAdminName + ' (Admin)';
+      data.companyId = null;
+      data.createdAt = serverTimestamp();
+      await addDoc(collection(db, 'listings'), data);
+    }
+    resetListingForm();
+    renderListingsTable();
+  } catch (err) {
+    errEl.textContent = 'Could not save this listing: ' + err.message;
+    errEl.classList.remove('hidden');
   }
-  saveAdminListings(list);
-  resetListingForm();
-  renderListingsTable();
 }
 
-function editListing(id) {
-  const list = loadAdminListings();
-  const l = list.find(x => x.id === id);
+window.editListing = function (id) {
+  const l = allListingsCache.find(x => x.id === id);
   if (!l) return;
   document.getElementById('editingId').value = l.id;
   document.getElementById('fTitle').value = l.title;
@@ -608,46 +771,58 @@ function editListing(id) {
   document.getElementById('formSubmitBtn').textContent = 'Update Listing';
   document.getElementById('formCancelBtn').classList.remove('hidden');
   document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+};
 
-function deleteListing(id) {
-  if (!confirm('Delete this listing from this device?')) return;
-  const list = loadAdminListings().filter(l => l.id !== id);
-  saveAdminListings(list);
+window.deleteListing = async function (id) {
+  if (!confirm('Delete this listing? It will be removed from the shared database immediately.')) return;
+  await deleteDoc(doc(db, 'listings', id));
   renderListingsTable();
-}
+};
 
-function renderListingsTable() {
-  const list = loadAdminListings();
+async function renderListingsTable() {
+  const snap = await getDocs(collection(db, 'listings'));
   const body = document.getElementById('listingsBody');
   const empty = document.getElementById('listingsEmpty');
-  if (list.length === 0) {
-    body.innerHTML = '';
-    empty.classList.remove('hidden');
-    return;
-  }
+
+  allListingsCache = [];
+  snap.forEach(d => allListingsCache.push({ id: d.id, ...d.data() }));
+
+  if (allListingsCache.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
   empty.classList.add('hidden');
-  body.innerHTML = list.slice().reverse().map(l => `
-    <tr>
+
+  allListingsCache.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+
+  body.innerHTML = '';
+  allListingsCache.forEach(l => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
       <td>
         <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
         <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
       </td>
+      <td>${l.agentName || 'Unknown agent'}</td>
       <td>
         <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? 'For Sale' : 'For Rent'}</span>
         <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
       </td>
-      <td>$${l.price.toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
+      <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
       <td>
         ${l.verified ? '<span class="badge badge-verified">Verified</span>' : ''}
         ${l.private ? '<span class="badge badge-private">Private</span>' : ''}
       </td>
-      <td>
-        <button class="icon-btn" onclick="editListing('${l.id}')" title="Edit" type="button"><span class="material-symbols-outlined" style="font-size:18px;">edit</span></button>
-        <button class="icon-btn danger" onclick="deleteListing('${l.id}')" title="Delete" type="button"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>
-      </td>
-    </tr>
-  `).join('');
+      <td></td>
+    `;
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = 'Edit';
+    editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
+    editBtn.addEventListener('click', () => window.editListing(l.id));
+    const delBtn = document.createElement('button');
+    delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = 'Delete';
+    delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
+    delBtn.addEventListener('click', () => window.deleteListing(l.id));
+    tr.lastElementChild.append(editBtn, delBtn);
+    body.appendChild(tr);
+  });
 }
 </script>
 </body></html>
