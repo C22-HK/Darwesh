@@ -304,6 +304,7 @@
       <button class="admin-tab" data-tab="users" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
       <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
+      <button class="admin-tab" data-tab="requestsmap" type="button" data-i18n="admin.requestsMapTab">Requests Map</button>
       <button class="admin-tab" data-tab="branches" type="button" data-i18n="admin.branchesTab">Branches</button>
       <button class="admin-tab" data-tab="agents" type="button" data-i18n="admin.agentsTab">Agents</button>
       <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
@@ -354,13 +355,16 @@
             <div id="dashActivityFeed" class="flex flex-col gap-2 mt-3 max-h-[280px] overflow-y-auto"></div>
           </div>
         </div>
+      </div>
+    </section>
 
-        <div class="dash-panel mt-4">
-          <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Customer Requests Map</p>
-          <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every Sell submission and Viewing Request with a location. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
-          <div class="rounded-lg overflow-hidden border" style="border-color:#4f6073; height:340px;" id="dashRequestsMap"></div>
-          <div id="dashRequestsMapStatus" class="hidden mt-2 space-y-1"></div>
-        </div>
+    <!-- TAB: Requests Map -->
+    <section id="tab-requestsmap" class="admin-tab-panel">
+      <div class="rounded-2xl p-5 md:p-6" style="background:#041627;">
+        <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Customer Requests Map</p>
+        <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every Sell submission and Viewing Request with a location. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
+        <div class="rounded-lg overflow-hidden border" style="border-color:#4f6073; height:560px;" id="dashRequestsMap"></div>
+        <div id="dashRequestsMapStatus" class="hidden mt-2 space-y-1"></div>
       </div>
     </section>
 
@@ -734,6 +738,10 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'users') renderUsers();
     if (tab.dataset.tab === 'services') renderServicesTab();
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
+    if (tab.dataset.tab === 'requestsmap') {
+      setTimeout(() => { if (dashRequestsMap) dashRequestsMap.invalidateSize(); }, 50);
+      renderRequestsMapTab();
+    }
     if (tab.dataset.tab === 'branches') renderBranchesTab();
     if (tab.dataset.tab === 'agents') renderAgentsTab();
     if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
@@ -752,7 +760,7 @@ document.querySelectorAll('.filter-chip').forEach(chip => {
 function initDashboard() {
   if (dashboardInited) {
     renderUsers(); renderListingsTable(); renderServicesTab();
-    renderDashboardTab(); renderBranchesTab(); renderAgentsTab(); renderLeaderboardTab();
+    renderDashboardTab(); renderRequestsMapTab(); renderBranchesTab(); renderAgentsTab(); renderLeaderboardTab();
     return;
   }
   dashboardInited = true;
@@ -762,6 +770,7 @@ function initDashboard() {
   initListingsTab();
   renderServicesTab();
   renderDashboardTab();
+  renderRequestsMapTab();
   renderBranchesTab();
   renderAgentsTab();
   renderLeaderboardTab();
@@ -770,6 +779,7 @@ function initDashboard() {
     renderListingsTable();
     renderServicesRows();
     renderDashboardTab();
+    renderRequestsMapTab();
     renderBranchesTab();
     renderAgentsTab();
     renderLeaderboardTab();
@@ -1559,11 +1569,16 @@ async function renderDashboardTab() {
       </div>
       <span class="font-data-mono text-[10.5px]" style="color:#b7c8de;">${timeAgo(a.seconds)}</span>
     </div>`).join('') : `<p class="font-body-md text-[12.5px]" style="color:#b7c8de;">${trAdmin('admin.noActivityYet', 'No activity yet.')}</p>`;
+}
 
+async function renderRequestsMapTab() {
+  const submissionsSnap = await getDocs(collection(db, 'submissions'));
+  const submissions = [];
+  submissionsSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
   renderDashRequestsMap(submissions);
 }
 
-// Dashboard's own map — every customer request (sell submission or
+// Requests Map tab — every customer request (sell submission or
 // viewing request) that has a location, plotted as one pin each. Click
 // a pin to draw the same nearest-hospital/market/school/mosque lines
 // used elsewhere in this dashboard, using the shared loadNearbyAmenities.
