@@ -371,6 +371,7 @@
                 <option value="apartment" data-i18n="map.apartment">Apartment</option>
                 <option value="office" data-i18n="map.office">Office</option>
                 <option value="land" data-i18n="map.land">Land</option>
+                <option value="retail" data-i18n="sell.retailShop">Retail Shop</option>
               </select>
             </div>
             <div>
@@ -458,6 +459,10 @@
 </button>
 <h2 class="font-headline-md text-headline-md text-primary mb-4" id="requestDetailTitle" data-i18n="admin.requestDetails">Request Details</h2>
 <dl class="grid grid-cols-2 gap-x-4 gap-y-3" id="requestDetailBody"></dl>
+<button class="hidden w-full mt-4 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="requestDetailCreateListing" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span data-i18n="admin.createListingFromRequest">Create listing from this submission</span>
+</button>
 </div>
 </div>
 
@@ -1160,6 +1165,14 @@ function renderServicesRows() {
     viewBtn.addEventListener('click', () => openRequestDetail(s.id));
     tr.children[5].appendChild(viewBtn);
 
+    if (isSell) {
+      const listBtn = document.createElement('button');
+      listBtn.className = 'icon-btn'; listBtn.type = 'button'; listBtn.title = trAdmin('admin.createListingFromRequest', 'Create listing from this submission');
+      listBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">add</span>';
+      listBtn.addEventListener('click', () => createListingFromSubmission(s.id));
+      tr.children[5].appendChild(listBtn);
+    }
+
     body.appendChild(tr);
   });
 }
@@ -1214,6 +1227,11 @@ function openRequestDetail(id) {
     <dt class="col-span-2 sm:col-span-1 font-label-caps text-label-caps text-on-surface-variant text-[11px]">${label}</dt>
     <dd class="col-span-2 sm:col-span-1 font-body-md text-[13.5px] text-on-surface mb-2">${val}</dd>
   `).join('');
+
+  const createBtn = document.getElementById('requestDetailCreateListing');
+  createBtn.classList.toggle('hidden', !isSell);
+  createBtn.onclick = () => createListingFromSubmission(id);
+
   document.getElementById('requestDetailOverlay').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
 }
@@ -1224,6 +1242,39 @@ function closeRequestDetail() {
 }
 document.getElementById('requestDetailClose').addEventListener('click', closeRequestDetail);
 document.getElementById('requestDetailBackdrop').addEventListener('click', closeRequestDetail);
+
+// Pre-fills the Listings tab's Add Listing form from a Sell submission so
+// an admin can review/adjust (add a photo, tweak details) and publish it
+// with one click of the existing "Add Listing" button — that's the step
+// that actually makes a submitted property show up on Listings and the
+// public Map/Buy pages; the submission itself never auto-publishes.
+function createListingFromSubmission(id) {
+  const s = allSubmissionsCache.find(x => x.id === id);
+  if (!s || s.type !== 'sell') return;
+
+  closeRequestDetail();
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
+  document.getElementById('tab-listings').classList.add('active');
+
+  resetListingForm();
+  document.getElementById('fTitle').value = s.title || '';
+  if (s.city) document.getElementById('fCity').value = s.city;
+  if (s.listingType) document.getElementById('fDealType').value = s.listingType;
+  document.getElementById('fAddress').value = s.address || '';
+  if (s.propertyType) document.getElementById('fPropertyType').value = s.propertyType;
+  document.getElementById('fPrice').value = s.price || '';
+  document.getElementById('fBeds').value = s.beds || 0;
+  document.getElementById('fBaths').value = s.baths || 0;
+  document.getElementById('fSqft').value = s.size || 0;
+
+  setTimeout(() => {
+    if (window.adminPinMap) window.adminPinMap.invalidateSize();
+    if (s.pinLat && s.pinLng) setAdminPin(parseFloat(s.pinLat), parseFloat(s.pinLng));
+    document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 60);
+}
 </script>
 <script src="./js/i18n.js"></script>
 </body></html>
