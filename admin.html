@@ -439,7 +439,7 @@
       <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
         <div class="overflow-x-auto">
           <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thType">Type</th><th data-i18n="admin.thDetails">Details</th><th data-i18n="admin.thFrom">From</th><th data-i18n="admin.thSubmitted">Submitted</th><th data-i18n="admin.thStatus">Status</th></tr></thead>
+            <thead><tr><th data-i18n="admin.thType">Type</th><th data-i18n="admin.thDetails">Details</th><th data-i18n="admin.thFrom">From</th><th data-i18n="admin.thSubmitted">Submitted</th><th data-i18n="admin.thStatus">Status</th><th></th></tr></thead>
             <tbody id="servicesBody"></tbody>
           </table>
         </div>
@@ -447,6 +447,18 @@
       </div>
     </section>
   </main>
+</div>
+
+<!-- Customer Services: full request detail -->
+<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="requestDetailOverlay">
+<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="requestDetailBackdrop"></div>
+<div class="relative bg-surface-container-lowest w-full md:max-w-lg rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="requestDetailClose" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="font-headline-md text-headline-md text-primary mb-4" id="requestDetailTitle" data-i18n="admin.requestDetails">Request Details</h2>
+<dl class="grid grid-cols-2 gap-x-4 gap-y-3" id="requestDetailBody"></dl>
+</div>
 </div>
 
 <script type="module">
@@ -1114,6 +1126,7 @@ function renderServicesRows() {
       <td>${from}</td>
       <td>${submitted}</td>
       <td></td>
+      <td></td>
     `;
     const select = document.createElement('select');
     select.className = 'admin-input';
@@ -1139,10 +1152,78 @@ function renderServicesRows() {
         select.disabled = false;
       }
     });
-    tr.lastElementChild.appendChild(select);
+    tr.children[4].appendChild(select);
+
+    const viewBtn = document.createElement('button');
+    viewBtn.className = 'icon-btn'; viewBtn.type = 'button'; viewBtn.title = trAdmin('admin.viewDetails', 'View details');
+    viewBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">visibility</span>';
+    viewBtn.addEventListener('click', () => openRequestDetail(s.id));
+    tr.children[5].appendChild(viewBtn);
+
     body.appendChild(tr);
   });
 }
+
+// ---------------------------------------------------------------------
+// Customer Services: full request detail modal — every field the
+// submission carries, not just the table's condensed summary.
+// ---------------------------------------------------------------------
+const SELL_DETAIL_FIELDS = [
+  ['title', 'agentDash.titleLabel', 'Title'],
+  ['propertyType', 'sell.propertyType', 'Property type'],
+  ['listingType', 'sell.listingType', 'Listing type'],
+  ['city', 'sell.city', 'City'],
+  ['address', 'sell.address', 'Address'],
+  ['price', 'agentDash.priceLabel', 'Price (USD)'],
+  ['size', 'sell.size', 'Size (m²)'],
+  ['beds', 'common.beds', 'Beds'],
+  ['baths', 'common.baths', 'Baths'],
+  ['description', 'sell.description', 'Description']
+];
+const VIEWING_DETAIL_FIELDS = [
+  ['address', 'sell.address', 'Address'],
+  ['city', 'sell.city', 'City'],
+  ['priceLabel', 'agentDash.priceLabel', 'Price']
+];
+
+function openRequestDetail(id) {
+  const s = allSubmissionsCache.find(x => x.id === id);
+  if (!s) return;
+  const isSell = s.type === 'sell';
+  document.getElementById('requestDetailTitle').textContent = isSell
+    ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
+
+  const rows = [];
+  const fields = isSell ? SELL_DETAIL_FIELDS : VIEWING_DETAIL_FIELDS;
+  fields.forEach(([key, i18nKey, fallback]) => {
+    if (s[key] === undefined || s[key] === '') return;
+    let val = s[key];
+    if (key === 'price') val = '$' + Number(val).toLocaleString();
+    rows.push([trAdmin(i18nKey, fallback), val]);
+  });
+  rows.push([trAdmin('sell.fullName', 'Full Name'), s.name || '—']);
+  rows.push([trAdmin('sell.phoneNumber', 'Phone Number'), s.phone || '—']);
+  rows.push([trAdmin('auth.email', 'Email'), s.email || '—']);
+  if (isSell && s.pinLat && s.pinLng) {
+    rows.push([trAdmin('sell.pinExactLocation', 'Pin Exact Location'), `${s.pinLat}, ${s.pinLng}`]);
+  }
+  rows.push([trAdmin('admin.thSubmitted', 'Submitted'), s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000).toLocaleString() : '—']);
+  rows.push([trAdmin('admin.thStatus', 'Status'), SERVICES_STATUS_LABEL_FN()[s.status] || s.status]);
+
+  document.getElementById('requestDetailBody').innerHTML = rows.map(([label, val]) => `
+    <dt class="col-span-2 sm:col-span-1 font-label-caps text-label-caps text-on-surface-variant text-[11px]">${label}</dt>
+    <dd class="col-span-2 sm:col-span-1 font-body-md text-[13.5px] text-on-surface mb-2">${val}</dd>
+  `).join('');
+  document.getElementById('requestDetailOverlay').classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeRequestDetail() {
+  document.getElementById('requestDetailOverlay').classList.add('hidden');
+  document.body.style.overflow = '';
+}
+document.getElementById('requestDetailClose').addEventListener('click', closeRequestDetail);
+document.getElementById('requestDetailBackdrop').addEventListener('click', closeRequestDetail);
 </script>
 <script src="./js/i18n.js"></script>
 </body></html>

@@ -264,6 +264,7 @@
 <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="emailInput" required="" type="email"/>
 </div>
 </div>
+<p id="submitError" class="hidden text-error text-[13px] px-6 pb-3" data-i18n="sell.submitError">Could not submit your listing — please check your connection and try again.</p>
 <div class="p-6 pt-0 flex flex-col sm:flex-row gap-3">
 <button class="sm:w-48 flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="saveDraftBtn" type="button">
 <span class="material-symbols-outlined text-[18px]">save</span>
@@ -464,6 +465,8 @@ const submissionAuthReady = (async function initSubmissionAuth() {
 document.getElementById('sellForm').addEventListener('submit', async function (e) {
   e.preventDefault();
   const draft = collectDraft();
+  const errEl = document.getElementById('submitError');
+  errEl.classList.add('hidden');
 
   await submissionAuthReady;
   try {
@@ -479,6 +482,10 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     });
   } catch (err) {
     console.error('Could not save submission:', err);
+    errEl.textContent = ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.') + ' (' + err.message + ')';
+    errEl.classList.remove('hidden');
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
   }
 
   localStorage.removeItem(DRAFT_KEY);
