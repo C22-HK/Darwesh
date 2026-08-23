@@ -328,6 +328,13 @@
             <div id="dashActivityFeed" class="flex flex-col gap-2 mt-3 max-h-[280px] overflow-y-auto"></div>
           </div>
         </div>
+
+        <div class="dash-panel mt-4">
+          <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Customer Requests Map</p>
+          <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every Sell submission and Viewing Request with a location. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
+          <div class="rounded-lg overflow-hidden border" style="border-color:#4f6073; height:340px;" id="dashRequestsMap"></div>
+          <div id="dashRequestsMapStatus" class="hidden mt-2 space-y-1"></div>
+        </div>
       </div>
     </section>
 
@@ -1503,6 +1510,54 @@ async function renderDashboardTab() {
       </div>
       <span class="font-data-mono text-[10.5px]" style="color:#b7c8de;">${timeAgo(a.seconds)}</span>
     </div>`).join('') : `<p class="font-body-md text-[12.5px]" style="color:#b7c8de;">${trAdmin('admin.noActivityYet', 'No activity yet.')}</p>`;
+
+  renderDashRequestsMap(submissions);
+}
+
+// Dashboard's own map — every customer request (sell submission or
+// viewing request) that has a location, plotted as one pin each. Click
+// a pin to draw the same nearest-hospital/market/school/mosque lines
+// used elsewhere in this dashboard, using the shared loadNearbyAmenities.
+let dashRequestsMap = null;
+let dashRequestsPinMarkers = [];
+let dashRequestsAmenityLayers = [];
+
+function renderDashRequestsMap(submissions) {
+  if (!dashRequestsMap) {
+    dashRequestsMap = L.map('dashRequestsMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(dashRequestsMap);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 17
+    }).addTo(dashRequestsMap);
+  }
+  dashRequestsMap.invalidateSize();
+
+  dashRequestsPinMarkers.forEach(m => dashRequestsMap.removeLayer(m));
+  dashRequestsPinMarkers = [];
+  clearAmenityLayers(dashRequestsMap, dashRequestsAmenityLayers);
+  document.getElementById('dashRequestsMapStatus').classList.add('hidden');
+
+  const located = submissions.map(s => ({ s, latLng: getRequestLatLng(s) })).filter(x => x.latLng);
+  located.forEach(({ s, latLng }) => {
+    const isSell = s.type === 'sell';
+    const marker = L.marker(latLng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:26px;height:26px;border-radius:999px;background:${isSell ? '#775a19' : '#0b1d2d'};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:2px solid #fff;"><span class="material-symbols-outlined" style="font-size:14px;color:#fff;">${isSell ? 'sell' : 'event_available'}</span></div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      })
+    }).addTo(dashRequestsMap);
+    marker.bindTooltip(`${isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request')}: ${s.title || s.address || ''}`);
+    marker.on('click', () => {
+      loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
+    });
+    dashRequestsPinMarkers.push(marker);
+  });
+
+  if (located.length) {
+    dashRequestsMap.fitBounds(L.latLngBounds(located.map(x => x.latLng)).pad(0.3), { maxZoom: 12 });
+  }
 }
 
 async function fetchAgentStats() {
