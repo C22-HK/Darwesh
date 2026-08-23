@@ -68,6 +68,17 @@
   .admin-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; }
   .admin-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
   .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
+  #agentTeamMap { background: #e5e8ee; }
+  .team-map-tag {
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px;
+    padding: 5px 10px; border-radius: 999px; color: #ffffff;
+    border: 2px solid #ffffff; box-shadow: 0 2px 6px rgba(4,22,39,0.25);
+    white-space: nowrap; cursor: pointer;
+  }
+  .team-map-tag.mine { background: #775a19; }
+  .team-map-tag.team { background: #0b1d2d; }
+  .team-map-legend { display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #44474c; }
+  .team-map-legend .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -216,6 +227,7 @@
         <div class="flex border-b border-outline-variant mb-4">
           <button class="listings-tab active" data-tab="mine" type="button" data-i18n="agentDash.myListingsTab">My Listings</button>
           <button class="listings-tab" data-tab="team" type="button" data-i18n="agentDash.teamListingsTab">Team Listings</button>
+          <button class="listings-tab" data-tab="map" type="button" data-i18n="agentDash.mapTab">Map</button>
         </div>
 
         <div id="listingsPanel-mine" class="listings-panel">
@@ -242,6 +254,15 @@
             <p id="teamListingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="agentDash.noTeamListings">No listings from the team yet.</p>
           </div>
         </div>
+
+        <div id="listingsPanel-map" class="listings-panel hidden">
+          <p class="font-body-md text-[13px] text-on-surface-variant mb-3" data-i18n="agentDash.teamMapNote">Every pinned listing you and your team have added, on one map — your own tagged separately from your teammates'.</p>
+          <div class="flex items-center gap-5 mb-3">
+            <div class="team-map-legend"><span class="dot" style="background:#775a19;"></span><span data-i18n="agentDash.myListingsTab">My Listings</span></div>
+            <div class="team-map-legend"><span class="dot" style="background:#0b1d2d;"></span><span data-i18n="agentDash.teammatesLabel">Teammates</span></div>
+          </div>
+          <div class="rounded-xl overflow-hidden border border-outline-variant" style="height:520px;" id="agentTeamMap"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -254,7 +275,7 @@
     doc, getDoc, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  function trDash(key, fallback) { return (window.t && window.t(key)) || fallback; }
   let currentUid = null;
   let currentAgentName = '';
   let currentCompanyId = null;
@@ -272,21 +293,83 @@
       tab.classList.add('active');
       document.getElementById('listingsPanel-' + tab.dataset.tab).classList.remove('hidden');
       if (tab.dataset.tab === 'team') loadTeamListings();
+      if (tab.dataset.tab === 'map') {
+        setTimeout(() => { if (agentTeamMap) agentTeamMap.invalidateSize(); }, 50);
+        renderAgentTeamMap();
+      }
     });
   });
 
   document.getElementById('fDealType').addEventListener('change', (e) => {
-    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? tr('agentDash.monthlyRentLabel','Monthly rent (USD)') : tr('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? trDash('agentDash.monthlyRentLabel','Monthly rent (USD)') : trDash('agentDash.priceLabel','Price (USD)');
   });
+
+  // CartoDB's free "Positron" basemap (no key needed) — a clean, minimal
+  // light style instead of the busier default OpenStreetMap tiles.
+  function addBaseTiles(map) {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom: 19, subdomains: 'abcd'
+    }).addTo(map);
+  }
 
   function initMap() {
     agentPinMap = L.map('agentPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
     L.control.zoom({ position: 'bottomright' }).addTo(agentPinMap);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
-    }).addTo(agentPinMap);
+    addBaseTiles(agentPinMap);
     agentPinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
     setTimeout(() => agentPinMap.invalidateSize(), 150);
+  }
+
+  // Team Map — every pinned listing belonging to this agent's company
+  // (same scoping as loadTeamListings), tagged in a different color for
+  // "mine" vs "teammates'" so an agent can see their own coverage next
+  // to the rest of the team at a glance.
+  let agentTeamMap = null;
+  let agentTeamMapMarkers = [];
+
+  async function renderAgentTeamMap() {
+    if (!agentTeamMap) {
+      agentTeamMap = L.map('agentTeamMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+      L.control.zoom({ position: 'bottomright' }).addTo(agentTeamMap);
+      addBaseTiles(agentTeamMap);
+    }
+    agentTeamMap.invalidateSize();
+
+    agentTeamMapMarkers.forEach(m => agentTeamMap.removeLayer(m));
+    agentTeamMapMarkers = [];
+
+    const snap = await getDocs(collection(db, 'listings'));
+    const listings = [];
+    snap.forEach(d => {
+      const l = d.data();
+      if ((!l.companyId || l.companyId === currentCompanyId) && l.lat != null && l.lng != null) {
+        listings.push({ id: d.id, ...l });
+      }
+    });
+
+    listings.forEach(l => {
+      const isMine = l.agentId === currentUid;
+      const priceLabel = '$' + Number(l.price).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
+      const marker = L.marker([l.lat, l.lng], {
+        icon: L.divIcon({
+          className: '', iconSize: null, iconAnchor: [30, 15],
+          html: `<div class="team-map-tag ${isMine ? 'mine' : 'team'}">${priceLabel}</div>`
+        })
+      }).addTo(agentTeamMap);
+      marker.bindPopup(`
+        <div style="font-family:'Inter',sans-serif;min-width:160px;">
+          <strong style="display:block;margin-bottom:2px;">${l.title || ''}</strong>
+          <span style="color:#44474c;font-size:12.5px;">${l.address || ''}, ${l.city || ''}</span><br/>
+          <span style="font-size:12.5px;">${isMine ? trDash('agentDash.youBadge','You') : (l.agentName || trDash('agentDash.unknownAgent','Unknown agent'))}</span>
+        </div>
+      `);
+      agentTeamMapMarkers.push(marker);
+    });
+
+    if (listings.length) {
+      agentTeamMap.fitBounds(L.latLngBounds(listings.map(l => [l.lat, l.lng])).pad(0.25), { maxZoom: 13 });
+    }
   }
 
   function setPin(lat, lng) {
@@ -299,13 +382,13 @@
   function resetForm() {
     document.getElementById('listingForm').reset();
     document.getElementById('editingId').value = '';
-    document.getElementById('formTitle').textContent = tr('agentDash.addListing','Add a Listing');
-    document.getElementById('formSubmitBtn').textContent = tr('agentDash.addListing','Add Listing');
+    document.getElementById('formTitle').textContent = trDash('agentDash.addListing','Add a Listing');
+    document.getElementById('formSubmitBtn').textContent = trDash('agentDash.addListing','Add Listing');
     document.getElementById('formCancelBtn').classList.add('hidden');
     document.getElementById('formError').classList.add('hidden');
-    document.getElementById('priceLabel').textContent = tr('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = trDash('agentDash.priceLabel','Price (USD)');
     pinLat = null; pinLng = null;
-    document.getElementById('pinReadout').textContent = tr('agentDash.noPinYet','No location pinned yet');
+    document.getElementById('pinReadout').textContent = trDash('agentDash.noPinYet','No location pinned yet');
     if (agentPinMarker) { agentPinMap.removeLayer(agentPinMarker); agentPinMarker = null; }
   }
   document.getElementById('formCancelBtn').addEventListener('click', resetForm);
@@ -318,7 +401,7 @@
     const price = Number(document.getElementById('fPrice').value);
 
     if (!title || !address || !price || pinLat === null || pinLng === null) {
-      errEl.textContent = tr('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
+      errEl.textContent = trDash('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
       errEl.classList.remove('hidden');
       return;
     }
@@ -354,7 +437,7 @@
       resetForm();
       loadMyListings();
     } catch (err) {
-      errEl.textContent = tr('agentDash.saveFailedPrefix','Could not save this listing: ') + err.message;
+      errEl.textContent = trDash('agentDash.saveFailedPrefix','Could not save this listing: ') + err.message;
       errEl.classList.remove('hidden');
     }
   });
@@ -365,7 +448,7 @@
     document.getElementById('fCity').value = l.city;
     document.getElementById('fAddress').value = l.address;
     document.getElementById('fDealType').value = l.dealType;
-    document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? tr('agentDash.monthlyRentLabel','Monthly rent (USD)') : tr('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? trDash('agentDash.monthlyRentLabel','Monthly rent (USD)') : trDash('agentDash.priceLabel','Price (USD)');
     document.getElementById('fPropertyType').value = l.propertyType;
     document.getElementById('fPrice').value = l.price;
     document.getElementById('fBeds').value = l.beds;
@@ -376,14 +459,14 @@
     document.getElementById('fPrivate').checked = !!l.private;
     setPin(l.lat, l.lng);
     agentPinMap.setView([l.lat, l.lng], 13);
-    document.getElementById('formTitle').textContent = tr('agentDash.editListing','Edit Listing');
-    document.getElementById('formSubmitBtn').textContent = tr('agentDash.updateListingBtn','Update Listing');
+    document.getElementById('formTitle').textContent = trDash('agentDash.editListing','Edit Listing');
+    document.getElementById('formSubmitBtn').textContent = trDash('agentDash.updateListingBtn','Update Listing');
     document.getElementById('formCancelBtn').classList.remove('hidden');
     document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   window.deleteListing = async function (id) {
-    if (!confirm(tr('agentDash.deleteConfirm','Delete this listing? It will be removed from the public site immediately.'))) return;
+    if (!confirm(trDash('agentDash.deleteConfirm','Delete this listing? It will be removed from the public site immediately.'))) return;
     await deleteDoc(doc(db, 'listings', id));
     loadMyListings();
   };
@@ -393,7 +476,7 @@
     const empty = document.getElementById('listingsEmpty');
     const q = query(collection(db, 'listings'), where('agentId', '==', currentUid));
     const snap = await getDocs(q);
-    document.getElementById('statMyListings').textContent = snap.size + ' ' + (snap.size === 1 ? tr('agentDash.listingSingular','listing') : tr('agentDash.listingPlural','listings'));
+    document.getElementById('statMyListings').textContent = snap.size + ' ' + (snap.size === 1 ? trDash('agentDash.listingSingular','listing') : trDash('agentDash.listingPlural','listings'));
     if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     body.innerHTML = '';
@@ -406,22 +489,22 @@
           <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
         </td>
         <td>
-          <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</span>
+          <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trDash('common.forSale','For Sale') : trDash('common.forRent','For Rent')}</span>
           <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
         </td>
         <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
         <td>
-          ${l.verified ? '<span class="badge badge-verified">' + tr('common.verified','Verified') + '</span>' : ''}
-          ${l.private ? '<span class="badge badge-private">' + tr('map.privateListing','Private') + '</span>' : ''}
+          ${l.verified ? '<span class="badge badge-verified">' + trDash('common.verified','Verified') + '</span>' : ''}
+          ${l.private ? '<span class="badge badge-private">' + trDash('map.privateListing','Private') + '</span>' : ''}
         </td>
         <td></td>
       `;
       const editBtn = document.createElement('button');
-      editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = tr('common.edit','Edit');
+      editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = trDash('common.edit','Edit');
       editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
       editBtn.addEventListener('click', () => window.editListing(docSnap.id, l));
       const delBtn = document.createElement('button');
-      delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = tr('common.delete','Delete');
+      delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = trDash('common.delete','Delete');
       delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
       delBtn.addEventListener('click', () => window.deleteListing(docSnap.id));
       tr.lastElementChild.append(editBtn, delBtn);
@@ -442,7 +525,7 @@
       const l = d.data();
       if (!l.companyId || l.companyId === currentCompanyId) rows.push(l);
     });
-    document.getElementById('statTeamListings').textContent = rows.length + ' ' + (rows.length === 1 ? tr('agentDash.teamListingSingular','team listing') : tr('agentDash.teamListingPlural','team listings'));
+    document.getElementById('statTeamListings').textContent = rows.length + ' ' + (rows.length === 1 ? trDash('agentDash.teamListingSingular','team listing') : trDash('agentDash.teamListingPlural','team listings'));
     if (rows.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
     body.innerHTML = '';
@@ -455,15 +538,15 @@
           <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
           <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
         </td>
-        <td>${isMine ? '<span class="font-label-caps text-label-caps text-secondary">' + tr('agentDash.youBadge','You') + '</span>' : (l.agentName || tr('agentDash.unknownAgent','Unknown agent'))}</td>
+        <td>${isMine ? '<span class="font-label-caps text-label-caps text-secondary">' + trDash('agentDash.youBadge','You') + '</span>' : (l.agentName || trDash('agentDash.unknownAgent','Unknown agent'))}</td>
         <td>
-          <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</span>
+          <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trDash('common.forSale','For Sale') : trDash('common.forRent','For Rent')}</span>
           <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
         </td>
         <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
         <td>
-          ${l.verified ? '<span class="badge badge-verified">' + tr('common.verified','Verified') + '</span>' : ''}
-          ${l.private ? '<span class="badge badge-private">' + tr('map.privateListing','Private') + '</span>' : ''}
+          ${l.verified ? '<span class="badge badge-verified">' + trDash('common.verified','Verified') + '</span>' : ''}
+          ${l.private ? '<span class="badge badge-private">' + trDash('map.privateListing','Private') + '</span>' : ''}
         </td>
       `;
       body.appendChild(tr);
@@ -483,7 +566,7 @@
     currentAgentName = profile.displayName || user.email;
     currentCompanyId = profile.companyId || null;
     document.getElementById('agentNameLabel').textContent = currentAgentName;
-    document.getElementById('agentWelcomeName').textContent = tr('common.welcome','Welcome') + ', ' + currentAgentName;
+    document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
     document.getElementById('agentWelcomeEmail').textContent = user.email;
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('dashContent').classList.remove('hidden');
@@ -491,9 +574,10 @@
     loadMyListings();
     loadTeamListings();
     document.addEventListener('darwesh:langchange', () => {
-      document.getElementById('agentWelcomeName').textContent = tr('common.welcome','Welcome') + ', ' + currentAgentName;
+      document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
       loadMyListings();
       loadTeamListings();
+      if (agentTeamMap) renderAgentTeamMap();
     });
   });
 </script>
