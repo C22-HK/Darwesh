@@ -245,6 +245,20 @@
     .dash-mini-stat { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 12px 14px; }
     .dash-mini-stat .lbl { font-family: 'IBM Plex Sans', sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #8192a7; margin-bottom: 4px; }
     .dash-mini-stat .val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700; color: #ffffff; }
+    .trend-card { background: #0b1420; border: 1px solid #2d4155; border-radius: 12px; padding: 14px; position: relative; overflow: hidden; }
+    .trend-card .grid-bg {
+      position: absolute; inset: 0; opacity: 0.07; pointer-events: none;
+      background-image: linear-gradient(#4f6073 1px, transparent 1px), linear-gradient(90deg, #4f6073 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .trend-city { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: #ffffff; letter-spacing: 0.02em; }
+    .trend-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 700; color: #ffffff; }
+    .trend-chip { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 2px; }
+    .trend-chip.up { background: rgba(74,225,131,0.14); color: #4ae183; }
+    .trend-chip.down { background: rgba(255,180,171,0.14); color: #ffb4ab; }
+    .trend-chip.flat { background: rgba(255,255,255,0.08); color: #8192a7; }
+    .trend-chart-wrap { height: 84px; position: relative; margin: 10px 0 6px; }
+    .trend-empty { display: flex; align-items: center; justify-content: center; height: 84px; font-family: 'Inter', sans-serif; font-size: 11.5px; color: #4f6073; text-align: center; padding: 0 10px; }
 
     .amenity-origin-pulse { position: relative; width: 16px; height: 16px; }
     .amenity-origin-pulse::before, .amenity-origin-pulse::after {
@@ -420,6 +434,15 @@
           <p class="dash-panel-caption" data-i18n="admin.marketSnapshotCaption">Real listing counts by deal type — not transaction volume, just what's on the market right now.</p>
           <div class="flex gap-2 mb-4 flex-wrap" id="dashCityTabs"></div>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="dashCityDetail"></div>
+        </div>
+
+        <div class="dash-panel mt-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="dash-panel-title-row" style="margin-bottom:0;"><span class="material-symbols-outlined">monitoring</span><p class="dash-panel-title" data-i18n="admin.priceTrendTitle">Price Trend</p></div>
+            <span class="font-data-mono text-[9.5px] tracking-wide px-2 py-0.5 rounded" style="color:#e9c176; border:1px solid rgba(233,193,118,0.4);" data-i18n="admin.realDataBadge">REAL DATA</span>
+          </div>
+          <p class="dash-panel-caption" data-i18n="admin.priceTrendCaption">Average asking price of Sale listings added per week, for your busiest cities — not a live trading feed, just your real listing history over time.</p>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="dashPriceTrends"></div>
         </div>
       </div>
     </section>
@@ -1654,6 +1677,7 @@ async function renderDashboardTab() {
   }).join('') : `<div style="flex:1;border-radius:2px;background:rgba(255,255,255,0.06);"></div>`;
 
   renderDashCitySnapshot(cities, listings);
+  renderDashPriceTrends(cities, listings);
 
   const ACTIVITY_STYLE = {
     listing: { bg: 'rgba(74,225,131,0.14)', color: '#4ae183', icon: 'home_work' },
@@ -1719,6 +1743,76 @@ function renderDashCitySnapshot(cities, listings) {
     <div class="dash-mini-stat"><p class="lbl" data-i18n="admin.forRentCount">For Rent</p><p class="val">${forRent.length}</p></div>
     <div class="dash-mini-stat"><p class="lbl" data-i18n="insights.avgSalePrice">Avg. sale price</p><p class="val">${avgSale !== null ? '$' + avgSale.toLocaleString() : '—'}</p></div>
   `;
+}
+
+// Price Trend cards — a real line chart of average Sale-listing price
+// per week, built from actual createdAt timestamps. No candlesticks, no
+// bid/ask, no AI predictions: just what the real listing history shows,
+// which for a young dataset may well be "not enough history yet" — and
+// that's shown honestly rather than filled in with invented numbers.
+function buildTrendSVG(points, color) {
+  const w = 300, h = 84, padX = 4, padY = 10;
+  const values = points.map(p => p.y);
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = (max - min) || Math.max(1, max * 0.1) || 1;
+  const coords = points.map((p, i) => {
+    const x = points.length > 1 ? padX + (i / (points.length - 1)) * (w - padX * 2) : w / 2;
+    const y = h - padY - ((p.y - min) / range) * (h - padY * 2);
+    return [x, y];
+  });
+  const linePath = coords.map((c, i) => (i === 0 ? 'M' : 'L') + c[0].toFixed(1) + ' ' + c[1].toFixed(1)).join(' ');
+  const areaPath = `${linePath} L ${coords[coords.length - 1][0].toFixed(1)} ${h} L ${coords[0][0].toFixed(1)} ${h} Z`;
+  const dots = coords.map(c => `<circle cx="${c[0].toFixed(1)}" cy="${c[1].toFixed(1)}" r="2.5" fill="${color}"></circle>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" class="w-full h-full" preserveAspectRatio="none">
+    <path d="${areaPath}" fill="${color}" opacity="0.14"></path>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+    ${dots}
+  </svg>`;
+}
+
+function renderDashPriceTrends(cities, listings) {
+  const wrap = document.getElementById('dashPriceTrends');
+  const topCities = cities.slice(0, 3).map(([city]) => city);
+  if (topCities.length === 0) {
+    wrap.innerHTML = `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noListingsYet2', 'No listings yet.')}</p>`;
+    return;
+  }
+
+  wrap.innerHTML = topCities.map(city => {
+    const saleListings = listings.filter(l => l.city === city && l.dealType === 'sale' && l.createdAt?.seconds && l.price);
+    const weekly = {};
+    saleListings.forEach(l => {
+      const week = Math.floor(l.createdAt.seconds / (7 * 86400));
+      if (!weekly[week]) weekly[week] = [];
+      weekly[week].push(Number(l.price));
+    });
+    const weeks = Object.keys(weekly).map(Number).sort((a, b) => a - b);
+    const points = weeks.map(w => ({ x: w, y: weekly[w].reduce((s, v) => s + v, 0) / weekly[w].length }));
+    const current = points.length ? points[points.length - 1].y : null;
+
+    let chartHtml, chipHtml = '';
+    if (points.length < 2) {
+      chartHtml = `<div class="trend-empty">${trAdmin('admin.notEnoughHistory', 'Not enough listing history yet to chart a trend for this city.')}</div>`;
+    } else {
+      const first = points[0].y;
+      const changePct = first ? ((current - first) / first) * 100 : 0;
+      const dir = changePct > 0.5 ? 'up' : changePct < -0.5 ? 'down' : 'flat';
+      const arrow = dir === 'up' ? 'arrow_upward' : dir === 'down' ? 'arrow_downward' : 'remove';
+      const color = dir === 'up' ? '#4ae183' : dir === 'down' ? '#ffb4ab' : '#8192a7';
+      chipHtml = `<span class="trend-chip ${dir}"><span class="material-symbols-outlined" style="font-size:11px;">${arrow}</span>${Math.abs(changePct).toFixed(1)}%</span>`;
+      chartHtml = `<div class="trend-chart-wrap">${buildTrendSVG(points, '#e9c176')}</div>`;
+    }
+
+    return `<div class="trend-card">
+      <div class="grid-bg"></div>
+      <div class="flex justify-between items-start" style="position:relative;">
+        <span class="trend-city">${cityLabel ? cityLabel(city) : city}</span>
+        ${chipHtml}
+      </div>
+      <p class="trend-value" style="position:relative;">${current !== null ? '$' + Math.round(current).toLocaleString() : '—'}</p>
+      ${chartHtml}
+    </div>`;
+  }).join('');
 }
 
 async function renderRequestsMapTab() {
