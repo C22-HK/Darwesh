@@ -253,15 +253,15 @@
 <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.fullName">Full Name</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" required="" type="text"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="fullNameInput" required="" type="text"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.phoneNumber">Phone Number</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" placeholder="+964 750 000 0000" required="" type="tel"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="phoneInput" placeholder="+964 750 000 0000" required="" type="tel"/>
 </div>
 <div class="sm:col-span-2">
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="auth.email">Email</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" required="" type="email"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="emailInput" required="" type="email"/>
 </div>
 </div>
 <div class="p-6 pt-0 flex flex-col sm:flex-row gap-3">
@@ -404,7 +404,7 @@ setTimeout(() => pinMap.invalidateSize(), 100);
 
 /* Save Draft (localStorage) */
 const DRAFT_KEY = 'darwesh_sell_draft';
-const draftFieldIds = ['titleInput', 'typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'sizeInput', 'bedsInput', 'bathsInput', 'descriptionInput'];
+const draftFieldIds = ['titleInput', 'typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'sizeInput', 'bedsInput', 'bathsInput', 'descriptionInput', 'fullNameInput', 'phoneInput', 'emailInput'];
 
 function collectDraft() {
   const data = {};
@@ -445,12 +445,13 @@ if (localStorage.getItem(DRAFT_KEY)) {
   document.getElementById('draftBanner').classList.remove('hidden');
 }
 
-// If the visitor is logged in, save the submission to their account so
-// they can track it on account.html. Guests still get the normal
-// confirmation, but a guest submission isn't saved anywhere retrievable
-// — there's no way to tie it back to them without an account.
+// Every submission is saved to the shared `submissions` collection so an
+// admin can see and verify it on admin.html's Customer Services tab —
+// whether or not the visitor is logged in. A logged-in visitor's uid is
+// attached too, so they can also track it on account.html; a guest's
+// submission is saved with uid: null and is only visible to staff.
 let submitAuth = null, submitDb = null, submitFns = null;
-(async function initSubmissionAuth() {
+const submissionAuthReady = (async function initSubmissionAuth() {
   const [{ auth, db }, authMod, storeMod] = await Promise.all([
     import('./js/firebase-init.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
@@ -464,20 +465,20 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   e.preventDefault();
   const draft = collectDraft();
 
-  if (submitAuth && submitAuth.currentUser) {
-    try {
-      await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), {
-        uid: submitAuth.currentUser.uid,
-        type: 'sell',
-        title: draft.titleInput, propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
-        city: draft.citySelect, address: draft.addressInput, price: draft.priceInput,
-        size: draft.sizeInput, beds: draft.bedsInput, baths: draft.bathsInput,
-        description: draft.descriptionInput, pinLat: draft.pinLat, pinLng: draft.pinLng,
-        status: 'pending', createdAt: submitFns.serverTimestamp()
-      });
-    } catch (err) {
-      console.error('Could not save submission to account:', err);
-    }
+  await submissionAuthReady;
+  try {
+    await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), {
+      uid: (submitAuth && submitAuth.currentUser) ? submitAuth.currentUser.uid : null,
+      type: 'sell',
+      name: draft.fullNameInput, phone: draft.phoneInput, email: draft.emailInput,
+      title: draft.titleInput, propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
+      city: draft.citySelect, address: draft.addressInput, price: draft.priceInput,
+      size: draft.sizeInput, beds: draft.bedsInput, baths: draft.bathsInput,
+      description: draft.descriptionInput, pinLat: draft.pinLat, pinLng: draft.pinLng,
+      status: 'pending', createdAt: submitFns.serverTimestamp()
+    });
+  } catch (err) {
+    console.error('Could not save submission:', err);
   }
 
   localStorage.removeItem(DRAFT_KEY);
