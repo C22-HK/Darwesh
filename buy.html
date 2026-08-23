@@ -225,30 +225,46 @@ const IMAGES = {
   renovated: "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
 };
 
-const LISTINGS = [
-  { id:1, title:"Italian Village Villa", city:"Erbil", address:"Italian Village, Villa 42", type:"villa", price:380000, beds:4, baths:3, sqft:400, img:IMAGES.villa, verified:true },
-  { id:2, title:"Empire World Residence", city:"Erbil", address:"Empire World, Tower B", type:"apartment", price:210000, beds:3, baths:2, sqft:180, img:IMAGES.apartment, verified:true },
-  { id:3, title:"Raparin District Home", city:"Sulaymaniyah", address:"Raparin District", type:"apartment", price:165000, beds:3, baths:2, sqft:150, img:IMAGES.apartment, verified:true },
-  { id:4, title:"Salim Street Office Suite", city:"Sulaymaniyah", address:"Salim Street, Office Tower", type:"office", price:245000, beds:5, baths:2, sqft:220, img:IMAGES.office, verified:true },
-  { id:5, title:"Nwroz District Villa", city:"Duhok", address:"Nwroz District, Villa 7", type:"villa", price:295000, beds:4, baths:3, sqft:350, img:IMAGES.villa, verified:true },
-  { id:6, title:"Family House Plot", city:"Zakho", address:"Family House, Grid District", type:"land", price:140000, beds:3, baths:2, sqft:200, img:IMAGES.land, verified:false },
-  { id:7, title:"Mountain View Villa", city:"Soran", address:"Mountain View Villa", type:"villa", price:320000, beds:5, baths:4, sqft:420, img:IMAGES.villa, verified:true },
-  { id:8, title:"Heritage Renovated Home", city:"Erbil", address:"Old Bazaar Quarter", type:"apartment", price:198000, beds:3, baths:2, sqft:170, img:IMAGES.renovated, verified:false }
-];
+let LISTINGS = [];
+let listingsLoaded = false;
 
-// Merge in for-sale listings added via the Admin dashboard (localStorage)
-// — only visible on this same device/browser, since this site has no backend.
-(function mergeAdminListings() {
-  let admin = [];
-  try { admin = JSON.parse(localStorage.getItem('darwesh_admin_listings') || '[]'); } catch (e) { admin = []; }
-  admin.filter(a => a.dealType === 'sale').forEach(a => {
-    LISTINGS.push({
-      id: a.id, title: a.title, city: a.city, address: a.address, type: a.propertyType,
-      price: a.price, beds: a.beds, baths: a.baths, sqft: a.sqft,
-      img: a.img || IMAGES[a.propertyType] || IMAGES.villa, verified: !!a.verified
-    });
-  });
-})();
+// ---------------------------------------------------------------------
+// Real for-sale listings, loaded live from Firestore's `listings`
+// collection — the same collection admin.html and agent-dashboard.html
+// write to. Publicly readable per firestore.rules (`allow read: if
+// true`), no auth required. Only dealType === 'sale' shows here — Buy
+// is a sale-only page.
+// ---------------------------------------------------------------------
+async function loadListings() {
+  try {
+    const [{ db }, storeMod] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    ]);
+    const { collection, getDocs } = storeMod;
+    const snap = await getDocs(collection(db, 'listings'));
+    const docs = [];
+    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    LISTINGS = docs.filter(d => d.dealType === 'sale').map(d => ({
+      id: d.id,
+      title: d.title || d.address || 'Property',
+      city: d.city || '',
+      address: d.address || '',
+      type: d.propertyType || '',
+      price: Number(d.price) || 0,
+      beds: Number(d.beds) || 0,
+      baths: Number(d.baths) || 0,
+      sqft: Number(d.sqft) || 0,
+      img: d.img || IMAGES[d.propertyType] || IMAGES.villa,
+      verified: !!d.verified
+    }));
+  } catch (e) {
+    LISTINGS = [];
+  }
+  listingsLoaded = true;
+  render();
+}
+loadListings();
 
 // ---------------------------------------------------------------------
 // Favorites & saved searches (Firebase). Dynamic import keeps this a
@@ -338,7 +354,7 @@ function card(l) {
       <span class="font-label-caps text-label-caps text-[10px]">${tr('common.verified','Verified')}</span>
     </div>` : '';
   const favActive = favoriteIds.has('buy-' + l.id);
-  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite(${l.id});" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
+  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
   return `
@@ -370,6 +386,13 @@ function card(l) {
 }
 
 function render() {
+  if (!listingsLoaded) {
+    document.getElementById('listingsGrid').innerHTML = '';
+    document.getElementById('resultCount').textContent = tr('map.loadingListings', 'Loading listings…');
+    document.getElementById('emptyState').classList.add('hidden');
+    return;
+  }
+
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const type = document.getElementById('typeFilter').value;
   const sort = document.getElementById('sortFilter').value;

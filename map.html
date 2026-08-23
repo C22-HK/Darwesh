@@ -477,34 +477,52 @@ const IMAGES = [
   "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
 ];
 
-const LISTINGS = [
-  { id:1, city:"Erbil", address:"Italian Village, Villa 42", lat:36.2019, lng:43.9812, type:"sale", price:380000, priceLabel:"$380,000", beds:4, baths:3, sqft:400, propertyType:"villa", img:IMAGES[0], verified:true, private:true },
-  { id:2, city:"Erbil", address:"Empire World, Tower B", lat:36.1798, lng:44.0231, type:"sale", price:210000, priceLabel:"$210,000", beds:3, baths:2, sqft:180, propertyType:"apartment", img:IMAGES[4], verified:true },
-  { id:3, city:"Erbil", address:"Downtown, Near Citadel", lat:36.1911, lng:44.0093, type:"rent", price:900, priceLabel:"$900/mo", beds:2, baths:1, sqft:120, propertyType:"apartment", img:IMAGES[3], verified:false },
-  { id:4, city:"Sulaymaniyah", address:"Salim Street, Office Tower", lat:35.5628, lng:45.4408, type:"rent", price:1200, priceLabel:"$1,200/mo", beds:5, baths:2, sqft:220, propertyType:"office", img:IMAGES[1], verified:true },
-  { id:5, city:"Sulaymaniyah", address:"Raparin District", lat:35.5474, lng:45.4192, type:"sale", price:165000, priceLabel:"$165,000", beds:3, baths:2, sqft:150, propertyType:"apartment", img:IMAGES[2], verified:true, private:true },
-  { id:6, city:"Duhok", address:"Nwroz District, Villa 7", lat:36.8664, lng:42.9977, type:"sale", price:295000, priceLabel:"$295,000", beds:4, baths:3, sqft:350, propertyType:"villa", img:IMAGES[0], verified:true },
-  { id:7, city:"Duhok", address:"City Center Apartments", lat:36.8618, lng:42.9822, type:"rent", price:650, priceLabel:"$650/mo", beds:2, baths:1, sqft:110, propertyType:"apartment", img:IMAGES[3], verified:false },
-  { id:8, city:"Zakho", address:"Family House, Grid District", lat:37.1444, lng:42.6810, type:"sale", price:140000, priceLabel:"$140,000", beds:3, baths:2, sqft:200, propertyType:"villa", img:IMAGES[5], verified:false },
-  { id:9, city:"Soran", address:"Mountain View Villa", lat:36.6528, lng:44.5453, type:"sale", price:320000, priceLabel:"$320,000", beds:5, baths:4, sqft:420, propertyType:"villa", img:IMAGES[0], verified:true, private:true },
-  { id:10, city:"Koya", address:"New Development, Block C", lat:36.0781, lng:44.6222, type:"rent", price:500, priceLabel:"$500/mo", beds:2, baths:1, sqft:95, propertyType:"apartment", img:IMAGES[2], verified:false }
-];
+let LISTINGS = [];
+let listingsLoaded = false;
 
-// Merge in listings added via the Admin dashboard (localStorage) — only
-// visible on this same device/browser, since this site has no backend.
-(function mergeAdminListings() {
-  let admin = [];
-  try { admin = JSON.parse(localStorage.getItem('darwesh_admin_listings') || '[]'); } catch (e) { admin = []; }
-  admin.forEach(a => {
-    LISTINGS.push({
-      id: a.id, city: a.city, address: a.address, lat: a.lat, lng: a.lng,
-      type: a.dealType, price: a.price,
-      priceLabel: a.dealType === 'rent' ? ('$' + a.price.toLocaleString() + '/mo') : ('$' + a.price.toLocaleString()),
-      beds: a.beds, baths: a.baths, sqft: a.sqft, propertyType: a.propertyType, img: a.img || IMAGES[0],
-      verified: !!a.verified, private: !!a.private
+// ---------------------------------------------------------------------
+// Real listings, loaded live from Firestore's `listings` collection —
+// the same collection admin.html and agent-dashboard.html write to.
+// Publicly readable per firestore.rules (`allow read: if true`), no
+// auth required. A listing with no lat/lng can't be placed on this map
+// so it's left out here.
+// ---------------------------------------------------------------------
+async function loadListings() {
+  try {
+    const [{ db }, storeMod] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    ]);
+    const { collection, getDocs } = storeMod;
+    const snap = await getDocs(collection(db, 'listings'));
+    const docs = [];
+    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    LISTINGS = docs.filter(d => d.lat != null && d.lng != null).map(d => {
+      const price = Number(d.price) || 0;
+      return {
+        id: d.id,
+        city: d.city || '',
+        address: d.address || d.title || '',
+        lat: d.lat, lng: d.lng,
+        type: d.dealType === 'rent' ? 'rent' : 'sale',
+        price,
+        priceLabel: d.dealType === 'rent' ? ('$' + price.toLocaleString() + '/mo') : ('$' + price.toLocaleString()),
+        beds: Number(d.beds) || 0,
+        baths: Number(d.baths) || 0,
+        sqft: Number(d.sqft) || 0,
+        propertyType: d.propertyType || '',
+        img: d.img || IMAGES[0],
+        verified: !!d.verified,
+        private: !!d.private
+      };
     });
-  });
-})();
+  } catch (e) {
+    LISTINGS = [];
+  }
+  listingsLoaded = true;
+  refresh();
+}
+loadListings();
 
 const revealed = new Set();
 let searchCircle = null;
@@ -682,7 +700,8 @@ const CITY_CENTERS = {
   "Duhok": [36.8642, 42.9903],
   "Zakho": [37.1450, 42.6829],
   "Soran": [36.6500, 44.5450],
-  "Koya": [36.0750, 44.6200]
+  "Koya": [36.0750, 44.6200],
+  "Kirkuk": [35.4681, 44.3922]
 };
 
 function priceIcon(listing, active) {
@@ -764,7 +783,7 @@ function card(l) {
     </div>` : '';
 
   const favActive = favoriteIds.has('map-' + l.id);
-  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite(${l.id});" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
+  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
 
@@ -817,24 +836,32 @@ function card(l) {
 }
 
 function renderList() {
+  if (!listingsLoaded) {
+    document.getElementById('cardList').innerHTML = `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.loadingListings','Loading listings…')}</p>`;
+    document.getElementById('resultCount').textContent = '';
+    document.getElementById('resultCountMobile').textContent = '';
+    return;
+  }
   const list = filteredListings();
-  document.getElementById('cardList').innerHTML = list.map(card).join('');
+  document.getElementById('cardList').innerHTML = list.length
+    ? list.map(card).join('')
+    : `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.noListingsYet','No listings match yet — check back soon or adjust your filters.')}</p>`;
   document.querySelectorAll('.listing-card').forEach(el => {
     el.addEventListener('click', (e) => {
       if (e.target.closest('button')) return;
-      selectListing(Number(el.dataset.id), false);
+      selectListing(el.dataset.id, false);
     });
   });
   document.querySelectorAll('.request-viewing-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openViewingModal(Number(btn.dataset.id));
+      openViewingModal(btn.dataset.id);
     });
   });
   document.querySelectorAll('.reveal-location-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      revealListing(Number(btn.dataset.id));
+      revealListing(btn.dataset.id);
     });
   });
   document.getElementById('resultCount').textContent = `${list.length} homes in Kurdistan Region`;
@@ -853,13 +880,13 @@ function selectListing(id, fromMap) {
   activeId = id;
   const l = LISTINGS.find(x => x.id === id);
   document.querySelectorAll('.listing-card').forEach(el => {
-    el.classList.toggle('active', Number(el.dataset.id) === id);
+    el.classList.toggle('active', el.dataset.id === id);
   });
   Object.entries(markers).forEach(([mid, marker]) => {
     if (!(marker instanceof L.Marker)) return;
-    const listing = LISTINGS.find(x => x.id == mid);
+    const listing = LISTINGS.find(x => x.id === mid);
     if (!listing) return;
-    marker.setIcon(priceIcon(listing, Number(mid) === id));
+    marker.setIcon(priceIcon(listing, mid === id));
   });
   if (l) {
     // Never move the camera toward a hidden private listing's real
@@ -1126,7 +1153,7 @@ map.on('popupopen', (e) => {
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       map.closePopup();
-      openViewingModal(Number(btn.dataset.id));
+      openViewingModal(btn.dataset.id);
     });
   });
 });
