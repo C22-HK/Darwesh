@@ -205,6 +205,32 @@
     .city-bar-count { width: 28px; flex: none; text-align: right; font-family: 'Inter', sans-serif; font-size: 12px; color: #b7c8de; }
     .activity-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 10px; }
     .activity-item .material-symbols-outlined { font-size: 16px; color: #4ae183; }
+
+    .amenity-origin-pulse { position: relative; width: 16px; height: 16px; }
+    .amenity-origin-pulse::before, .amenity-origin-pulse::after {
+      content: ''; position: absolute; inset: 0; border-radius: 999px; background: #e9c176;
+    }
+    .amenity-origin-pulse::before { animation: amenity-pulse 2s ease-out infinite; }
+    .amenity-origin-pulse::after { inset: 3px; box-shadow: 0 0 0 2px #ffffff; }
+    @keyframes amenity-pulse {
+      0% { transform: scale(1); opacity: 0.55; }
+      100% { transform: scale(2.6); opacity: 0; }
+    }
+    .amenity-dist-chip {
+      display: flex; align-items: center; gap: 4px;
+      background: rgba(4,22,39,0.92); border-radius: 999px; padding: 3px 8px 3px 3px;
+      font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; color: #ffffff;
+      white-space: nowrap; box-shadow: 0 2px 6px rgba(4,22,39,0.35);
+    }
+    .amenity-dist-chip .dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+    .amenity-row-chip {
+      display: flex; align-items: center; gap: 8px;
+      background: #041627; border-radius: 8px; padding: 6px 10px;
+      font-family: 'Inter', sans-serif; font-size: 12px; color: #ffffff;
+    }
+    .amenity-row-chip .material-symbols-outlined { font-size: 15px; flex: none; }
+    .amenity-row-chip .name { flex: 1; color: #d2e4fb; }
+    .amenity-row-chip .km { font-family: 'Inter', sans-serif; font-weight: 700; color: #ffffff; flex: none; }
   </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
@@ -596,6 +622,18 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 function trAdmin(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+// CartoDB's free basemaps (no key needed) — "Positron" (silver/minimal)
+// for maps sitting on light panels, "Dark Matter" (midnight) for maps
+// sitting on the dashboard's dark panels — matching the design system's
+// "Custom Silver or Midnight map styles to reduce visual noise" spec,
+// instead of the busy default OpenStreetMap tile style.
+const TILE_LIGHT = { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' };
+const TILE_DARK = { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' };
+function addBaseTiles(map, style) {
+  const t = style === 'dark' ? TILE_DARK : TILE_LIGHT;
+  L.tileLayer(t.url, { attribution: t.attribution, maxZoom: 19, subdomains: 'abcd' }).addTo(map);
+}
 let currentUid = null;
 let currentAdminName = '';
 
@@ -922,9 +960,7 @@ function initListingsTab() {
   adminPinMap = L.map('adminPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
   window.adminPinMap = adminPinMap;
   L.control.zoom({ position: 'bottomright' }).addTo(adminPinMap);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
-  }).addTo(adminPinMap);
+  addBaseTiles(adminPinMap, 'light');
   adminPinMap.on('click', (e) => setAdminPin(e.latlng.lat, e.latlng.lng));
   setTimeout(() => adminPinMap.invalidateSize(), 100);
 
@@ -1004,7 +1040,7 @@ async function loadNearbyAmenities(lat, lng, map = adminPinMap, statusElId = 'ne
   const statusEl = document.getElementById(statusElId);
   clearAmenityLayers(map, layers);
   statusEl.classList.remove('hidden');
-  statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-on-surface-variant">${trAdmin('admin.nearbyFinding', 'Finding nearby important places...')}</p>`;
+  statusEl.innerHTML = `<div class="amenity-row-chip"><span class="material-symbols-outlined" style="color:#e9c176;">explore</span><span class="name">${trAdmin('admin.nearbyFinding', 'Finding nearby important places...')}</span></div>`;
 
   const query = `[out:json][timeout:15];(` +
     `node["amenity"~"^(hospital|clinic|pharmacy)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
@@ -1025,7 +1061,7 @@ async function loadNearbyAmenities(lat, lng, map = adminPinMap, statusElId = 'ne
     elements = data.elements || [];
   } catch (err) {
     if (myRequestId !== amenityRequestId) return;
-    statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-error">${trAdmin('admin.nearbyFailed', "Couldn't load nearby places — try again.")}</p>`;
+    statusEl.innerHTML = `<div class="amenity-row-chip"><span class="material-symbols-outlined" style="color:#ffb4ab;">error</span><span class="name">${trAdmin('admin.nearbyFailed', "Couldn't load nearby places — try again.")}</span></div>`;
     return;
   }
   if (myRequestId !== amenityRequestId) return;
@@ -1043,45 +1079,60 @@ async function loadNearbyAmenities(lat, lng, map = adminPinMap, statusElId = 'ne
 
   const cats = Object.keys(POI_CATEGORIES).filter(c => nearest[c]);
   if (cats.length === 0) {
-    statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-on-surface-variant">${trAdmin('admin.nearbyNone', 'No important places found within 3 km.')}</p>`;
+    statusEl.innerHTML = `<div class="amenity-row-chip"><span class="material-symbols-outlined" style="color:#8192a7;">info</span><span class="name">${trAdmin('admin.nearbyNone', 'No important places found within 3 km.')}</span></div>`;
     return;
   }
 
-  statusEl.innerHTML = cats.map(cat => {
+  statusEl.innerHTML = `<div class="flex flex-col gap-1.5">` + cats.map(cat => {
     const cfg = POI_CATEGORIES[cat];
     const poi = nearest[cat];
     const km = (poi.dist / 1000).toFixed(2);
-    return `<p class="font-body-md text-[11.5px] text-on-surface flex items-center gap-1">
-      <span class="material-symbols-outlined" style="font-size:14px;color:${cfg.color};">${cfg.icon}</span>
-      <strong>${trAdmin(cfg.labelKey, cfg.label)}:</strong> ${poi.name} — ${km} km
-    </p>`;
-  }).join('');
+    return `<div class="amenity-row-chip">
+      <span class="material-symbols-outlined" style="color:${cfg.color};">${cfg.icon}</span>
+      <strong>${trAdmin(cfg.labelKey, cfg.label)}</strong>
+      <span class="name">${poi.name}</span>
+      <span class="km">${km} km</span>
+    </div>`;
+  }).join('') + `</div>`;
+
+  const originPulse = L.marker(origin, {
+    icon: L.divIcon({ className: '', html: `<div class="amenity-origin-pulse"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] }),
+    interactive: false, zIndexOffset: 500
+  }).addTo(map);
+  layers.push(originPulse);
 
   cats.forEach(cat => {
     const cfg = POI_CATEGORIES[cat];
     const poi = nearest[cat];
     const poiLatLng = L.latLng(poi.lat, poi.lon);
 
+    // Glow line: a soft wide translucent stroke under a crisp thin one,
+    // both solid with round caps — reads as a clean "connection" rather
+    // than a dashed ruler line, and holds up on both light and dark tiles.
+    const glow = L.polyline([origin, poiLatLng], {
+      color: cfg.color, weight: 7, opacity: 0.16, lineCap: 'round'
+    }).addTo(map);
+    layers.push(glow);
+    const line = L.polyline([origin, poiLatLng], {
+      color: cfg.color, weight: 2.5, opacity: 0.9, lineCap: 'round'
+    }).addTo(map);
+    layers.push(line);
+
     const marker = L.marker(poiLatLng, {
       icon: L.divIcon({
         className: '',
-        html: `<div style="width:22px;height:22px;border-radius:999px;background:${cfg.color};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);"><span class="material-symbols-outlined" style="font-size:14px;color:#fff;">${cfg.icon}</span></div>`,
-        iconSize: [22, 22],
-        iconAnchor: [11, 11]
+        html: `<div style="width:24px;height:24px;border-radius:999px;background:${cfg.color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(4,22,39,0.45);border:2px solid #ffffff;"><span class="material-symbols-outlined" style="font-size:14px;color:#fff;">${cfg.icon}</span></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
       })
     }).addTo(map);
     marker.bindTooltip(`${poi.name} — ${(poi.dist / 1000).toFixed(2)} km`);
     layers.push(marker);
 
-    const line = L.polyline([origin, poiLatLng], {
-      color: cfg.color, weight: 2, dashArray: '4 5', opacity: 0.85
-    }).addTo(map);
-    layers.push(line);
-
     const label = L.marker([(origin.lat + poiLatLng.lat) / 2, (origin.lng + poiLatLng.lng) / 2], {
       icon: L.divIcon({
         className: '',
-        html: `<div style="background:#ffffff;border:1px solid ${cfg.color};border-radius:6px;padding:1px 5px;font-size:10px;font-weight:700;color:${cfg.color};white-space:nowrap;">${(poi.dist / 1000).toFixed(2)} km</div>`,
+        html: `<div class="amenity-dist-chip"><span class="dot" style="background:${cfg.color};"></span>${(poi.dist / 1000).toFixed(2)} km</div>`,
         iconSize: null
       }),
       interactive: false
@@ -1382,9 +1433,7 @@ function openRequestDetail(id) {
     setTimeout(() => {
       if (!requestDetailMap) {
         requestDetailMap = L.map('requestDetailMap', { zoomControl: false }).setView(latLng, 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors', maxZoom: 17
-        }).addTo(requestDetailMap);
+        addBaseTiles(requestDetailMap, 'light');
       } else {
         requestDetailMap.setView(latLng, 14);
       }
@@ -1526,9 +1575,7 @@ function renderDashRequestsMap(submissions) {
   if (!dashRequestsMap) {
     dashRequestsMap = L.map('dashRequestsMap', { zoomControl: false }).setView([36.35, 44.3], 8);
     L.control.zoom({ position: 'bottomright' }).addTo(dashRequestsMap);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors', maxZoom: 17
-    }).addTo(dashRequestsMap);
+    addBaseTiles(dashRequestsMap, 'dark');
   }
   dashRequestsMap.invalidateSize();
 
