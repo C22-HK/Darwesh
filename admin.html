@@ -170,6 +170,7 @@
     .badge-rent { background: #fed488; color: #5d4201; }
     .badge-verified { background: #003115; color: #4ae183; }
     .badge-private { background: #e5e8ee; color: #44474c; }
+    .badge-pending { background: #fed488; color: #5d4201; }
 
     .icon-btn { padding: 6px; border-radius: 8px; cursor: pointer; color: #44474c; background: none; border: none; }
     .icon-btn:hover { background: #ebeef3; }
@@ -928,9 +929,13 @@ async function renderUsers() {
     const isSelf = u.uid === currentUid;
     const role = u.role || 'customer';
     const ROLE_LABEL = ROLE_LABEL_FN();
+    const wantsAgent = u.requestedRole === 'agent' && role !== 'agent' && role !== 'admin';
+    const agentRequestBadge = wantsAgent
+      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}</span>`
+      : '';
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}</p>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
         <p class="font-body-md text-[12px] text-on-surface-variant">${u.email || ''}</p>
       </td>
       <td>${companyNames[u.companyId] || u.companyId || '—'}</td>

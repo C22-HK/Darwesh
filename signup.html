@@ -82,6 +82,15 @@
     </div>
 
     <div class="auth-card">
+      <div class="mb-5">
+        <label class="auth-label" data-i18n="auth.signingUpAs">I'm signing up as</label>
+        <div class="inline-flex items-center bg-surface-container rounded-full p-1 w-full">
+          <button id="roleCustomerBtn" type="button" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps bg-primary text-on-primary transition-all" data-i18n="auth.roleCustomer">Customer</button>
+          <button id="roleAgentBtn" type="button" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface-variant transition-all" data-i18n="auth.roleAgent">Real Estate Agent</button>
+        </div>
+        <p id="agentRoleNote" class="hidden font-body-md text-[11.5px] text-on-surface-variant mt-2" data-i18n="auth.agentRoleNote">Agent accounts are reviewed before full agent access is granted — we'll set you up once your company confirms you.</p>
+      </div>
+
       <form id="signupForm" class="space-y-4">
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -128,11 +137,11 @@
           </div>
           <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars">At least 6 characters.</p>
         </div>
-        <div>
+        <div id="companyFieldWrap" class="hidden">
           <label class="auth-label" for="fCompany" data-i18n="auth.company">Company / Agency</label>
           <div class="auth-input-wrap">
             <span class="material-symbols-outlined auth-input-icon">business_center</span>
-            <input id="fCompany" class="auth-input" required type="text" value="Darwesh Group"/>
+            <input id="fCompany" class="auth-input" type="text" value="Darwesh Group"/>
           </div>
           <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.companyHelp">Most people leave this as Darwesh Group. If you work for a different agency using this platform, enter its name instead.</p>
         </div>
@@ -163,6 +172,42 @@
     errEl.classList.remove('hidden');
   }
 
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  // ---------------------------------------------------------------------
+  // Customer / Agent toggle. Picking "Agent" here does NOT grant agent
+  // access by itself — firestore.rules only allows a new account to be
+  // created with role: 'customer' (self-granting 'agent' is blocked by
+  // design). What this toggle does is record the person's stated intent
+  // (requestedRole) and reveal the Company/Agency field, so an admin can
+  // see who's asking for agent access in the Users & Roles tab and
+  // approve it there — the same manual promotion flow that already
+  // exists, just with a visible signal instead of relying on someone
+  // asking out of band.
+  // ---------------------------------------------------------------------
+  let signupRole = 'customer';
+  const roleCustomerBtn = document.getElementById('roleCustomerBtn');
+  const roleAgentBtn = document.getElementById('roleAgentBtn');
+  const companyFieldWrap = document.getElementById('companyFieldWrap');
+  const agentRoleNote = document.getElementById('agentRoleNote');
+  const fCompany = document.getElementById('fCompany');
+
+  function setSignupRole(role) {
+    signupRole = role;
+    const isAgent = role === 'agent';
+    roleAgentBtn.classList.toggle('bg-primary', isAgent);
+    roleAgentBtn.classList.toggle('text-on-primary', isAgent);
+    roleAgentBtn.classList.toggle('text-on-surface-variant', !isAgent);
+    roleCustomerBtn.classList.toggle('bg-primary', !isAgent);
+    roleCustomerBtn.classList.toggle('text-on-primary', !isAgent);
+    roleCustomerBtn.classList.toggle('text-on-surface-variant', isAgent);
+    companyFieldWrap.classList.toggle('hidden', !isAgent);
+    agentRoleNote.classList.toggle('hidden', !isAgent);
+    fCompany.required = isAgent;
+  }
+  roleCustomerBtn.addEventListener('click', () => setSignupRole('customer'));
+  roleAgentBtn.addEventListener('click', () => setSignupRole('agent'));
+
   // Turn a typed company name into a stable document id: "Darwesh Group"
   // -> "darwesh-group". Anyone typing the same name lands on the same
   // company automatically — no manual Firestore edit needed per signup.
@@ -184,10 +229,10 @@
 
   function friendlyError(code) {
     switch (code) {
-      case 'auth/email-already-in-use': return 'An account with that email already exists — try logging in instead.';
-      case 'auth/invalid-email': return 'That email address doesn\'t look right.';
-      case 'auth/weak-password': return 'Password is too weak — use at least 6 characters.';
-      default: return 'Something went wrong creating your account. Please try again.';
+      case 'auth/email-already-in-use': return tr('auth.errEmailInUse', 'An account with that email already exists — try logging in instead.');
+      case 'auth/invalid-email': return tr('auth.errBadEmail', "That email address doesn't look right.");
+      case 'auth/weak-password': return tr('auth.errWeakPassword', 'Password is too weak — use at least 6 characters.');
+      default: return tr('auth.errSignupGeneric', 'Something went wrong creating your account. Please try again.');
     }
   }
 
@@ -195,7 +240,7 @@
     e.preventDefault();
     errEl.classList.add('hidden');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Creating account…';
+    submitBtn.textContent = tr('auth.creatingAccount', 'Creating account…');
 
     const firstName = document.getElementById('fFirstName').value.trim();
     const middleName = document.getElementById('fMiddleName').value.trim();
@@ -204,24 +249,33 @@
     const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
     const email = document.getElementById('fEmail').value.trim();
     const password = document.getElementById('fPassword').value;
-    const companyName = document.getElementById('fCompany').value.trim();
-    const companyId = slugifyCompany(companyName);
+    const wantsAgent = signupRole === 'agent';
+    const companyName = wantsAgent ? document.getElementById('fCompany').value.trim() : '';
+
+    if (wantsAgent && !companyName) {
+      showError(tr('auth.errCompanyRequired', 'Enter the company or agency you work for.'));
+      submitBtn.disabled = false;
+      submitBtn.textContent = tr('auth.signUpBtn', 'Create Account');
+      return;
+    }
+
+    const companyId = wantsAgent ? slugifyCompany(companyName) : null;
 
     try {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: name });
       // Auth succeeded, so the user is signed in now — company doc and
       // their own profile doc can both be created under that identity.
-      await ensureCompany(companyId, companyName);
+      if (wantsAgent) await ensureCompany(companyId, companyName);
       await setDoc(doc(db, 'users', cred.user.uid), {
         email, displayName: name, firstName, middleName, lastName, phone,
-        role: 'customer', companyId, createdAt: serverTimestamp()
+        role: 'customer', requestedRole: signupRole, companyId, createdAt: serverTimestamp()
       });
       window.location.href = 'account.html';
     } catch (err) {
       showError(friendlyError(err.code));
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Create Account';
+      submitBtn.textContent = tr('auth.signUpBtn', 'Create Account');
     }
   });
 </script>
