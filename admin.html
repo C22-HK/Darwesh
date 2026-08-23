@@ -569,6 +569,11 @@
 </button>
 <h2 class="font-headline-md text-headline-md text-primary mb-4" id="requestDetailTitle" data-i18n="admin.requestDetails">Request Details</h2>
 <dl class="grid grid-cols-2 gap-x-4 gap-y-3" id="requestDetailBody"></dl>
+<div class="hidden mt-4" id="requestDetailMapWrap">
+<p class="admin-label mb-2" data-i18n="admin.nearbyForThisRequest">Nearby important places</p>
+<div class="rounded-lg overflow-hidden border border-outline-variant h-40" id="requestDetailMap"></div>
+<div id="requestDetailAmenitiesStatus" class="hidden mt-2 space-y-1"></div>
+</div>
 <button class="hidden w-full mt-4 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="requestDetailCreateListing" type="button">
 <span class="material-symbols-outlined text-[18px]">add</span>
 <span data-i18n="admin.createListingFromRequest">Create listing from this submission</span>
@@ -975,17 +980,22 @@ function classifyPOI(tags) {
 }
 
 let amenityLayers = [];
-function clearAmenityLayers() {
-  amenityLayers.forEach(layer => adminPinMap.removeLayer(layer));
-  amenityLayers = [];
+let requestDetailMap = null, requestDetailMarker = null, requestDetailAmenityLayers = [];
+function clearAmenityLayers(map = adminPinMap, layers = amenityLayers) {
+  layers.forEach(layer => map.removeLayer(layer));
+  layers.length = 0;
 }
 
 let amenityRequestId = 0;
 
-async function loadNearbyAmenities(lat, lng) {
+// Shared by the Listings tab's pin map and the Customer Services request
+// detail map — pass the target Leaflet map, the status element's id, and
+// the layers array to draw into (each caller keeps its own so the two
+// maps never clear each other's lines).
+async function loadNearbyAmenities(lat, lng, map = adminPinMap, statusElId = 'nearbyAmenitiesStatus', layers = amenityLayers) {
   const myRequestId = ++amenityRequestId;
-  const statusEl = document.getElementById('nearbyAmenitiesStatus');
-  clearAmenityLayers();
+  const statusEl = document.getElementById(statusElId);
+  clearAmenityLayers(map, layers);
   statusEl.classList.remove('hidden');
   statusEl.innerHTML = `<p class="font-body-md text-[11.5px] text-on-surface-variant">${trAdmin('admin.nearbyFinding', 'Finding nearby important places...')}</p>`;
 
@@ -1052,14 +1062,14 @@ async function loadNearbyAmenities(lat, lng) {
         iconSize: [22, 22],
         iconAnchor: [11, 11]
       })
-    }).addTo(adminPinMap);
+    }).addTo(map);
     marker.bindTooltip(`${poi.name} — ${(poi.dist / 1000).toFixed(2)} km`);
-    amenityLayers.push(marker);
+    layers.push(marker);
 
     const line = L.polyline([origin, poiLatLng], {
       color: cfg.color, weight: 2, dashArray: '4 5', opacity: 0.85
-    }).addTo(adminPinMap);
-    amenityLayers.push(line);
+    }).addTo(map);
+    layers.push(line);
 
     const label = L.marker([(origin.lat + poiLatLng.lat) / 2, (origin.lng + poiLatLng.lng) / 2], {
       icon: L.divIcon({
@@ -1068,8 +1078,8 @@ async function loadNearbyAmenities(lat, lng) {
         iconSize: null
       }),
       interactive: false
-    }).addTo(adminPinMap);
-    amenityLayers.push(label);
+    }).addTo(map);
+    layers.push(label);
   });
 }
 
@@ -1358,8 +1368,41 @@ function openRequestDetail(id) {
   createBtn.classList.toggle('hidden', !isSell);
   createBtn.onclick = () => createListingFromSubmission(id);
 
+  const mapWrap = document.getElementById('requestDetailMapWrap');
+  const latLng = getRequestLatLng(s);
+  if (latLng) {
+    mapWrap.classList.remove('hidden');
+    setTimeout(() => {
+      if (!requestDetailMap) {
+        requestDetailMap = L.map('requestDetailMap', { zoomControl: false }).setView(latLng, 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors', maxZoom: 17
+        }).addTo(requestDetailMap);
+      } else {
+        requestDetailMap.setView(latLng, 14);
+      }
+      requestDetailMap.invalidateSize();
+      if (requestDetailMarker) requestDetailMarker.setLatLng(latLng);
+      else requestDetailMarker = L.marker(latLng).addTo(requestDetailMap);
+      loadNearbyAmenities(latLng[0], latLng[1], requestDetailMap, 'requestDetailAmenitiesStatus', requestDetailAmenityLayers);
+    }, 50);
+  } else {
+    mapWrap.classList.add('hidden');
+  }
+
   document.getElementById('requestDetailOverlay').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+}
+
+// A sell submission's pin comes from sell.html's map (pinLat/pinLng); a
+// viewing request's comes from the listing it was requested against
+// (map.html captures the listing's own lat/lng at submit time). Older
+// viewing requests submitted before that existed won't have coordinates
+// — the map section just stays hidden for those.
+function getRequestLatLng(s) {
+  if (s.type === 'sell' && s.pinLat && s.pinLng) return [parseFloat(s.pinLat), parseFloat(s.pinLng)];
+  if (s.type === 'viewing' && s.lat != null && s.lng != null) return [Number(s.lat), Number(s.lng)];
+  return null;
 }
 
 function closeRequestDetail() {

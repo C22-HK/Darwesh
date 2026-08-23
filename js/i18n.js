@@ -473,6 +473,7 @@ const translations = {
     'admin.catMarket': 'بازاڕ',
     'admin.catSchool': 'قوتابخانە',
     'admin.catMosque': 'مزگەوت',
+    'admin.nearbyForThisRequest': 'شوێنە گرنگەکانی نزیک',
 
     'admin.signInFailedPrefix': 'نەتوانرا بچێتەژوورەوە: ',
     'admin.enterEmailFirst': 'سەرەتا ئیمەیلەکەت لەسەرەوە بنووسە، پاشان کلیک لەسەر "وشەی نهێنیت لەبیرچووە؟" بکە.',
@@ -956,6 +957,7 @@ const translations = {
     'admin.catMarket': 'سوق',
     'admin.catSchool': 'مدرسة',
     'admin.catMosque': 'مسجد',
+    'admin.nearbyForThisRequest': 'الأماكن المهمة القريبة',
 
     'admin.signInFailedPrefix': 'تعذّر تسجيل الدخول: ',
     'admin.enterEmailFirst': 'أدخل بريدك الإلكتروني أعلاه أولاً، ثم انقر على "هل نسيت كلمة المرور؟".',
