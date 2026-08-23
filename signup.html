@@ -47,9 +47,14 @@
     </script>
 <style>
   body { min-height: 100dvh; }
-  .auth-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 11px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; }
+  .auth-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 11px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; transition: border-color .15s ease; }
   .auth-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
   .auth-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
+  .auth-card { background: #ffffff; border: 1px solid #e0e3e8; border-radius: 20px; padding: 32px 28px; box-shadow: 0 4px 24px rgba(4,22,39,0.06); }
+  .auth-input-wrap { position: relative; }
+  .auth-input-wrap .auth-input { padding-left: 40px; }
+  .auth-input-wrap .auth-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 19px; color: #9aa1ab; pointer-events: none; }
+  .auth-optional-tag { font-size: 10.5px; font-weight: 400; text-transform: none; letter-spacing: normal; color: #9aa1ab; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -70,32 +75,71 @@
 </header>
 
 <main class="flex items-center justify-center px-4 py-12">
-  <div class="w-full max-w-sm">
-    <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.signUpTitle">Create your account</p>
-    <p class="font-body-md text-[13px] text-on-surface-variant mb-6" data-i18n="auth.signUpSubtitle">Save favorites, track your submissions, and get alerts on saved searches.</p>
+  <div class="w-full max-w-md">
+    <div class="text-center mb-6">
+      <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.signUpTitle">Create your account</p>
+      <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.signUpSubtitle">Save favorites, track your submissions, and get alerts on saved searches.</p>
+    </div>
 
-    <form id="signupForm" class="space-y-4">
-      <div>
-        <label class="auth-label" for="fName" data-i18n="auth.fullName">Full name</label>
-        <input id="fName" class="auth-input" required type="text"/>
-      </div>
-      <div>
-        <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
-        <input id="fEmail" class="auth-input" required type="email"/>
-      </div>
-      <div>
-        <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
-        <input id="fPassword" class="auth-input" required minlength="6" type="password"/>
-        <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars">At least 6 characters.</p>
-      </div>
-      <div>
-        <label class="auth-label" for="fCompany" data-i18n="auth.company">Company / Agency</label>
-        <input id="fCompany" class="auth-input" required type="text" value="Darwesh Group"/>
-        <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.companyHelp">Most people leave this as Darwesh Group. If you work for a different agency using this platform, enter its name instead.</p>
-      </div>
-      <p id="authError" class="hidden text-error text-[13px]"></p>
-      <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="auth.signUpBtn">Create Account</button>
-    </form>
+    <div class="auth-card">
+      <form id="signupForm" class="space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="auth-label" for="fFirstName" data-i18n="auth.firstName">First name</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">person</span>
+              <input id="fFirstName" class="auth-input" required type="text" autocomplete="given-name"/>
+            </div>
+          </div>
+          <div>
+            <label class="auth-label" for="fLastName" data-i18n="auth.lastName">Last name</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">person</span>
+              <input id="fLastName" class="auth-input" required type="text" autocomplete="family-name"/>
+            </div>
+          </div>
+        </div>
+        <div>
+          <label class="auth-label" for="fMiddleName"><span data-i18n="auth.middleName">Middle name</span> <span class="auth-optional-tag" data-i18n="auth.optionalTag">(optional)</span></label>
+          <div class="auth-input-wrap">
+            <span class="material-symbols-outlined auth-input-icon">person</span>
+            <input id="fMiddleName" class="auth-input" type="text" autocomplete="additional-name"/>
+          </div>
+        </div>
+        <div>
+          <label class="auth-label" for="fPhone" data-i18n="sell.phoneNumber">Phone Number</label>
+          <div class="auth-input-wrap">
+            <span class="material-symbols-outlined auth-input-icon">call</span>
+            <input id="fPhone" class="auth-input" required type="tel" placeholder="+964 750 000 0000" autocomplete="tel"/>
+          </div>
+        </div>
+        <div>
+          <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
+          <div class="auth-input-wrap">
+            <span class="material-symbols-outlined auth-input-icon">mail</span>
+            <input id="fEmail" class="auth-input" required type="email" autocomplete="email"/>
+          </div>
+        </div>
+        <div>
+          <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
+          <div class="auth-input-wrap">
+            <span class="material-symbols-outlined auth-input-icon">lock</span>
+            <input id="fPassword" class="auth-input" required minlength="6" type="password" autocomplete="new-password"/>
+          </div>
+          <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars">At least 6 characters.</p>
+        </div>
+        <div>
+          <label class="auth-label" for="fCompany" data-i18n="auth.company">Company / Agency</label>
+          <div class="auth-input-wrap">
+            <span class="material-symbols-outlined auth-input-icon">business_center</span>
+            <input id="fCompany" class="auth-input" required type="text" value="Darwesh Group"/>
+          </div>
+          <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.companyHelp">Most people leave this as Darwesh Group. If you work for a different agency using this platform, enter its name instead.</p>
+        </div>
+        <p id="authError" class="hidden text-error text-[13px]"></p>
+        <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="auth.signUpBtn">Create Account</button>
+      </form>
+    </div>
 
     <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
       <span data-i18n="auth.alreadyHaveAccount">Already have an account?</span> <a href="login.html" class="text-secondary font-medium hover:underline" data-i18n="auth.logInLink">Log in</a>
@@ -153,7 +197,11 @@
     submitBtn.disabled = true;
     submitBtn.textContent = 'Creating account…';
 
-    const name = document.getElementById('fName').value.trim();
+    const firstName = document.getElementById('fFirstName').value.trim();
+    const middleName = document.getElementById('fMiddleName').value.trim();
+    const lastName = document.getElementById('fLastName').value.trim();
+    const phone = document.getElementById('fPhone').value.trim();
+    const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
     const email = document.getElementById('fEmail').value.trim();
     const password = document.getElementById('fPassword').value;
     const companyName = document.getElementById('fCompany').value.trim();
@@ -166,7 +214,8 @@
       // their own profile doc can both be created under that identity.
       await ensureCompany(companyId, companyName);
       await setDoc(doc(db, 'users', cred.user.uid), {
-        email, displayName: name, role: 'customer', companyId, createdAt: serverTimestamp()
+        email, displayName: name, firstName, middleName, lastName, phone,
+        role: 'customer', companyId, createdAt: serverTimestamp()
       });
       window.location.href = 'account.html';
     } catch (err) {
