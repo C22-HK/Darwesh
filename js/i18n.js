@@ -87,6 +87,11 @@ const translations = {
     'map.priceLabel': 'نرخ',
     'map.bedsAndBaths': 'ژووری نوستن و حەمام',
     'map.homeType': 'جۆری خانوو',
+    'map.minPrice': 'کەمترین',
+    'map.maxPrice': 'زۆرترین',
+    'map.any': 'هەر یەک',
+    'map.apply': 'جێبەجێکردن',
+    'common.clear': 'پاککردنەوە',
     'map.searchAreaActive': 'ناوچەی گەڕان چالاکە',
     'map.all': 'هەموو',
 
@@ -594,6 +599,11 @@ const translations = {
     'map.priceLabel': 'السعر',
     'map.bedsAndBaths': 'غرف النوم والحمامات',
     'map.homeType': 'نوع العقار',
+    'map.minPrice': 'الحد الأدنى',
+    'map.maxPrice': 'الحد الأقصى',
+    'map.any': 'أي',
+    'map.apply': 'تطبيق',
+    'common.clear': 'مسح',
     'map.searchAreaActive': 'منطقة البحث مفعّلة',
     'map.all': 'الكل',
 
