@@ -253,13 +253,26 @@
   document.getElementById('forgotModalBackdrop').addEventListener('click', closeForgotModal);
   document.getElementById('forgotModalDoneBtn').addEventListener('click', closeForgotModal);
 
+  // Point the reset link at our own reset-password.html instead of
+  // Firebase's default hosted handler (<project>.firebaseapp.com/__/auth/
+  // action) — some networks/DNS resolvers block *.firebaseapp.com
+  // outright, which made the emailed link fail to load at all even
+  // though the email itself arrived fine. handleCodeInApp: true makes
+  // Firebase link straight to our page with the oobCode as a query
+  // param; reset-password.html calls verifyPasswordResetCode /
+  // confirmPasswordReset itself using the same Firebase Auth SDK.
+  const resetActionCodeSettings = {
+    url: window.location.origin + '/reset-password.html',
+    handleCodeInApp: true
+  };
+
   forgotForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     forgotError.classList.add('hidden');
     const email = resetEmailInput.value.trim();
     forgotSubmitBtn.disabled = true;
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(auth, email, resetActionCodeSettings);
       document.getElementById('forgotModalSuccessBody').textContent =
         tr('auth.resetLinkSentBody', 'If an account exists for') + ' ' + email + tr('auth.resetLinkSentBodySuffix', ", we've sent a link to reset your password.");
       forgotFormView.classList.add('hidden');
