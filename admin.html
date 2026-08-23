@@ -237,6 +237,14 @@
     .activity-item:hover { background: rgba(255,255,255,0.065); }
     .activity-icon { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex: none; }
     .activity-icon .material-symbols-outlined { font-size: 15px; }
+    .dash-city-tab {
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+      color: #b7c8de; padding: 5px 12px; border-radius: 999px; border: 1px solid #2d4155; background: rgba(255,255,255,0.03); cursor: pointer;
+    }
+    .dash-city-tab.active { background: #e9c176; color: #041627; border-color: #e9c176; }
+    .dash-mini-stat { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 12px 14px; }
+    .dash-mini-stat .lbl { font-family: 'IBM Plex Sans', sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #8192a7; margin-bottom: 4px; }
+    .dash-mini-stat .val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700; color: #ffffff; }
 
     .amenity-origin-pulse { position: relative; width: 16px; height: 16px; }
     .amenity-origin-pulse::before, .amenity-origin-pulse::after {
@@ -392,10 +400,26 @@
             <div id="dashCityChart" class="flex flex-col gap-2.5"></div>
           </div>
           <div class="lg:col-span-5 dash-panel">
-            <div class="dash-panel-title-row"><span class="material-symbols-outlined">bolt</span><p class="dash-panel-title" data-i18n="admin.recentActivity">Recent Activity</p></div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="dash-panel-title-row" style="margin-bottom:0;"><span class="material-symbols-outlined">bolt</span><p class="dash-panel-title" data-i18n="admin.transactionFeed">Transaction Feed</p></div>
+              <span class="font-data-mono text-[9.5px] tracking-wide px-2 py-0.5 rounded" style="color:#4ae183; border:1px solid rgba(74,225,131,0.4);" data-i18n="admin.liveBadge">LIVE</span>
+            </div>
             <p class="dash-panel-caption" data-i18n="admin.recentActivityCaption">Newest listings and requests, most recent first.</p>
+            <div class="mb-2.5">
+              <div class="flex justify-between mb-1">
+                <span class="font-label-caps text-[9px]" style="color:#8192a7;" data-i18n="admin.volumeByCity">VOLUME BY CITY</span>
+              </div>
+              <div id="dashCityHeatmap" class="flex gap-0.5" style="height:6px;"></div>
+            </div>
             <div id="dashActivityFeed" class="flex flex-col gap-2 max-h-[280px] overflow-y-auto"></div>
           </div>
+        </div>
+
+        <div class="dash-panel mt-4">
+          <div class="dash-panel-title-row"><span class="material-symbols-outlined">insights</span><p class="dash-panel-title" data-i18n="admin.marketSnapshot">Market Snapshot</p></div>
+          <p class="dash-panel-caption" data-i18n="admin.marketSnapshotCaption">Real listing counts by deal type — not transaction volume, just what's on the market right now.</p>
+          <div class="flex gap-2 mb-4 flex-wrap" id="dashCityTabs"></div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="dashCityDetail"></div>
         </div>
       </div>
     </section>
@@ -1623,6 +1647,14 @@ async function renderDashboardTab() {
       <span class="city-bar-count">${count}</span>
     </div>`).join('') : `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noListingsYet2', 'No listings yet.')}</p>`;
 
+  const heatmapEl = document.getElementById('dashCityHeatmap');
+  heatmapEl.innerHTML = cities.length ? cities.map(([city, count]) => {
+    const intensity = 0.25 + 0.75 * (count / maxCount);
+    return `<div style="flex:${count};min-width:4px;border-radius:2px;background:rgba(74,225,131,${intensity.toFixed(2)});" title="${cityLabel ? cityLabel(city) : city}: ${count}"></div>`;
+  }).join('') : `<div style="flex:1;border-radius:2px;background:rgba(255,255,255,0.06);"></div>`;
+
+  renderDashCitySnapshot(cities, listings);
+
   const ACTIVITY_STYLE = {
     listing: { bg: 'rgba(74,225,131,0.14)', color: '#4ae183', icon: 'home_work' },
     sell: { bg: 'rgba(233,193,118,0.16)', color: '#e9c176', icon: 'assignment_turned_in' },
@@ -1648,6 +1680,45 @@ async function renderDashboardTab() {
       <span class="font-data-mono text-[10.5px]" style="color:#b7c8de;">${timeAgo(a.seconds)}</span>
     </div>`;
   }).join('') : `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noActivityYet', 'No activity yet.')}</p>`;
+}
+
+// Market Snapshot — a real per-city breakdown of what's actually on the
+// market (for-sale vs for-rent listing counts, average sale price), not
+// a simulated buy/sell transaction volume. Deliberately labeled as
+// listing counts, not trades, since that's the only real number this
+// platform can compute.
+let dashSelectedCity = null;
+
+function renderDashCitySnapshot(cities, listings) {
+  const tabsEl = document.getElementById('dashCityTabs');
+  const detailEl = document.getElementById('dashCityDetail');
+  const topCities = cities.slice(0, 5).map(([city]) => city);
+
+  if (topCities.length === 0) {
+    tabsEl.innerHTML = '';
+    detailEl.innerHTML = `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noListingsYet2', 'No listings yet.')}</p>`;
+    return;
+  }
+  if (!dashSelectedCity || !topCities.includes(dashSelectedCity)) dashSelectedCity = topCities[0];
+
+  tabsEl.innerHTML = topCities.map(city => `<button type="button" class="dash-city-tab${city === dashSelectedCity ? ' active' : ''}" data-city="${city}">${cityLabel ? cityLabel(city) : city}</button>`).join('');
+  tabsEl.querySelectorAll('.dash-city-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      dashSelectedCity = btn.dataset.city;
+      renderDashCitySnapshot(cities, listings);
+    });
+  });
+
+  const cityListings = listings.filter(l => l.city === dashSelectedCity);
+  const forSale = cityListings.filter(l => l.dealType === 'sale');
+  const forRent = cityListings.filter(l => l.dealType === 'rent');
+  const avgSale = forSale.length ? Math.round(forSale.reduce((s, l) => s + (Number(l.price) || 0), 0) / forSale.length) : null;
+
+  detailEl.innerHTML = `
+    <div class="dash-mini-stat"><p class="lbl" data-i18n="admin.forSaleCount">For Sale</p><p class="val">${forSale.length}</p></div>
+    <div class="dash-mini-stat"><p class="lbl" data-i18n="admin.forRentCount">For Rent</p><p class="val">${forRent.length}</p></div>
+    <div class="dash-mini-stat"><p class="lbl" data-i18n="insights.avgSalePrice">Avg. sale price</p><p class="val">${avgSale !== null ? '$' + avgSale.toLocaleString() : '—'}</p></div>
+  `;
 }
 
 async function renderRequestsMapTab() {
