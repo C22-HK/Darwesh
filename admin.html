@@ -285,6 +285,8 @@
     .amenity-row-chip .material-symbols-outlined { font-size: 15px; flex: none; }
     .amenity-row-chip .name { flex: 1; color: #d2e4fb; }
     .amenity-row-chip .km { font-family: 'Inter', sans-serif; font-weight: 700; color: #ffffff; flex: none; }
+    .team-map-legend { display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #d2e4fb; }
+    .team-map-legend .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
   </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
@@ -450,8 +452,12 @@
     <!-- TAB: Requests Map -->
     <section id="tab-requestsmap" class="admin-tab-panel">
       <div class="rounded-2xl p-5 md:p-6" style="background:#041627;">
-        <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Customer Requests Map</p>
-        <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every Sell submission and Viewing Request with a location. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
+        <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Listings &amp; Requests Map</p>
+        <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every agent listing and every customer request (Sell submission or Viewing Request) with a location. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
+        <div class="flex items-center gap-5 mb-3">
+          <div class="team-map-legend"><span class="dot" style="background:#4ae183;"></span><span data-i18n="admin.legendAgentListings">Agent Listings</span></div>
+          <div class="team-map-legend"><span class="dot" style="background:#e9c176;"></span><span data-i18n="admin.legendCustomerRequests">Customer Requests</span></div>
+        </div>
         <div class="rounded-lg overflow-hidden border" style="border-color:#4f6073; height:560px;" id="dashRequestsMap"></div>
         <div id="dashRequestsMapStatus" class="hidden mt-2 space-y-1"></div>
       </div>
@@ -1816,21 +1822,30 @@ function renderDashPriceTrends(cities, listings) {
 }
 
 async function renderRequestsMapTab() {
-  const submissionsSnap = await getDocs(collection(db, 'submissions'));
+  const [submissionsSnap, listingsSnap] = await Promise.all([
+    getDocs(collection(db, 'submissions')),
+    getDocs(collection(db, 'listings'))
+  ]);
   const submissions = [];
   submissionsSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
-  renderDashRequestsMap(submissions);
+  const listings = [];
+  listingsSnap.forEach(d => listings.push({ id: d.id, ...d.data() }));
+  renderDashRequestsMap(submissions, listings);
 }
 
-// Requests Map tab — every customer request (sell submission or
-// viewing request) that has a location, plotted as one pin each. Click
-// a pin to draw the same nearest-hospital/market/school/mosque lines
-// used elsewhere in this dashboard, using the shared loadNearbyAmenities.
+// Requests Map tab — agent listings (green pins) and customer requests
+// — sell submissions and viewing requests together (gold pins) — on one
+// map, so it's clear at a glance what's actual inventory versus what's
+// customer-driven demand. Click any pin to draw the same
+// nearest-hospital/market/school/mosque lines used elsewhere in this
+// dashboard, using the shared loadNearbyAmenities.
 let dashRequestsMap = null;
 let dashRequestsPinMarkers = [];
 let dashRequestsAmenityLayers = [];
+const AGENT_LISTING_COLOR = '#4ae183';
+const CUSTOMER_REQUEST_COLOR = '#e9c176';
 
-function renderDashRequestsMap(submissions) {
+function renderDashRequestsMap(submissions, listings) {
   if (!dashRequestsMap) {
     dashRequestsMap = L.map('dashRequestsMap', { zoomControl: false }).setView([36.35, 44.3], 8);
     L.control.zoom({ position: 'bottomright' }).addTo(dashRequestsMap);
@@ -1843,13 +1858,34 @@ function renderDashRequestsMap(submissions) {
   clearAmenityLayers(dashRequestsMap, dashRequestsAmenityLayers);
   document.getElementById('dashRequestsMapStatus').classList.add('hidden');
 
+  const allBounds = [];
+
+  const locatedListings = (listings || []).filter(l => l.lat != null && l.lng != null);
+  locatedListings.forEach(l => {
+    const latLng = [l.lat, l.lng];
+    const marker = L.marker(latLng, {
+      icon: L.divIcon({
+        className: '',
+        html: `<div style="width:26px;height:26px;border-radius:999px;background:${AGENT_LISTING_COLOR};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:2px solid #fff;"><span class="material-symbols-outlined" style="font-size:14px;color:#041627;">home_work</span></div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      })
+    }).addTo(dashRequestsMap);
+    marker.bindTooltip(`${trAdmin('admin.legendAgentListings', 'Agent Listings')}: ${l.title || l.address || ''}${l.agentName ? ' — ' + l.agentName : ''}`);
+    marker.on('click', () => {
+      loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
+    });
+    dashRequestsPinMarkers.push(marker);
+    allBounds.push(latLng);
+  });
+
   const located = submissions.map(s => ({ s, latLng: getRequestLatLng(s) })).filter(x => x.latLng);
   located.forEach(({ s, latLng }) => {
     const isSell = s.type === 'sell';
     const marker = L.marker(latLng, {
       icon: L.divIcon({
         className: '',
-        html: `<div style="width:26px;height:26px;border-radius:999px;background:${isSell ? '#775a19' : '#0b1d2d'};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:2px solid #fff;"><span class="material-symbols-outlined" style="font-size:14px;color:#fff;">${isSell ? 'sell' : 'event_available'}</span></div>`,
+        html: `<div style="width:26px;height:26px;border-radius:999px;background:${CUSTOMER_REQUEST_COLOR};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:2px solid #fff;"><span class="material-symbols-outlined" style="font-size:14px;color:#041627;">${isSell ? 'sell' : 'event_available'}</span></div>`,
         iconSize: [26, 26],
         iconAnchor: [13, 13]
       })
@@ -1859,10 +1895,11 @@ function renderDashRequestsMap(submissions) {
       loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
     });
     dashRequestsPinMarkers.push(marker);
+    allBounds.push(latLng);
   });
 
-  if (located.length) {
-    dashRequestsMap.fitBounds(L.latLngBounds(located.map(x => x.latLng)).pad(0.3), { maxZoom: 12 });
+  if (allBounds.length) {
+    dashRequestsMap.fitBounds(L.latLngBounds(allBounds).pad(0.3), { maxZoom: 12 });
   }
 }
 
