@@ -208,6 +208,7 @@ const translations = {
     'cities.soran': 'سۆران',
     'cities.koya': 'کۆیە',
     'cities.halabja': 'هەڵەبجە',
+    'cities.kirkuk': 'کەرکووک',
 
     'services.title': 'خزمەتگوزاریەکانی دەرەوش',
     'services.subtitle': 'سیستەمێکی تەواو بۆ هەموو پێداویستیەکانی خانووبەرەت.',
@@ -774,6 +775,7 @@ const translations = {
     'cities.soran': 'سوران',
     'cities.koya': 'كويە',
     'cities.halabja': 'حلبجة',
+    'cities.kirkuk': 'كركوك',
 
     'services.title': 'خدمات مجموعة درويش',
     'services.subtitle': 'منظومة متكاملة لكل احتياجاتك العقارية.',
@@ -1199,7 +1201,8 @@ window.t = function (key) {
 
 const CITY_KEYS = {
   Erbil: 'cities.erbil', Sulaymaniyah: 'cities.sulaymaniyah', Duhok: 'cities.duhok',
-  Zakho: 'cities.zakho', Soran: 'cities.soran', Koya: 'cities.koya', Halabja: 'cities.halabja'
+  Zakho: 'cities.zakho', Soran: 'cities.soran', Koya: 'cities.koya', Halabja: 'cities.halabja',
+  Kirkuk: 'cities.kirkuk'
 };
 window.cityLabel = function (englishName) {
   const key = CITY_KEYS[englishName];
