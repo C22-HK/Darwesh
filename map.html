@@ -151,6 +151,10 @@
       transition: transform .15s ease;
     }
     .private-city-badge:hover { transform: scale(1.06); }
+    .map-popup-card .leaflet-popup-content-wrapper { padding: 0; border-radius: 12px; overflow: hidden; }
+    .map-popup-card .leaflet-popup-content { margin: 0; width: 240px !important; }
+    .map-popup-card .listing-card { border-radius: 0; border: none; box-shadow: none; cursor: default; }
+    .map-popup-card .leaflet-popup-tip-container { display: none; }
     .map-overlay-controls {
       position: absolute;
       top: 16px;
@@ -652,6 +656,7 @@ function buildMarkers() {
     }
     const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
     marker.on('click', () => selectListing(l.id, true));
+    marker.bindPopup(() => card(l), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
     marker.addTo(map);
     markers[l.id] = marker;
   });
@@ -957,6 +962,23 @@ document.getElementById('myLocationBtn').addEventListener('click', () => {
     () => showToast('Could not access your location — check permissions', 'location_off'),
     { enableHighAccuracy: true, timeout: 8000 }
   );
+});
+
+// A price marker's popup reuses the same card markup as the list view,
+// including its Request Viewing button — but that button only gets its
+// click handler wired up once the popup's content is actually in the
+// DOM (Leaflet builds it lazily on open), so it's wired here instead of
+// in renderList().
+map.on('popupopen', (e) => {
+  const el = e.popup.getElement();
+  if (!el) return;
+  el.querySelectorAll('.request-viewing-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      map.closePopup();
+      openViewingModal(Number(btn.dataset.id));
+    });
+  });
 });
 
 refresh();
