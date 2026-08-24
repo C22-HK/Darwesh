@@ -112,6 +112,12 @@
       0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
       30% { transform: translateY(-4px); opacity: 1; }
     }
+    #micBtn.mic-listening { background: #dc2626; border-color: #dc2626; color: #fff; }
+    #micBtn.mic-listening #micIcon { animation: mic-pulse 1.2s ease-in-out infinite; }
+    @keyframes mic-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.75; }
+    }
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -152,12 +158,15 @@
 <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center flex-none shadow-[0_0_20px_rgba(119,90,25,0.2)]">
 <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
 </div>
-<div>
+<div class="flex-1">
 <p class="font-headline-md text-[18px] text-primary leading-tight">MAM AI</p>
 <p class="font-data-mono text-data-mono text-on-tertiary-container flex items-center gap-1">
 <span class="w-1.5 h-1.5 rounded-full bg-on-tertiary-container inline-block"></span> <span data-i18n="mamai.subtitle">Online · Darwesh Group Market Intelligence</span>
                     </p>
 </div>
+<button id="voiceOutputToggle" aria-label="Toggle voice replies" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Voice replies">
+<span class="material-symbols-outlined" id="voiceOutputIcon">volume_up</span>
+</button>
 </div>
 </div>
 
@@ -189,10 +198,17 @@
 <div class="flex-1 bg-surface-container rounded-full flex items-center px-4">
 <input autocomplete="off" class="flex-1 bg-transparent border-none focus:ring-0 text-on-surface font-body-md text-body-md py-3 placeholder-outline-variant" id="chatInput" placeholder="Ask MAM about the market..." type="text" data-i18n-placeholder="mamai.inputPlaceholder"/>
 </div>
+<button aria-label="Speak your question" id="micBtn" class="hidden bg-surface-container-lowest border border-outline-variant text-on-surface w-12 h-12 rounded-full items-center justify-center hover:bg-surface-container transition-colors flex-none" type="button">
+<span class="material-symbols-outlined" id="micIcon">mic</span>
+</button>
 <button aria-label="Send message" class="bg-primary text-on-primary w-12 h-12 rounded-full flex items-center justify-center hover:bg-primary-container transition-colors flex-none" type="submit">
 <span class="material-symbols-outlined">send</span>
 </button>
 </form>
+<p id="micStatus" class="hidden max-w-3xl mx-auto font-label-caps text-label-caps text-secondary text-center mt-2 flex items-center justify-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block" style="animation: mic-pulse 1s ease-in-out infinite;"></span>
+<span data-i18n="mamai.listening">Listening…</span>
+</p>
 <p class="max-w-3xl mx-auto font-body-md text-[11px] text-on-surface-variant text-center mt-2" data-i18n="mamai.disclaimer">MAM AI offers general guidance based on Darwesh Group data and may not reflect real-time prices. Confirm details with an agent.</p>
 </div>
 </main>
@@ -320,6 +336,7 @@ function addAiMessage(response) {
     </div>`;
   chatLog.appendChild(el);
   scrollToBottom();
+  speakReply(response.reply);
 }
 
 function showTyping() {
@@ -355,6 +372,90 @@ function sendMessage(text) {
     hideTyping();
     addAiMessage(getResponse(trimmed));
   }, delay);
+}
+
+// --- Voice: speech-to-text input + text-to-speech replies ---
+const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
+const micBtn = document.getElementById('micBtn');
+const micIcon = document.getElementById('micIcon');
+const micStatus = document.getElementById('micStatus');
+const voiceOutputToggle = document.getElementById('voiceOutputToggle');
+const voiceOutputIcon = document.getElementById('voiceOutputIcon');
+
+function speechLangTag() {
+  const lang = localStorage.getItem('darwesh_lang') || 'en';
+  if (lang === 'ar') return 'ar-IQ';
+  if (lang === 'ku') return 'ar-IQ';
+  return 'en-US';
+}
+
+let voiceOutputEnabled = localStorage.getItem(VOICE_OUTPUT_KEY) === '1';
+
+function updateVoiceOutputIcon() {
+  voiceOutputIcon.textContent = voiceOutputEnabled ? 'volume_up' : 'volume_off';
+  voiceOutputToggle.classList.toggle('text-secondary', voiceOutputEnabled);
+  voiceOutputToggle.setAttribute('aria-pressed', String(voiceOutputEnabled));
+}
+
+function speakReply(text) {
+  if (!voiceOutputEnabled || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = speechLangTag();
+  window.speechSynthesis.speak(utterance);
+}
+
+if (window.speechSynthesis) {
+  voiceOutputToggle.classList.remove('hidden');
+  updateVoiceOutputIcon();
+  voiceOutputToggle.addEventListener('click', () => {
+    voiceOutputEnabled = !voiceOutputEnabled;
+    localStorage.setItem(VOICE_OUTPUT_KEY, voiceOutputEnabled ? '1' : '0');
+    updateVoiceOutputIcon();
+    if (!voiceOutputEnabled) window.speechSynthesis.cancel();
+  });
+}
+
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognitionCtor) {
+  const recognition = new SpeechRecognitionCtor();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  let listening = false;
+
+  function stopListening() {
+    listening = false;
+    micBtn.classList.remove('mic-listening');
+    micStatus.classList.add('hidden');
+  }
+
+  micBtn.classList.remove('hidden');
+  micBtn.classList.add('flex');
+
+  micBtn.addEventListener('click', () => {
+    if (listening) {
+      recognition.stop();
+      return;
+    }
+    recognition.lang = speechLangTag();
+    try {
+      recognition.start();
+      listening = true;
+      micBtn.classList.add('mic-listening');
+      micStatus.classList.remove('hidden');
+    } catch (err) {
+      stopListening();
+    }
+  });
+
+  recognition.addEventListener('result', (e) => {
+    const transcript = e.results[0][0].transcript;
+    stopListening();
+    if (transcript && transcript.trim()) sendMessage(transcript);
+  });
+
+  recognition.addEventListener('end', stopListening);
+  recognition.addEventListener('error', stopListening);
 }
 
 chatForm.addEventListener('submit', (e) => {
