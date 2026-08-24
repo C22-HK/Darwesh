@@ -129,6 +129,11 @@ const translations = {
     'map.noListingsYet': 'هێشتا هیچ ڕیکلامێک ناگونجێت — دواتر سەردان بکە یان پاڵاوتنەکان بگۆڕە.',
     'common.clear': 'پاککردنەوە',
     'map.searchAreaActive': 'ناوچەی گەڕان چالاکە',
+    'map.legendTitle': 'کلیلی نەخشە',
+    'map.legendAgentListing': 'ڕیکلامی ئەیجێنت',
+    'map.legendVerifiedListing': 'پشتڕاستکراو و تۆمارکراو',
+    'map.legendNeighborhood': 'گەڕەک',
+    'map.legendAdminArea': 'ناوچەی کارگێڕی',
     'map.all': 'هەموو',
 
     'buy.title': 'کڕینی خانووبەرە',
@@ -760,6 +765,11 @@ const translations = {
     'map.noListingsYet': 'لا توجد إعلانات مطابقة بعد — تحقق لاحقًا أو عدّل عوامل التصفية.',
     'common.clear': 'مسح',
     'map.searchAreaActive': 'منطقة البحث مفعّلة',
+    'map.legendTitle': 'مفتاح الخريطة',
+    'map.legendAgentListing': 'إعلان وكيل',
+    'map.legendVerifiedListing': 'موثّق ومسجّل',
+    'map.legendNeighborhood': 'حي',
+    'map.legendAdminArea': 'منطقة إدارية',
     'map.all': 'الكل',
 
     'buy.title': 'شراء عقار',
