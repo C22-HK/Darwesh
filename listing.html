@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Darwesh Group - Listing</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f7f9ff", "on-secondary-fixed-variant": "#5d4201", "secondary": "#775a19",
+                        "on-secondary-fixed": "#261900", "on-primary-fixed": "#0b1d2d", "primary": "#041627",
+                        "error": "#ba1a1a", "inverse-primary": "#b7c8de", "surface-container-low": "#f1f4f9",
+                        "on-primary-fixed-variant": "#38485a", "tertiary-fixed": "#6bfe9c", "surface-variant": "#e0e3e8",
+                        "on-tertiary-fixed": "#00210c", "primary-fixed": "#d2e4fb", "on-primary": "#ffffff",
+                        "surface": "#f7f9ff", "surface-container-high": "#e5e8ee", "inverse-surface": "#2d3135",
+                        "on-error-container": "#93000a", "on-secondary": "#ffffff", "error-container": "#ffdad6",
+                        "inverse-on-surface": "#eef1f6", "on-error": "#ffffff", "outline-variant": "#c4c6cd",
+                        "outline": "#74777d", "primary-container": "#1a2b3c", "tertiary-container": "#003115",
+                        "tertiary-fixed-dim": "#4ae183", "primary-fixed-dim": "#b7c8de", "secondary-container": "#fed488",
+                        "secondary-fixed-dim": "#e9c176", "secondary-fixed": "#ffdea5", "surface-dim": "#d7dadf",
+                        "tertiary": "#001a08", "surface-container-lowest": "#ffffff", "on-background": "#181c20",
+                        "surface-container-highest": "#e0e3e8", "on-tertiary-container": "#00a656", "on-primary-container": "#8192a7",
+                        "on-tertiary": "#ffffff", "on-tertiary-fixed-variant": "#005228", "on-surface-variant": "#44474c",
+                        "surface-tint": "#4f6073", "on-secondary-container": "#785a1a", "surface-container": "#ebeef3",
+                        "background": "#f7f9ff", "on-surface": "#181c20"
+                    },
+                    "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
+                    "spacing": { "gutter": "24px", "stack-lg": "32px", "stack-md": "16px", "margin-desktop": "48px", "stack-sm": "8px", "container-max": "1280px", "margin-mobile": "16px", "unit": "8px" },
+                    "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "label-caps": ["IBM Plex Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-mono": ["Inter"], "display-lg": ["Plus Jakarta Sans"] },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    body { min-height: max(884px, 100dvh); }
+    #listingMap { background: #e5e8ee; }
+    .amenity-chip { background: #ebeef3; color: #181c20; font-size: 12.5px; font-weight: 500; padding: 6px 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; }
+    .listing-toast {
+      position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
+      background: #041627; color: #fff; padding: 10px 20px; border-radius: 999px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+      opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 1100;
+      display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    }
+    .listing-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
+<div class="flex items-center gap-4">
+<div class="relative">
+<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">
+<span class="material-symbols-outlined">language</span>
+</button>
+<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+</div>
+</div>
+<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
+<span id="citiesNavSlot"></span>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="buy.html" data-i18n="nav.buy">Buy</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
+<a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
+<a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
+</nav>
+<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+
+<main class="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pt-stack-lg">
+
+<!-- Loading state -->
+<div id="listingLoading" class="text-center py-24">
+<p class="font-body-md text-body-md text-on-surface-variant" data-i18n="listing.loading">Loading listing…</p>
+</div>
+
+<!-- Not found state -->
+<div id="listingNotFound" class="hidden text-center py-24">
+<span class="material-symbols-outlined text-[48px] text-on-surface-variant mb-3 block">search_off</span>
+<p class="font-headline-md text-headline-md text-primary mb-2" data-i18n="listing.notFoundTitle">Listing not found</p>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md" data-i18n="listing.notFoundBody">This listing may have been removed or the link is incorrect.</p>
+<a href="buy.html" class="inline-flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
+<span data-i18n="listing.backToListings">Back to Listings</span>
+</a>
+</div>
+
+<!-- Listing content -->
+<div id="listingContent" class="hidden">
+<a href="buy.html" class="inline-flex items-center gap-1 font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors mb-stack-md">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span data-i18n="listing.backToListings">Back to Listings</span>
+</a>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-stack-lg pb-margin-desktop">
+<!-- Left: image + details -->
+<div class="lg:col-span-2 space-y-stack-md">
+<div class="relative rounded-2xl overflow-hidden h-64 md:h-96 bg-surface-container">
+<img id="listingImg" class="w-full h-full object-cover" src=""/>
+<div id="listingVerifiedBadge" class="hidden absolute top-4 right-4 bg-tertiary-container/90 backdrop-blur-sm text-on-tertiary-container px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+<span class="font-label-caps text-label-caps text-[11px]" data-i18n="common.verified">Verified</span>
+</div>
+<div id="listingDealBadge" class="absolute bottom-4 left-4 bg-primary/85 text-on-primary px-3 py-1.5 rounded-full font-label-caps text-label-caps text-[11px]"></div>
+</div>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md">
+<h1 id="listingTitle" class="font-headline-md text-headline-md text-primary mb-1"></h1>
+<p id="listingAddress" class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 mb-stack-md">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<span></span>
+</p>
+<div class="flex flex-wrap gap-6 pb-stack-md border-b border-surface-variant">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">bed</span>
+<span id="listingBeds" class="font-data-mono text-data-mono text-on-surface"></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">bathtub</span>
+<span id="listingBaths" class="font-data-mono text-data-mono text-on-surface"></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">square_foot</span>
+<span id="listingSqft" class="font-data-mono text-data-mono text-on-surface"></span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline">domain</span>
+<span id="listingType" class="font-data-mono text-data-mono text-on-surface"></span>
+</div>
+</div>
+
+<div class="mt-stack-md">
+<p class="font-label-caps text-label-caps text-secondary mb-2" data-i18n="listing.amenitiesTitle">Amenities</p>
+<div id="listingAmenities" class="flex flex-wrap gap-2"></div>
+<p id="listingNoAmenities" class="hidden font-body-md text-[13px] text-on-surface-variant" data-i18n="listing.noAmenities">No amenities listed for this property yet.</p>
+</div>
+</div>
+
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md">
+<p class="font-label-caps text-label-caps text-secondary mb-2" data-i18n="listing.locationTitle">Location</p>
+<div id="listingMapWrap" class="rounded-lg overflow-hidden border border-outline-variant" style="height:280px;">
+<div id="listingMap" class="w-full h-full"></div>
+</div>
+<p id="listingMapNote" class="hidden font-body-md text-[12.5px] text-on-surface-variant mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">lock</span>
+<span data-i18n="listing.privateLocationNote">Exact location is shared once an agent confirms your viewing request.</span>
+</p>
+</div>
+</div>
+
+<!-- Right: price + agent + contact -->
+<div class="space-y-stack-md">
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md sticky top-20">
+<p id="listingPrice" class="font-headline-md text-display-lg-mobile text-primary mb-1"></p>
+<p id="listingVerifiedNote" class="hidden font-body-md text-[12.5px] text-on-tertiary-container flex items-center gap-1 mb-stack-md">
+<span class="material-symbols-outlined text-[15px]">verified_user</span>
+<span data-i18n="map.verifiedByDarwesh">Verified by Darwesh Group</span>
+</p>
+<div class="flex items-center gap-3 py-stack-md border-t border-b border-surface-variant my-stack-md">
+<div class="w-11 h-11 rounded-full bg-primary-container/10 flex items-center justify-center text-primary flex-none">
+<span class="material-symbols-outlined">real_estate_agent</span>
+</div>
+<div class="min-w-0">
+<p class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="listing.listedBy">Listed by</p>
+<p id="listingAgentName" class="font-body-lg text-body-lg font-medium text-on-surface truncate"></p>
+</div>
+</div>
+<button id="listingContactBtn" type="button" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span data-i18n="map.requestViewing">Request Viewing</span>
+</button>
+<button id="listingFavBtn" type="button" class="w-full mt-2 border border-outline-variant rounded-lg py-3 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]" id="listingFavIcon">favorite</span>
+<span id="listingFavLabel" data-i18n="listing.saveToFavorites">Save to Favorites</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+
+</main>
+
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden shadow-[0_-4px_20px_rgba(26,43,60,0.05)] bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 rounded-t-xl pb-6">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="index.html">
+<span class="material-symbols-outlined">home</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.home">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
+<span class="material-symbols-outlined">map</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.map">Map</span>
+</a>
+<a class="relative -top-4 flex flex-col items-center justify-center bg-primary text-on-primary w-16 h-16 rounded-full shadow-lg border-4 border-surface-container-lowest dark:border-inverse-surface hover:bg-primary-container transition-transform duration-300 ease-in-out active:scale-90" href="mam-ai.html">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="services.html">
+<span class="material-symbols-outlined">business_center</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.services">Services</span>
+</a>
+<a id="navProfileLinkMobile" class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="login.html">
+<span class="material-symbols-outlined">person</span>
+<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1">Profile</span>
+</a>
+</nav>
+
+<!-- Request Viewing Modal -->
+<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="viewingModalOverlay">
+<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="viewingModalBackdrop"></div>
+<div class="relative bg-surface-container-lowest w-full md:max-w-md rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="viewingModalClose" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="map.requestViewing">Request Viewing</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md text-[13px]" id="viewingModalListingLine"></p>
+<form id="viewingRequestForm">
+<div class="mb-3">
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.fullName">Full Name</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="viewingName" required type="text"/>
+</div>
+<div class="mb-3">
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.phoneNumber">Phone Number</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="viewingPhone" placeholder="+964 750 000 0000" required type="tel"/>
+</div>
+<div class="mb-4">
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="auth.email">Email</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="viewingEmail" type="email"/>
+</div>
+<p id="viewingRequestError" class="text-error text-[13px] mb-3 hidden"></p>
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="viewingSubmitBtn" type="submit">
+<span class="material-symbols-outlined text-[18px]">send</span>
+<span data-i18n="map.sendRequest">Send Request</span>
+</button>
+</form>
+</div>
+</div>
+
+<div class="listing-toast" id="listingToast"></div>
+
+<script src="./js/i18n.js"></script>
+<script type="module">
+  import { auth, db } from './js/firebase-init.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc, getDoc, collection, addDoc, setDoc, deleteDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  function showToast(msg, icon) {
+    const el = document.getElementById('listingToast');
+    el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>`;
+    el.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => el.classList.remove('show'), 2600);
+  }
+
+  const listingId = new URLSearchParams(window.location.search).get('id');
+  let listing = null;
+  let favoriteActive = false;
+
+  function fmtPrice(l) {
+    const p = Number(l.price) || 0;
+    return l.dealType === 'rent' ? ('$' + p.toLocaleString() + '/mo') : ('$' + p.toLocaleString());
+  }
+
+  function renderListing(l) {
+    document.getElementById('listingImg').src = l.img || '';
+    document.getElementById('listingTitle').textContent = l.title || l.address || '';
+    document.getElementById('listingAddress').querySelector('span:last-child').textContent = `${l.address || ''}, ${(window.cityLabel && window.cityLabel(l.city)) || l.city || ''}`;
+    document.getElementById('listingPrice').textContent = fmtPrice(l);
+    document.getElementById('listingBeds').textContent = l.beds ?? 0;
+    document.getElementById('listingBaths').textContent = l.baths ?? 0;
+    document.getElementById('listingSqft').textContent = (l.sqft ?? 0) + 'm²';
+    const typeLabelMap = { villa: tr('map.villa','Villa'), apartment: tr('map.apartment','Apartment'), office: tr('map.office','Office'), land: tr('map.land','Land') };
+    document.getElementById('listingType').textContent = typeLabelMap[l.propertyType] || l.propertyType || '';
+    document.getElementById('listingDealBadge').textContent = l.dealType === 'rent' ? tr('common.forRent','For Rent') : tr('common.forSale','For Sale');
+    document.getElementById('listingAgentName').textContent = l.agentName || 'Darwesh Group';
+
+    if (l.verified) {
+      document.getElementById('listingVerifiedBadge').classList.remove('hidden');
+      document.getElementById('listingVerifiedNote').classList.remove('hidden');
+    }
+
+    const amenities = Array.isArray(l.amenities) ? l.amenities.filter(Boolean) : [];
+    const amenitiesWrap = document.getElementById('listingAmenities');
+    if (amenities.length) {
+      amenitiesWrap.innerHTML = amenities.map(a => `<span class="amenity-chip"><span class="material-symbols-outlined text-[14px]">check_circle</span>${a}</span>`).join('');
+    } else {
+      document.getElementById('listingNoAmenities').classList.remove('hidden');
+    }
+
+    document.getElementById('listingLoading').classList.add('hidden');
+    document.getElementById('listingContent').classList.remove('hidden');
+  }
+
+  let mapInitialized = false;
+
+  function initMap(l) {
+    const map = L.map('listingMap', { zoomControl: false });
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 16 }).addTo(map);
+
+    if (l.private) {
+      // Never show a private listing's real coordinates on this public page.
+      document.getElementById('listingMapNote').classList.remove('hidden');
+      const CITY_CENTERS = {
+        Erbil: [36.1911, 44.0093], Sulaymaniyah: [35.5608, 45.4347], Duhok: [36.8642, 42.9903],
+        Zakho: [37.1450, 42.6829], Soran: [36.6500, 44.5450], Koya: [36.0750, 44.6200], Kirkuk: [35.4681, 44.3922]
+      };
+      const center = CITY_CENTERS[l.city] || [36.35, 44.3];
+      map.setView(center, 11);
+    } else if (l.lat != null && l.lng != null) {
+      map.setView([l.lat, l.lng], 15);
+      L.marker([l.lat, l.lng]).addTo(map);
+    } else {
+      map.setView([36.35, 44.3], 7);
+    }
+    setTimeout(() => map.invalidateSize(), 100);
+  }
+
+  async function loadListing() {
+    if (!listingId) {
+      document.getElementById('listingLoading').classList.add('hidden');
+      document.getElementById('listingNotFound').classList.remove('hidden');
+      return;
+    }
+    try {
+      const snap = await getDoc(doc(db, 'listings', listingId));
+      if (!snap.exists()) {
+        document.getElementById('listingLoading').classList.add('hidden');
+        document.getElementById('listingNotFound').classList.remove('hidden');
+        return;
+      }
+      listing = { id: snap.id, ...snap.data() };
+      renderListing(listing);
+      if (!mapInitialized) { mapInitialized = true; initMap(listing); }
+    } catch (e) {
+      document.getElementById('listingLoading').classList.add('hidden');
+      document.getElementById('listingNotFound').classList.remove('hidden');
+    }
+  }
+  loadListing();
+
+  // ---------------------------------------------------------------------
+  // Favorites (same users/{uid}/favorites collection used by map.html/
+  // buy.html, so a listing saved here shows up in their favorites too).
+  // ---------------------------------------------------------------------
+  let currentUser = null;
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    if (user && listingId) {
+      const favSnap = await getDoc(doc(db, 'users', user.uid, 'favorites', 'buy-' + listingId));
+      favoriteActive = favSnap.exists();
+      updateFavBtn();
+    }
+  });
+
+  function updateFavBtn() {
+    const icon = document.getElementById('listingFavIcon');
+    const label = document.getElementById('listingFavLabel');
+    icon.style.fontVariationSettings = `'FILL' ${favoriteActive ? 1 : 0}`;
+    icon.classList.toggle('text-secondary', favoriteActive);
+    label.textContent = favoriteActive ? tr('listing.savedToFavorites','Saved to Favorites') : tr('listing.saveToFavorites','Save to Favorites');
+  }
+
+  document.getElementById('listingFavBtn').addEventListener('click', async () => {
+    if (!currentUser) {
+      showToast(tr('listing.loginToSave','Log in to save favorites'), 'favorite');
+      setTimeout(() => { window.location.href = 'login.html'; }, 900);
+      return;
+    }
+    if (!listing) return;
+    const ref = doc(db, 'users', currentUser.uid, 'favorites', 'buy-' + listingId);
+    if (favoriteActive) {
+      await deleteDoc(ref);
+      favoriteActive = false;
+      showToast(tr('listing.removedFromFavorites','Removed from favorites'), 'favorite');
+    } else {
+      await setDoc(ref, {
+        listingId: 'buy-' + listingId, address: listing.address, city: listing.city,
+        priceLabel: fmtPrice(listing), img: listing.img, savedAt: serverTimestamp()
+      });
+      favoriteActive = true;
+      showToast(tr('listing.savedToFavorites','Saved to favorites'), 'favorite');
+    }
+    updateFavBtn();
+  });
+
+  // ---------------------------------------------------------------------
+  // Request Viewing — writes a real submission doc to Firestore, same
+  // as map.html, so staff see it in admin.html's Customer Services tab.
+  // ---------------------------------------------------------------------
+  function openViewingModal() {
+    if (!listing) return;
+    document.getElementById('viewingModalListingLine').textContent = `${listing.title || listing.address}, ${listing.city}`;
+    document.getElementById('viewingRequestError').classList.add('hidden');
+    document.getElementById('viewingRequestForm').reset();
+    if (currentUser && currentUser.email) document.getElementById('viewingEmail').value = currentUser.email;
+    document.getElementById('viewingModalOverlay').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeViewingModal() {
+    document.getElementById('viewingModalOverlay').classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+  document.getElementById('listingContactBtn').addEventListener('click', openViewingModal);
+  document.getElementById('viewingModalClose').addEventListener('click', closeViewingModal);
+  document.getElementById('viewingModalBackdrop').addEventListener('click', closeViewingModal);
+
+  document.getElementById('viewingRequestForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('viewingRequestError');
+    errEl.classList.add('hidden');
+    const name = document.getElementById('viewingName').value.trim();
+    const phone = document.getElementById('viewingPhone').value.trim();
+    const email = document.getElementById('viewingEmail').value.trim();
+    const submitBtn = document.getElementById('viewingSubmitBtn');
+    submitBtn.disabled = true;
+    try {
+      await addDoc(collection(db, 'submissions'), {
+        type: 'viewing',
+        listingId,
+        address: listing.address || '', city: listing.city || '', priceLabel: fmtPrice(listing),
+        lat: listing.private ? null : (listing.lat ?? null), lng: listing.private ? null : (listing.lng ?? null),
+        name, phone, email,
+        uid: currentUser ? currentUser.uid : null,
+        status: 'pending', createdAt: serverTimestamp()
+      });
+      closeViewingModal();
+      showToast(tr('map.viewingRequestSent', 'Viewing request sent — an agent will contact you within 24 hours'), 'event_available');
+    } catch (err) {
+      errEl.textContent = tr('map.viewingRequestError', 'Could not send your request — please try again in a moment.');
+      errEl.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  document.addEventListener('darwesh:langchange', () => { if (listing) renderListing(listing); });
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/city-nav.js"></script>
+</body></html>

@@ -135,6 +135,7 @@
 <nav class="hidden md:flex items-center gap-8">
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
+<span id="citiesNavSlot"></span>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
 <a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
@@ -148,8 +149,8 @@
 <main class="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
 <!-- Page Intro -->
 <section class="pt-stack-lg pb-stack-md text-center">
-<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-primary mb-2" data-i18n="buy.title">Buy a Property</h1>
-<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto mb-stack-md" data-i18n="buy.subtitle">Verified homes for sale across the Kurdistan Region, backed by Darwesh Group's trust guarantee.</p>
+<h1 id="buyPageTitle" class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-primary mb-2" data-i18n="buy.title">Buy a Property</h1>
+<p id="buyPageSubtitle" class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto mb-stack-md" data-i18n="buy.subtitle">Verified homes for sale across the Kurdistan Region, backed by Darwesh Group's trust guarantee.</p>
 <!-- Buy / Sell Tabs -->
 <div class="inline-flex items-center bg-surface-container rounded-full p-1">
 <a class="px-6 py-2 rounded-full font-label-caps text-label-caps bg-primary text-on-primary transition-all" href="buy.html" data-i18n="buy.buyTab">Buy</a>
@@ -354,11 +355,11 @@ function card(l) {
       <span class="font-label-caps text-label-caps text-[10px]">${tr('common.verified','Verified')}</span>
     </div>` : '';
   const favActive = favoriteIds.has('buy-' + l.id);
-  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
+  const favBtn = `<button type="button" onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
   return `
-  <article class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden group">
+  <a href="listing.html?id=${encodeURIComponent(l.id)}" class="block bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden group">
     <div class="absolute top-0 left-0 w-full h-1 bg-secondary z-20"></div>
     <div class="relative h-48 w-full overflow-hidden">
       <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${l.img}"/>
@@ -379,10 +380,10 @@ function card(l) {
       </div>
       <div class="flex justify-between items-center">
         <span class="font-headline-md text-headline-md text-primary">${fmtPrice(l.price)}</span>
-        <button class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors">${tr('common.details','Details')}</button>
+        <span class="font-label-caps text-label-caps text-secondary group-hover:text-primary transition-colors">${tr('common.details','Details')}</span>
       </div>
     </div>
-  </article>`;
+  </a>`;
 }
 
 function render() {
@@ -415,13 +416,34 @@ function render() {
   document.getElementById(id).addEventListener('input', render);
 });
 
-const urlType = new URLSearchParams(window.location.search).get('type');
+const urlParams = new URLSearchParams(window.location.search);
+const urlType = urlParams.get('type');
 if (urlType && ['villa', 'apartment', 'office', 'land'].includes(urlType)) {
   document.getElementById('typeFilter').value = urlType;
+}
+const urlCity = urlParams.get('city');
+if (urlCity) {
+  document.getElementById('searchInput').value = urlCity;
+  // Arriving from the Cities & Apartments nav / a "Browse by City" link
+  // — make this feel like a dedicated city page, not just a pre-filled
+  // search box. Detach from data-i18n so a language switch doesn't wipe
+  // this back to the generic title; re-render it ourselves instead.
+  const titleEl = document.getElementById('buyPageTitle');
+  const subEl = document.getElementById('buyPageSubtitle');
+  titleEl.removeAttribute('data-i18n');
+  subEl.removeAttribute('data-i18n');
+  function renderCityHeading() {
+    const cityLabelText = (window.cityLabel && window.cityLabel(urlCity)) || urlCity;
+    titleEl.textContent = cityLabelText + ' ' + tr('buy.apartmentsSuffix', 'Apartments');
+    subEl.textContent = tr('buy.cityHeadingSubtitle', 'Verified properties for sale in') + ' ' + cityLabelText + '.';
+  }
+  renderCityHeading();
+  document.addEventListener('darwesh:langchange', renderCityHeading);
 }
 render();
 document.addEventListener('darwesh:langchange', render);
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/city-nav.js"></script>
 <script src="./js/i18n.js"></script>
 </body></html>

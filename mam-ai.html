@@ -112,6 +112,12 @@
       0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
       30% { transform: translateY(-4px); opacity: 1; }
     }
+    #micBtn.mic-listening { background: #dc2626; border-color: #dc2626; color: #fff; }
+    #micBtn.mic-listening #micIcon { animation: mic-pulse 1.2s ease-in-out infinite; }
+    @keyframes mic-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.75; }
+    }
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -133,6 +139,7 @@
 <nav class="hidden md:flex items-center gap-8">
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
+<span id="citiesNavSlot"></span>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
 <a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
@@ -151,12 +158,15 @@
 <div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center flex-none shadow-[0_0_20px_rgba(119,90,25,0.2)]">
 <span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
 </div>
-<div>
+<div class="flex-1">
 <p class="font-headline-md text-[18px] text-primary leading-tight">MAM AI</p>
 <p class="font-data-mono text-data-mono text-on-tertiary-container flex items-center gap-1">
 <span class="w-1.5 h-1.5 rounded-full bg-on-tertiary-container inline-block"></span> <span data-i18n="mamai.subtitle">Online · Darwesh Group Market Intelligence</span>
                     </p>
 </div>
+<button id="voiceOutputToggle" aria-label="Toggle voice replies" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Voice replies">
+<span class="material-symbols-outlined" id="voiceOutputIcon">volume_up</span>
+</button>
 </div>
 </div>
 
@@ -188,10 +198,17 @@
 <div class="flex-1 bg-surface-container rounded-full flex items-center px-4">
 <input autocomplete="off" class="flex-1 bg-transparent border-none focus:ring-0 text-on-surface font-body-md text-body-md py-3 placeholder-outline-variant" id="chatInput" placeholder="Ask MAM about the market..." type="text" data-i18n-placeholder="mamai.inputPlaceholder"/>
 </div>
+<button aria-label="Speak your question" id="micBtn" class="hidden bg-surface-container-lowest border border-outline-variant text-on-surface w-12 h-12 rounded-full items-center justify-center hover:bg-surface-container transition-colors flex-none" type="button">
+<span class="material-symbols-outlined" id="micIcon">mic</span>
+</button>
 <button aria-label="Send message" class="bg-primary text-on-primary w-12 h-12 rounded-full flex items-center justify-center hover:bg-primary-container transition-colors flex-none" type="submit">
 <span class="material-symbols-outlined">send</span>
 </button>
 </form>
+<p id="micStatus" class="hidden max-w-3xl mx-auto font-label-caps text-label-caps text-secondary text-center mt-2 flex items-center justify-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block" style="animation: mic-pulse 1s ease-in-out infinite;"></span>
+<span data-i18n="mamai.listening">Listening…</span>
+</p>
 <p class="max-w-3xl mx-auto font-body-md text-[11px] text-on-surface-variant text-center mt-2" data-i18n="mamai.disclaimer">MAM AI offers general guidance based on Darwesh Group data and may not reflect real-time prices. Confirm details with an agent.</p>
 </div>
 </main>
@@ -227,16 +244,128 @@ function escapeHtml(str) {
 }
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+function trf(key, fallback, vars) {
+  let s = tr(key, fallback);
+  if (vars) Object.keys(vars).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
+  return s;
+}
+function fmtPrice(p) { return '$' + Math.round(p).toLocaleString(); }
+
+// --- Real, live market data (never fabricated) pulled from the same `listings`
+// collection every other page on the site reads from ---
+let marketStats = null; // { total, verified, byCity: { [city]: { count, saleCount, min, max, avg } } }
+
+async function loadMarketStats() {
+  try {
+    const [{ db }, storeMod] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    ]);
+    const { collection, getDocs } = storeMod;
+    const snap = await getDocs(collection(db, 'listings'));
+    const byCity = {};
+    let total = 0, verified = 0;
+    snap.forEach(d => {
+      const l = d.data();
+      total++;
+      if (l.verified) verified++;
+      if (!l.city) return;
+      const c = byCity[l.city] || (byCity[l.city] = { count: 0, saleCount: 0, prices: [] });
+      c.count++;
+      if (l.dealType === 'sale' && typeof l.price === 'number') { c.saleCount++; c.prices.push(l.price); }
+    });
+    Object.values(byCity).forEach(c => {
+      if (c.prices.length) { c.min = Math.min(...c.prices); c.max = Math.max(...c.prices); c.avg = c.prices.reduce((a, b) => a + b, 0) / c.prices.length; }
+      delete c.prices;
+    });
+    marketStats = { total, verified, byCity };
+  } catch (e) {
+    marketStats = null;
+  }
+}
+loadMarketStats();
+
+const CITY_KEYWORDS = {
+  Erbil: ['erbil'],
+  Sulaymaniyah: ['sulaymaniyah', 'slemani'],
+  Duhok: ['duhok', 'dohuk'],
+  Kirkuk: ['kirkuk'],
+  Zakho: ['zakho'],
+  Soran: ['soran'],
+  Koya: ['koya'],
+  Halabja: ['halabja']
+};
+function detectCity(lower) {
+  for (const city of Object.keys(CITY_KEYWORDS)) {
+    if (CITY_KEYWORDS[city].some(k => lower.includes(k))) return city;
+  }
+  return null;
+}
+function mamCityLabel(city) { return (window.cityLabel && window.cityLabel(city)) || city; }
+
+// Tracks what the current user has actually asked about, so follow-up
+// questions ("what's it worth?" right after "tell me about Erbil") can be
+// answered using that same city's real data instead of a generic reply.
+let lastCity = null;
+
+function cityStatsReply(city) {
+  const label = mamCityLabel(city);
+  const stats = marketStats && marketStats.byCity[city];
+  if (!stats) return trf('mamai.replyCityNoData', "I don't see any active listings in {city} on Darwesh Group yet, but I can notify you as soon as new properties are added there.", { city: label });
+  if (stats.saleCount > 0) {
+    return trf('mamai.replyCityWithPrice', '{city} currently has {n} listings on Darwesh Group, with sale prices ranging from {min} to {max}.', { city: label, n: stats.count, min: fmtPrice(stats.min), max: fmtPrice(stats.max) });
+  }
+  return trf('mamai.replyCityNoPrice', "{city} currently has {n} listings on Darwesh Group, though none are listed for sale right now — I can let you know when new ones are added.", { city: label, n: stats.count });
+}
+
+function worthReply() {
+  const city = lastCity;
+  const stats = city && marketStats && marketStats.byCity[city];
+  if (stats && stats.saleCount > 0) {
+    return trf('mamai.reply1DataCity', "Since you were asking about {city}, here's what our current listings show: {n} for-sale properties ranging from {min} to {max} (average around {avg}). For an exact valuation of your property, I can connect you with an agent.",
+      { city: mamCityLabel(city), n: stats.saleCount, min: fmtPrice(stats.min), max: fmtPrice(stats.max), avg: fmtPrice(stats.avg) });
+  }
+  if (marketStats) {
+    const all = Object.values(marketStats.byCity).filter(c => c.saleCount > 0);
+    if (all.length) {
+      const min = Math.min(...all.map(c => c.min));
+      const max = Math.max(...all.map(c => c.max));
+      const totalSale = all.reduce((a, c) => a + c.saleCount, 0);
+      const avg = all.reduce((a, c) => a + c.avg * c.saleCount, 0) / totalSale;
+      return trf('mamai.reply1DataGeneral', 'Based on the {n} for-sale listings currently on Darwesh Group, prices range from {min} to {max}, averaging around {avg}. For an exact valuation of your property, I can connect you with an agent.',
+        { n: totalSale, min: fmtPrice(min), max: fmtPrice(max), avg: fmtPrice(avg) });
+    }
+  }
+  return tr('mamai.reply1NoData', "I don't have enough live listing data on Darwesh Group to estimate values right now, but I can connect you with an agent for an accurate valuation.");
+}
+
+function investReply() {
+  if (marketStats) {
+    const entries = Object.entries(marketStats.byCity).filter(([, c]) => c.count > 0).sort((a, b) => b[1].count - a[1].count);
+    if (entries.length) {
+      const [topCity, stats] = entries[0];
+      return trf('mamai.reply2DataCity', '{city} currently has the most active listings on Darwesh Group ({n} properties), which is often a good signal of buyer interest for investors.', { city: mamCityLabel(topCity), n: stats.count });
+    }
+  }
+  return tr('mamai.reply2NoData', "I don't have enough live listing data to point to a specific hotspot right now, but I can show you our current investment-ready listings.");
+}
+
+function listingsReply() {
+  if (marketStats && marketStats.total > 0) {
+    return trf('mamai.reply4Data', 'We currently have {total} listings on Darwesh Group, including {verified} verified by our trust and verification team.', { total: marketStats.total, verified: marketStats.verified });
+  }
+  return tr('mamai.reply4', 'Here are our currently verified listings across Erbil, Sulaymaniyah, Duhok, and beyond — all confirmed by our trust and verification team.');
+}
 
 const RESPONSES = [
   {
     keywords: ['worth', 'value', 'valuation', 'appraise', 'estimate'],
-    get reply() { return tr('mamai.reply1', "Based on recent Darwesh Group transactions, similar properties in Erbil and Sulaymaniyah are trending 6-9% higher year-over-year, with villas in Italian Village averaging $380,000-$420,000. For an exact valuation of your property, I can connect you with an agent."); },
+    get reply() { return worthReply(); },
     get cta() { return { label: tr('mamai.cta1', 'Get a Free Valuation'), href: 'sell.html' }; }
   },
   {
     keywords: ['invest', 'investment', 'roi', 'return'],
-    get reply() { return tr('mamai.reply2', "For investment purposes, Erbil's Empire World district and Sulaymaniyah's Raparin area currently show the strongest rental yields (7-9% annually), driven by commercial growth and proximity to new infrastructure."); },
+    get reply() { return investReply(); },
     get cta() { return { label: tr('mamai.cta2', 'Browse Investment Properties'), href: 'buy.html' }; }
   },
   {
@@ -246,7 +375,7 @@ const RESPONSES = [
   },
   {
     keywords: ['listing', 'listings', 'verified', 'available', 'properties'],
-    get reply() { return tr('mamai.reply4', "Here are our currently verified listings across Erbil, Sulaymaniyah, Duhok, and beyond — all confirmed by our trust and verification team."); },
+    get reply() { return listingsReply(); },
     get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
   },
   {
@@ -256,15 +385,62 @@ const RESPONSES = [
   },
   {
     keywords: ['erbil'],
-    get reply() { return tr('mamai.reply6', "Erbil remains the region's most active market, led by Italian Village and Empire World. Average sale prices range $180,000-$450,000 depending on size and finish level."); }
+    get reply() { return cityStatsReply('Erbil'); }
   },
   {
     keywords: ['sulaymaniyah', 'slemani'],
-    get reply() { return tr('mamai.reply7', "Sulaymaniyah shows strong demand in the Raparin and Salim Street districts, with commercial office space seeing particular growth for investors."); }
+    get reply() { return cityStatsReply('Sulaymaniyah'); }
   },
   {
     keywords: ['duhok', 'dohuk'],
-    get reply() { return tr('mamai.reply8', "Duhok's Nwroz district has seen steady villa demand, while the city center remains popular for rental apartments near universities and commercial hubs."); }
+    get reply() { return cityStatsReply('Duhok'); }
+  },
+  {
+    keywords: ['kirkuk'],
+    get reply() { return cityStatsReply('Kirkuk'); }
+  },
+  {
+    keywords: ['zakho'],
+    get reply() { return cityStatsReply('Zakho'); }
+  },
+  {
+    keywords: ['soran'],
+    get reply() { return cityStatsReply('Soran'); }
+  },
+  {
+    keywords: ['koya'],
+    get reply() { return cityStatsReply('Koya'); }
+  },
+  {
+    keywords: ['halabja'],
+    get reply() { return cityStatsReply('Halabja'); }
+  },
+  {
+    keywords: ['rent', 'rental', 'renting'],
+    get reply() { return tr('mamai.replyRent', "We have rental listings across Erbil, Sulaymaniyah, Duhok, and more. I can show you current rental options that match what you're looking for."); },
+    get cta() { return { label: tr('mamai.ctaRent', 'Browse Rentals'), href: 'rent.html' }; }
+  },
+  {
+    keywords: ['bedroom', 'bathroom', 'sqft', 'square feet', 'how big'],
+    get reply() { return tr('mamai.replySize', "Every listing on Darwesh Group shows exact bedrooms, bathrooms, and square footage on its details page, so you can filter down to exactly what fits your needs."); },
+    get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
+  },
+  {
+    keywords: ['price', 'cheap', 'affordable', 'expensive', 'budget'],
+    get reply() { return worthReply(); }
+  },
+  {
+    keywords: ['agent', 'contact', 'phone number', 'reach someone'],
+    get reply() { return tr('mamai.replyAgent', "I can connect you directly with one of our agents — they can answer detailed questions and schedule a viewing for you."); },
+    get cta() { return { label: tr('mamai.ctaAgent', 'Contact an Agent'), href: 'buy.html' }; }
+  },
+  {
+    keywords: ['thank'],
+    get reply() { return tr('mamai.replyThanks', "You're welcome! Let me know if there's anything else you'd like to know about the market."); }
+  },
+  {
+    keywords: ['bye', 'goodbye'],
+    get reply() { return tr('mamai.replyBye', "Take care! Come back anytime you have more questions about buying, renting, or selling in the Kurdistan Region."); }
   },
   {
     keywords: ['map', 'neighborhood', 'area', 'location'],
@@ -277,12 +453,35 @@ const RESPONSES = [
   }
 ];
 
+// A handful of varied fallback phrasings so an unmatched question doesn't
+// look like the exact same frozen reply every time — plus a live CTA to
+// whichever city currently has the most real listings, so it still points
+// somewhere useful on the actual site rather than being a dead end.
+const FALLBACK_KEYS = [
+  ['mamai.fallback', "That's a great question for one of our agents to dig into with you directly. In the meantime, I can help with property valuations, neighborhood insights, and buy vs. rent guidance — what would you like to know?"],
+  ['mamai.fallback2', "I don't have a direct answer for that yet. Try asking me about a property's value, a specific city like Erbil or Sulaymaniyah, renting vs. buying, or our verified listings."],
+  ['mamai.fallback3', "I'm still learning that one. I can help with valuations, verified and rental listings, or details about any city we operate in — what would you like to explore?"]
+];
+let fallbackIndex = 0;
+function fallbackReply() {
+  const [key, fallback] = FALLBACK_KEYS[fallbackIndex % FALLBACK_KEYS.length];
+  fallbackIndex++;
+  const reply = { reply: tr(key, fallback) };
+  if (marketStats) {
+    const top = Object.entries(marketStats.byCity).filter(([, c]) => c.count > 0).sort((a, b) => b[1].count - a[1].count)[0];
+    if (top) reply.cta = { label: trf('mamai.ctaExploreCity', 'See listings in {city}', { city: mamCityLabel(top[0]) }), href: 'buy.html?city=' + encodeURIComponent(top[0]) };
+  }
+  return reply;
+}
+
 function getResponse(text) {
   const lower = text.toLowerCase();
+  const mentioned = detectCity(lower);
+  if (mentioned) lastCity = mentioned;
   for (const r of RESPONSES) {
     if (r.keywords.some(k => lower.includes(k))) return r;
   }
-  return { reply: tr('mamai.fallback', "That's a great question for one of our agents to dig into with you directly. In the meantime, I can help with property valuations, neighborhood insights, and buy vs. rent guidance — what would you like to know?") };
+  return fallbackReply();
 }
 
 const chatLog = document.getElementById('chatLog');
@@ -319,6 +518,7 @@ function addAiMessage(response) {
     </div>`;
   chatLog.appendChild(el);
   scrollToBottom();
+  speakReply(response.reply);
 }
 
 function showTyping() {
@@ -356,6 +556,149 @@ function sendMessage(text) {
   }, delay);
 }
 
+// --- Voice: speech-to-text input + text-to-speech replies ---
+const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
+const micBtn = document.getElementById('micBtn');
+const micIcon = document.getElementById('micIcon');
+const micStatus = document.getElementById('micStatus');
+const voiceOutputToggle = document.getElementById('voiceOutputToggle');
+const voiceOutputIcon = document.getElementById('voiceOutputIcon');
+
+// Full BCP-47 tag for speech RECOGNITION (network-based — doesn't depend on
+// what's installed locally, so a specific region tag is fine here).
+function speechLangTag() {
+  const lang = localStorage.getItem('darwesh_lang') || 'en';
+  if (lang === 'ar' || lang === 'ku') return 'ar-IQ';
+  return 'en-US';
+}
+
+// Ordered language-family candidates for picking an installed speech-
+// SYNTHESIS voice. Kurdish tries real Kurdish voices first (Sorani "ckb",
+// Kurmanji "kmr", generic "ku") in case the device actually has one
+// installed, and only falls back to an Arabic voice — which mispronounces
+// Kurdish text rather than truly speaking Kurdish — as a last resort so
+// something audible plays instead of silence.
+function speechVoiceLangCandidates() {
+  const lang = localStorage.getItem('darwesh_lang') || 'en';
+  if (lang === 'ku') return ['ku', 'ckb', 'kmr', 'ar'];
+  if (lang === 'ar') return ['ar'];
+  return ['en'];
+}
+
+// speechSynthesis.getVoices() is populated asynchronously in most browsers
+// (empty on first call until 'voiceschanged' fires) — cache and refresh it.
+let cachedVoices = [];
+function refreshVoices() { cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
+if (window.speechSynthesis) {
+  refreshVoices();
+  window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+}
+
+const VOICE_QUALITY_HINTS = ['google', 'natural', 'neural', 'online', 'premium', 'enhanced', 'wavenet'];
+function voiceScore(v, primaryLang) {
+  let score = 0;
+  if (v.lang.toLowerCase().startsWith(primaryLang)) score += 10;
+  const name = v.name.toLowerCase();
+  if (VOICE_QUALITY_HINTS.some(h => name.includes(h))) score += 5;
+  if (!v.localService) score += 2; // network-served voices generally sound less robotic
+  return score;
+}
+// Picks the best-sounding installed voice, trying each language-family
+// prefix in order (e.g. real Kurdish before falling back to Arabic) rather
+// than one hardcoded region tag — a system with only "ar-SA" installed
+// still gets used for "ar-IQ" text.
+function pickVoice(langCandidates) {
+  if (!cachedVoices.length) return null;
+  for (const prefix of langCandidates) {
+    const matching = cachedVoices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+    if (matching.length) return matching.slice().sort((a, b) => voiceScore(b, prefix) - voiceScore(a, prefix))[0];
+  }
+  const en = cachedVoices.filter(v => v.lang.toLowerCase().startsWith('en'));
+  if (!en.length) return null;
+  return en.slice().sort((a, b) => voiceScore(b, 'en') - voiceScore(a, 'en'))[0];
+}
+
+let voiceOutputEnabled = localStorage.getItem(VOICE_OUTPUT_KEY) === '1';
+
+function updateVoiceOutputIcon() {
+  voiceOutputIcon.textContent = voiceOutputEnabled ? 'volume_up' : 'volume_off';
+  voiceOutputToggle.classList.toggle('text-secondary', voiceOutputEnabled);
+  voiceOutputToggle.setAttribute('aria-pressed', String(voiceOutputEnabled));
+}
+
+function speakReply(text) {
+  if (!voiceOutputEnabled || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  const candidates = speechVoiceLangCandidates();
+  const voice = pickVoice(candidates);
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+  } else {
+    utterance.lang = candidates[0] === 'en' ? 'en-US' : 'ar-IQ';
+  }
+  window.speechSynthesis.speak(utterance);
+}
+
+if (window.speechSynthesis) {
+  voiceOutputToggle.classList.remove('hidden');
+  updateVoiceOutputIcon();
+  voiceOutputToggle.addEventListener('click', () => {
+    voiceOutputEnabled = !voiceOutputEnabled;
+    localStorage.setItem(VOICE_OUTPUT_KEY, voiceOutputEnabled ? '1' : '0');
+    updateVoiceOutputIcon();
+    if (!voiceOutputEnabled) window.speechSynthesis.cancel();
+  });
+}
+
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognitionCtor) {
+  const recognition = new SpeechRecognitionCtor();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  let listening = false;
+
+  function stopListening() {
+    listening = false;
+    micBtn.classList.remove('mic-listening');
+    micStatus.classList.add('hidden');
+  }
+
+  micBtn.classList.remove('hidden');
+  micBtn.classList.add('flex');
+
+  micBtn.addEventListener('click', () => {
+    if (listening) {
+      recognition.stop();
+      return;
+    }
+    // Stop any AI reply currently being read aloud first — otherwise the
+    // microphone can pick up that audio (speaker bleed) as if it were a
+    // new thing the user just said, which is what made the bot appear to
+    // "repeat" the previous turn back as the next answer.
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    recognition.lang = speechLangTag();
+    try {
+      recognition.start();
+      listening = true;
+      micBtn.classList.add('mic-listening');
+      micStatus.classList.remove('hidden');
+    } catch (err) {
+      stopListening();
+    }
+  });
+
+  recognition.addEventListener('result', (e) => {
+    const transcript = e.results[0][0].transcript;
+    stopListening();
+    if (transcript && transcript.trim()) sendMessage(transcript);
+  });
+
+  recognition.addEventListener('end', stopListening);
+  recognition.addEventListener('error', stopListening);
+}
+
 chatForm.addEventListener('submit', (e) => {
   e.preventDefault();
   sendMessage(chatInput.value);
@@ -369,5 +712,6 @@ const initialQuery = new URLSearchParams(window.location.search).get('q');
 if (initialQuery) sendMessage(initialQuery);
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/city-nav.js"></script>
 <script src="./js/i18n.js"></script>
 </body></html>

@@ -108,27 +108,92 @@
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
     #map { background: #e5e8ee; }
+    /* Property price pins — color encodes verification status:
+       red = agent-listed (not yet verified), green = verified/registered.
+       This is the same `verified` flag already shown as a badge on the
+       listing card, just made visible at a glance on the map too. */
     .price-pin {
-      background: #ffffff;
-      color: #041627;
       font-family: 'Inter', sans-serif;
       font-weight: 700;
       font-size: 12px;
       padding: 6px 10px;
       border-radius: 999px;
-      border: 1px solid #c4c6cd;
-      box-shadow: 0 2px 6px rgba(4,22,39,0.18);
+      border: 1.5px solid transparent;
+      box-shadow: 0 2px 6px rgba(4,22,39,0.22);
       white-space: nowrap;
       transition: all .15s ease;
       cursor: pointer;
-    }
-    .price-pin.active, .price-pin:hover {
-      background: #041627;
       color: #ffffff;
-      border-color: #041627;
-      transform: scale(1.08);
+    }
+    .price-pin.pin-unverified { background: #c62828; border-color: #8f1c1c; }
+    .price-pin.pin-verified { background: #2e7d32; border-color: #1e5620; }
+    .price-pin:hover { transform: scale(1.08); z-index: 1000 !important; }
+    .price-pin.active {
+      transform: scale(1.14);
+      box-shadow: 0 0 0 3px rgba(4,22,39,0.9), 0 4px 10px rgba(4,22,39,0.3);
       z-index: 1000 !important;
     }
+    /* Neighborhood markers — blue, mark a named area (derived from real
+       listing addresses), distinct in shape from price pins so they never
+       get confused with an actual property. */
+    .neighborhood-pin {
+      width: 16px; height: 16px; border-radius: 999px;
+      background: #1565c0; border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(4,22,39,0.35);
+    }
+    .neighborhood-label {
+      background: rgba(255,255,255,0.92);
+      color: #0d3c78;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 600;
+      font-size: 10.5px;
+      letter-spacing: 0.02em;
+      padding: 2px 7px;
+      border-radius: 6px;
+      border: 1px solid #bcd1ee;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    /* Administrative area boundaries — dark red outline, real OSM data,
+       with the city/region name always visible along the boundary. */
+    .admin-boundary-label {
+      background: rgba(139,0,0,0.92);
+      color: #ffffff;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 999px;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    }
+    .map-legend {
+      position: absolute;
+      left: 16px;
+      bottom: 16px;
+      z-index: 1100;
+      background: #ffffff;
+      border: 1px solid #c4c6cd;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(4,22,39,0.2);
+      padding: 10px 14px;
+      font-family: 'Inter', sans-serif;
+    }
+    .map-legend-title {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #74777d;
+      margin-bottom: 6px;
+    }
+    .map-legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #181c20; padding: 2px 0; }
+    .map-legend-dot { width: 11px; height: 11px; border-radius: 999px; flex: none; }
+    .map-legend-line { width: 16px; height: 0; border-top: 2.5px dashed #8b0000; flex: none; }
     .listing-card.active {
       border-color: #775a19;
       box-shadow: 0 4px 20px rgba(26,43,60,0.12);
@@ -264,6 +329,7 @@
 <nav class="hidden md:flex items-center gap-8">
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
 <a class="font-label-caps text-label-caps text-primary dark:text-primary-fixed-dim font-bold" href="map.html" data-i18n="nav.map">Map</a>
+<span id="citiesNavSlot"></span>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
 <a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
@@ -378,6 +444,14 @@
 <span data-i18n="map.searchAreaActive">Search Area Active</span>
 <span class="material-symbols-outlined" style="font-size:18px;">close</span>
 </button>
+<!-- Map Legend -->
+<div class="map-legend">
+<p class="map-legend-title" data-i18n="map.legendTitle">Map Key</p>
+<div class="map-legend-item"><span class="map-legend-dot" style="background:#c62828;"></span><span data-i18n="map.legendAgentListing">Agent Listing</span></div>
+<div class="map-legend-item"><span class="map-legend-dot" style="background:#2e7d32;"></span><span data-i18n="map.legendVerifiedListing">Verified &amp; Registered</span></div>
+<div class="map-legend-item"><span class="map-legend-dot" style="background:#1565c0;"></span><span data-i18n="map.legendNeighborhood">Neighborhood</span></div>
+<div class="map-legend-item"><span class="map-legend-line"></span><span data-i18n="map.legendAdminArea">Administrative Area</span></div>
+</div>
 <!-- Floating MAM AI Assistant -->
 <a href="mam-ai.html" id="mamAiWidget" class="ai-glow mam-ai-widget">
 <div class="mam-ai-widget-icon">
@@ -705,9 +779,10 @@ const CITY_CENTERS = {
 };
 
 function priceIcon(listing, active) {
+  const statusClass = listing.verified ? 'pin-verified' : 'pin-unverified';
   return L.divIcon({
     className: '',
-    html: `<div class="price-pin${active ? ' active' : ''}" data-id="${listing.id}">${listing.priceLabel}</div>`,
+    html: `<div class="price-pin ${statusClass}${active ? ' active' : ''}" data-id="${listing.id}">${listing.priceLabel}</div>`,
     iconSize: null,
     iconAnchor: [30, 15]
   });
@@ -722,6 +797,36 @@ function cityBadgeIcon(count) {
   });
 }
 
+function neighborhoodIcon() {
+  return L.divIcon({ className: '', html: `<div class="neighborhood-pin"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] });
+}
+
+// ---------------------------------------------------------------------
+// Neighborhood markers — one blue pin per distinct address among this
+// city's VISIBLE listings (never derived from a hidden private listing's
+// coordinates), placed at the centroid of that address's listings, with
+// the neighborhood name always visible as a label. Real data derived
+// from real listing addresses, not a separate fabricated dataset.
+// ---------------------------------------------------------------------
+function buildNeighborhoodMarkers(visibleListings) {
+  const groups = {};
+  visibleListings.forEach(l => {
+    if (!l.address) return;
+    const key = l.address + '|' + l.city;
+    if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
+    groups[key].lats.push(l.lat);
+    groups[key].lngs.push(l.lng);
+  });
+  Object.entries(groups).forEach(([key, g]) => {
+    const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
+    const lng = g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length;
+    const marker = L.marker([lat, lng], { icon: neighborhoodIcon(), zIndexOffset: -500 });
+    marker.bindTooltip(g.name, { permanent: true, direction: 'top', offset: [0, -6], className: 'neighborhood-label' });
+    marker.addTo(map);
+    markers['nbhd-' + key] = marker;
+  });
+}
+
 function buildMarkers() {
   Object.values(markers).forEach(m => map.removeLayer(m));
   markers = {};
@@ -731,11 +836,13 @@ function buildMarkers() {
   // city's public center point, so the map never points at a specific
   // building for a hidden listing, only says "some are somewhere in here."
   const hiddenByCity = {};
+  const visible = [];
   LISTINGS.forEach(l => {
     if (isPrivateHidden(l)) {
       hiddenByCity[l.city] = (hiddenByCity[l.city] || 0) + 1;
       return;
     }
+    visible.push(l);
     const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
     marker.on('click', () => selectListing(l.id, true));
     marker.bindPopup(() => card(l), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
@@ -754,6 +861,7 @@ function buildMarkers() {
     badge.addTo(map);
     markers['city-' + city] = badge;
   });
+  buildNeighborhoodMarkers(visible);
 }
 
 function filteredListings() {
@@ -1158,11 +1266,91 @@ map.on('popupopen', (e) => {
   });
 });
 
+// ---------------------------------------------------------------------
+// Administrative area boundaries — real OpenStreetMap district/city
+// boundary lines (admin_level=8), drawn once in dark red with the area
+// name always visible. Live data from Overpass, same public API already
+// used for nearby-amenities lookups elsewhere on this site. A city with
+// no boundary data in OSM is simply skipped — no fabricated outline is
+// drawn in its place.
+// ---------------------------------------------------------------------
+const KNOWN_CITY_NAMES = Object.keys(CITY_CENTERS);
+
+function isKnownCityBoundary(tags) {
+  const name = (tags && (tags.name || tags['name:en'])) || '';
+  return KNOWN_CITY_NAMES.some(c => name.toLowerCase() === c.toLowerCase());
+}
+
+function ringFromGeometry(geometry) {
+  return (geometry || []).map(pt => [pt.lat, pt.lon]);
+}
+
+function drawBoundaryShape(coords, label, labelLatLng) {
+  if (coords.length < 2) return;
+  const isClosedRing = coords.length > 2 &&
+    Math.abs(coords[0][0] - coords[coords.length - 1][0]) < 1e-6 &&
+    Math.abs(coords[0][1] - coords[coords.length - 1][1]) < 1e-6;
+  const shape = isClosedRing
+    ? L.polygon(coords, { color: '#8b0000', weight: 2.5, opacity: 0.85, fillColor: '#8b0000', fillOpacity: 0.05 })
+    : L.polyline(coords, { color: '#8b0000', weight: 2.5, opacity: 0.85, dashArray: '6 4' });
+  shape.addTo(map);
+  adminBoundaryLayers.push(shape);
+  if (label && labelLatLng) {
+    const labelMarker = L.marker(labelLatLng, {
+      icon: L.divIcon({ className: '', html: `<div class="admin-boundary-label">${label}</div>`, iconSize: null, iconAnchor: [0, 0] }),
+      interactive: false
+    });
+    labelMarker.addTo(map);
+    adminBoundaryLayers.push(labelMarker);
+  }
+}
+
+let adminBoundaryLayers = [];
+
+async function loadAdminBoundaries() {
+  // One bounding box wide enough to cover every known city, so this is
+  // a single Overpass call rather than one per city.
+  const bbox = '34.9,42.0,37.5,46.2';
+  const query = `[out:json][timeout:25];(way["boundary"="administrative"]["admin_level"="8"](${bbox});relation["boundary"="administrative"]["admin_level"="8"](${bbox}););out geom;`;
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(query)
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    (data.elements || []).forEach(el => {
+      if (!isKnownCityBoundary(el.tags)) return;
+      const label = el.tags.name || el.tags['name:en'];
+      if (el.type === 'way' && el.geometry) {
+        const coords = ringFromGeometry(el.geometry);
+        const mid = coords[Math.floor(coords.length / 2)];
+        drawBoundaryShape(coords, label, mid);
+      } else if (el.type === 'relation' && el.members) {
+        let labelPlaced = false;
+        el.members.forEach(m => {
+          if (m.type !== 'way' || m.role !== 'outer' || !m.geometry) return;
+          const coords = ringFromGeometry(m.geometry);
+          const mid = coords[Math.floor(coords.length / 2)];
+          drawBoundaryShape(coords, labelPlaced ? null : label, labelPlaced ? null : mid);
+          labelPlaced = true;
+        });
+      }
+    });
+  } catch (e) {
+    // Overpass unreachable or slow — the map still works fine without
+    // boundary overlays, so fail silently rather than surface an error
+    // for a purely decorative layer.
+  }
+}
+loadAdminBoundaries();
+
 refresh();
 document.addEventListener('darwesh:langchange', refresh);
 setTimeout(() => { layoutMain(); map.invalidateSize(); }, 100);
 setTimeout(() => { layoutMain(); map.invalidateSize(); }, 600);
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/city-nav.js"></script>
 <script src="./js/i18n.js"></script>
 </body></html>

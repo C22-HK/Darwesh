@@ -170,6 +170,7 @@
     .badge-rent { background: #fed488; color: #5d4201; }
     .badge-verified { background: #003115; color: #4ae183; }
     .badge-private { background: #e5e8ee; color: #44474c; }
+    .badge-pending { background: #fed488; color: #5d4201; }
 
     .icon-btn { padding: 6px; border-radius: 8px; cursor: pointer; color: #44474c; background: none; border: none; }
     .icon-btn:hover { background: #ebeef3; }
@@ -592,6 +593,11 @@
             <input id="fImg" class="admin-input" placeholder="https://..."/>
           </div>
 
+          <div class="mb-3">
+            <label class="admin-label" for="fAmenities" data-i18n="agentDash.amenities">Amenities (comma-separated, optional)</label>
+            <input id="fAmenities" class="admin-input" placeholder="Parking, Balcony, Central AC, Elevator"/>
+          </div>
+
           <div class="flex items-center gap-5 mb-5">
             <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fVerified" type="checkbox" class="rounded"/><span data-i18n="common.verified">Verified</span></label>
             <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fPrivate" type="checkbox" class="rounded"/><span data-i18n="agentDash.privateHideLocation">Private (hide exact location)</span></label>
@@ -928,9 +934,13 @@ async function renderUsers() {
     const isSelf = u.uid === currentUid;
     const role = u.role || 'customer';
     const ROLE_LABEL = ROLE_LABEL_FN();
+    const wantsAgent = u.requestedRole === 'agent' && role !== 'agent' && role !== 'admin';
+    const agentRequestBadge = wantsAgent
+      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}</span>`
+      : '';
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}</p>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
         <p class="font-body-md text-[12px] text-on-surface-variant">${u.email || ''}</p>
       </td>
       <td>${companyNames[u.companyId] || u.companyId || '—'}</td>
@@ -1273,6 +1283,7 @@ async function onListingFormSubmit(e) {
     baths: Number(document.getElementById('fBaths').value) || 0,
     sqft: Number(document.getElementById('fSqft').value) || 0,
     img: document.getElementById('fImg').value.trim(),
+    amenities: document.getElementById('fAmenities').value.split(',').map(s => s.trim()).filter(Boolean),
     verified: document.getElementById('fVerified').checked,
     private: document.getElementById('fPrivate').checked,
     updatedAt: serverTimestamp()
@@ -1311,6 +1322,7 @@ window.editListing = function (id) {
   document.getElementById('fBaths').value = l.baths;
   document.getElementById('fSqft').value = l.sqft;
   document.getElementById('fImg').value = l.img || '';
+  document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
   document.getElementById('fVerified').checked = !!l.verified;
   document.getElementById('fPrivate').checked = !!l.private;
   setAdminPin(l.lat, l.lng);
