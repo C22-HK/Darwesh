@@ -289,7 +289,11 @@ const CITY_KEYWORDS = {
   Erbil: ['erbil'],
   Sulaymaniyah: ['sulaymaniyah', 'slemani'],
   Duhok: ['duhok', 'dohuk'],
-  Kirkuk: ['kirkuk']
+  Kirkuk: ['kirkuk'],
+  Zakho: ['zakho'],
+  Soran: ['soran'],
+  Koya: ['koya'],
+  Halabja: ['halabja']
 };
 function detectCity(lower) {
   for (const city of Object.keys(CITY_KEYWORDS)) {
@@ -396,6 +400,49 @@ const RESPONSES = [
     get reply() { return cityStatsReply('Kirkuk'); }
   },
   {
+    keywords: ['zakho'],
+    get reply() { return cityStatsReply('Zakho'); }
+  },
+  {
+    keywords: ['soran'],
+    get reply() { return cityStatsReply('Soran'); }
+  },
+  {
+    keywords: ['koya'],
+    get reply() { return cityStatsReply('Koya'); }
+  },
+  {
+    keywords: ['halabja'],
+    get reply() { return cityStatsReply('Halabja'); }
+  },
+  {
+    keywords: ['rent', 'rental', 'renting'],
+    get reply() { return tr('mamai.replyRent', "We have rental listings across Erbil, Sulaymaniyah, Duhok, and more. I can show you current rental options that match what you're looking for."); },
+    get cta() { return { label: tr('mamai.ctaRent', 'Browse Rentals'), href: 'rent.html' }; }
+  },
+  {
+    keywords: ['bedroom', 'bathroom', 'sqft', 'square feet', 'how big'],
+    get reply() { return tr('mamai.replySize', "Every listing on Darwesh Group shows exact bedrooms, bathrooms, and square footage on its details page, so you can filter down to exactly what fits your needs."); },
+    get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
+  },
+  {
+    keywords: ['price', 'cheap', 'affordable', 'expensive', 'budget'],
+    get reply() { return worthReply(); }
+  },
+  {
+    keywords: ['agent', 'contact', 'phone number', 'reach someone'],
+    get reply() { return tr('mamai.replyAgent', "I can connect you directly with one of our agents — they can answer detailed questions and schedule a viewing for you."); },
+    get cta() { return { label: tr('mamai.ctaAgent', 'Contact an Agent'), href: 'buy.html' }; }
+  },
+  {
+    keywords: ['thank'],
+    get reply() { return tr('mamai.replyThanks', "You're welcome! Let me know if there's anything else you'd like to know about the market."); }
+  },
+  {
+    keywords: ['bye', 'goodbye'],
+    get reply() { return tr('mamai.replyBye', "Take care! Come back anytime you have more questions about buying, renting, or selling in the Kurdistan Region."); }
+  },
+  {
     keywords: ['map', 'neighborhood', 'area', 'location'],
     get reply() { return tr('mamai.reply9', "I can show you a live map of verified properties across the Kurdistan Region with price markers you can filter by city and type."); },
     get cta() { return { label: tr('mamai.cta6', 'Open the Map'), href: 'map.html' }; }
@@ -406,6 +453,27 @@ const RESPONSES = [
   }
 ];
 
+// A handful of varied fallback phrasings so an unmatched question doesn't
+// look like the exact same frozen reply every time — plus a live CTA to
+// whichever city currently has the most real listings, so it still points
+// somewhere useful on the actual site rather than being a dead end.
+const FALLBACK_KEYS = [
+  ['mamai.fallback', "That's a great question for one of our agents to dig into with you directly. In the meantime, I can help with property valuations, neighborhood insights, and buy vs. rent guidance — what would you like to know?"],
+  ['mamai.fallback2', "I don't have a direct answer for that yet. Try asking me about a property's value, a specific city like Erbil or Sulaymaniyah, renting vs. buying, or our verified listings."],
+  ['mamai.fallback3', "I'm still learning that one. I can help with valuations, verified and rental listings, or details about any city we operate in — what would you like to explore?"]
+];
+let fallbackIndex = 0;
+function fallbackReply() {
+  const [key, fallback] = FALLBACK_KEYS[fallbackIndex % FALLBACK_KEYS.length];
+  fallbackIndex++;
+  const reply = { reply: tr(key, fallback) };
+  if (marketStats) {
+    const top = Object.entries(marketStats.byCity).filter(([, c]) => c.count > 0).sort((a, b) => b[1].count - a[1].count)[0];
+    if (top) reply.cta = { label: trf('mamai.ctaExploreCity', 'See listings in {city}', { city: mamCityLabel(top[0]) }), href: 'buy.html?city=' + encodeURIComponent(top[0]) };
+  }
+  return reply;
+}
+
 function getResponse(text) {
   const lower = text.toLowerCase();
   const mentioned = detectCity(lower);
@@ -413,7 +481,7 @@ function getResponse(text) {
   for (const r of RESPONSES) {
     if (r.keywords.some(k => lower.includes(k))) return r;
   }
-  return { reply: tr('mamai.fallback', "That's a great question for one of our agents to dig into with you directly. In the meantime, I can help with property valuations, neighborhood insights, and buy vs. rent guidance — what would you like to know?") };
+  return fallbackReply();
 }
 
 const chatLog = document.getElementById('chatLog');
@@ -504,12 +572,17 @@ function speechLangTag() {
   return 'en-US';
 }
 
-// Primary language family for picking an installed speech-SYNTHESIS voice.
-// Kurdish (Sorani) has no browser/OS voice anywhere, so it's approximated
-// with the best available Arabic voice rather than staying silent.
-function speechPrimaryLang() {
+// Ordered language-family candidates for picking an installed speech-
+// SYNTHESIS voice. Kurdish tries real Kurdish voices first (Sorani "ckb",
+// Kurmanji "kmr", generic "ku") in case the device actually has one
+// installed, and only falls back to an Arabic voice — which mispronounces
+// Kurdish text rather than truly speaking Kurdish — as a last resort so
+// something audible plays instead of silence.
+function speechVoiceLangCandidates() {
   const lang = localStorage.getItem('darwesh_lang') || 'en';
-  return (lang === 'ar' || lang === 'ku') ? 'ar' : 'en';
+  if (lang === 'ku') return ['ku', 'ckb', 'kmr', 'ar'];
+  if (lang === 'ar') return ['ar'];
+  return ['en'];
 }
 
 // speechSynthesis.getVoices() is populated asynchronously in most browsers
@@ -530,15 +603,19 @@ function voiceScore(v, primaryLang) {
   if (!v.localService) score += 2; // network-served voices generally sound less robotic
   return score;
 }
-// Picks the best-sounding installed voice for a language family, matching
-// on the family prefix (e.g. "ar") rather than one hardcoded region tag —
-// a system with only "ar-SA" installed still gets used for "ar-IQ" text.
-function pickVoice(primaryLang) {
+// Picks the best-sounding installed voice, trying each language-family
+// prefix in order (e.g. real Kurdish before falling back to Arabic) rather
+// than one hardcoded region tag — a system with only "ar-SA" installed
+// still gets used for "ar-IQ" text.
+function pickVoice(langCandidates) {
   if (!cachedVoices.length) return null;
-  const matching = cachedVoices.filter(v => v.lang.toLowerCase().startsWith(primaryLang));
-  const pool = matching.length ? matching : cachedVoices.filter(v => v.lang.toLowerCase().startsWith('en'));
-  if (!pool.length) return null;
-  return pool.slice().sort((a, b) => voiceScore(b, primaryLang) - voiceScore(a, primaryLang))[0];
+  for (const prefix of langCandidates) {
+    const matching = cachedVoices.filter(v => v.lang.toLowerCase().startsWith(prefix));
+    if (matching.length) return matching.slice().sort((a, b) => voiceScore(b, prefix) - voiceScore(a, prefix))[0];
+  }
+  const en = cachedVoices.filter(v => v.lang.toLowerCase().startsWith('en'));
+  if (!en.length) return null;
+  return en.slice().sort((a, b) => voiceScore(b, 'en') - voiceScore(a, 'en'))[0];
 }
 
 let voiceOutputEnabled = localStorage.getItem(VOICE_OUTPUT_KEY) === '1';
@@ -553,13 +630,13 @@ function speakReply(text) {
   if (!voiceOutputEnabled || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  const primaryLang = speechPrimaryLang();
-  const voice = pickVoice(primaryLang);
+  const candidates = speechVoiceLangCandidates();
+  const voice = pickVoice(candidates);
   if (voice) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
   } else {
-    utterance.lang = primaryLang === 'ar' ? 'ar-IQ' : 'en-US';
+    utterance.lang = candidates[0] === 'en' ? 'en-US' : 'ar-IQ';
   }
   window.speechSynthesis.speak(utterance);
 }
