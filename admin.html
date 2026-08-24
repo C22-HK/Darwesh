@@ -288,6 +288,65 @@
     .amenity-row-chip .km { font-family: 'Inter', sans-serif; font-weight: 700; color: #ffffff; flex: none; }
     .team-map-legend { display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #d2e4fb; }
     .team-map-legend .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+    .team-map-legend .line { width: 16px; height: 0; border-top: 2.5px dashed #ff6659; flex: none; }
+
+    /* Requests Map — full-access admin version of the public map's price
+       pins: same verified/unverified color coding, plus a violet "full
+       access" ring on private listings (shown at their real coordinates
+       here, never hidden the way the public map hides them). */
+    .req-pin {
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1.5px solid transparent;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      white-space: nowrap;
+      color: #ffffff;
+      cursor: pointer;
+    }
+    .req-pin.pin-unverified { background: #c62828; border-color: #8f1c1c; }
+    .req-pin.pin-verified { background: #2e7d32; border-color: #1e5620; }
+    .req-pin.pin-private { box-shadow: 0 0 0 2.5px #9c6ade, 0 2px 6px rgba(0,0,0,0.4); }
+    .req-pin:hover { transform: scale(1.08); }
+    .req-request-pin {
+      width: 26px; height: 26px; border-radius: 999px; background: #e9c176;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35); border: 2px solid #fff; cursor: pointer;
+    }
+    .req-nbhd-pin { width: 14px; height: 14px; border-radius: 999px; background: #4f9dff; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+    .req-nbhd-label {
+      background: rgba(4,22,39,0.9); color: #b7d4ff; font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 600; font-size: 10px; letter-spacing: 0.02em; padding: 2px 6px; border-radius: 6px;
+      border: 1px solid #2d4155; white-space: nowrap; pointer-events: none;
+    }
+    .req-boundary-label {
+      background: rgba(255,102,89,0.92); color: #ffffff; font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 700; font-size: 10.5px; letter-spacing: 0.03em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+    }
+    .req-map-popup .leaflet-popup-content-wrapper { background: #1a2b3c; color: #ffffff; border-radius: 10px; }
+    .req-map-popup .leaflet-popup-content { margin: 10px 12px; font-family: 'Inter', sans-serif; }
+    .req-map-popup .leaflet-popup-tip { background: #1a2b3c; }
+    .req-map-popup a.leaflet-popup-close-button { color: #b7c8de; }
+    .req-map-btn {
+      display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
+      background: #e9c176; color: #041627; font-weight: 700; font-size: 11.5px;
+      padding: 5px 10px; border-radius: 999px; cursor: pointer; border: none;
+      font-family: 'Inter', sans-serif;
+    }
+    .req-layer-toggle { display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; font-size: 12px; color: #d2e4fb; cursor: pointer; user-select: none; }
+    .req-layer-toggle input { accent-color: #e9c176; }
+    .req-filter-select {
+      background: #0b1420; border: 1px solid #2d4155; color: #d2e4fb; border-radius: 999px;
+      padding: 6px 10px; font-family: 'Inter', sans-serif; font-size: 12px;
+    }
+    .req-filter-input {
+      background: #0b1420; border: 1px solid #2d4155; color: #ffffff; border-radius: 999px;
+      padding: 6px 12px; font-family: 'Inter', sans-serif; font-size: 12px; width: 180px;
+    }
+    .req-filter-input::placeholder { color: #4f6073; }
   </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
@@ -453,12 +512,39 @@
     <!-- TAB: Requests Map -->
     <section id="tab-requestsmap" class="admin-tab-panel">
       <div class="rounded-2xl p-5 md:p-6" style="background:#041627;">
-        <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Listings &amp; Requests Map</p>
-        <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every agent listing and every customer request (Sell submission or Viewing Request) with a location. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
-        <div class="flex items-center gap-5 mb-3">
-          <div class="team-map-legend"><span class="dot" style="background:#4ae183;"></span><span data-i18n="admin.legendAgentListings">Agent Listings</span></div>
-          <div class="team-map-legend"><span class="dot" style="background:#e9c176;"></span><span data-i18n="admin.legendCustomerRequests">Customer Requests</span></div>
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Listings &amp; Requests Map</p>
+            <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#b7c8de;" data-i18n="admin.requestsMapNote">Every agent listing and every customer request (Sell submission or Viewing Request), shown at their real location — including private listings, which stay hidden on the public map. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
+          </div>
+          <span class="font-data-mono text-[9.5px] tracking-wide px-2 py-0.5 rounded" style="color:#9c6ade; border:1px solid rgba(156,106,222,0.4);" data-i18n="admin.fullAccessBadge">FULL ACCESS — EXACT LOCATIONS</span>
         </div>
+
+        <!-- Filters -->
+        <div class="flex items-center gap-3 mb-3 flex-wrap">
+          <input id="reqMapSearch" type="text" class="req-filter-input" data-i18n-placeholder="admin.requestsMapSearchPlaceholder" placeholder="Search city or address..."/>
+          <select id="reqMapVerifiedFilter" class="req-filter-select">
+            <option value="all" data-i18n="admin.filterAll">All</option>
+            <option value="verified" data-i18n="common.verified">Verified</option>
+            <option value="unverified" data-i18n="admin.filterUnverified">Unverified</option>
+          </select>
+          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerListings" checked/><span data-i18n="admin.legendAgentListings">Agent Listings</span></label>
+          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerRequests" checked/><span data-i18n="admin.legendCustomerRequests">Customer Requests</span></label>
+          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerNbhd" checked/><span data-i18n="map.legendNeighborhood">Neighborhood</span></label>
+          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerBoundaries" checked/><span data-i18n="map.legendAdminArea">Administrative Area</span></label>
+          <span id="reqMapResultCount" class="font-data-mono text-[11px] ml-auto" style="color:#8192a7;"></span>
+        </div>
+
+        <!-- Legend -->
+        <div class="flex items-center gap-5 mb-3 flex-wrap">
+          <div class="team-map-legend"><span class="dot" style="background:#c62828;"></span><span data-i18n="map.legendAgentListing">Agent Listing</span></div>
+          <div class="team-map-legend"><span class="dot" style="background:#2e7d32;"></span><span data-i18n="map.legendVerifiedListing">Verified &amp; Registered</span></div>
+          <div class="team-map-legend"><span class="dot" style="background:#2e7d32; box-shadow:0 0 0 2.5px #9c6ade;"></span><span data-i18n="admin.legendPrivateListing">Private (full access)</span></div>
+          <div class="team-map-legend"><span class="dot" style="background:#e9c176;"></span><span data-i18n="admin.legendCustomerRequests">Customer Requests</span></div>
+          <div class="team-map-legend"><span class="dot" style="background:#4f9dff;"></span><span data-i18n="map.legendNeighborhood">Neighborhood</span></div>
+          <div class="team-map-legend"><span class="line"></span><span data-i18n="map.legendAdminArea">Administrative Area</span></div>
+        </div>
+
         <div class="rounded-lg overflow-hidden border" style="border-color:#4f6073; height:560px;" id="dashRequestsMap"></div>
         <div id="dashRequestsMapStatus" class="hidden mt-2 space-y-1"></div>
       </div>
@@ -1839,26 +1925,175 @@ async function renderRequestsMapTab() {
     getDocs(collection(db, 'submissions')),
     getDocs(collection(db, 'listings'))
   ]);
-  const submissions = [];
-  submissionsSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
-  const listings = [];
-  listingsSnap.forEach(d => listings.push({ id: d.id, ...d.data() }));
-  renderDashRequestsMap(submissions, listings);
+  reqMapSubmissions = [];
+  submissionsSnap.forEach(d => reqMapSubmissions.push({ id: d.id, ...d.data() }));
+  reqMapListings = [];
+  listingsSnap.forEach(d => reqMapListings.push({ id: d.id, ...d.data() }));
+  renderDashRequestsMap();
+  loadReqMapBoundaries();
 }
 
-// Requests Map tab — agent listings (green pins) and customer requests
-// — sell submissions and viewing requests together (gold pins) — on one
-// map, so it's clear at a glance what's actual inventory versus what's
-// customer-driven demand. Click any pin to draw the same
-// nearest-hospital/market/school/mosque lines used elsewhere in this
-// dashboard, using the shared loadNearbyAmenities.
+// ---------------------------------------------------------------------
+// Requests Map tab — the admin, full-access counterpart to the public
+// map.html. Reuses that page's marker language (red/green price pins,
+// blue neighborhood markers, dark-red administrative boundaries, a
+// legend) so staff read the same visual system — but with nothing held
+// back: private listings show at their REAL coordinates with a violet
+// "full access" ring instead of being rolled into a hidden city badge,
+// and there's no zoom cap. Search/verified/layer filters and click-to-
+// edit / click-to-manage actions are admin-only additions on top.
+// ---------------------------------------------------------------------
 let dashRequestsMap = null;
 let dashRequestsPinMarkers = [];
 let dashRequestsAmenityLayers = [];
-const AGENT_LISTING_COLOR = '#4ae183';
-const CUSTOMER_REQUEST_COLOR = '#e9c176';
+let reqMapListings = [];
+let reqMapSubmissions = [];
+let reqMapBoundaryLayers = [];
+let reqMapBoundariesLoaded = false;
 
-function renderDashRequestsMap(submissions, listings) {
+function reqMapFiltered() {
+  const q = (document.getElementById('reqMapSearch').value || '').trim().toLowerCase();
+  const verifiedFilter = document.getElementById('reqMapVerifiedFilter').value;
+  const listings = reqMapListings.filter(l => {
+    if (l.lat == null || l.lng == null) return false;
+    if (q && !((l.city || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
+    if (verifiedFilter === 'verified' && !l.verified) return false;
+    if (verifiedFilter === 'unverified' && l.verified) return false;
+    return true;
+  });
+  const submissions = reqMapSubmissions.filter(s => {
+    const latLng = getRequestLatLng(s);
+    if (!latLng) return false;
+    if (q && !((s.city || '').toLowerCase().includes(q) || (s.address || '').toLowerCase().includes(q) || (s.title || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  return { listings, submissions };
+}
+
+function reqMapListingPopup(l) {
+  const badges = [
+    l.verified ? `<span class="badge badge-verified">${trAdmin('common.verified', 'Verified')}</span>` : `<span class="badge badge-rent">${trAdmin('admin.filterUnverified', 'Unverified')}</span>`,
+    l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#c9a6f5;">${trAdmin('map.privateListing', 'Private')}</span>` : ''
+  ].filter(Boolean).join(' ');
+  return `<div style="min-width:190px;">
+    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${l.title || l.address || ''}</p>
+    <p style="font-size:11.5px; color:#8192a7; margin-bottom:5px;">${l.address || ''}, ${l.city || ''}</p>
+    <p style="font-size:12.5px; margin-bottom:4px;">$${Number(l.price || 0).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''} &middot; ${l.beds || 0}bd &middot; ${l.baths || 0}ba</p>
+    <div style="margin-bottom:2px;">${badges}</div>
+    <button class="req-map-btn" onclick="jumpToListingFromMap('${l.id}')">${trAdmin('common.edit', 'Edit')}</button>
+  </div>`;
+}
+
+function reqMapSubmissionPopup(s) {
+  const isSell = s.type === 'sell';
+  return `<div style="min-width:190px;">
+    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request')}</p>
+    <p style="font-size:11.5px; color:#8192a7; margin-bottom:5px;">${s.title || s.address || ''}${s.city ? ', ' + s.city : ''}</p>
+    ${s.name ? `<p style="font-size:12.5px; margin-bottom:2px;">${s.name}</p>` : ''}
+    ${s.phone ? `<p style="font-size:12.5px; color:#8192a7; margin-bottom:2px;">${s.phone}</p>` : ''}
+    <button class="req-map-btn" onclick="jumpToSubmissionFromMap('${s.id}')">${trAdmin('admin.manage', 'Manage')}</button>
+  </div>`;
+}
+
+window.jumpToListingFromMap = function (id) {
+  dashRequestsMap.closePopup();
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
+  document.getElementById('tab-listings').classList.add('active');
+  renderListingsTable().then(() => {
+    window.editListing(id);
+    document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+};
+
+window.jumpToSubmissionFromMap = function (id) {
+  dashRequestsMap.closePopup();
+  openRequestDetail(id);
+};
+
+function reqMapNeighborhoodIcon() {
+  return L.divIcon({ className: '', html: `<div class="req-nbhd-pin"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
+}
+
+function buildReqMapNeighborhoods(visibleListings) {
+  const groups = {};
+  visibleListings.forEach(l => {
+    if (!l.address) return;
+    const key = l.address + '|' + l.city;
+    if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
+    groups[key].lats.push(l.lat);
+    groups[key].lngs.push(l.lng);
+  });
+  Object.values(groups).forEach(g => {
+    const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
+    const lng = g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length;
+    const marker = L.marker([lat, lng], { icon: reqMapNeighborhoodIcon(), zIndexOffset: -500, interactive: false });
+    marker.bindTooltip(g.name, { permanent: true, direction: 'top', offset: [0, -5], className: 'req-nbhd-label' });
+    marker.addTo(dashRequestsMap);
+    dashRequestsPinMarkers.push(marker);
+  });
+}
+
+// Same real-OSM administrative boundary overlay as the public map, loaded
+// once and left in place across refreshes/filters (it doesn't depend on
+// listing data, so there's no need to redraw it every time).
+async function loadReqMapBoundaries() {
+  if (reqMapBoundariesLoaded) return;
+  reqMapBoundariesLoaded = true;
+  const cityCenters = { Erbil: 1, Sulaymaniyah: 1, Duhok: 1, Zakho: 1, Soran: 1, Koya: 1, Kirkuk: 1 };
+  const bbox = '34.9,42.0,37.5,46.2';
+  const query = `[out:json][timeout:25];(way["boundary"="administrative"]["admin_level"="8"](${bbox});relation["boundary"="administrative"]["admin_level"="8"](${bbox}););out geom;`;
+  try {
+    const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(query) });
+    if (!res.ok) return;
+    const data = await res.json();
+    const ring = (geometry) => (geometry || []).map(pt => [pt.lat, pt.lon]);
+    const draw = (coords, label, labelLatLng) => {
+      if (coords.length < 2) return;
+      const closed = coords.length > 2 && Math.abs(coords[0][0] - coords[coords.length - 1][0]) < 1e-6 && Math.abs(coords[0][1] - coords[coords.length - 1][1]) < 1e-6;
+      const shape = closed
+        ? L.polygon(coords, { color: '#ff6659', weight: 2, opacity: 0.8, fillColor: '#ff6659', fillOpacity: 0.04 })
+        : L.polyline(coords, { color: '#ff6659', weight: 2, opacity: 0.8, dashArray: '6 4' });
+      shape.addTo(dashRequestsMap);
+      reqMapBoundaryLayers.push(shape);
+      if (label && labelLatLng) {
+        const lm = L.marker(labelLatLng, { icon: L.divIcon({ className: '', html: `<div class="req-boundary-label">${label}</div>`, iconSize: null, iconAnchor: [0, 0] }), interactive: false });
+        lm.addTo(dashRequestsMap);
+        reqMapBoundaryLayers.push(lm);
+      }
+    };
+    (data.elements || []).forEach(el => {
+      const name = (el.tags && (el.tags.name || el.tags['name:en'])) || '';
+      if (!Object.keys(cityCenters).some(c => name.toLowerCase() === c.toLowerCase())) return;
+      if (el.type === 'way' && el.geometry) {
+        const coords = ring(el.geometry);
+        draw(coords, name, coords[Math.floor(coords.length / 2)]);
+      } else if (el.type === 'relation' && el.members) {
+        let labelPlaced = false;
+        el.members.forEach(m => {
+          if (m.type !== 'way' || m.role !== 'outer' || !m.geometry) return;
+          const coords = ring(m.geometry);
+          draw(coords, labelPlaced ? null : name, labelPlaced ? null : coords[Math.floor(coords.length / 2)]);
+          labelPlaced = true;
+        });
+      }
+    });
+    reqMapSetBoundariesVisible(document.getElementById('reqLayerBoundaries').checked);
+  } catch (e) {
+    // Overpass unreachable — boundaries are a decorative overlay, so the
+    // rest of the map (listings, requests) still works without them.
+  }
+}
+
+function reqMapSetBoundariesVisible(visible) {
+  reqMapBoundaryLayers.forEach(layer => {
+    if (visible) { if (!dashRequestsMap.hasLayer(layer)) layer.addTo(dashRequestsMap); }
+    else { dashRequestsMap.removeLayer(layer); }
+  });
+}
+
+function renderDashRequestsMap() {
   if (!dashRequestsMap) {
     dashRequestsMap = L.map('dashRequestsMap', { zoomControl: false }).setView([36.35, 44.3], 8);
     L.control.zoom({ position: 'bottomright' }).addTo(dashRequestsMap);
@@ -1871,50 +2106,72 @@ function renderDashRequestsMap(submissions, listings) {
   clearAmenityLayers(dashRequestsMap, dashRequestsAmenityLayers);
   document.getElementById('dashRequestsMapStatus').classList.add('hidden');
 
+  const { listings, submissions } = reqMapFiltered();
   const allBounds = [];
 
-  const locatedListings = (listings || []).filter(l => l.lat != null && l.lng != null);
-  locatedListings.forEach(l => {
-    const latLng = [l.lat, l.lng];
-    const marker = L.marker(latLng, {
-      icon: L.divIcon({
-        className: '',
-        html: `<div style="width:26px;height:26px;border-radius:999px;background:${AGENT_LISTING_COLOR};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:2px solid #fff;"><span class="material-symbols-outlined" style="font-size:14px;color:#041627;">home_work</span></div>`,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
-      })
-    }).addTo(dashRequestsMap);
-    marker.bindTooltip(`${trAdmin('admin.legendAgentListings', 'Agent Listings')}: ${l.title || l.address || ''}${l.agentName ? ' — ' + l.agentName : ''}`);
-    marker.on('click', () => {
-      loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
+  if (document.getElementById('reqLayerListings').checked) {
+    listings.forEach(l => {
+      const latLng = [l.lat, l.lng];
+      const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
+      const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
+      const marker = L.marker(latLng, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="req-pin ${statusClass}${l.private ? ' pin-private' : ''}">${priceLabel}</div>`,
+          iconSize: null,
+          iconAnchor: [30, 15]
+        })
+      }).addTo(dashRequestsMap);
+      marker.bindPopup(reqMapListingPopup(l), { className: 'req-map-popup', maxWidth: 240 });
+      marker.on('click', () => {
+        loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
+      });
+      dashRequestsPinMarkers.push(marker);
+      allBounds.push(latLng);
     });
-    dashRequestsPinMarkers.push(marker);
-    allBounds.push(latLng);
-  });
+    if (document.getElementById('reqLayerNbhd').checked) {
+      buildReqMapNeighborhoods(listings);
+    }
+  }
 
-  const located = submissions.map(s => ({ s, latLng: getRequestLatLng(s) })).filter(x => x.latLng);
-  located.forEach(({ s, latLng }) => {
-    const isSell = s.type === 'sell';
-    const marker = L.marker(latLng, {
-      icon: L.divIcon({
-        className: '',
-        html: `<div style="width:26px;height:26px;border-radius:999px;background:${CUSTOMER_REQUEST_COLOR};display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:2px solid #fff;"><span class="material-symbols-outlined" style="font-size:14px;color:#041627;">${isSell ? 'sell' : 'event_available'}</span></div>`,
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
-      })
-    }).addTo(dashRequestsMap);
-    marker.bindTooltip(`${isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request')}: ${s.title || s.address || ''}`);
-    marker.on('click', () => {
-      loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
+  if (document.getElementById('reqLayerRequests').checked) {
+    submissions.forEach(s => {
+      const latLng = getRequestLatLng(s);
+      const isSell = s.type === 'sell';
+      const marker = L.marker(latLng, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="req-request-pin"><span class="material-symbols-outlined" style="font-size:14px;color:#041627;">${isSell ? 'sell' : 'event_available'}</span></div>`,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13]
+        })
+      }).addTo(dashRequestsMap);
+      marker.bindPopup(reqMapSubmissionPopup(s), { className: 'req-map-popup', maxWidth: 240 });
+      marker.on('click', () => {
+        loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
+      });
+      dashRequestsPinMarkers.push(marker);
+      allBounds.push(latLng);
     });
-    dashRequestsPinMarkers.push(marker);
-    allBounds.push(latLng);
-  });
+  }
+
+  document.getElementById('reqMapResultCount').textContent =
+    `${listings.length} ${trAdmin('admin.legendAgentListings', 'Agent Listings')} · ${submissions.length} ${trAdmin('admin.legendCustomerRequests', 'Customer Requests')}`;
 
   if (allBounds.length) {
-    dashRequestsMap.fitBounds(L.latLngBounds(allBounds).pad(0.3), { maxZoom: 12 });
+    dashRequestsMap.fitBounds(L.latLngBounds(allBounds).pad(0.3), { maxZoom: 14 });
   }
 }
+
+['reqMapSearch', 'reqMapVerifiedFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('input', renderDashRequestsMap);
+});
+['reqLayerListings', 'reqLayerRequests', 'reqLayerNbhd'].forEach(id => {
+  document.getElementById(id).addEventListener('change', renderDashRequestsMap);
+});
+document.getElementById('reqLayerBoundaries').addEventListener('change', (e) => {
+  reqMapSetBoundariesVisible(e.target.checked);
+});
 
 async function fetchAgentStats() {
   const [usersSnap, companiesSnap, listingsSnap] = await Promise.all([
