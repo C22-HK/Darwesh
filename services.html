@@ -230,6 +230,12 @@
 </button>
 </div>
 </section>
+<!-- Browse Apartments by City -->
+<section>
+<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="services.browseByCityTitle">Browse Apartments by City</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md" data-i18n="services.browseByCitySubtitle">Jump straight to verified apartment listings in the city you're looking for — no extra searching needed.</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="cityBrowseGrid"></div>
+</section>
 <!-- Smart Map Promo -->
 <section class="bg-primary text-on-primary rounded-xl overflow-hidden relative border border-primary-container shadow-lg">
 <div class="p-stack-lg relative z-10 space-y-stack-md md:w-2/3">
@@ -499,6 +505,63 @@ document.getElementById('serviceModalBackdrop').addEventListener('click', closeS
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeServiceModal();
 });
+
+// ---------------------------------------------------------------------
+// Browse Apartments by City — real per-city apartment counts pulled
+// from Firestore's `listings` collection (same one map.html/buy.html
+// read from), so this never shows a made-up number. Each card links
+// straight to buy.html pre-filtered to that city + apartments, so
+// someone looking for a specific city's apartments doesn't have to
+// search or filter manually.
+// ---------------------------------------------------------------------
+const BROWSE_CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
+let cityApartmentCounts = null;
+
+function renderCityBrowseGrid() {
+  const grid = document.getElementById('cityBrowseGrid');
+  if (!grid) return;
+  const counts = cityApartmentCounts || {};
+  grid.innerHTML = BROWSE_CITIES.map(city => {
+    const count = counts[city] || 0;
+    const label = (window.cityLabel && window.cityLabel(city)) || city;
+    return `
+      <a href="buy.html?type=apartment&city=${encodeURIComponent(city)}" class="group flex items-center justify-between bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3.5 hover:border-primary hover:shadow-[0_4px_16px_rgba(26,43,60,0.06)] transition-all">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors flex-none">
+            <span class="material-symbols-outlined text-[20px]">location_on</span>
+          </div>
+          <span class="font-body-lg text-body-lg font-medium text-on-surface truncate">${label}</span>
+        </div>
+        <div class="flex items-center gap-1 text-on-surface-variant flex-none">
+          <span class="font-data-mono text-data-mono text-[13px]">${count}</span>
+          <span class="material-symbols-outlined text-[18px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+        </div>
+      </a>`;
+  }).join('');
+}
+
+async function loadCityApartmentCounts() {
+  try {
+    const [{ db }, storeMod] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    ]);
+    const { collection, getDocs } = storeMod;
+    const snap = await getDocs(collection(db, 'listings'));
+    const counts = {};
+    snap.forEach(d => {
+      const l = d.data();
+      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
+    });
+    cityApartmentCounts = counts;
+  } catch (e) {
+    cityApartmentCounts = {};
+  }
+  renderCityBrowseGrid();
+}
+renderCityBrowseGrid();
+loadCityApartmentCounts();
+document.addEventListener('darwesh:langchange', renderCityBrowseGrid);
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script src="./js/i18n.js"></script>
