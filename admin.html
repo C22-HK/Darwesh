@@ -189,6 +189,23 @@
     .admin-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
     .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
 
+    /* Network tab — org-chart tree */
+    .net-node { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+    .net-node-circle { position: relative; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; color: #ffffff; box-shadow: 0 2px 6px rgba(4,22,39,0.18); overflow: hidden; transition: transform .15s ease; }
+    .net-node-root .net-node-circle { background: #041627; border: 3px solid #e9c176; font-size: 11px; }
+    .net-node-branch .net-node-circle { background: #1a2b3c; font-size: 15px; cursor: pointer; }
+    .net-node-branch .net-node-circle:hover { transform: scale(1.08); }
+    .net-node-agent .net-node-circle { background: #4f6073; font-size: 12.5px; cursor: pointer; }
+    .net-node-agent .net-node-circle:hover { transform: scale(1.1); }
+    .net-node-circle img { width: 100%; height: 100%; object-fit: cover; }
+    .net-node-label { margin-top: 6px; font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 500; color: #181c20; text-align: center; max-width: 108px; line-height: 1.25; }
+    .net-node-sub { font-family: 'Inter', sans-serif; font-size: 10px; color: #775a19; font-weight: 600; margin-top: 1px; }
+    .net-node.dim { opacity: .3; }
+    .net-node.match-ring .net-node-circle { box-shadow: 0 0 0 3px #e9c176, 0 2px 6px rgba(4,22,39,.18); }
+    .net-badge { position: absolute; top: -3px; right: -3px; background: #e9c176; color: #5d4201; font-size: 10px; font-weight: 700; border-radius: 9999px; min-width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid #ffffff; }
+    .net-empty-slot { font-family: 'Inter', sans-serif; font-size: 11px; color: #9aa1ab; font-style: italic; white-space: nowrap; }
+    #netAgentPopover { position: fixed; z-index: 80; background: #ffffff; border: 1px solid #e0e3e8; border-radius: 10px; box-shadow: 0 8px 24px rgba(4,22,39,.2); padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #181c20; width: 220px; }
+
     .dash-dark-wrap {
       background:
         linear-gradient(#041627, #041627),
@@ -791,7 +808,13 @@
         <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
         <input id="networkSearch" type="text" class="admin-input" style="padding-left:36px;" data-i18n-placeholder="admin.networkSearchPlaceholder" placeholder="Search agents or branches…"/>
       </div>
-      <div id="networkBody" class="flex flex-col gap-4"></div>
+      <p class="font-body-md text-[12px] text-on-surface-variant mb-3" data-i18n="admin.networkTreeHint">Click a branch to open it and see its agents inside.</p>
+      <div id="networkTreePanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-x-auto" style="padding: 32px 16px;">
+        <div id="networkTreeWrap" class="relative mx-auto" style="min-height:200px;">
+          <svg id="networkTreeSvg" class="absolute" style="top:0; left:0; pointer-events:none;"></svg>
+          <div id="networkTreeNodes"></div>
+        </div>
+      </div>
       <p id="networkEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
     </section>
 
@@ -2443,79 +2466,197 @@ async function renderAgentsTab() {
 }
 
 // ---------------------------------------------------------------------
-// Network tab — agents grouped by branch/company, with an Add Agent flow
+// Network tab — org-chart tree: Network root -> branches -> agents.
+// Click a branch node to open it and show its agents nested underneath,
+// click an agent node for a quick contact popover.
 // ---------------------------------------------------------------------
 let networkSearchTerm = '';
+let networkExpanded = new Set();
+let networkAgentsCache = [];
+
+function netInitials(name) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, badge, photo }) {
+  const classes = ['net-node', 'net-node-' + tier];
+  if (dim) classes.push('dim');
+  if (match) classes.push('match-ring');
+  const circleInner = photo
+    ? `<img src="${photo}" alt=""/>`
+    : `<span>${netInitials(tier === 'root' ? 'DG' : title)}</span>`;
+  const badgeHtml = (typeof badge === 'number') ? `<span class="net-badge">${badge}</span>` : '';
+  const safeTitle = (title || '').replace(/"/g, '&quot;');
+  return `
+    <div class="${classes.join(' ')}" style="left:${x}px; top:${y - r}px;" data-id="${id}" data-clickable="${clickable ? '1' : '0'}" title="${safeTitle}">
+      <div class="net-node-circle" style="width:${r * 2}px; height:${r * 2}px;">${circleInner}${badgeHtml}</div>
+      <p class="net-node-label">${title}</p>
+      ${sub ? `<p class="net-node-sub">${sub}</p>` : ''}
+    </div>`;
+}
 
 async function renderNetworkTab() {
   const { agents, companiesSnap, companyNames } = await fetchAgentStats();
-  const body = document.getElementById('networkBody');
+  networkAgentsCache = agents;
+
+  const panel = document.getElementById('networkTreePanel');
+  const wrap = document.getElementById('networkTreeWrap');
+  const svg = document.getElementById('networkTreeSvg');
+  const nodesEl = document.getElementById('networkTreeNodes');
   const empty = document.getElementById('networkEmpty');
+  closeNetAgentPopover();
 
   const groups = {};
   agents.forEach(a => {
     const cid = a.companyId || '—';
-    if (!groups[cid]) groups[cid] = { name: companyNames[cid] || cid, agents: [] };
+    if (!groups[cid]) groups[cid] = { id: cid, name: companyNames[cid] || cid, agents: [] };
     groups[cid].agents.push(a);
   });
   companiesSnap.forEach(d => {
-    if (!groups[d.id]) groups[d.id] = { name: d.data().name || d.id, agents: [] };
+    if (!groups[d.id]) groups[d.id] = { id: d.id, name: d.data().name || d.id, agents: [] };
   });
 
-  if (Object.keys(groups).length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  const branches = Object.values(groups).sort((a, b) => b.agents.length - a.agents.length);
+
+  if (branches.length === 0) {
+    panel.classList.add('hidden');
+    empty.classList.remove('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  empty.classList.add('hidden');
 
   const term = networkSearchTerm.trim().toLowerCase();
-  const branchIds = Object.keys(groups).sort((a, b) => groups[b].agents.length - groups[a].agents.length);
+  if (term) {
+    branches.forEach(b => {
+      const hasMatch = b.name.toLowerCase().includes(term) ||
+        b.agents.some(a => (a.displayName || '').toLowerCase().includes(term) || (a.email || '').toLowerCase().includes(term));
+      if (hasMatch) networkExpanded.add(b.id);
+    });
+  }
 
-  let anyVisible = false;
-  const html = branchIds.map(cid => {
-    const g = groups[cid];
-    const branchMatches = !term || g.name.toLowerCase().includes(term);
-    const filteredAgents = term
-      ? g.agents.filter(a => branchMatches || (a.displayName || '').toLowerCase().includes(term) || (a.email || '').toLowerCase().includes(term))
-      : g.agents;
-    if (term && !branchMatches && filteredAgents.length === 0) return '';
-    anyVisible = true;
-    const totalListings = g.agents.reduce((s, a) => s + a.listingCount, 0);
-    return `
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="flex items-center justify-between px-5 py-3.5 bg-surface-container-low border-b border-outline-variant">
-          <div class="flex items-center gap-2">
-            <span class="material-symbols-outlined text-primary" style="font-size:20px;">business_center</span>
-            <p class="font-body-md text-[14.5px] text-on-surface font-semibold">${g.name}</p>
-          </div>
-          <div class="flex items-center gap-3 font-label-caps text-label-caps text-on-surface-variant">
-            <span>${g.agents.length} ${trAdmin('admin.networkAgentsWord', 'agents')}</span>
-            <span>·</span>
-            <span>${totalListings} ${trAdmin('admin.networkListingsWord', 'listings')}</span>
-          </div>
-        </div>
-        ${filteredAgents.length === 0
-          ? `<p class="p-5 text-center font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noAgentsInBranch', 'No agents in this branch yet.')}</p>`
-          : `<div class="divide-y divide-outline-variant">
-              ${filteredAgents.map(a => `
-                <div class="flex items-center gap-3 px-5 py-3">
-                  ${a.photoURL
-                    ? `<img src="${a.photoURL}" class="w-10 h-10 rounded-full object-cover flex-none"/>`
-                    : `<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:18px; color:#8192a7;">person</span></div>`}
-                  <div class="min-w-0 flex-1">
-                    <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${a.displayName || '(no name)'}</p>
-                    <p class="font-body-md text-[12px] text-on-surface-variant truncate">${a.email || ''}${a.phone ? ' · ' + a.phone : ''}</p>
-                  </div>
-                  <div class="flex-none text-right">
-                    <p class="font-data-mono text-[12.5px] text-on-surface">${a.listingCount} <span class="text-on-surface-variant">${trAdmin('admin.networkListingsWord', 'listings')}</span></p>
-                    <p class="font-data-mono text-[11px] text-on-surface-variant">${a.verifiedCount} ${trAdmin('admin.thVerifiedCount', 'Verified')}</p>
-                  </div>
-                </div>
-              `).join('')}
-            </div>`}
+  const COL = 118, ROW = 128, R_ROOT = 32, R_BRANCH = 28, R_AGENT = 22;
+  let cursor = 0;
+  const branchLayout = branches.map(b => {
+    const expanded = networkExpanded.has(b.id);
+    const n = expanded ? Math.max(1, b.agents.length) : 1;
+    const startSlot = cursor;
+    cursor += n;
+    return { branch: b, expanded, slotCount: n, startSlot };
+  });
+  const totalWidth = cursor * COL;
+  const rootY = 40, branchY = rootY + ROW, agentY = branchY + ROW;
+  const rootX = totalWidth / 2;
+
+  wrap.style.width = totalWidth + 'px';
+  wrap.style.height = (agentY + 56) + 'px';
+
+  const nodeHtml = [];
+  const lines = [];
+
+  nodeHtml.push(netNodeHtml({
+    x: rootX, y: rootY, r: R_ROOT, tier: 'root', id: 'root', clickable: false,
+    title: trAdmin('admin.networkRootLabel', 'Darwesh Network'),
+    sub: `${branches.length} ${trAdmin('admin.networkBranchesWord', 'branches')}`
+  }));
+
+  branchLayout.forEach(bl => {
+    const b = bl.branch;
+    const bx = (bl.startSlot + bl.slotCount / 2) * COL;
+    lines.push({ x1: rootX, y1: rootY + R_ROOT, x2: bx, y2: branchY - R_BRANCH });
+
+    const branchNameMatches = !!term && b.name.toLowerCase().includes(term);
+    const branchHasAgentMatch = !!term && b.agents.some(a => (a.displayName || '').toLowerCase().includes(term) || (a.email || '').toLowerCase().includes(term));
+    const branchDim = !!term && !branchNameMatches && !branchHasAgentMatch;
+
+    nodeHtml.push(netNodeHtml({
+      x: bx, y: branchY, r: R_BRANCH, tier: 'branch', id: b.id, clickable: true,
+      title: b.name,
+      sub: `${b.agents.length} ${trAdmin('admin.networkAgentsWord', 'agents')}`,
+      badge: b.agents.length, dim: branchDim, match: branchNameMatches
+    }));
+
+    if (bl.expanded) {
+      if (b.agents.length === 0) {
+        nodeHtml.push(`<div class="net-node" style="left:${bx}px; top:${agentY - 8}px;"><p class="net-empty-slot">${trAdmin('admin.noAgentsInBranch', 'No agents in this branch yet.')}</p></div>`);
+      } else {
+        b.agents.forEach((a, i) => {
+          const ax = (bl.startSlot + i + 0.5) * COL;
+          lines.push({ x1: bx, y1: branchY + R_BRANCH, x2: ax, y2: agentY - R_AGENT });
+          const aMatch = !!term && ((a.displayName || '').toLowerCase().includes(term) || (a.email || '').toLowerCase().includes(term));
+          const aDim = !!term && !aMatch && !branchNameMatches;
+          nodeHtml.push(netNodeHtml({
+            x: ax, y: agentY, r: R_AGENT, tier: 'agent', id: a.uid, clickable: true,
+            title: a.displayName || '(no name)',
+            sub: `${a.listingCount} ${trAdmin('admin.networkListingsWord', 'listings')}`,
+            photo: a.photoURL, dim: aDim, match: aMatch
+          }));
+        });
+      }
+    }
+  });
+
+  nodesEl.innerHTML = nodeHtml.join('');
+  svg.setAttribute('width', totalWidth);
+  svg.setAttribute('height', agentY + 56);
+  svg.innerHTML = lines.map(l => `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="#cdbb92" stroke-width="1.5"/>`).join('');
+
+  nodesEl.querySelectorAll('.net-node-branch').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.id;
+      if (networkExpanded.has(id)) networkExpanded.delete(id); else networkExpanded.add(id);
+      renderNetworkTab();
+    });
+  });
+  nodesEl.querySelectorAll('.net-node-agent[data-clickable="1"]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const agent = networkAgentsCache.find(a => a.uid === el.dataset.id);
+      if (agent) openNetAgentPopover(el, agent);
+    });
+  });
+}
+
+function netPopoverOutsideClick(e) {
+  const pop = document.getElementById('netAgentPopover');
+  if (pop && !pop.contains(e.target)) closeNetAgentPopover();
+}
+function closeNetAgentPopover() {
+  const pop = document.getElementById('netAgentPopover');
+  if (pop) pop.remove();
+  document.removeEventListener('click', netPopoverOutsideClick);
+}
+function openNetAgentPopover(el, agent) {
+  closeNetAgentPopover();
+  const rect = el.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.id = 'netAgentPopover';
+  pop.innerHTML = `
+    <div class="flex items-center gap-2 mb-2">
+      ${agent.photoURL
+        ? `<img src="${agent.photoURL}" class="w-9 h-9 rounded-full object-cover flex-none"/>`
+        : `<div class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
+      <div class="min-w-0">
+        <p class="font-medium truncate">${agent.displayName || '(no name)'}</p>
+        <p class="text-[11px] text-on-surface-variant truncate">${agent.companyName}</p>
       </div>
-    `;
-  }).join('');
-
-  if (term && !anyVisible) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
-  empty.classList.add('hidden');
-  body.innerHTML = html;
+    </div>
+    <p class="truncate">${agent.email || ''}</p>
+    ${agent.phone ? `<p>${agent.phone}</p>` : ''}
+    <div class="flex gap-3 mt-2 pt-2 border-t border-outline-variant text-[11.5px] text-on-surface-variant">
+      <span>${agent.listingCount} ${trAdmin('admin.networkListingsWord', 'listings')}</span>
+      <span>${agent.verifiedCount} ${trAdmin('admin.thVerifiedCount', 'Verified')}</span>
+    </div>
+  `;
+  document.body.appendChild(pop);
+  const w = pop.offsetWidth;
+  const left = Math.min(Math.max(8, rect.left + rect.width / 2 - w / 2), document.documentElement.clientWidth - w - 8);
+  pop.style.top = (rect.bottom + 8) + 'px';
+  pop.style.left = left + 'px';
+  setTimeout(() => document.addEventListener('click', netPopoverOutsideClick), 0);
 }
 
 document.getElementById('networkSearch').addEventListener('input', (e) => {
@@ -2653,6 +2794,7 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     document.getElementById('addAgentFormWrap').classList.add('hidden');
     document.getElementById('addAgentSuccessWrap').classList.remove('hidden');
 
+    networkExpanded.add(companyId);
     renderNetworkTab(); renderAgentsTab(); renderBranchesTab(); renderUsers(); renderLeaderboardTab();
   } catch (err) {
     try { await deleteApp(secondaryApp); } catch (_) {}
