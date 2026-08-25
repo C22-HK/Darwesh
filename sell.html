@@ -274,9 +274,9 @@
 <span class="material-symbols-outlined text-[18px]">save</span>
                     <span data-i18n="sell.saveDraft">Save Draft</span>
                 </button>
-<button class="flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" type="submit">
+<button class="flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60" id="submitBtn" type="submit">
 <span class="material-symbols-outlined text-[18px]">send</span>
-                    <span data-i18n="sell.submitForVerification">Submit for Verification</span>
+                    <span id="submitBtnLabel" data-i18n="sell.submitForVerification">Submit for Verification</span>
                 </button>
 </div>
 <p class="font-body-md text-body-md text-on-surface-variant text-center px-6 pb-6 text-sm" data-i18n="sell.reviewNote">A Darwesh Group agent will review your listing and contact you within 24 hours.</p>
@@ -503,16 +503,46 @@ if (localStorage.getItem(DRAFT_KEY)) {
 // whether or not the visitor is logged in. A logged-in visitor's uid is
 // attached too, so they can also track it on account.html; a guest's
 // submission is saved with uid: null and is only visible to staff.
-let submitAuth = null, submitDb = null, submitFns = null;
+let submitAuth = null, submitDb = null, submitFns = null, submitStorage = null, storageFns = null;
 const submissionAuthReady = (async function initSubmissionAuth() {
-  const [{ auth, db }, authMod, storeMod] = await Promise.all([
+  const [{ auth, db, storage }, authMod, storeMod, storageMod] = await Promise.all([
     import('./js/firebase-init.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js')
   ]);
-  submitAuth = auth; submitDb = db;
+  submitAuth = auth; submitDb = db; submitStorage = storage;
   submitFns = { ...authMod, ...storeMod };
+  storageFns = storageMod;
 })();
+
+// Uploads whatever photos are currently selected to
+// sell-submissions/{token}/{n}-{fileName} and returns the download URLs
+// of whichever ones succeeded. One bad/oversized file shouldn't lose the
+// whole submission, so failures here are logged and skipped rather than
+// thrown — the property details the visitor spent time filling in still
+// get through even if a photo doesn't.
+async function uploadSelectedPhotos() {
+  const files = [...photoUpload.files];
+  if (!files.length) return { photoUrls: [], photoUploadToken: null };
+  const token = crypto.randomUUID();
+  const urls = [];
+  for (let i = 0; i < files.length; i++) {
+    const submitBtnLabel = document.getElementById('submitBtnLabel');
+    submitBtnLabel.textContent = tr('sell.uploadingPhoto', 'Uploading photo {n} of {total}...')
+      .replace('{n}', i + 1).replace('{total}', files.length);
+    try {
+      const file = files[i];
+      const safeName = i + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileRef = storageFns.ref(submitStorage, `sell-submissions/${token}/${safeName}`);
+      await storageFns.uploadBytes(fileRef, file);
+      urls.push(await storageFns.getDownloadURL(fileRef));
+    } catch (err) {
+      console.error('Could not upload photo', i, err);
+    }
+  }
+  return { photoUrls: urls, photoUploadToken: token };
+}
 
 document.getElementById('sellForm').addEventListener('submit', async function (e) {
   e.preventDefault();
@@ -520,8 +550,15 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   const errEl = document.getElementById('submitError');
   errEl.classList.add('hidden');
 
+  const submitBtn = document.getElementById('submitBtn');
+  const submitBtnLabel = document.getElementById('submitBtnLabel');
+  const originalLabel = submitBtnLabel.textContent;
+  submitBtn.disabled = true;
+
   await submissionAuthReady;
   try {
+    const { photoUrls, photoUploadToken } = await uploadSelectedPhotos();
+    submitBtnLabel.textContent = tr('sell.submitForVerification', 'Submit for Verification');
     await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), {
       uid: (submitAuth && submitAuth.currentUser) ? submitAuth.currentUser.uid : null,
       type: 'sell',
@@ -530,6 +567,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
       city: draft.citySelect, address: draft.addressInput, price: draft.priceInput,
       size: draft.sizeInput, beds: draft.bedsInput, baths: draft.bathsInput,
       description: draft.descriptionInput, pinLat: draft.pinLat, pinLng: draft.pinLng,
+      photoUrls, photoUploadToken,
       status: 'pending', createdAt: submitFns.serverTimestamp()
     });
   } catch (err) {
@@ -537,6 +575,8 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     errEl.textContent = ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.') + ' (' + err.message + ')';
     errEl.classList.remove('hidden');
     errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    submitBtn.disabled = false;
+    submitBtnLabel.textContent = originalLabel;
     return;
   }
 
