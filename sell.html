@@ -248,6 +248,7 @@
 <span class="font-body-md text-body-md text-on-surface-variant text-sm" data-i18n="sell.dragDrop">Drag and drop or click to browse</span>
 <input accept="image/*" class="hidden" id="photoUpload" multiple="" type="file"/>
 </label>
+<div id="photoPreviewGrid" class="hidden grid grid-cols-4 sm:grid-cols-6 gap-2 mt-3 max-h-56 overflow-y-auto"></div>
 </div>
 </div>
 <div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant">
@@ -351,18 +352,67 @@
 </nav>
 
 <script>
-/* Photo upload: click + drag-and-drop */
+/* Photo upload: click + drag-and-drop, with thumbnail previews of what
+   was actually selected — a text count alone doesn't confirm the right
+   files were picked, especially when dragging several in at once. */
 const dropzone = document.getElementById('dropzone');
 const photoUpload = document.getElementById('photoUpload');
 const photoLabel = document.getElementById('photoLabel');
+const photoPreviewGrid = document.getElementById('photoPreviewGrid');
+let photoPreviewUrls = [];
+
+function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
 function updatePhotoLabel(count) {
-  photoLabel.textContent = count > 0 ? `${count} file${count > 1 ? 's' : ''} selected` : 'Upload Photos & Floor Plans';
+  photoLabel.textContent = count > 0
+    ? count + ' ' + (count > 1 ? tr('sell.filesSelectedPlural', 'files selected') : tr('sell.filesSelectedSingular', 'file selected'))
+    : tr('sell.uploadPhotos', 'Upload Photos & Floor Plans');
 }
 
-photoUpload.addEventListener('change', function () {
-  updatePhotoLabel(this.files.length);
-});
+function renderPhotoPreviews() {
+  photoPreviewUrls.forEach(u => URL.revokeObjectURL(u));
+  photoPreviewUrls = [];
+  const files = [...photoUpload.files];
+  updatePhotoLabel(files.length);
+  if (!files.length) {
+    photoPreviewGrid.classList.add('hidden');
+    photoPreviewGrid.innerHTML = '';
+    return;
+  }
+  photoPreviewGrid.classList.remove('hidden');
+  photoPreviewGrid.innerHTML = files.map((file, i) => {
+    const url = URL.createObjectURL(file);
+    photoPreviewUrls.push(url);
+    return `<div class="relative rounded-lg overflow-hidden border border-outline-variant aspect-square bg-surface-container-low">
+      <img src="${url}" class="w-full h-full object-cover"/>
+      <button type="button" data-index="${i}" aria-label="Remove photo" class="photo-remove-btn absolute top-1 right-1 w-5 h-5 rounded-full bg-primary/80 text-on-primary flex items-center justify-center">
+        <span class="material-symbols-outlined" style="font-size:14px;">close</span>
+      </button>
+    </div>`;
+  }).join('');
+  photoPreviewGrid.querySelectorAll('.photo-remove-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      removePhoto(Number(btn.dataset.index));
+    });
+  });
+}
+
+// input.files is read-only, so adding/removing from an existing
+// selection means rebuilding it through a DataTransfer instead.
+function setPhotoFiles(fileList) {
+  const dt = new DataTransfer();
+  [...fileList].forEach(f => dt.items.add(f));
+  photoUpload.files = dt.files;
+  renderPhotoPreviews();
+}
+
+function removePhoto(index) {
+  setPhotoFiles([...photoUpload.files].filter((_, i) => i !== index));
+}
+
+photoUpload.addEventListener('change', renderPhotoPreviews);
 
 ['dragenter', 'dragover'].forEach(evt => {
   dropzone.addEventListener(evt, (e) => {
@@ -379,8 +429,7 @@ photoUpload.addEventListener('change', function () {
 dropzone.addEventListener('drop', (e) => {
   const files = e.dataTransfer.files;
   if (files.length > 0) {
-    photoUpload.files = files;
-    updatePhotoLabel(files.length);
+    setPhotoFiles(files);
   }
 });
 
