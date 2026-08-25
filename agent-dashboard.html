@@ -207,7 +207,15 @@
 
         <div class="mb-3">
           <label class="admin-label" for="fImg" data-i18n="agentDash.photoUrl">Photo URL (optional)</label>
-          <input id="fImg" class="admin-input" placeholder="https://..."/>
+          <div class="flex items-center gap-3">
+            <input id="fImg" class="admin-input flex-1" placeholder="https://..."/>
+            <label class="icon-btn" style="cursor:pointer; flex:none;" title="Upload a photo">
+              <span class="material-symbols-outlined" style="font-size:20px;">upload_file</span>
+              <input id="fImgUpload" type="file" accept="image/*" class="hidden"/>
+            </label>
+            <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;"/>
+          </div>
+          <p id="fImgUploadStatus" class="hidden font-body-md text-[11.5px] mt-1" style="color:#8192a7;"></p>
         </div>
 
         <div class="mb-3">
@@ -275,11 +283,12 @@
 </div>
 
 <script type="module">
-  import { auth, db } from './js/firebase-init.js';
+  import { auth, db, storage } from './js/firebase-init.js';
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import {
     doc, getDoc, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
   function trDash(key, fallback) { return (window.t && window.t(key)) || fallback; }
   let currentUid = null;
@@ -396,8 +405,42 @@
     pinLat = null; pinLng = null;
     document.getElementById('pinReadout').textContent = trDash('agentDash.noPinYet','No location pinned yet');
     if (agentPinMarker) { agentPinMap.removeLayer(agentPinMarker); agentPinMarker = null; }
+    updateImgPreview();
   }
   document.getElementById('formCancelBtn').addEventListener('click', resetForm);
+
+  // Photo upload for the Add/Edit Listing form — an alternative to typing
+  // an already-hosted image URL by hand. Uploads to Cloud Storage and
+  // fills fImg with the resulting download URL.
+  function updateImgPreview() {
+    const url = document.getElementById('fImg').value.trim();
+    const preview = document.getElementById('fImgPreview');
+    if (url) { preview.src = url; preview.classList.remove('hidden'); }
+    else { preview.classList.add('hidden'); }
+  }
+  document.getElementById('fImg').addEventListener('input', updateImgPreview);
+
+  document.getElementById('fImgUpload').addEventListener('change', async function () {
+    const file = this.files[0];
+    if (!file) return;
+    const statusEl = document.getElementById('fImgUploadStatus');
+    statusEl.textContent = trDash('agentDash.uploadingPhoto', 'Uploading...');
+    statusEl.classList.remove('hidden');
+    try {
+      const token = crypto.randomUUID();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileRef = storageRef(storage, `listing-photos/${token}/${safeName}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      document.getElementById('fImg').value = url;
+      updateImgPreview();
+      statusEl.classList.add('hidden');
+    } catch (err) {
+      statusEl.textContent = trDash('agentDash.uploadFailed', 'Upload failed: ') + err.message;
+    } finally {
+      this.value = '';
+    }
+  });
 
   document.getElementById('listingForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -463,6 +506,7 @@
     document.getElementById('fBaths').value = l.baths;
     document.getElementById('fSqft').value = l.sqft;
     document.getElementById('fImg').value = l.img || '';
+    updateImgPreview();
     document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
     document.getElementById('fVerified').checked = !!l.verified;
     document.getElementById('fPrivate').checked = !!l.private;
