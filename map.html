@@ -1345,6 +1345,29 @@ async function loadAdminBoundaries() {
 }
 loadAdminBoundaries();
 
+// Arriving from the Cities & Apartments nav (or any "browse this city"
+// link) should show every deal type for that city — sale and rent —
+// not just the default For Sale view, since the point of that nav is to
+// see everything available there, not just what's for sale.
+const urlParams = new URLSearchParams(window.location.search);
+const urlCity = urlParams.get('city');
+const urlType = urlParams.get('type');
+if (urlCity) {
+  document.getElementById('citySearch').value = urlCity;
+}
+if (urlType === 'all' || urlCity) {
+  activeType = 'all';
+  document.querySelectorAll('.type-toggle').forEach(b => {
+    b.classList.remove('bg-primary', 'text-on-primary');
+    b.classList.add('text-on-surface-variant');
+  });
+  const allBtn = document.querySelector('.type-toggle[data-type-filter="all"]');
+  if (allBtn) {
+    allBtn.classList.add('bg-primary', 'text-on-primary');
+    allBtn.classList.remove('text-on-surface-variant');
+  }
+}
+
 refresh();
 document.addEventListener('darwesh:langchange', refresh);
 setTimeout(() => { layoutMain(); map.invalidateSize(); }, 100);

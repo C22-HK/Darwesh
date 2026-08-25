@@ -4,8 +4,11 @@
 // listings from Firestore once, groups them by city, and renders a
 // dropdown of every known city plus any other city that actually shows
 // up in the data (so a listing added under a new city still surfaces
-// here, not just the curated majors). Every city links straight to
-// buy.html?city=<city> — no fabricated counts, no dead-end links.
+// here, not just the curated majors). Every city links to
+// map.html?city=<city>&type=all — the map shows every deal type, so a
+// city with only rentals (or only sales) still leads somewhere real
+// instead of a dead end. Counts include every listing regardless of
+// dealType, matching what that map view actually shows.
 // ---------------------------------------------------------------------
 import { db } from './firebase-init.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
@@ -26,7 +29,7 @@ function buildDropdownHtml(cityCounts, totalCount) {
     .sort((a, b) => b.count - a.count || a.city.localeCompare(b.city));
 
   const rows = cities.map(({ city, count }) => `
-    <a href="buy.html?city=${encodeURIComponent(city)}" class="flex items-center justify-between px-4 py-2.5 hover:bg-surface-container transition-colors">
+    <a href="map.html?city=${encodeURIComponent(city)}&type=all" class="flex items-center justify-between px-4 py-2.5 hover:bg-surface-container transition-colors">
       <span class="flex items-center gap-2 font-body-md text-[13.5px] text-on-surface">
         <span class="material-symbols-outlined text-[16px] text-on-surface-variant">location_on</span>
         ${cityLabel(city)}
@@ -35,7 +38,7 @@ function buildDropdownHtml(cityCounts, totalCount) {
     </a>`).join('');
 
   return `
-    <a href="buy.html" class="flex items-center justify-between px-4 py-2.5 border-b border-outline-variant hover:bg-surface-container transition-colors">
+    <a href="map.html?type=all" class="flex items-center justify-between px-4 py-2.5 border-b border-outline-variant hover:bg-surface-container transition-colors">
       <span class="font-label-caps text-label-caps text-secondary">${tr('citiesNav.allListings', 'All Listings')}</span>
       <span class="font-data-mono text-data-mono text-[12px] text-on-surface-variant">${totalCount}</span>
     </a>
@@ -80,10 +83,6 @@ async function init() {
     const snap = await getDocs(collection(db, 'listings'));
     snap.forEach(d => {
       const l = d.data();
-      // Every link here goes to buy.html, which only ever shows
-      // dealType === 'sale' listings — counting rentals too would show a
-      // nonzero count that leads to an empty results page.
-      if (l.dealType !== 'sale') return;
       totalCount++;
       if (l.city) cityCounts[l.city] = (cityCounts[l.city] || 0) + 1;
     });
