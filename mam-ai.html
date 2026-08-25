@@ -286,6 +286,7 @@ function fmtPrice(p) { return '$' + Math.round(p).toLocaleString(); }
 // --- Real, live market data (never fabricated) pulled from the same `listings`
 // collection every other page on the site reads from ---
 let marketStats = null; // { total, verified, byCity: { [city]: { count, saleCount, min, max, avg } } }
+let allListings = []; // Real listing docs, for the property-search intent below — never fabricated.
 
 async function loadMarketStats() {
   try {
@@ -297,10 +298,23 @@ async function loadMarketStats() {
     const snap = await getDocs(collection(db, 'listings'));
     const byCity = {};
     let total = 0, verified = 0;
+    const docs = [];
     snap.forEach(d => {
       const l = d.data();
       total++;
       if (l.verified) verified++;
+      if (l.status !== 'closed') {
+        docs.push({
+          id: d.id,
+          title: l.title || l.address || 'Property',
+          city: l.city || '',
+          propertyType: l.propertyType || '',
+          dealType: l.dealType || '',
+          price: typeof l.price === 'number' ? l.price : Number(l.price) || 0,
+          beds: Number(l.beds) || 0,
+          verified: !!l.verified
+        });
+      }
       if (!l.city) return;
       const c = byCity[l.city] || (byCity[l.city] = { count: 0, saleCount: 0, prices: [] });
       c.count++;
@@ -311,21 +325,45 @@ async function loadMarketStats() {
       delete c.prices;
     });
     marketStats = { total, verified, byCity };
+    allListings = docs;
   } catch (e) {
     marketStats = null;
+    allListings = [];
   }
 }
 loadMarketStats();
 
+// --- Kurdish/Arabic-aware text normalization --------------------------
+// Keyword matching only works if the visitor's actual spelling lines up
+// with our keyword lists. Arabic-script text typed on different keyboards
+// commonly mixes letter variants (ك vs ک, ي/ى vs ی), includes optional
+// diacritics, and uses Arabic-Indic digits (١٢٣) instead of Latin ones —
+// none of which should change what the message means to the matcher.
+function normalizeText(text) {
+  return text
+    .replace(/[ً-ْٰ]/g, '')
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/ك/g, 'ک')
+    .replace(/[يى]/g, 'ی')
+    .replace(/ة/g, 'ه')
+    .replace(/ؤ/g, 'و')
+    .replace(/[‌‎‏]/g, ' ')
+    .replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 const CITY_KEYWORDS = {
-  Erbil: ['erbil'],
-  Sulaymaniyah: ['sulaymaniyah', 'slemani'],
-  Duhok: ['duhok', 'dohuk'],
-  Kirkuk: ['kirkuk'],
-  Zakho: ['zakho'],
-  Soran: ['soran'],
-  Koya: ['koya'],
-  Halabja: ['halabja']
+  Erbil: ['erbil', 'هەولێر', 'اربیل', 'ھەولێر'],
+  Sulaymaniyah: ['sulaymaniyah', 'slemani', 'سلێمانی', 'سلیمانی', 'السلیمانیه'],
+  Duhok: ['duhok', 'dohuk', 'دهۆک', 'دهوک', 'دھۆک'],
+  Kirkuk: ['kirkuk', 'کەرکووک', 'کرکوک'],
+  Zakho: ['zakho', 'زاخۆ', 'زاخو'],
+  Soran: ['soran', 'سۆران', 'سوران'],
+  Koya: ['koya', 'کۆیە', 'کویه'],
+  Halabja: ['halabja', 'هەڵەبجە', 'حەلەبجە', 'حلبجه']
 };
 function detectCity(lower) {
   for (const city of Object.keys(CITY_KEYWORDS)) {
@@ -389,98 +427,216 @@ function listingsReply() {
   return tr('mamai.reply4', 'Here are our currently verified listings across Erbil, Sulaymaniyah, Duhok, and beyond — all confirmed by our trust and verification team.');
 }
 
+// ---------------------------------------------------------------------
+// Property search — turns a specific request ("a house in Kirkuk under
+// 150 million") into a real filter over the live `listings` data loaded
+// above. Only ever returns actual listing docs or an honest "no match"
+// message — nothing here is invented.
+// ---------------------------------------------------------------------
+const PROPERTY_TYPE_KEYWORDS = {
+  villa: ['villa', 'house', 'خانوو', 'خانووی', 'ڤیلا', 'منزل', 'بیت'],
+  apartment: ['apartment', 'flat', 'ئاپارتمان', 'شوقه', 'شقه'],
+  office: ['office', 'ofîs', 'ئۆفیس', 'فەرمانگە', 'مکتب'],
+  land: ['land', 'plot', 'زەوی', 'قطعه ارض', 'أرض', 'ارض']
+};
+function detectPropertyType(lower) {
+  for (const type of Object.keys(PROPERTY_TYPE_KEYWORDS)) {
+    if (PROPERTY_TYPE_KEYWORDS[type].some(k => lower.includes(k))) return type;
+  }
+  return null;
+}
+
+const DEAL_TYPE_RENT_KEYWORDS = ['rent', 'rental', 'renting', 'بەکرێدان', 'بکرێ', 'کرێ', 'ایجار', 'استئجار'];
+const DEAL_TYPE_SALE_KEYWORDS = ['buy', 'purchase', 'بکڕم', 'بۆ فرۆشتن', 'فرۆشتن', 'بیع', 'شراء'];
+function detectDealType(lower) {
+  if (DEAL_TYPE_RENT_KEYWORDS.some(k => lower.includes(k))) return 'rent';
+  if (DEAL_TYPE_SALE_KEYWORDS.some(k => lower.includes(k))) return 'sale';
+  return null;
+}
+
+// Approximate market rate, used only to interpret a spoken IQD amount
+// ("١٥٠ ملیۆن") into the same USD unit listings are stored/shown in —
+// never used to alter or invent a displayed price.
+const IQD_PER_USD = 1310;
+function extractPrice(lower) {
+  let value = null;
+  const magnitudeMatch = lower.match(/(\d+(?:\.\d+)?)\s*(ملیۆن|میلیون|مليون|million|هەزار|الف|ألف|thousand)/);
+  if (magnitudeMatch) {
+    value = parseFloat(magnitudeMatch[1]) * (/ملیۆن|میلیون|مليون|million/.test(magnitudeMatch[2]) ? 1000000 : 1000);
+  } else {
+    // No magnitude word ("million"/"thousand") — only treat a bare number
+    // as a price if the message clearly has price context (a currency
+    // word or an under/over qualifier), so a random 4+ digit number
+    // (a year, a phone fragment) never gets misread as a budget.
+    const hasCurrencyContext = /\$|dollar|دۆلار|دولار|usd|دینار|iqd|دينار/.test(lower) ||
+      MAX_PRICE_WORDS.some(w => lower.includes(w)) || MIN_PRICE_WORDS.some(w => lower.includes(w));
+    if (hasCurrencyContext) {
+      const bareMatch = lower.match(/\b(\d{4,})\b/);
+      if (bareMatch) value = parseFloat(bareMatch[1]);
+    }
+  }
+  if (!value) return null;
+  const mentionsDollars = /\$|dollar|دۆلار|دولار|usd/.test(lower);
+  const mentionsArabicScript = /[؀-ۿ]/.test(lower);
+  // Kurdish/Arabic speakers describing home prices almost always mean
+  // Iraqi Dinar even without saying so explicitly — only treat the number
+  // as USD if dollars were mentioned, or the message was typed in Latin.
+  const usdValue = (!mentionsDollars && mentionsArabicScript) ? value / IQD_PER_USD : value;
+  const isMax = MAX_PRICE_WORDS.some(w => lower.includes(w));
+  const isMin = !isMax && MIN_PRICE_WORDS.some(w => lower.includes(w));
+  return { usdValue, isMax, isMin };
+}
+const MAX_PRICE_WORDS = ['less than', 'under', 'below', 'up to', 'کەمتر', 'خوارتر', 'اقل من', 'أقل من'];
+const MIN_PRICE_WORDS = ['more than', 'over', 'above', 'at least', 'زیاتر', 'بەرزتر', 'اکثر من', 'أکثر من'];
+
+function extractBedrooms(lower) {
+  const match = lower.match(/(\d+)\s*(bedroom|bed|ژووری نوستن|ژوور|غرفه نوم|غرفه)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+// Only treated as a real search when the message is specific enough
+// (a city plus at least one more constraint) — a bare city name still
+// goes through the existing city-overview reply below, unchanged.
+function extractSearchCriteria(lower) {
+  const city = detectCity(lower);
+  if (!city) return null;
+  const propertyType = detectPropertyType(lower);
+  const dealType = detectDealType(lower);
+  const price = extractPrice(lower);
+  const bedrooms = extractBedrooms(lower);
+  if (!propertyType && !dealType && !price && !bedrooms) return null;
+  return { city, propertyType, dealType, price, bedrooms };
+}
+
+function describeCriteria(c) {
+  const parts = [mamCityLabel(c.city)];
+  if (c.propertyType) parts.push(tr('mamai.type_' + c.propertyType, c.propertyType));
+  if (c.price) {
+    const p = fmtPrice(c.price.usdValue);
+    if (c.price.isMax) parts.push(trf('mamai.underPrice', 'under {p}', { p }));
+    else if (c.price.isMin) parts.push(trf('mamai.overPrice', 'over {p}', { p }));
+  }
+  return parts.join(', ');
+}
+
+function searchResultLine(l) {
+  const beds = l.beds ? trf('mamai.searchBeds', ' · {n} bd', { n: l.beds }) : '';
+  return trf('mamai.searchResultLine', '• {title} — {price}{beds}', { title: l.title, price: fmtPrice(l.price), beds });
+}
+
+function searchReply(criteria) {
+  if (!allListings.length) {
+    return { reply: tr('mamai.searchNoData', "I don't have live listing data loaded right now — please try again in a moment, or browse listings directly."), cta: { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' } };
+  }
+  let matches = allListings.filter(l => l.city === criteria.city);
+  if (criteria.propertyType) matches = matches.filter(l => l.propertyType === criteria.propertyType);
+  if (criteria.dealType) matches = matches.filter(l => l.dealType === criteria.dealType);
+  if (criteria.bedrooms) matches = matches.filter(l => l.beds === criteria.bedrooms);
+  if (criteria.price) {
+    if (criteria.price.isMax) matches = matches.filter(l => l.price && l.price <= criteria.price.usdValue);
+    else if (criteria.price.isMin) matches = matches.filter(l => l.price && l.price >= criteria.price.usdValue);
+  }
+
+  const cta = { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html?city=' + encodeURIComponent(criteria.city) };
+  if (!matches.length) {
+    return { reply: trf('mamai.searchNoMatches', "I don't see any listings on Darwesh Group right now matching {details} — I can let you know as soon as one is added.", { details: describeCriteria(criteria) }), cta };
+  }
+  const top = matches.slice(0, 3).map(searchResultLine).join('\n');
+  return { reply: trf('mamai.searchResults', 'I found {n} matching listing(s) on Darwesh Group:\n{lines}', { n: matches.length, lines: top }), cta };
+}
+
 const RESPONSES = [
   {
-    keywords: ['worth', 'value', 'valuation', 'appraise', 'estimate'],
+    keywords: ['worth', 'value', 'valuation', 'appraise', 'estimate', 'نرخی خانوو', 'هەڵسەنگاندنی خانوو', 'بەهای خانوو', 'چەند بەها هەیە', 'تقییم', 'قیمه منزل'],
     get reply() { return worthReply(); },
     get cta() { return { label: tr('mamai.cta1', 'Get a Free Valuation'), href: 'sell.html' }; }
   },
   {
-    keywords: ['invest', 'investment', 'roi', 'return'],
+    keywords: ['invest', 'investment', 'roi', 'return', 'وەبەرهێنان', 'استثمار'],
     get reply() { return investReply(); },
     get cta() { return { label: tr('mamai.cta2', 'Browse Investment Properties'), href: 'buy.html' }; }
   },
   {
-    keywords: ['buy or rent', 'rent or buy', 'should i buy', 'should i rent'],
+    keywords: ['buy or rent', 'rent or buy', 'should i buy', 'should i rent', 'بکڕم یان بیکەمە کرێ', 'باشترە بکڕم یان کرێ بکەم', 'اشتری ام استاجر', 'اشتري أم أستأجر'],
     get reply() { return tr('mamai.reply3', "It depends on your timeline. If you plan to stay 5+ years, buying typically breaks even against renting within 3-4 years given current Kurdistan Region price trends. Renting offers more flexibility if you expect to relocate sooner."); },
     get cta() { return { label: tr('mamai.cta3', 'Compare Buy vs Rent'), href: 'buy.html' }; }
   },
   {
-    keywords: ['listing', 'listings', 'verified', 'available', 'properties'],
+    keywords: ['listing', 'listings', 'verified', 'available', 'properties', 'لیستی خانووەکان', 'خانووە بەردەستەکان', 'پشتڕاستکراوە', 'قوائم عقاریه', 'عقارات متاحه'],
     get reply() { return listingsReply(); },
     get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
   },
   {
-    keywords: ['sell', 'selling', 'list my'],
+    keywords: ['sell', 'selling', 'list my', 'فرۆشتنی خانوو', 'دەمەوێت بیفرۆشم', 'بیع منزل', 'اریدبیع'],
     get reply() { return tr('mamai.reply5', "I can help you get started selling. Darwesh Group offers verified buyer reach, MAM AI powered valuation, and a dedicated portfolio agent for every listing."); },
     get cta() { return { label: tr('insights.listProperty', 'List Your Property'), href: 'sell.html' }; }
   },
   {
-    keywords: ['erbil'],
+    keywords: CITY_KEYWORDS.Erbil,
     get reply() { return cityStatsReply('Erbil'); }
   },
   {
-    keywords: ['sulaymaniyah', 'slemani'],
+    keywords: CITY_KEYWORDS.Sulaymaniyah,
     get reply() { return cityStatsReply('Sulaymaniyah'); }
   },
   {
-    keywords: ['duhok', 'dohuk'],
+    keywords: CITY_KEYWORDS.Duhok,
     get reply() { return cityStatsReply('Duhok'); }
   },
   {
-    keywords: ['kirkuk'],
+    keywords: CITY_KEYWORDS.Kirkuk,
     get reply() { return cityStatsReply('Kirkuk'); }
   },
   {
-    keywords: ['zakho'],
+    keywords: CITY_KEYWORDS.Zakho,
     get reply() { return cityStatsReply('Zakho'); }
   },
   {
-    keywords: ['soran'],
+    keywords: CITY_KEYWORDS.Soran,
     get reply() { return cityStatsReply('Soran'); }
   },
   {
-    keywords: ['koya'],
+    keywords: CITY_KEYWORDS.Koya,
     get reply() { return cityStatsReply('Koya'); }
   },
   {
-    keywords: ['halabja'],
+    keywords: CITY_KEYWORDS.Halabja,
     get reply() { return cityStatsReply('Halabja'); }
   },
   {
-    keywords: ['rent', 'rental', 'renting'],
+    keywords: ['rent', 'rental', 'renting', 'بەکرێدان', 'خانووی کرێ', 'بۆ کرێ', 'ایجار', 'استئجار'],
     get reply() { return tr('mamai.replyRent', "We have rental listings across Erbil, Sulaymaniyah, Duhok, and more. I can show you current rental options that match what you're looking for."); },
     get cta() { return { label: tr('mamai.ctaRent', 'Browse Rentals'), href: 'rent.html' }; }
   },
   {
-    keywords: ['bedroom', 'bathroom', 'sqft', 'square feet', 'how big'],
+    keywords: ['bedroom', 'bathroom', 'sqft', 'square feet', 'how big', 'ژووری نوستن', 'چەند ژوور', 'قەبارە', 'غرفه نوم', 'مساحه'],
     get reply() { return tr('mamai.replySize', "Every listing on Darwesh Group shows exact bedrooms, bathrooms, and square footage on its details page, so you can filter down to exactly what fits your needs."); },
     get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
   },
   {
-    keywords: ['price', 'cheap', 'affordable', 'expensive', 'budget'],
+    keywords: ['price', 'cheap', 'affordable', 'expensive', 'budget', 'هەرزان', 'گران', 'بودجە', 'رخیص', 'غالی'],
     get reply() { return worthReply(); }
   },
   {
-    keywords: ['agent', 'contact', 'phone number', 'reach someone'],
+    keywords: ['agent', 'contact', 'phone number', 'reach someone', 'ئەجێنت', 'پەیوەندی', 'دەلال', 'وکیل', 'تواصل'],
     get reply() { return tr('mamai.replyAgent', "I can connect you directly with one of our agents — they can answer detailed questions and schedule a viewing for you."); },
     get cta() { return { label: tr('mamai.ctaAgent', 'Contact an Agent'), href: 'buy.html' }; }
   },
   {
-    keywords: ['thank'],
+    keywords: ['thank', 'سوپاس', 'شکرا'],
     get reply() { return tr('mamai.replyThanks', "You're welcome! Let me know if there's anything else you'd like to know about the market."); }
   },
   {
-    keywords: ['bye', 'goodbye'],
+    keywords: ['bye', 'goodbye', 'بەخاترت', 'خوات لەگەڵ', 'مع السلامه'],
     get reply() { return tr('mamai.replyBye', "Take care! Come back anytime you have more questions about buying, renting, or selling in the Kurdistan Region."); }
   },
   {
-    keywords: ['map', 'neighborhood', 'area', 'location'],
+    keywords: ['map', 'neighborhood', 'area', 'location', 'نەخشە', 'گەڕەک', 'ناوچە', 'خریطه', 'منطقه'],
     get reply() { return tr('mamai.reply9', "I can show you a live map of verified properties across the Kurdistan Region with price markers you can filter by city and type."); },
     get cta() { return { label: tr('mamai.cta6', 'Open the Map'), href: 'map.html' }; }
   },
   {
-    keywords: ['hello', 'hi', 'hey'],
+    keywords: ['hello', 'hi', 'hey', 'سڵاو', 'چۆنیت', 'مرحبا', 'السلام علیکم'],
     get reply() { return tr('mamai.reply10', "Hello! Ask me about property values, neighborhoods, or whether buying or renting makes more sense for your situation."); }
   }
 ];
@@ -507,9 +663,13 @@ function fallbackReply() {
 }
 
 function getResponse(text) {
-  const lower = text.toLowerCase();
+  const lower = normalizeText(text);
   const mentioned = detectCity(lower);
   if (mentioned) lastCity = mentioned;
+
+  const searchCriteria = extractSearchCriteria(lower);
+  if (searchCriteria) return searchReply(searchCriteria);
+
   for (const r of RESPONSES) {
     if (r.keywords.some(k => lower.includes(k))) return r;
   }
@@ -545,7 +705,7 @@ function addAiMessage(response) {
       <span class="material-symbols-outlined text-secondary text-[16px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
     </div>
     <div class="bg-surface-container-lowest border border-outline-variant rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] shadow-sm">
-      <p class="font-body-md text-body-md text-on-surface">${escapeHtml(response.reply)}</p>
+      <p class="font-body-md text-body-md text-on-surface">${escapeHtml(response.reply).split('\n').join('<br>')}</p>
       ${cta}
     </div>`;
   chatLog.appendChild(el);
