@@ -5,22 +5,40 @@ rules_version = '2';
 // (Storage must be enabled first — Firebase Console → Build → Storage →
 // Get started — if it hasn't been already.)
 //
-// Only one path is in use today: photos uploaded from the Sell form
-// (sell.html), before the submission itself even has an id. Each upload
-// batch gets its own random token generated client-side, so a submission's
-// photos land at sell-submissions/{token}/{fileName} and that token is
-// stored on the submission doc to link them back together.
+// Two paths are in use:
 //
-// sell.html has no login requirement (a guest can list a property), so
-// this intentionally allows unauthenticated uploads — same trust model as
-// the `submissions` collection in firestore.rules, which already accepts
-// guest-created docs. The size/type checks are the only real guardrail
-// against abuse at this layer.
+// - sell-submissions/{token}/{fileName} — photos uploaded from the Sell
+//   form (sell.html), before the submission itself even has an id. Each
+//   upload batch gets its own random token generated client-side, and
+//   that token is stored on the submission doc to link them back
+//   together. sell.html has no login requirement (a guest can list a
+//   property), so this intentionally allows unauthenticated uploads —
+//   same trust model as the `submissions` collection in firestore.rules,
+//   which already accepts guest-created docs.
+//
+// - listing-photos/{token}/{fileName} — photos uploaded from the Add/Edit
+//   Listing form in admin.html and agent-dashboard.html. Both require a
+//   signed-in agent or admin already (enforced by those pages' own auth
+//   gates), so this only requires request.auth != null rather than
+//   checking a specific role — Storage rules can't cheaply check the
+//   Firestore listings doc's agentId the way firestore.rules does for
+//   the listing itself, and every signed-in user on this project is
+//   already an agent or admin (customers never reach these pages).
+//
+// The size/type checks are the only real guardrail against abuse at this
+// layer beyond that.
 service firebase.storage {
   match /b/{bucket}/o {
     match /sell-submissions/{token}/{fileName} {
       allow read: if true;
       allow write: if request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+    match /listing-photos/{token}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                     && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
     }
