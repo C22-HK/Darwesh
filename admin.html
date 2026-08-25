@@ -616,9 +616,9 @@
         <div class="stat-mini"><p class="label" data-i18n="admin.activeListingsStat">Active listings</p><p class="value" id="mktListings">—</p></div>
         <div class="stat-mini"><p class="label" data-i18n="insights.avgSalePrice">Avg. sale price</p><p class="value" id="mktSale">—</p></div>
         <div class="stat-mini"><p class="label" data-i18n="insights.avgMonthlyRent">Avg. monthly rent</p><p class="value" id="mktRent">—</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.priceTrendStat">Price trend</p><p class="value" style="color:#006300;" id="mktTrend">—</p></div>
+        <div class="stat-mini"><p class="label" data-i18n="insights.verifiedListings">Verified listings</p><p class="value" id="mktVerified">—</p></div>
       </div>
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-4" data-i18n="admin.marketCondensedNote">Condensed from the same aggregated market figures shown publicly on Market Insights — illustrative estimates, not a live feed.</p>
+      <p class="font-body-md text-[13px] text-on-surface-variant mb-4" data-i18n="admin.marketCondensedNote">Condensed from the same live figures shown publicly on Market Insights — computed from active listings, sold/rented ones excluded.</p>
       <a href="insights.html" class="inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
         <span class="material-symbols-outlined" style="font-size:18px;">bar_chart</span><span data-i18n="admin.viewFullInsights">View Full Market Insights</span>
       </a>
@@ -1266,31 +1266,32 @@ document.getElementById('clearScanLogBtn').addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------------
-// Market Overview tab (same figures as insights.html, condensed)
+// Market Overview tab — condensed from the same real "listings"
+// collection insights.html computes its live figures from. Sold/rented
+// (status: 'closed') listings are excluded, same as everywhere else.
 // ---------------------------------------------------------------------
-const CITY_STATS = [
-  { city: "Erbil",         saleAvg: 295000, saleCount: 42, rentAvg: 950,  rentCount: 28 },
-  { city: "Sulaymaniyah",  saleAvg: 178000, saleCount: 25, rentAvg: 1150, rentCount: 19 },
-  { city: "Duhok",         saleAvg: 268000, saleCount: 18, rentAvg: 680,  rentCount: 14 },
-  { city: "Soran",         saleAvg: 310000, saleCount: 12, rentAvg: 520,  rentCount: 6  },
-  { city: "Zakho",         saleAvg: 142000, saleCount: 9,  rentAvg: 480,  rentCount: 5  },
-  { city: "Koya",          saleAvg: 118000, saleCount: 7,  rentAvg: 500,  rentCount: 9  }
-];
-const TREND_VALUES = [205000,208000,210000,212000,215000,218000,220000,224000,227000,230000,233000,236000];
-
 function fmtUSD(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
 
-function renderMarketOverview() {
-  let saleSum = 0, saleCount = 0, rentSum = 0, rentCount = 0;
-  CITY_STATS.forEach(c => {
-    saleSum += c.saleAvg * c.saleCount; saleCount += c.saleCount;
-    rentSum += c.rentAvg * c.rentCount; rentCount += c.rentCount;
-  });
-  document.getElementById('mktListings').textContent = (saleCount + rentCount).toLocaleString();
-  document.getElementById('mktSale').textContent = fmtUSD(saleSum / saleCount);
-  document.getElementById('mktRent').textContent = fmtUSD(rentSum / rentCount) + '/mo';
-  const yoy = ((TREND_VALUES[TREND_VALUES.length - 1] - TREND_VALUES[0]) / TREND_VALUES[0]) * 100;
-  document.getElementById('mktTrend').textContent = '+' + yoy.toFixed(1) + '% YoY';
+async function renderMarketOverview() {
+  let saleSum = 0, saleCount = 0, rentSum = 0, rentCount = 0, total = 0, verified = 0;
+  try {
+    const snap = await getDocs(collection(db, 'listings'));
+    snap.forEach(d => {
+      const l = d.data();
+      if (l.status === 'closed') return;
+      total++;
+      if (l.verified) verified++;
+      const price = Number(l.price) || 0;
+      if (l.dealType === 'sale') { saleSum += price; saleCount++; }
+      else if (l.dealType === 'rent') { rentSum += price; rentCount++; }
+    });
+  } catch (e) {
+    // Leave everything at its honest zero/empty default below.
+  }
+  document.getElementById('mktListings').textContent = total.toLocaleString();
+  document.getElementById('mktSale').textContent = saleCount ? fmtUSD(saleSum / saleCount) : '—';
+  document.getElementById('mktRent').textContent = rentCount ? fmtUSD(rentSum / rentCount) + '/mo' : '—';
+  document.getElementById('mktVerified').textContent = total ? Math.round((verified / total) * 100) + '%' : '—';
 }
 
 // ---------------------------------------------------------------------

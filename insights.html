@@ -281,12 +281,7 @@
     <div class="kpi-card">
       <p class="kpi-label" id="kpiSaleLabel" data-i18n="insights.avgSalePrice">Avg. sale price</p>
       <p class="kpi-value" id="kpiSale">—</p>
-      <div class="flex items-center justify-between mt-1">
-        <span class="kpi-delta" id="kpiSaleDelta">
-          <span class="material-symbols-outlined" style="font-size:15px;">trending_up</span><span id="kpiSaleDeltaText">—</span>
-        </span>
-        <svg id="kpiSparkline" width="72" height="24" viewBox="0 0 72 24"></svg>
-      </div>
+      <p class="kpi-note">&nbsp;</p>
     </div>
     <div class="kpi-card">
       <p class="kpi-label" id="kpiRentLabel" data-i18n="insights.avgMonthlyRent">Avg. monthly rent</p>
@@ -295,7 +290,7 @@
     </div>
     <div class="kpi-card">
       <p class="kpi-label" data-i18n="insights.verifiedListings">Verified listings</p>
-      <p class="kpi-value">78%</p>
+      <p class="kpi-value" id="kpiVerified">—</p>
       <p class="kpi-note" data-i18n="insights.platformWide">Platform-wide, all cities</p>
     </div>
   </div>
@@ -350,30 +345,9 @@
     </div>
   </div>
 
-  <!-- Chart 3: 12-month trend -->
-  <div class="chart-card mb-8">
-    <div>
-      <p class="chart-title" data-i18n="insights.chart3Title">Average sale price — Kurdistan Region</p>
-      <p class="chart-subtitle" data-i18n="insights.chart3Subtitle">12-month trend, all cities combined · not affected by the city filter above</p>
-    </div>
-    <div class="chart-svg-wrap mt-4" id="chart3Wrap">
-      <svg id="chart3Svg" viewBox="0 0 600 260" role="img" aria-label="Line chart of average sale price over the last 12 months"></svg>
-      <div class="chart-tip" id="chart3Tip"></div>
-    </div>
-    <button class="table-toggle mt-3" data-target="chart3Table" type="button">
-      <span class="material-symbols-outlined" style="font-size:15px;">format_list_bulleted</span><span data-i18n="insights.viewAsTable">View as table</span>
-    </button>
-    <div class="data-table-wrap" id="chart3Table">
-      <table class="data-table">
-        <thead><tr><th data-i18n="insights.thMonth">Month</th><th data-i18n="insights.thAvgSalePrice">Avg. sale price</th></tr></thead>
-        <tbody id="chart3TableBody"></tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- Methodology + CTAs -->
   <div class="border-t border-outline-variant pt-6 pb-4">
-    <p class="font-body-md text-[13px] text-on-surface-variant max-w-2xl mb-6" data-i18n="insights.methodology">Figures are aggregated estimates across active listings on the Darwesh Group platform, illustrative for this preview and refreshed periodically — not a live feed. For exact, individual listings, use the interactive map.</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant max-w-2xl mb-6" data-i18n="insights.methodology">Figures are computed live from active listings on the Darwesh Group platform — sold and rented listings are excluded. For exact, individual listings, use the interactive map.</p>
     <div class="flex flex-wrap gap-3">
       <a href="map.html" class="bg-primary text-on-primary px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-all inline-flex items-center gap-2">
         <span class="material-symbols-outlined" style="font-size:18px;">map</span><span data-i18n="insights.browseMap">Browse the Map</span>
@@ -410,22 +384,53 @@
 </nav>
 
 <script src="./js/i18n.js"></script>
-<script>
-// ---------------------------------------------------------------------
-// Data (illustrative, aggregated — see methodology note on the page)
-// ---------------------------------------------------------------------
-const CITY_STATS = [
-  { city: "Erbil",         saleAvg: 295000, saleCount: 42, rentAvg: 950,  rentCount: 28 },
-  { city: "Sulaymaniyah",  saleAvg: 178000, saleCount: 25, rentAvg: 1150, rentCount: 19 },
-  { city: "Duhok",         saleAvg: 268000, saleCount: 18, rentAvg: 680,  rentCount: 14 },
-  { city: "Soran",         saleAvg: 310000, saleCount: 12, rentAvg: 520,  rentCount: 6  },
-  { city: "Zakho",         saleAvg: 142000, saleCount: 9,  rentAvg: 480,  rentCount: 5  },
-  { city: "Koya",          saleAvg: 118000, saleCount: 7,  rentAvg: 500,  rentCount: 9  },
-  { city: "Kirkuk",        saleAvg: 165000, saleCount: 11, rentAvg: 560,  rentCount: 8  }
-];
+<script type="module">
+import { db } from './js/firebase-init.js';
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
-const TREND_LABELS = ["Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug"];
-const TREND_VALUES = [205000,208000,210000,212000,215000,218000,220000,224000,227000,230000,233000,236000];
+// ---------------------------------------------------------------------
+// Real data — computed live from the "listings" collection (the same
+// data every agent's Agent Dashboard and the public map read from).
+// Sold/rented (status: 'closed') listings are excluded, matching every
+// other public-facing count on the site. CITY_STATS only ever contains
+// cities that actually have at least one real listing right now — no
+// city gets a fabricated $0 bar just to fill out the chart.
+// ---------------------------------------------------------------------
+let CITY_STATS = [];
+let TOTAL_LISTINGS = 0;
+let VERIFIED_PCT = null;
+
+async function loadRealMarketData() {
+  const byCity = {};
+  let total = 0, verified = 0;
+  try {
+    const snap = await getDocs(collection(db, 'listings'));
+    snap.forEach(d => {
+      const l = d.data();
+      if (l.status === 'closed') return;
+      total++;
+      if (l.verified) verified++;
+      const city = l.city || 'Other';
+      if (!byCity[city]) byCity[city] = { city, saleSum: 0, saleCount: 0, rentSum: 0, rentCount: 0 };
+      const price = Number(l.price) || 0;
+      if (l.dealType === 'sale') { byCity[city].saleSum += price; byCity[city].saleCount++; }
+      else if (l.dealType === 'rent') { byCity[city].rentSum += price; byCity[city].rentCount++; }
+    });
+  } catch (e) {
+    // Leave everything at its honest zero/empty default below.
+  }
+
+  CITY_STATS = Object.values(byCity).map(c => ({
+    city: c.city,
+    saleAvg: c.saleCount ? c.saleSum / c.saleCount : 0,
+    saleCount: c.saleCount,
+    rentAvg: c.rentCount ? c.rentSum / c.rentCount : 0,
+    rentCount: c.rentCount
+  })).sort((a, b) => (b.saleCount + b.rentCount) - (a.saleCount + a.rentCount));
+
+  TOTAL_LISTINGS = total;
+  VERIFIED_PCT = total ? Math.round((verified / total) * 100) : null;
+}
 
 const COLOR_SALE = "#2a78d6";
 const COLOR_SALE_DIM = "#b9d3f0";
@@ -464,31 +469,12 @@ function computeKPIs(cityName) {
 
 function renderKPIs(cityName) {
   const k = computeKPIs(cityName);
-  const scopeLabel = cityName === "all" ? "All cities" : cityName;
+  const scopeLabel = cityName === "all" ? "All cities" : cityLabel(cityName);
   document.getElementById("kpiListings").textContent = k.totalListings.toLocaleString("en-US");
   document.getElementById("kpiListingsNote").textContent = scopeLabel;
   document.getElementById("kpiSale").textContent = k.avgSale ? fmtUSD(k.avgSale) : "—";
   document.getElementById("kpiRent").textContent = k.avgRent ? fmtUSD(k.avgRent) + "/mo" : "—";
-
-  const yoy = ((TREND_VALUES[TREND_VALUES.length - 1] - TREND_VALUES[0]) / TREND_VALUES[0]) * 100;
-  document.getElementById("kpiSaleDeltaText").textContent = "+" + yoy.toFixed(1) + "% YoY (region)";
-
-  // Sparkline: de-emphasis gray line, last segment in accent blue, per stat-tile spec
-  const spark = document.getElementById("kpiSparkline");
-  const w = 72, h = 24, pad = 2;
-  const min = Math.min(...TREND_VALUES), max = Math.max(...TREND_VALUES);
-  const pts = TREND_VALUES.map((v, i) => {
-    const x = pad + (i / (TREND_VALUES.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((v - min) / (max - min || 1)) * (h - pad * 2);
-    return [x, y];
-  });
-  const dim = pts.slice(0, -1).map(p => p.join(",")).join(" ");
-  const lastTwo = pts.slice(-2).map(p => p.join(",")).join(" ");
-  spark.innerHTML = `
-    <polyline points="${pts.map(p => p.join(",")).join(" ")}" fill="none" stroke="#c4c6cd" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    <polyline points="${lastTwo}" fill="none" stroke="${COLOR_SALE}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${pts[pts.length - 1][0]}" cy="${pts[pts.length - 1][1]}" r="2.5" fill="${COLOR_SALE}"/>
-  `;
+  document.getElementById("kpiVerified").textContent = VERIFIED_PCT === null ? "—" : VERIFIED_PCT + "%";
 }
 
 // ---------------------------------------------------------------------
@@ -507,15 +493,31 @@ function hideTip(tipEl) { tipEl.classList.remove("show"); }
 // ---------------------------------------------------------------------
 // Chart 1 — Average sale price by city (single-series bar, emphasis on filter)
 // ---------------------------------------------------------------------
+function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+function renderEmptyChart(svg, message) {
+  const W = svg.viewBox.baseVal.width || 600, H = svg.viewBox.baseVal.height || 300;
+  svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="13" font-family="Inter, sans-serif" fill="var(--ink-muted)">${message}</text>`;
+}
+
 function renderChart1(activeCity) {
   const svg = document.getElementById("chart1Svg");
   const tip = document.getElementById("chart1Tip");
   const wrap = document.getElementById("chart1Wrap");
+  const cities = CITY_STATS.filter(c => c.saleCount > 0);
+  const tbody = document.getElementById("chart1TableBody");
+
+  if (cities.length === 0) {
+    renderEmptyChart(svg, tr('insights.notEnoughSaleData', 'Not enough sale listings yet to chart this.'));
+    tbody.innerHTML = "";
+    return;
+  }
+
   const W = 600, H = 300, ML = 56, MR = 12, MT = 28, MB = 44;
   const plotW = W - ML - MR, plotH = H - MT - MB;
-  const maxY = niceMax(Math.max(...CITY_STATS.map(c => c.saleAvg)) * 1.08);
+  const maxY = niceMax(Math.max(...cities.map(c => c.saleAvg)) * 1.08);
   const yTicks = [0, maxY / 3, (maxY / 3) * 2, maxY];
-  const n = CITY_STATS.length;
+  const n = cities.length;
   const slot = plotW / n;
   const barW = Math.min(28, slot * 0.5);
 
@@ -527,7 +529,7 @@ function renderChart1(activeCity) {
   });
 
   let bars = "";
-  CITY_STATS.forEach((c, i) => {
+  cities.forEach((c, i) => {
     const x = ML + i * slot + (slot - barW) / 2;
     const barH = (c.saleAvg / maxY) * plotH;
     const y = MT + plotH - barH;
@@ -559,8 +561,7 @@ function renderChart1(activeCity) {
     el.addEventListener("blur", () => hideTip(tip));
   });
 
-  const tbody = document.getElementById("chart1TableBody");
-  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
+  tbody.innerHTML = cities.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
 }
 
 // ---------------------------------------------------------------------
@@ -570,6 +571,14 @@ function renderChart2(activeCity) {
   const svg = document.getElementById("chart2Svg");
   const tip = document.getElementById("chart2Tip");
   const wrap = document.getElementById("chart2Wrap");
+  const tbody = document.getElementById("chart2TableBody");
+
+  if (CITY_STATS.length === 0) {
+    renderEmptyChart(svg, tr('insights.notEnoughData', 'Not enough listings yet to chart this.'));
+    tbody.innerHTML = "";
+    return;
+  }
+
   const W = 600, H = 300, ML = 40, MR = 12, MT = 20, MB = 44;
   const plotW = W - ML - MR, plotH = H - MT - MB;
   const maxCount = Math.max(...CITY_STATS.map(c => Math.max(c.saleCount, c.rentCount)));
@@ -624,95 +633,7 @@ function renderChart2(activeCity) {
     el.addEventListener("blur", () => hideTip(tip));
   });
 
-  const tbody = document.getElementById("chart2TableBody");
   tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${c.saleCount}</td><td>${c.rentCount}</td></tr>`).join("");
-}
-
-// ---------------------------------------------------------------------
-// Chart 3 — 12-month average sale price trend (single line + crosshair)
-// ---------------------------------------------------------------------
-function renderChart3() {
-  const svg = document.getElementById("chart3Svg");
-  const tip = document.getElementById("chart3Tip");
-  const wrap = document.getElementById("chart3Wrap");
-  const W = 600, H = 260, ML = 56, MR = 16, MT = 24, MB = 36;
-  const plotW = W - ML - MR, plotH = H - MT - MB;
-  const minV = Math.min(...TREND_VALUES), maxV = Math.max(...TREND_VALUES);
-  const pad = (maxV - minV) * 0.25;
-  const yMin = Math.floor((minV - pad) / 10000) * 10000;
-  const yMax = Math.ceil((maxV + pad) / 10000) * 10000;
-  const yTicks = [yMin, (yMin + yMax) / 2, yMax];
-  const n = TREND_VALUES.length;
-
-  const xAt = i => ML + (i / (n - 1)) * plotW;
-  const yAt = v => MT + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
-
-  let gridSvg = "";
-  yTicks.forEach(t => {
-    const y = yAt(t);
-    gridSvg += `<line x1="${ML}" y1="${y}" x2="${W - MR}" y2="${y}" stroke="var(--grid-line)" stroke-width="1"/>`;
-    gridSvg += `<text x="${ML - 8}" y="${y + 4}" text-anchor="end" font-size="11" font-family="Inter, sans-serif" fill="var(--ink-muted)">${fmtCompactUSD(t)}</text>`;
-  });
-
-  const linePts = TREND_VALUES.map((v, i) => `${xAt(i)},${yAt(v)}`).join(" ");
-  const areaPts = `${xAt(0)},${MT + plotH} ${linePts} ${xAt(n - 1)},${MT + plotH}`;
-
-  let xLabels = "";
-  TREND_LABELS.forEach((lbl, i) => {
-    if (i % 2 === 0 || i === n - 1) {
-      xLabels += `<text x="${xAt(i)}" y="${H - MB + 18}" text-anchor="middle" font-size="11" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${lbl}</text>`;
-    }
-  });
-
-  const lastX = xAt(n - 1), lastY = yAt(TREND_VALUES[n - 1]);
-
-  let hitZones = "";
-  TREND_VALUES.forEach((v, i) => {
-    hitZones += `<rect class="hit-zone" x="${ML + (i / n) * plotW}" y="${MT}" width="${plotW / n}" height="${plotH}" fill="transparent" data-i="${i}" data-x="${xAt(i)}" data-y="${yAt(v)}" data-v="${v}"/>`;
-  });
-
-  svg.innerHTML = `
-    <defs>
-      <linearGradient id="chart3AreaFill" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${COLOR_SALE}" stop-opacity="0.10"/>
-        <stop offset="100%" stop-color="${COLOR_SALE}" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    ${gridSvg}
-    <line x1="${ML}" y1="${MT + plotH}" x2="${W - MR}" y2="${MT + plotH}" stroke="var(--axis-line)" stroke-width="1"/>
-    <polygon points="${areaPts}" fill="url(#chart3AreaFill)"/>
-    <polyline points="${linePts}" fill="none" stroke="${COLOR_SALE}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${lastX}" cy="${lastY}" r="4.5" fill="${COLOR_SALE}" stroke="#ffffff" stroke-width="2"/>
-    <text x="${lastX}" y="${lastY - 14}" text-anchor="end" font-size="12.5" font-weight="700" font-family="Inter, sans-serif" fill="var(--ink-primary)">${fmtCompactUSD(TREND_VALUES[n - 1])}</text>
-    ${xLabels}
-    <line id="chart3Crosshair" class="crosshair-line" x1="0" y1="${MT}" x2="0" y2="${MT + plotH}"/>
-    <circle id="chart3HoverDot" r="5" fill="${COLOR_SALE}" stroke="#ffffff" stroke-width="2" opacity="0"/>
-    ${hitZones}
-  `;
-
-  const crosshair = svg.querySelector("#chart3Crosshair");
-  const hoverDot = svg.querySelector("#chart3HoverDot");
-
-  svg.querySelectorAll(".hit-zone").forEach(el => {
-    const onEnter = () => {
-      const i = Number(el.dataset.i), x = Number(el.dataset.x), y = Number(el.dataset.y), v = Number(el.dataset.v);
-      crosshair.setAttribute("x1", x); crosshair.setAttribute("x2", x);
-      crosshair.classList.add("show");
-      hoverDot.setAttribute("cx", x); hoverDot.setAttribute("cy", y); hoverDot.setAttribute("opacity", 1);
-      showTip(tip, wrap, x, y, `
-        <div class="tip-row"><span class="tip-key" style="background:${COLOR_SALE}"></span><span class="tip-value">${fmtUSD(v)}</span></div>
-        <div style="color:#c4c6cd;">${TREND_LABELS[i]} · avg. sale price, Kurdistan Region</div>
-      `);
-    };
-    el.addEventListener("pointerenter", onEnter);
-    el.addEventListener("pointermove", onEnter);
-    el.addEventListener("focus", onEnter);
-    el.addEventListener("pointerleave", () => { crosshair.classList.remove("show"); hoverDot.setAttribute("opacity", 0); hideTip(tip); });
-    el.addEventListener("blur", () => { crosshair.classList.remove("show"); hoverDot.setAttribute("opacity", 0); hideTip(tip); });
-  });
-
-  const tbody = document.getElementById("chart3TableBody");
-  tbody.innerHTML = TREND_LABELS.map((lbl, i) => `<tr><td>${lbl}</td><td>${fmtUSD(TREND_VALUES[i])}</td></tr>`).join("");
 }
 
 // ---------------------------------------------------------------------
@@ -735,9 +656,9 @@ document.querySelectorAll(".table-toggle").forEach(btn => {
   });
 });
 
+await loadRealMarketData();
 renderAll("all");
-renderChart3();
-document.addEventListener('darwesh:langchange', () => { renderAll(document.getElementById("cityFilter").value); renderChart3(); });
+document.addEventListener('darwesh:langchange', () => { renderAll(document.getElementById("cityFilter").value); });
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/city-nav.js"></script>
