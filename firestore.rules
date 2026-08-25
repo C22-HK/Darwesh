@@ -48,16 +48,20 @@ service cloud.firestore {
     }
 
     // ---- User profiles ----
-    // Anyone signed in can read/create their own profile. A signed-in
-    // user can also read an AGENT's profile (name/email) — that's how a
-    // customer sees who their assigned agent is. A user can update their
-    // own profile but NOT change their own role, company, or assign
-    // themselves an agent (all three are set by you, manually, in the
-    // Firestore console — see the note in agent-dashboard.html / the
-    // chat for how). Only an admin profile can change someone else's
-    // role, company, or agent assignment.
+    // Anyone signed in can read/create their own profile. An AGENT's
+    // profile (name/email/photoURL) is publicly readable, even by a
+    // guest with no account — listing.html shows the listing agent's
+    // name and photo to every visitor, most of whom are browsing
+    // anonymously, and agentName is already denormalized onto the public
+    // `listings` collection anyway, so this isn't exposing anything new.
+    // A customer's own profile stays private (isOwner/isAdmin only). A
+    // user can update their own profile but NOT change their own role,
+    // company, or assign themselves an agent (all three are set by you,
+    // manually, in the Firestore console — see the note in
+    // agent-dashboard.html / the chat for how). Only an admin profile
+    // can change someone else's role, company, or agent assignment.
     match /users/{uid} {
-      allow read: if isOwner(uid) || isAdmin() || (isSignedIn() && resource.data.role == 'agent');
+      allow read: if isOwner(uid) || isAdmin() || resource.data.role == 'agent';
       allow create: if isOwner(uid) && request.resource.data.role == 'customer';
       allow update: if (isOwner(uid)
                           && request.resource.data.role == resource.data.role

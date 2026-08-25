@@ -131,9 +131,17 @@
     <section class="bg-primary-container rounded-2xl p-6 md:p-8 mb-6 relative overflow-hidden flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
       <div class="absolute -top-24 -right-24 w-64 h-64 bg-secondary opacity-10 rounded-full blur-3xl pointer-events-none"></div>
       <div class="relative z-10 flex-shrink-0">
-        <div class="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg mx-auto">
-          <span class="material-symbols-outlined text-on-primary text-[44px]">badge</span>
+        <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
+          <div id="agentPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
+            <span class="material-symbols-outlined text-on-primary text-[44px]" id="agentPhotoIcon">badge</span>
+            <img id="agentPhotoImg" class="hidden w-full h-full object-cover"/>
+          </div>
+          <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
+            <span class="material-symbols-outlined text-[16px]">photo_camera</span>
+            <input id="agentPhotoUpload" type="file" accept="image/*" class="hidden"/>
+          </label>
         </div>
+        <p id="agentPhotoStatus" class="hidden font-body-md text-[11px] text-primary-fixed-dim text-center mt-1.5"></p>
       </div>
       <div class="relative z-10 flex-1">
         <h1 class="font-headline-md text-[26px] md:text-[30px] text-on-primary font-bold mb-1" id="agentWelcomeName">Welcome</h1>
@@ -460,6 +468,39 @@
     }
   });
 
+  // Agent profile photo — shown here, and wherever this agent is
+  // surfaced publicly (listing.html's "Listed by", admin.html's Agents
+  // tab). Stored on the user's own profile doc, which an agent is
+  // already allowed to update (firestore.rules only locks role/
+  // assignedAgentId/companyId on that doc, not arbitrary other fields).
+  function setAgentPhoto(url) {
+    const img = document.getElementById('agentPhotoImg');
+    const icon = document.getElementById('agentPhotoIcon');
+    if (url) { img.src = url; img.classList.remove('hidden'); icon.classList.add('hidden'); }
+    else { img.classList.add('hidden'); icon.classList.remove('hidden'); }
+  }
+
+  document.getElementById('agentPhotoUpload').addEventListener('change', async function () {
+    const file = this.files[0];
+    if (!file || !currentUid) return;
+    const statusEl = document.getElementById('agentPhotoStatus');
+    statusEl.textContent = trDash('agentDash.uploadingPhoto', 'Uploading...');
+    statusEl.classList.remove('hidden');
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileRef = storageRef(storage, `agent-photos/${currentUid}/${Date.now()}-${safeName}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      await updateDoc(doc(db, 'users', currentUid), { photoURL: url });
+      setAgentPhoto(url);
+      statusEl.classList.add('hidden');
+    } catch (err) {
+      statusEl.textContent = trDash('agentDash.uploadFailed', 'Upload failed: ') + err.message;
+    } finally {
+      this.value = '';
+    }
+  });
+
   document.getElementById('listingForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('formError');
@@ -656,6 +697,7 @@
     document.getElementById('agentNameLabel').textContent = currentAgentName;
     document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
     document.getElementById('agentWelcomeEmail').textContent = user.email;
+    setAgentPhoto(profile.photoURL);
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('dashContent').classList.remove('hidden');
     initMap();
