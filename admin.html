@@ -423,6 +423,7 @@
       <button class="admin-tab" data-tab="requestsmap" type="button" data-i18n="admin.requestsMapTab">Requests Map</button>
       <button class="admin-tab" data-tab="branches" type="button" data-i18n="admin.branchesTab">Branches</button>
       <button class="admin-tab" data-tab="agents" type="button" data-i18n="admin.agentsTab">Agents</button>
+      <button class="admin-tab" data-tab="network" type="button" data-i18n="admin.networkTab">Network</button>
       <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
@@ -777,6 +778,23 @@
       </div>
     </section>
 
+    <!-- TAB: Network -->
+    <section id="tab-network" class="admin-tab-panel">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+        <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.networkNote">Every branch and every agent on the platform, grouped by company — add a new agent directly from here.</p>
+        <button id="openAddAgentBtn" type="button" class="flex-none inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
+          <span class="material-symbols-outlined text-[18px]">person_add</span>
+          <span data-i18n="admin.addAgentBtn">Add Agent</span>
+        </button>
+      </div>
+      <div class="relative mb-4">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+        <input id="networkSearch" type="text" class="admin-input" style="padding-left:36px;" data-i18n-placeholder="admin.networkSearchPlaceholder" placeholder="Search agents or branches…"/>
+      </div>
+      <div id="networkBody" class="flex flex-col gap-4"></div>
+      <p id="networkEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+    </section>
+
     <!-- TAB: Leaderboard -->
     <section id="tab-leaderboard" class="admin-tab-panel">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.leaderboardNote">Ranked by number of active listings — the most direct measure of contribution this platform can verify.</p>
@@ -815,11 +833,80 @@
 </div>
 </div>
 
+<!-- Network: Add Agent -->
+<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="addAgentOverlay">
+<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="addAgentBackdrop"></div>
+<div class="relative bg-surface-container-lowest w-full md:max-w-lg rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="addAgentClose" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+
+<div id="addAgentFormWrap">
+<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="admin.addAgentTitle">Add a new agent</h2>
+<p class="font-body-md text-[12.5px] text-on-surface-variant mb-4" data-i18n="admin.addAgentSubtitle">Creates a real login for them right away — share the email and password shown at the end so they can sign in.</p>
+<form id="addAgentForm" class="space-y-3">
+<div class="grid grid-cols-2 gap-3">
+<div>
+<label class="admin-label" for="aaFirstName" data-i18n="auth.firstName">First name</label>
+<input id="aaFirstName" class="admin-input" required type="text"/>
+</div>
+<div>
+<label class="admin-label" for="aaLastName" data-i18n="auth.lastName">Last name</label>
+<input id="aaLastName" class="admin-input" required type="text"/>
+</div>
+</div>
+<div>
+<label class="admin-label" for="aaPhone" data-i18n="sell.phoneNumber">Phone Number</label>
+<input id="aaPhone" class="admin-input" required type="tel" placeholder="+964 750 000 0000"/>
+</div>
+<div>
+<label class="admin-label" for="aaEmail" data-i18n="auth.email">Email</label>
+<input id="aaEmail" class="admin-input" required type="email"/>
+</div>
+<div>
+<label class="admin-label" for="aaPassword" data-i18n="auth.password">Password</label>
+<div class="flex gap-2">
+<input id="aaPassword" class="admin-input" required minlength="6" type="text"/>
+<button type="button" id="aaGeneratePw" class="flex-none px-3 rounded-lg border border-outline-variant text-on-surface-variant hover:bg-surface-container text-[12px] font-label-caps" data-i18n="admin.generateBtn">Generate</button>
+</div>
+<p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="admin.addAgentPasswordNote">Pre-filled with a random password — you can edit it. Share it with the agent; they can change it later from Account settings.</p>
+</div>
+<div>
+<label class="admin-label" for="aaCompanySelect" data-i18n="auth.company">Company / Agency</label>
+<select id="aaCompanySelect" class="admin-input"></select>
+<input id="aaCompanyNew" class="admin-input hidden mt-2" type="text" data-i18n-placeholder="admin.newCompanyNamePlaceholder" placeholder="New company name"/>
+</div>
+<p id="addAgentError" class="hidden text-error text-[13px]"></p>
+<button id="addAgentSubmitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="admin.addAgentSubmitBtn">Create agent account</button>
+</form>
+</div>
+
+<div class="hidden text-center py-4" id="addAgentSuccessWrap">
+<span class="material-symbols-outlined" style="font-size:40px; color:#00a656;">check_circle</span>
+<h2 class="font-headline-md text-headline-md text-primary mt-2 mb-1" data-i18n="admin.addAgentSuccessTitle">Agent account created</h2>
+<p class="font-body-md text-[12.5px] text-on-surface-variant mb-4" data-i18n="admin.addAgentSuccessNote">Share these sign-in details with them — they can change the password from Account settings after logging in.</p>
+<div class="bg-surface-container rounded-lg p-4 text-left space-y-2 mb-4">
+<div>
+<p class="admin-label" data-i18n="auth.email">Email</p>
+<p class="font-data-mono text-[13.5px] text-on-surface" id="addAgentSuccessEmail"></p>
+</div>
+<div>
+<p class="admin-label" data-i18n="auth.password">Password</p>
+<p class="font-data-mono text-[13.5px] text-on-surface" id="addAgentSuccessPassword"></p>
+</div>
+</div>
+<button id="addAgentDoneBtn" type="button" class="w-full border border-outline-variant rounded-lg py-3 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.close">Close</button>
+</div>
+
+</div>
+</div>
+
 <script type="module">
-import { auth, db, storage } from './js/firebase-init.js';
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { auth, db, storage, firebaseConfig } from './js/firebase-init.js';
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  doc, getDoc, updateDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp
+  doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, getFirestore
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
@@ -942,6 +1029,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     }
     if (tab.dataset.tab === 'branches') renderBranchesTab();
     if (tab.dataset.tab === 'agents') renderAgentsTab();
+    if (tab.dataset.tab === 'network') renderNetworkTab();
     if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
   });
 });
@@ -958,7 +1046,7 @@ document.querySelectorAll('.filter-chip').forEach(chip => {
 function initDashboard() {
   if (dashboardInited) {
     renderUsers(); renderListingsTable(); renderServicesTab();
-    renderDashboardTab(); renderRequestsMapTab(); renderBranchesTab(); renderAgentsTab(); renderLeaderboardTab();
+    renderDashboardTab(); renderRequestsMapTab(); renderBranchesTab(); renderAgentsTab(); renderNetworkTab(); renderLeaderboardTab();
     return;
   }
   dashboardInited = true;
@@ -971,6 +1059,7 @@ function initDashboard() {
   renderRequestsMapTab();
   renderBranchesTab();
   renderAgentsTab();
+  renderNetworkTab();
   renderLeaderboardTab();
   document.addEventListener('darwesh:langchange', () => {
     renderUsers();
@@ -980,6 +1069,7 @@ function initDashboard() {
     renderRequestsMapTab();
     renderBranchesTab();
     renderAgentsTab();
+    renderNetworkTab();
     renderLeaderboardTab();
   });
 }
@@ -2351,6 +2441,228 @@ async function renderAgentsTab() {
       <td>${a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
     </tr>`).join('');
 }
+
+// ---------------------------------------------------------------------
+// Network tab — agents grouped by branch/company, with an Add Agent flow
+// ---------------------------------------------------------------------
+let networkSearchTerm = '';
+
+async function renderNetworkTab() {
+  const { agents, companiesSnap, companyNames } = await fetchAgentStats();
+  const body = document.getElementById('networkBody');
+  const empty = document.getElementById('networkEmpty');
+
+  const groups = {};
+  agents.forEach(a => {
+    const cid = a.companyId || '—';
+    if (!groups[cid]) groups[cid] = { name: companyNames[cid] || cid, agents: [] };
+    groups[cid].agents.push(a);
+  });
+  companiesSnap.forEach(d => {
+    if (!groups[d.id]) groups[d.id] = { name: d.data().name || d.id, agents: [] };
+  });
+
+  if (Object.keys(groups).length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+
+  const term = networkSearchTerm.trim().toLowerCase();
+  const branchIds = Object.keys(groups).sort((a, b) => groups[b].agents.length - groups[a].agents.length);
+
+  let anyVisible = false;
+  const html = branchIds.map(cid => {
+    const g = groups[cid];
+    const branchMatches = !term || g.name.toLowerCase().includes(term);
+    const filteredAgents = term
+      ? g.agents.filter(a => branchMatches || (a.displayName || '').toLowerCase().includes(term) || (a.email || '').toLowerCase().includes(term))
+      : g.agents;
+    if (term && !branchMatches && filteredAgents.length === 0) return '';
+    anyVisible = true;
+    const totalListings = g.agents.reduce((s, a) => s + a.listingCount, 0);
+    return `
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <div class="flex items-center justify-between px-5 py-3.5 bg-surface-container-low border-b border-outline-variant">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary" style="font-size:20px;">business_center</span>
+            <p class="font-body-md text-[14.5px] text-on-surface font-semibold">${g.name}</p>
+          </div>
+          <div class="flex items-center gap-3 font-label-caps text-label-caps text-on-surface-variant">
+            <span>${g.agents.length} ${trAdmin('admin.networkAgentsWord', 'agents')}</span>
+            <span>·</span>
+            <span>${totalListings} ${trAdmin('admin.networkListingsWord', 'listings')}</span>
+          </div>
+        </div>
+        ${filteredAgents.length === 0
+          ? `<p class="p-5 text-center font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noAgentsInBranch', 'No agents in this branch yet.')}</p>`
+          : `<div class="divide-y divide-outline-variant">
+              ${filteredAgents.map(a => `
+                <div class="flex items-center gap-3 px-5 py-3">
+                  ${a.photoURL
+                    ? `<img src="${a.photoURL}" class="w-10 h-10 rounded-full object-cover flex-none"/>`
+                    : `<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:18px; color:#8192a7;">person</span></div>`}
+                  <div class="min-w-0 flex-1">
+                    <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${a.displayName || '(no name)'}</p>
+                    <p class="font-body-md text-[12px] text-on-surface-variant truncate">${a.email || ''}${a.phone ? ' · ' + a.phone : ''}</p>
+                  </div>
+                  <div class="flex-none text-right">
+                    <p class="font-data-mono text-[12.5px] text-on-surface">${a.listingCount} <span class="text-on-surface-variant">${trAdmin('admin.networkListingsWord', 'listings')}</span></p>
+                    <p class="font-data-mono text-[11px] text-on-surface-variant">${a.verifiedCount} ${trAdmin('admin.thVerifiedCount', 'Verified')}</p>
+                  </div>
+                </div>
+              `).join('')}
+            </div>`}
+      </div>
+    `;
+  }).join('');
+
+  if (term && !anyVisible) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  body.innerHTML = html;
+}
+
+document.getElementById('networkSearch').addEventListener('input', (e) => {
+  networkSearchTerm = e.target.value;
+  renderNetworkTab();
+});
+
+function slugifyCompany(name) {
+  return name.trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'company';
+}
+
+function genAgentPassword() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 10; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  return pw;
+}
+
+async function populateCompanySelect() {
+  const select = document.getElementById('aaCompanySelect');
+  const { companiesSnap } = await fetchAgentStats();
+  const branches = [];
+  companiesSnap.forEach(d => branches.push({ id: d.id, name: d.data().name || d.id }));
+  branches.sort((a, b) => a.name.localeCompare(b.name));
+  select.innerHTML = branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')
+    + `<option value="__new__">${trAdmin('admin.newCompanyOption', '+ New company…')}</option>`;
+}
+
+document.getElementById('aaCompanySelect').addEventListener('change', (e) => {
+  document.getElementById('aaCompanyNew').classList.toggle('hidden', e.target.value !== '__new__');
+});
+
+document.getElementById('aaGeneratePw').addEventListener('click', () => {
+  document.getElementById('aaPassword').value = genAgentPassword();
+});
+
+function openAddAgentModal() {
+  document.getElementById('addAgentForm').reset();
+  document.getElementById('aaCompanyNew').classList.add('hidden');
+  document.getElementById('addAgentError').classList.add('hidden');
+  document.getElementById('addAgentFormWrap').classList.remove('hidden');
+  document.getElementById('addAgentSuccessWrap').classList.add('hidden');
+  document.getElementById('aaPassword').value = genAgentPassword();
+  populateCompanySelect();
+  document.getElementById('addAgentOverlay').classList.remove('hidden');
+}
+function closeAddAgentModal() {
+  document.getElementById('addAgentOverlay').classList.add('hidden');
+}
+document.getElementById('openAddAgentBtn').addEventListener('click', openAddAgentModal);
+document.getElementById('addAgentClose').addEventListener('click', closeAddAgentModal);
+document.getElementById('addAgentBackdrop').addEventListener('click', closeAddAgentModal);
+document.getElementById('addAgentDoneBtn').addEventListener('click', closeAddAgentModal);
+
+function friendlyAddAgentError(code) {
+  switch (code) {
+    case 'auth/email-already-in-use': return trAdmin('admin.errEmailInUse', 'An account with that email already exists.');
+    case 'auth/invalid-email': return trAdmin('admin.errBadEmail', "That email address doesn't look right.");
+    case 'auth/weak-password': return trAdmin('admin.errWeakPassword', 'Password is too weak — use at least 6 characters.');
+    default: return trAdmin('admin.errAddAgentGeneric', 'Something went wrong creating the account. Please try again.');
+  }
+}
+
+document.getElementById('addAgentForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('addAgentError');
+  errEl.classList.add('hidden');
+  const submitBtn = document.getElementById('addAgentSubmitBtn');
+
+  const firstName = document.getElementById('aaFirstName').value.trim();
+  const lastName = document.getElementById('aaLastName').value.trim();
+  const phone = document.getElementById('aaPhone').value.trim();
+  const email = document.getElementById('aaEmail').value.trim();
+  const password = document.getElementById('aaPassword').value;
+  const companySelectVal = document.getElementById('aaCompanySelect').value;
+  const newCompanyName = document.getElementById('aaCompanyNew').value.trim();
+
+  let companyId, companyName;
+  if (companySelectVal === '__new__') {
+    if (!newCompanyName) {
+      errEl.textContent = trAdmin('admin.errCompanyNameRequired', 'Enter a name for the new company.');
+      errEl.classList.remove('hidden');
+      return;
+    }
+    companyName = newCompanyName;
+    companyId = slugifyCompany(newCompanyName);
+  } else {
+    companyId = companySelectVal;
+    const opt = document.getElementById('aaCompanySelect').selectedOptions[0];
+    companyName = opt ? opt.textContent : companyId;
+  }
+
+  const displayName = [firstName, lastName].filter(Boolean).join(' ');
+  submitBtn.disabled = true;
+  submitBtn.textContent = trAdmin('admin.addingAgent', 'Creating account…');
+
+  // A brand-new Auth account can only be made by signing in AS that
+  // account — createUserWithEmailAndPassword signs in whatever `auth`
+  // instance it's called on. Doing that on the admin's own `auth` would
+  // sign the admin out of their own session. A second, throwaway Firebase
+  // App instance (same project, fully isolated auth state) creates the
+  // account instead, so the admin's real session in `auth` never moves.
+  const secondaryApp = initializeApp(firebaseConfig, 'agent-create-' + Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  const secondaryDb = getFirestore(secondaryApp);
+
+  try {
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    await updateProfile(cred.user, { displayName });
+
+    const companyRef = doc(db, 'companies', companyId);
+    const companySnap = await getDoc(companyRef);
+    if (!companySnap.exists()) {
+      await setDoc(companyRef, { name: companyName, createdAt: serverTimestamp() });
+    }
+
+    // Firestore rules only allow a brand-new users/{uid} doc to be
+    // self-created with role:'customer' (same rule signup.html relies on),
+    // so it's created that way under the new account's own session
+    // (secondaryDb) and immediately promoted to 'agent' from the admin's
+    // own session (db), which IS allowed to change anyone's role.
+    await setDoc(doc(secondaryDb, 'users', cred.user.uid), {
+      email, displayName, firstName, lastName, phone,
+      role: 'customer', companyId, createdAt: serverTimestamp()
+    });
+    await updateDoc(doc(db, 'users', cred.user.uid), { role: 'agent', companyId });
+
+    await signOut(secondaryAuth);
+    await deleteApp(secondaryApp);
+
+    document.getElementById('addAgentSuccessEmail').textContent = email;
+    document.getElementById('addAgentSuccessPassword').textContent = password;
+    document.getElementById('addAgentFormWrap').classList.add('hidden');
+    document.getElementById('addAgentSuccessWrap').classList.remove('hidden');
+
+    renderNetworkTab(); renderAgentsTab(); renderBranchesTab(); renderUsers(); renderLeaderboardTab();
+  } catch (err) {
+    try { await deleteApp(secondaryApp); } catch (_) {}
+    errEl.textContent = friendlyAddAgentError(err.code);
+    errEl.classList.remove('hidden');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = trAdmin('admin.addAgentSubmitBtn', 'Create agent account');
+  }
+});
 
 async function renderLeaderboardTab() {
   const { agents } = await fetchAgentStats();
