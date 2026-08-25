@@ -1912,6 +1912,29 @@ document.getElementById('requestDetailBackdrop').addEventListener('click', close
 // with one click of the existing "Add Listing" button — that's the step
 // that actually makes a submitted property show up on Listings and the
 // public Map/Buy pages; the submission itself never auto-publishes.
+// Looks up an approximate lat/lng for a free-text address using
+// Nominatim (OpenStreetMap's free geocoder, no API key) — biased to
+// Iraq. Used as a starting pin when creating a listing from a
+// submission that has no exact pin (most sell.html submissions don't,
+// since pinning a location there is optional), so the admin isn't
+// left with nothing — they can still click the map to correct it.
+// Returns null on any failure; never fabricates a location.
+async function geocodeAddress(query) {
+  if (!query) return null;
+  try {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=iq&q=' + encodeURIComponent(query);
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const results = await res.json();
+    if (!results.length) return null;
+    const lat = parseFloat(results[0].lat), lng = parseFloat(results[0].lon);
+    if (!isFinite(lat) || !isFinite(lng)) return null;
+    return { lat, lng };
+  } catch (err) {
+    return null;
+  }
+}
+
 function createListingFromSubmission(id) {
   const s = allSubmissionsCache.find(x => x.id === id);
   if (!s || s.type !== 'sell') return;
@@ -1939,7 +1962,20 @@ function createListingFromSubmission(id) {
 
   setTimeout(() => {
     if (window.adminPinMap) window.adminPinMap.invalidateSize();
-    if (s.pinLat && s.pinLng) setAdminPin(parseFloat(s.pinLat), parseFloat(s.pinLng));
+    if (s.pinLat && s.pinLng) {
+      setAdminPin(parseFloat(s.pinLat), parseFloat(s.pinLng));
+    } else if (s.address || s.city) {
+      const readout = document.getElementById('pinReadout');
+      readout.textContent = trAdmin('admin.lookingUpLocation', 'Looking up location from address…');
+      geocodeAddress([s.address, s.city, 'Iraq'].filter(Boolean).join(', ')).then(loc => {
+        if (pinLat !== null && pinLng !== null) return; // already pinned manually while this was in flight
+        if (loc) {
+          setAdminPin(loc.lat, loc.lng);
+        } else {
+          readout.textContent = trAdmin('admin.geocodeFailed', "Couldn't find this address automatically — click the map to set the location.");
+        }
+      });
+    }
     document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, 60);
 }
