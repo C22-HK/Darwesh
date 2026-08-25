@@ -6,7 +6,7 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-aut
 import { getFirestore } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBZQTkwRZNZL-HmNBx_i33QoSpSjIMin_8",
   authDomain: "darwesh-group.firebaseapp.com",
   projectId: "darwesh-group",
