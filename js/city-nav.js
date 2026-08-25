@@ -83,6 +83,7 @@ async function init() {
     const snap = await getDocs(collection(db, 'listings'));
     snap.forEach(d => {
       const l = d.data();
+      if (l.status === 'closed') return;
       totalCount++;
       if (l.city) cityCounts[l.city] = (cityCounts[l.city] || 0) + 1;
     });
