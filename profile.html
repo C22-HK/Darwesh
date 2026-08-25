@@ -182,6 +182,16 @@
         .material-symbols-outlined.fill {
             font-variation-settings: 'FILL' 1;
         }
+
+        /* Preference toggle switch */
+        .pref-toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .pref-toggle input { opacity: 0; width: 0; height: 0; }
+        .pref-toggle .slider { position: absolute; inset: 0; background: #c4c6cd; border-radius: 999px; transition: background .15s ease; cursor: pointer; }
+        .pref-toggle .slider::before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px; background: #ffffff; border-radius: 50%; transition: transform .15s ease; }
+        .pref-toggle input:checked + .slider { background: #775a19; }
+        .pref-toggle input:checked + .slider::before { transform: translateX(20px); }
+
+        .faq-chevron { transition: transform .15s ease; }
     </style>
 </head>
 <body class="bg-background text-on-background min-h-screen pb-24 font-body-md text-body-md antialiased overflow-x-hidden">
@@ -204,8 +214,8 @@
 </div>
 <!-- Profile Info -->
 <div class="relative z-10 text-on-primary-container flex-1">
-<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-primary mb-unit font-bold">Omar Darwesh</h1>
-<p class="font-body-lg text-body-lg opacity-90 mb-stack-md text-primary-fixed-dim">omar.darwesh@example.com • +964 750 123 4567</p>
+<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-primary mb-unit font-bold" id="profileHeaderName">Omar Darwesh</h1>
+<p class="font-body-lg text-body-lg opacity-90 mb-stack-md text-primary-fixed-dim" id="profileHeaderContact">omar.darwesh@example.com • +964 750 123 4567</p>
 <!-- Quick Stats Bento -->
 <div class="flex flex-wrap justify-center md:justify-start gap-4 mt-stack-md">
 <div class="bg-surface-tint bg-opacity-20 backdrop-blur-sm rounded-xl px-4 py-3 flex items-center gap-3 border border-outline-variant border-opacity-20">
@@ -240,7 +250,7 @@
 </div>
 <div class="flex flex-col">
 <!-- Item: Personal Info -->
-<a class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group" href="#">
+<button type="button" id="menuPersonalInfo" class="w-full text-left flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group">
 <div class="flex items-center gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant group-hover:bg-primary-fixed group-hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="person">person</span>
@@ -251,9 +261,9 @@
 </div>
 </div>
 <span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
-</a>
+</button>
 <!-- Item: Security -->
-<a class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group" href="#">
+<button type="button" id="menuSecurity" class="w-full text-left flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group">
 <div class="flex items-center gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant group-hover:bg-primary-fixed group-hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="lock">lock</span>
@@ -264,9 +274,9 @@
 </div>
 </div>
 <span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
-</a>
+</button>
 <!-- Item: Notifications -->
-<a class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group" href="#">
+<button type="button" id="menuNotifications" class="w-full text-left flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group">
 <div class="flex items-center gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant group-hover:bg-primary-fixed group-hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="notifications">notifications</span>
@@ -277,7 +287,7 @@
 </div>
 </div>
 <span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
-</a>
+</button>
 <!-- Item: Language -->
 <div class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors group">
 <div class="flex items-center gap-4">
@@ -291,7 +301,7 @@
 </div>
 <!-- Language Dropdown -->
 <div class="relative">
-<select class="appearance-none bg-surface-container-high border-none rounded-lg px-4 py-2 font-data-mono text-data-mono text-on-surface pr-8 focus:ring-2 focus:ring-primary outline-none cursor-pointer">
+<select id="profileLangSelect" class="appearance-none bg-surface-container-high border-none rounded-lg px-4 py-2 font-data-mono text-data-mono text-on-surface pr-8 focus:ring-2 focus:ring-primary outline-none cursor-pointer">
 <option value="en">English</option>
 <option value="ku">Kurdish</option>
 <option value="ar">Arabic</option>
@@ -308,7 +318,7 @@
 </div>
 <div class="flex flex-col">
 <!-- Item: Contact -->
-<a class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group" href="#">
+<button type="button" id="menuContact" class="w-full text-left flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group">
 <div class="flex items-center gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant group-hover:bg-primary-fixed group-hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
@@ -318,9 +328,9 @@
 </div>
 </div>
 <span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
-</a>
+</button>
 <!-- Item: FAQ -->
-<a class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group" href="#">
+<button type="button" id="menuFaq" class="w-full text-left flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors border-b border-outline-variant group">
 <div class="flex items-center gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant group-hover:bg-primary-fixed group-hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="help_center">help_center</span>
@@ -330,9 +340,9 @@
 </div>
 </div>
 <span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
-</a>
+</button>
 <!-- Item: Legal -->
-<a class="flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors group" href="#">
+<button type="button" id="menuLegal" class="w-full text-left flex items-center justify-between px-6 py-4 hover:bg-surface-container-lowest transition-colors group">
 <div class="flex items-center gap-4">
 <div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-on-surface-variant group-hover:bg-primary-fixed group-hover:text-primary transition-colors">
 <span class="material-symbols-outlined" data-icon="gavel">gavel</span>
@@ -342,11 +352,11 @@
 </div>
 </div>
 <span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors" data-icon="chevron_right">chevron_right</span>
-</a>
+</button>
 </div>
 </section>
 <!-- Logout Action -->
-<button class="w-full py-4 rounded-xl border border-error text-error font-data-mono text-data-mono flex justify-center items-center gap-2 hover:bg-error-container transition-colors mt-4">
+<button type="button" id="signOutBtn" class="w-full py-4 rounded-xl border border-error text-error font-data-mono text-data-mono flex justify-center items-center gap-2 hover:bg-error-container transition-colors mt-4">
 <span class="material-symbols-outlined" data-icon="logout">logout</span>
                     Sign Out
                 </button>
@@ -375,7 +385,7 @@
 <span class="font-data-mono text-data-mono text-on-surface">Dedicated portfolio manager</span>
 </li>
 </ul>
-<button class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-data-mono text-data-mono hover:bg-on-secondary-container transition-colors shadow-md">
+<button type="button" id="viewBenefitsBtn" class="w-full py-3 bg-secondary text-on-secondary rounded-lg font-data-mono text-data-mono hover:bg-on-secondary-container transition-colors shadow-md">
                             View Full Benefits
                         </button>
 </div>
@@ -413,4 +423,233 @@
 <span class="font-label-caps text-label-caps">Profile</span>
 </a>
 </nav>
+
+<!-- Settings modal (shared shell for every menu item below) -->
+<div class="hidden fixed inset-0 z-[100] flex items-end md:items-center justify-center" id="settingsModalOverlay">
+<div class="absolute inset-0 bg-primary/50 backdrop-blur-sm" id="settingsModalBackdrop"></div>
+<div class="relative bg-surface-container-lowest w-full md:max-w-md rounded-t-2xl md:rounded-2xl p-6 max-h-[85vh] overflow-y-auto">
+<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="settingsModalClose" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="font-headline-md text-headline-md font-bold text-primary mb-4 pr-8" id="settingsModalTitle"></h2>
+<div id="settingsModalBody"></div>
+</div>
+</div>
+<div class="hidden fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-data-mono text-[13px] shadow-lg z-[110] whitespace-nowrap" id="profileToast"></div>
+
+<script>
+(function () {
+  var LS_KEY = 'darwesh_profile_local_v1';
+
+  function loadLocal() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  var state = Object.assign({
+    firstName: 'Omar', middleName: '', lastName: 'Darwesh',
+    email: 'omar.darwesh@example.com', phone: '+964 750 123 4567',
+    notifMarket: true, notifService: true, notifListings: false,
+    biometric: false, twoFactor: false
+  }, loadLocal());
+
+  var toastTimer;
+  function showToast(msg) {
+    var t = document.getElementById('profileToast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.add('hidden'); }, 2200);
+  }
+
+  function applyHeader() {
+    var nameEl = document.getElementById('profileHeaderName');
+    var contactEl = document.getElementById('profileHeaderContact');
+    var fullName = [state.firstName, state.middleName, state.lastName].filter(Boolean).join(' ');
+    if (nameEl) nameEl.textContent = fullName || 'Your Name';
+    if (contactEl) contactEl.textContent = state.email + ' • ' + state.phone;
+  }
+
+  var modalOverlay = document.getElementById('settingsModalOverlay');
+  var modalTitle = document.getElementById('settingsModalTitle');
+  var modalBody = document.getElementById('settingsModalBody');
+
+  function openModal(title, bodyHtml, onMount) {
+    modalTitle.textContent = title;
+    modalBody.innerHTML = bodyHtml;
+    modalOverlay.classList.remove('hidden');
+    if (onMount) onMount(modalBody);
+  }
+  function closeModal() { modalOverlay.classList.add('hidden'); }
+  document.getElementById('settingsModalClose').addEventListener('click', closeModal);
+  document.getElementById('settingsModalBackdrop').addEventListener('click', closeModal);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+  function toggleRow(id, label, checked) {
+    return '' +
+      '<div class="flex items-center justify-between py-3 border-b border-outline-variant last:border-b-0">' +
+        '<p class="font-body-md text-body-md text-on-surface pr-4">' + label + '</p>' +
+        '<label class="pref-toggle">' +
+          '<input type="checkbox" id="' + id + '"' + (checked ? ' checked' : '') + '/>' +
+          '<span class="slider"></span>' +
+        '</label>' +
+      '</div>';
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // ---- Personal Information ----
+  document.getElementById('menuPersonalInfo').addEventListener('click', function () {
+    openModal('Personal Information',
+      '<form id="personalInfoForm" class="space-y-3">' +
+        '<div class="grid grid-cols-2 gap-3">' +
+          '<div><label class="block text-[11px] font-semibold text-on-surface-variant uppercase mb-1">First name</label><input id="piFirst" class="w-full border border-outline-variant rounded-lg px-3 py-2" value="' + escapeHtml(state.firstName) + '" required/></div>' +
+          '<div><label class="block text-[11px] font-semibold text-on-surface-variant uppercase mb-1">Last name</label><input id="piLast" class="w-full border border-outline-variant rounded-lg px-3 py-2" value="' + escapeHtml(state.lastName) + '" required/></div>' +
+        '</div>' +
+        '<div><label class="block text-[11px] font-semibold text-on-surface-variant uppercase mb-1">Middle name</label><input id="piMiddle" class="w-full border border-outline-variant rounded-lg px-3 py-2" value="' + escapeHtml(state.middleName) + '"/></div>' +
+        '<div><label class="block text-[11px] font-semibold text-on-surface-variant uppercase mb-1">Email</label><input id="piEmail" type="email" class="w-full border border-outline-variant rounded-lg px-3 py-2" value="' + escapeHtml(state.email) + '" required/></div>' +
+        '<div><label class="block text-[11px] font-semibold text-on-surface-variant uppercase mb-1">Phone</label><input id="piPhone" type="tel" class="w-full border border-outline-variant rounded-lg px-3 py-2" value="' + escapeHtml(state.phone) + '" required/></div>' +
+        '<p class="text-[11.5px] text-on-surface-variant">Saved on this device only.</p>' +
+        '<button type="submit" class="w-full bg-primary text-on-primary py-3 rounded-lg font-data-mono text-data-mono hover:bg-primary-container transition-colors">Save changes</button>' +
+      '</form>',
+      function (body) {
+        body.querySelector('#personalInfoForm').addEventListener('submit', function (e) {
+          e.preventDefault();
+          state.firstName = body.querySelector('#piFirst').value.trim();
+          state.middleName = body.querySelector('#piMiddle').value.trim();
+          state.lastName = body.querySelector('#piLast').value.trim();
+          state.email = body.querySelector('#piEmail').value.trim();
+          state.phone = body.querySelector('#piPhone').value.trim();
+          saveLocal(); applyHeader(); closeModal();
+          showToast('Personal information updated.');
+        });
+      });
+  });
+
+  // ---- Security & Password ----
+  document.getElementById('menuSecurity').addEventListener('click', function () {
+    openModal('Security & Password',
+      toggleRow('secBiometric', 'Biometric login on this device', state.biometric) +
+      toggleRow('secTwoFactor', 'Two-factor authentication', state.twoFactor) +
+      '<p class="text-[12px] text-on-surface-variant mt-4">Changing your account password requires signing in first.</p>' +
+      '<a href="account.html" class="mt-2 inline-flex items-center gap-1 text-secondary font-data-mono text-data-mono hover:underline">Go to Account Settings <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>',
+      function (body) {
+        body.querySelector('#secBiometric').addEventListener('change', function (e) { state.biometric = e.target.checked; saveLocal(); });
+        body.querySelector('#secTwoFactor').addEventListener('change', function (e) { state.twoFactor = e.target.checked; saveLocal(); });
+      });
+  });
+
+  // ---- Notification Preferences ----
+  document.getElementById('menuNotifications').addEventListener('click', function () {
+    openModal('Notification Preferences',
+      toggleRow('notifMarket', 'Market alerts', state.notifMarket) +
+      toggleRow('notifService', 'Service updates', state.notifService) +
+      toggleRow('notifListings', 'New listings in saved searches', state.notifListings) +
+      '<p class="text-[11.5px] text-on-surface-variant mt-3">Saved on this device only.</p>',
+      function (body) {
+        body.querySelector('#notifMarket').addEventListener('change', function (e) { state.notifMarket = e.target.checked; saveLocal(); });
+        body.querySelector('#notifService').addEventListener('change', function (e) { state.notifService = e.target.checked; saveLocal(); });
+        body.querySelector('#notifListings').addEventListener('change', function (e) { state.notifListings = e.target.checked; saveLocal(); });
+      });
+  });
+
+  // ---- Contact Expert ----
+  document.getElementById('menuContact').addEventListener('click', function () {
+    openModal('Contact an Expert',
+      '<p class="font-body-md text-body-md text-on-surface-variant mb-4">Get real answers fast — no waiting on a call back.</p>' +
+      '<a href="mam-ai.html" class="flex items-center gap-3 p-4 rounded-xl border border-outline-variant hover:border-primary transition-colors mb-3">' +
+        '<span class="material-symbols-outlined text-primary">smart_toy</span>' +
+        '<div><p class="font-data-mono text-data-mono text-on-surface">Chat with MAM AI</p><p class="text-[12px] text-on-surface-variant">Instant answers grounded in real listings</p></div>' +
+      '</a>' +
+      '<a href="map.html" class="flex items-center gap-3 p-4 rounded-xl border border-outline-variant hover:border-primary transition-colors">' +
+        '<span class="material-symbols-outlined text-primary">person_pin_circle</span>' +
+        '<div><p class="font-data-mono text-data-mono text-on-surface">Browse agents on the map</p><p class="text-[12px] text-on-surface-variant">Find and message a verified agent directly</p></div>' +
+      '</a>');
+  });
+
+  // ---- FAQ ----
+  document.getElementById('menuFaq').addEventListener('click', function () {
+    var faqs = [
+      ['What does "Verified" mean on a listing?', 'Every listing marked Verified has been checked by a Darwesh Group admin before it went live — the address, price, and photos are confirmed real.'],
+      ['How do I list my property?', 'Use the Sell page to submit your property with photos. An admin reviews it and either publishes it directly or reaches out for more details.'],
+      ['How does MAM AI work?', 'MAM AI answers using the real listings and prices currently on the platform — it never invents numbers, and says so honestly when there isn’t enough data yet.'],
+      ['How do agents get verified?', 'Agent accounts are reviewed by an admin before being granted full agent access, so every agent you contact through this platform is a real, approved professional.']
+    ];
+    openModal('Frequently Asked Questions',
+      '<div class="space-y-2">' +
+        faqs.map(function (f, i) {
+          return '<div class="border border-outline-variant rounded-xl overflow-hidden">' +
+            '<button type="button" class="faq-q w-full flex items-center justify-between px-4 py-3 text-left font-data-mono text-data-mono text-on-surface gap-3" data-i="' + i + '">' +
+              '<span>' + f[0] + '</span>' +
+              '<span class="material-symbols-outlined text-outline-variant faq-chevron flex-shrink-0">expand_more</span>' +
+            '</button>' +
+            '<div class="faq-a hidden px-4 pb-3 text-[13.5px] text-on-surface-variant">' + f[1] + '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>',
+      function (body) {
+        body.querySelectorAll('.faq-q').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var answer = btn.nextElementSibling;
+            var chevron = btn.querySelector('.faq-chevron');
+            answer.classList.toggle('hidden');
+            chevron.style.transform = answer.classList.contains('hidden') ? '' : 'rotate(180deg)';
+          });
+        });
+      });
+  });
+
+  // ---- Legal & Privacy ----
+  document.getElementById('menuLegal').addEventListener('click', function () {
+    openModal('Legal & Privacy',
+      '<div class="space-y-4 text-[13px] text-on-surface-variant leading-relaxed">' +
+        '<div><h3 class="font-data-mono text-data-mono text-on-surface mb-1">Terms of Use</h3>' +
+        '<p>Darwesh Group provides this platform to connect property owners, agents, and customers across the Kurdistan Region. Listings are submitted by agents; those marked Verified have been independently checked by our team, unverified ones have not yet.</p></div>' +
+        '<div><h3 class="font-data-mono text-data-mono text-on-surface mb-1">Privacy</h3>' +
+        '<p>We store the account and listing information you provide — name, contact details, submissions — to operate the platform: matching you with agents, showing your saved searches, and letting admins verify listings. We don’t sell your data to third parties.</p></div>' +
+        '<div><h3 class="font-data-mono text-data-mono text-on-surface mb-1">Contact</h3>' +
+        '<p>Questions about these terms? Reach out through Contact Expert in this menu.</p></div>' +
+      '</div>');
+  });
+
+  // ---- Sign Out ----
+  document.getElementById('signOutBtn').addEventListener('click', function () {
+    window.location.href = 'login.html';
+  });
+
+  // ---- View Full Benefits ----
+  document.getElementById('viewBenefitsBtn').addEventListener('click', function () {
+    var benefits = [
+      '4% discount on brokerage fees',
+      'Early access to premium listings',
+      'Dedicated portfolio manager',
+      'Priority viewing scheduling',
+      'Invitations to Darwesh Group property events'
+    ];
+    openModal('Elite Circle Benefits',
+      '<ul class="space-y-3">' +
+        benefits.map(function (b) {
+          return '<li class="flex items-start gap-3"><span class="material-symbols-outlined text-secondary text-lg mt-0.5">check_circle</span><span class="font-data-mono text-data-mono text-on-surface">' + b + '</span></li>';
+        }).join('') +
+      '</ul>');
+  });
+
+  // ---- Language preference (shared key the rest of the site reads) ----
+  var langSelect = document.getElementById('profileLangSelect');
+  if (langSelect) {
+    try { langSelect.value = localStorage.getItem('darwesh_lang') || 'en'; } catch (e) {}
+    langSelect.addEventListener('change', function (e) {
+      try { localStorage.setItem('darwesh_lang', e.target.value); } catch (err) {}
+      showToast('Language preference saved — applies on other pages.');
+    });
+  }
+
+  applyHeader();
+})();
+</script>
 </body></html>
