@@ -80,6 +80,10 @@ async function init() {
     const snap = await getDocs(collection(db, 'listings'));
     snap.forEach(d => {
       const l = d.data();
+      // Every link here goes to buy.html, which only ever shows
+      // dealType === 'sale' listings — counting rentals too would show a
+      // nonzero count that leads to an empty results page.
+      if (l.dealType !== 'sale') return;
       totalCount++;
       if (l.city) cityCounts[l.city] = (cityCounts[l.city] || 0) + 1;
     });
