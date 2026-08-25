@@ -69,16 +69,25 @@
   .admin-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
   .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
   #agentTeamMap { background: #e5e8ee; }
+  /* Same verified/unverified pin language as map.html and admin.html's
+     Requests Map, so a listing's trust status reads the same everywhere
+     on the site. "Mine vs teammate's" and "private" are a different axis
+     each — shown as stacking rings around the same pin (box-shadow
+     layers) rather than competing background colors. */
   .team-map-tag {
     font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px;
     padding: 5px 10px; border-radius: 999px; color: #ffffff;
-    border: 2px solid #ffffff; box-shadow: 0 2px 6px rgba(4,22,39,0.25);
-    white-space: nowrap; cursor: pointer;
+    border: 1.5px solid transparent; white-space: nowrap; cursor: pointer;
   }
-  .team-map-tag.mine { background: #775a19; }
-  .team-map-tag.team { background: #0b1d2d; }
+  .team-map-tag.pin-unverified { background: #c62828; border-color: #8f1c1c; }
+  .team-map-tag.pin-verified { background: #2e7d32; border-color: #1e5620; }
+  .team-map-tag.mine { box-shadow: 0 0 0 2.5px #775a19, 0 2px 6px rgba(4,22,39,0.3); }
+  .team-map-tag.mine.private { box-shadow: 0 0 0 2.5px #775a19, 0 0 0 5px #9c6ade, 0 2px 6px rgba(4,22,39,0.3); }
+  .team-map-tag.private:not(.mine) { box-shadow: 0 0 0 2.5px #9c6ade, 0 2px 6px rgba(4,22,39,0.3); }
+  .team-map-tag:not(.mine):not(.private) { box-shadow: 0 2px 6px rgba(4,22,39,0.25); }
   .team-map-legend { display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #44474c; }
   .team-map-legend .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+  .team-map-legend .ring { width: 10px; height: 10px; border-radius: 999px; flex: none; background: #ffffff; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -270,10 +279,12 @@
         </div>
 
         <div id="listingsPanel-map" class="listings-panel hidden">
-          <p class="font-body-md text-[13px] text-on-surface-variant mb-3" data-i18n="agentDash.teamMapNote">Every pinned listing you and your team have added, on one map — your own tagged separately from your teammates'.</p>
-          <div class="flex items-center gap-5 mb-3">
-            <div class="team-map-legend"><span class="dot" style="background:#775a19;"></span><span data-i18n="agentDash.myListingsTab">My Listings</span></div>
-            <div class="team-map-legend"><span class="dot" style="background:#0b1d2d;"></span><span data-i18n="agentDash.teammatesLabel">Teammates</span></div>
+          <p class="font-body-md text-[13px] text-on-surface-variant mb-3" data-i18n="agentDash.teamMapNote">Every pinned listing you and your team have added, on one map — your own tagged separately from your teammates', private listings shown here at their real location.</p>
+          <div class="flex items-center gap-5 mb-3 flex-wrap">
+            <div class="team-map-legend"><span class="dot" style="background:#2e7d32;"></span><span data-i18n="map.legendVerifiedListing">Verified &amp; Registered</span></div>
+            <div class="team-map-legend"><span class="dot" style="background:#c62828;"></span><span data-i18n="map.legendAgentListing">Agent Listing</span></div>
+            <div class="team-map-legend"><span class="ring" style="box-shadow:0 0 0 2.5px #775a19;"></span><span data-i18n="agentDash.myListingsTab">My Listings</span></div>
+            <div class="team-map-legend"><span class="ring" style="box-shadow:0 0 0 2.5px #9c6ade;"></span><span data-i18n="admin.legendPrivateListing">Private (full access)</span></div>
           </div>
           <div class="rounded-xl overflow-hidden border border-outline-variant" style="height:520px;" id="agentTeamMap"></div>
         </div>
@@ -365,18 +376,25 @@
 
     listings.forEach(l => {
       const isMine = l.agentId === currentUid;
+      const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
+      const extraClasses = (isMine ? ' mine' : '') + (l.private ? ' private' : '');
       const priceLabel = '$' + Number(l.price).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
       const marker = L.marker([l.lat, l.lng], {
         icon: L.divIcon({
           className: '', iconSize: null, iconAnchor: [30, 15],
-          html: `<div class="team-map-tag ${isMine ? 'mine' : 'team'}">${priceLabel}</div>`
+          html: `<div class="team-map-tag ${statusClass}${extraClasses}">${priceLabel}</div>`
         })
       }).addTo(agentTeamMap);
+      const badges = [
+        l.verified ? `<span class="badge badge-verified">${trDash('common.verified', 'Verified')}</span>` : '',
+        l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#7a3fc2;">${trDash('map.privateListing', 'Private')}</span>` : ''
+      ].filter(Boolean).join(' ');
       marker.bindPopup(`
         <div style="font-family:'Inter',sans-serif;min-width:160px;">
           <strong style="display:block;margin-bottom:2px;">${l.title || ''}</strong>
           <span style="color:#44474c;font-size:12.5px;">${l.address || ''}, ${l.city || ''}</span><br/>
           <span style="font-size:12.5px;">${isMine ? trDash('agentDash.youBadge','You') : (l.agentName || trDash('agentDash.unknownAgent','Unknown agent'))}</span>
+          ${badges ? `<div style="margin-top:4px;">${badges}</div>` : ''}
         </div>
       `);
       agentTeamMapMarkers.push(marker);
