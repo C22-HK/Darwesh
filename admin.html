@@ -1361,6 +1361,18 @@ function updateImgPreview() {
 }
 document.getElementById('fImg').addEventListener('input', updateImgPreview);
 
+// A Storage upload can hang indefinitely instead of failing fast (seen
+// in practice if Storage isn't actually provisioned on the Firebase
+// project) — a hard timeout turns that into an ordinary, recoverable
+// failure instead of a permanently stuck "Uploading..." status.
+const PHOTO_UPLOAD_TIMEOUT_MS = 25000;
+function withUploadTimeout(promise) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Upload timed out')), PHOTO_UPLOAD_TIMEOUT_MS);
+    promise.then(v => { clearTimeout(timer); resolve(v); }, err => { clearTimeout(timer); reject(err); });
+  });
+}
+
 document.getElementById('fImgUpload').addEventListener('change', async function () {
   const file = this.files[0];
   if (!file) return;
@@ -1371,8 +1383,8 @@ document.getElementById('fImgUpload').addEventListener('change', async function 
     const token = crypto.randomUUID();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileRef = storageRef(storage, `listing-photos/${token}/${safeName}`);
-    await uploadBytes(fileRef, file);
-    const url = await getDownloadURL(fileRef);
+    await withUploadTimeout(uploadBytes(fileRef, file));
+    const url = await withUploadTimeout(getDownloadURL(fileRef));
     document.getElementById('fImg').value = url;
     updateImgPreview();
     statusEl.classList.add('hidden');
@@ -1720,9 +1732,14 @@ function renderServicesRows() {
     const isSell = s.type === 'sell';
     const typeLabel = isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
     const typeIcon = isSell ? 'sell' : 'event_available';
-    const details = isSell
+    const thumbUrl = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
+    const thumb = thumbUrl
+      ? `<img src="${thumbUrl}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
+      : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
+    const detailsText = isSell
       ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.title || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.address || ''}, ${s.city || ''}${s.price ? ' &middot; $' + Number(s.price).toLocaleString() : ''}</p>`
       : `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.address || ''}, ${s.city || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.priceLabel || ''}</p>`;
+    const details = `<div class="flex items-center gap-2.5">${thumb}<div class="min-w-0">${detailsText}</div></div>`;
     const from = (s.name || s.phone || s.email)
       ? `<p class="font-body-md text-[13px] text-on-surface">${s.name || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.phone || ''}${s.email ? ' &middot; ' + s.email : ''}</p>`
       : `<p class="font-body-md text-[13px] text-on-surface">${s.uid ? trAdmin('admin.viaAccount', 'Registered customer') : ''}</p>`;

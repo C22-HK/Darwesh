@@ -518,10 +518,23 @@ const submissionAuthReady = (async function initSubmissionAuth() {
 
 // Uploads whatever photos are currently selected to
 // sell-submissions/{token}/{n}-{fileName} and returns the download URLs
-// of whichever ones succeeded. One bad/oversized file shouldn't lose the
-// whole submission, so failures here are logged and skipped rather than
-// thrown — the property details the visitor spent time filling in still
-// get through even if a photo doesn't.
+// of whichever ones succeeded. One bad/oversized file — or a Storage
+// upload that never resolves at all (seen in practice: the SDK can hang
+// indefinitely instead of failing fast, e.g. if Storage isn't actually
+// provisioned on the Firebase project) — shouldn't lose the whole
+// submission, so each file gets a hard timeout: if it doesn't finish in
+// time it's treated exactly like any other failed upload (logged and
+// skipped), and the property details the visitor spent time filling in
+// still get through even if every photo fails.
+const PHOTO_UPLOAD_TIMEOUT_MS = 25000;
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Upload timed out')), ms);
+    promise.then(v => { clearTimeout(timer); resolve(v); }, err => { clearTimeout(timer); reject(err); });
+  });
+}
+
 async function uploadSelectedPhotos() {
   const files = [...photoUpload.files];
   if (!files.length) return { photoUrls: [], photoUploadToken: null };
@@ -535,8 +548,8 @@ async function uploadSelectedPhotos() {
       const file = files[i];
       const safeName = i + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const fileRef = storageFns.ref(submitStorage, `sell-submissions/${token}/${safeName}`);
-      await storageFns.uploadBytes(fileRef, file);
-      urls.push(await storageFns.getDownloadURL(fileRef));
+      await withTimeout(storageFns.uploadBytes(fileRef, file), PHOTO_UPLOAD_TIMEOUT_MS);
+      urls.push(await withTimeout(storageFns.getDownloadURL(fileRef), PHOTO_UPLOAD_TIMEOUT_MS));
     } catch (err) {
       console.error('Could not upload photo', i, err);
     }
