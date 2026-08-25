@@ -25,6 +25,13 @@ rules_version = '2';
 //   the listing itself, and every signed-in user on this project is
 //   already an agent or admin (customers never reach these pages).
 //
+// - agent-photos/{uid}/{fileName} — an agent's own profile photo,
+//   uploaded from agent-dashboard.html. Unlike listing-photos, this one
+//   CAN cheaply check ownership (the uid is right there in the path),
+//   so it's scoped to that agent's own uid specifically, matching the
+//   same-uid pattern firestore.rules already uses for a user's own
+//   profile doc.
+//
 // The size/type checks are the only real guardrail against abuse at this
 // layer beyond that.
 service firebase.storage {
@@ -38,6 +45,13 @@ service firebase.storage {
     match /listing-photos/{token}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+    match /agent-photos/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid
                      && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;

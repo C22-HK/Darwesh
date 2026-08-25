@@ -187,8 +187,9 @@
 <span data-i18n="map.verifiedByDarwesh">Verified by Darwesh Group</span>
 </p>
 <div class="flex items-center gap-3 py-stack-md border-t border-b border-surface-variant my-stack-md">
-<div class="w-11 h-11 rounded-full bg-primary-container/10 flex items-center justify-center text-primary flex-none">
-<span class="material-symbols-outlined">real_estate_agent</span>
+<div class="w-11 h-11 rounded-full bg-primary-container/10 flex items-center justify-center text-primary flex-none overflow-hidden">
+<span class="material-symbols-outlined" id="listingAgentIcon">real_estate_agent</span>
+<img id="listingAgentPhoto" class="hidden w-full h-full object-cover"/>
 </div>
 <div class="min-w-0">
 <p class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="listing.listedBy">Listed by</p>
@@ -361,6 +362,22 @@
     setTimeout(() => map.invalidateSize(), 100);
   }
 
+  // Fetched live (not denormalized onto the listing) so an agent
+  // updating their profile photo shows up on every one of their
+  // listings immediately, not just ones re-saved after the change.
+  async function loadAgentPhoto(agentId) {
+    try {
+      const snap = await getDoc(doc(db, 'users', agentId));
+      const url = snap.exists() ? snap.data().photoURL : null;
+      if (!url) return;
+      document.getElementById('listingAgentPhoto').src = url;
+      document.getElementById('listingAgentPhoto').classList.remove('hidden');
+      document.getElementById('listingAgentIcon').classList.add('hidden');
+    } catch (e) {
+      // Agent photo is a nice-to-have — leave the default icon on any failure.
+    }
+  }
+
   async function loadListing() {
     if (!listingId) {
       document.getElementById('listingLoading').classList.add('hidden');
@@ -377,6 +394,7 @@
       listing = { id: snap.id, ...snap.data() };
       renderListing(listing);
       if (!mapInitialized) { mapInitialized = true; initMap(listing); }
+      if (listing.agentId) loadAgentPhoto(listing.agentId);
     } catch (e) {
       document.getElementById('listingLoading').classList.add('hidden');
       document.getElementById('listingNotFound').classList.remove('hidden');
