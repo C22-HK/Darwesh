@@ -773,7 +773,7 @@
       <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
         <div class="overflow-x-auto">
           <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAgentsCount">Agents</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
+            <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th data-i18n="admin.thAgentsCount">Agents</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
             <tbody id="branchesBody"></tbody>
           </table>
         </div>
@@ -898,6 +898,7 @@
 <label class="admin-label" for="aaCompanySelect" data-i18n="auth.company">Company / Agency</label>
 <select id="aaCompanySelect" class="admin-input"></select>
 <input id="aaCompanyNew" class="admin-input hidden mt-2" type="text" data-i18n-placeholder="admin.newCompanyNamePlaceholder" placeholder="New company name"/>
+<input id="aaCompanyNewAddress" class="admin-input hidden mt-2" type="text" data-i18n-placeholder="admin.companyAddressPlaceholder" placeholder="e.g. 40 Meter Street, Erbil, Kurdistan Region"/>
 </div>
 <p id="addAgentError" class="hidden text-error text-[13px]"></p>
 <button id="addAgentSubmitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="admin.addAgentSubmitBtn">Create agent account</button>
@@ -921,6 +922,26 @@
 <button id="addAgentDoneBtn" type="button" class="w-full border border-outline-variant rounded-lg py-3 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.close">Close</button>
 </div>
 
+</div>
+</div>
+
+<!-- Branches: Edit Address -->
+<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="editAddressOverlay">
+<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="editAddressBackdrop"></div>
+<div class="relative bg-surface-container-lowest w-full md:max-w-md rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="editAddressClose" type="button">
+<span class="material-symbols-outlined">close</span>
+</button>
+<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="admin.editBranchAddressTitle">Edit branch address</h2>
+<p class="font-body-md text-[12.5px] text-on-surface-variant mb-4" id="editAddressSubtitle"></p>
+<form id="editAddressForm" class="space-y-3">
+<div>
+<label class="admin-label" for="eaAddress" data-i18n="sell.address">Address</label>
+<textarea id="eaAddress" class="admin-input" rows="2" data-i18n-placeholder="admin.companyAddressPlaceholder" placeholder="e.g. 40 Meter Street, Erbil, Kurdistan Region"></textarea>
+</div>
+<p id="editAddressError" class="hidden text-error text-[13px]"></p>
+<button id="editAddressSaveBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="common.save">Save</button>
+</form>
 </div>
 </div>
 
@@ -2428,13 +2449,66 @@ async function renderBranchesTab() {
 
   body.innerHTML = branches.map(b => `
     <tr>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${b.name || b.id}</p></td>
+      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escAdmin(b.name || b.id)}</p></td>
+      <td>
+        <div class="flex items-center gap-1.5">
+          <p class="font-body-md text-[12.5px] ${b.address ? 'text-on-surface' : 'text-on-surface-variant italic'} truncate" style="max-width:220px;">${b.address ? escAdmin(b.address) : trAdmin('admin.noAddressSet', 'No address set')}</p>
+          <button type="button" class="icon-btn branch-edit-address flex-none" data-id="${b.id}" data-name="${escAdmin(b.name || b.id)}" data-address="${escAdmin(b.address || '')}" title="${trAdmin('admin.editAddress', 'Edit address')}">
+            <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+          </button>
+        </div>
+      </td>
       <td>${agentCounts[b.id] || 0}</td>
       <td>${listingCounts[b.id] || 0}</td>
       <td>$${(portfolioValues[b.id] || 0).toLocaleString()}</td>
       <td>${b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
     </tr>`).join('');
+
+  body.querySelectorAll('.branch-edit-address').forEach(btn => {
+    btn.addEventListener('click', () => openEditAddressModal(btn.dataset.id, btn.dataset.name, btn.dataset.address));
+  });
 }
+
+function escAdmin(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+let editAddressBranchId = null;
+
+function openEditAddressModal(branchId, branchName, currentAddress) {
+  editAddressBranchId = branchId;
+  document.getElementById('editAddressSubtitle').textContent = branchName;
+  document.getElementById('eaAddress').value = currentAddress || '';
+  document.getElementById('editAddressError').classList.add('hidden');
+  document.getElementById('editAddressOverlay').classList.remove('hidden');
+}
+function closeEditAddressModal() {
+  document.getElementById('editAddressOverlay').classList.add('hidden');
+  editAddressBranchId = null;
+}
+document.getElementById('editAddressClose').addEventListener('click', closeEditAddressModal);
+document.getElementById('editAddressBackdrop').addEventListener('click', closeEditAddressModal);
+
+document.getElementById('editAddressForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!editAddressBranchId) return;
+  const errEl = document.getElementById('editAddressError');
+  errEl.classList.add('hidden');
+  const saveBtn = document.getElementById('editAddressSaveBtn');
+  saveBtn.disabled = true;
+  try {
+    const address = document.getElementById('eaAddress').value.trim();
+    await updateDoc(doc(db, 'companies', editAddressBranchId), { address });
+    closeEditAddressModal();
+    renderBranchesTab();
+    renderNetworkTab();
+  } catch (err) {
+    errEl.textContent = trAdmin('admin.errAddAgentGeneric', 'Something went wrong. Please try again.');
+    errEl.classList.remove('hidden');
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
 
 async function renderAgentsTab() {
   const { agents } = await fetchAgentStats();
@@ -2481,7 +2555,7 @@ function netInitials(name) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, badge, photo }) {
+function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, badge, photo, tooltipExtra }) {
   const classes = ['net-node', 'net-node-' + tier];
   if (dim) classes.push('dim');
   if (match) classes.push('match-ring');
@@ -2489,7 +2563,8 @@ function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, bad
     ? `<img src="${photo}" alt=""/>`
     : `<span>${netInitials(tier === 'root' ? 'DG' : title)}</span>`;
   const badgeHtml = (typeof badge === 'number') ? `<span class="net-badge">${badge}</span>` : '';
-  const safeTitle = (title || '').replace(/"/g, '&quot;');
+  const tooltipText = tooltipExtra ? `${title} — ${tooltipExtra}` : (title || '');
+  const safeTitle = tooltipText.replace(/"/g, '&quot;');
   return `
     <div class="${classes.join(' ')}" style="left:${x}px; top:${y - r}px;" data-id="${id}" data-clickable="${clickable ? '1' : '0'}" title="${safeTitle}">
       <div class="net-node-circle" style="width:${r * 2}px; height:${r * 2}px;">${circleInner}${badgeHtml}</div>
@@ -2509,14 +2584,17 @@ async function renderNetworkTab() {
   const empty = document.getElementById('networkEmpty');
   closeNetAgentPopover();
 
+  const companyAddresses = {};
+  companiesSnap.forEach(d => { companyAddresses[d.id] = d.data().address || ''; });
+
   const groups = {};
   agents.forEach(a => {
     const cid = a.companyId || '—';
-    if (!groups[cid]) groups[cid] = { id: cid, name: companyNames[cid] || cid, agents: [] };
+    if (!groups[cid]) groups[cid] = { id: cid, name: companyNames[cid] || cid, address: companyAddresses[cid] || '', agents: [] };
     groups[cid].agents.push(a);
   });
   companiesSnap.forEach(d => {
-    if (!groups[d.id]) groups[d.id] = { id: d.id, name: d.data().name || d.id, agents: [] };
+    if (!groups[d.id]) groups[d.id] = { id: d.id, name: d.data().name || d.id, address: d.data().address || '', agents: [] };
   });
 
   const branches = Object.values(groups).sort((a, b) => b.agents.length - a.agents.length);
@@ -2576,7 +2654,8 @@ async function renderNetworkTab() {
       x: bx, y: branchY, r: R_BRANCH, tier: 'branch', id: b.id, clickable: true,
       title: b.name,
       sub: `${b.agents.length} ${trAdmin('admin.networkAgentsWord', 'agents')}`,
-      badge: b.agents.length, dim: branchDim, match: branchNameMatches
+      badge: b.agents.length, dim: branchDim, match: branchNameMatches,
+      tooltipExtra: b.address || trAdmin('admin.noAddressSet', 'No address set')
     }));
 
     if (bl.expanded) {
@@ -2688,7 +2767,9 @@ async function populateCompanySelect() {
 }
 
 document.getElementById('aaCompanySelect').addEventListener('change', (e) => {
-  document.getElementById('aaCompanyNew').classList.toggle('hidden', e.target.value !== '__new__');
+  const isNew = e.target.value === '__new__';
+  document.getElementById('aaCompanyNew').classList.toggle('hidden', !isNew);
+  document.getElementById('aaCompanyNewAddress').classList.toggle('hidden', !isNew);
 });
 
 document.getElementById('aaGeneratePw').addEventListener('click', () => {
@@ -2698,6 +2779,7 @@ document.getElementById('aaGeneratePw').addEventListener('click', () => {
 function openAddAgentModal() {
   document.getElementById('addAgentForm').reset();
   document.getElementById('aaCompanyNew').classList.add('hidden');
+  document.getElementById('aaCompanyNewAddress').classList.add('hidden');
   document.getElementById('addAgentError').classList.add('hidden');
   document.getElementById('addAgentFormWrap').classList.remove('hidden');
   document.getElementById('addAgentSuccessWrap').classList.add('hidden');
@@ -2735,6 +2817,7 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
   const password = document.getElementById('aaPassword').value;
   const companySelectVal = document.getElementById('aaCompanySelect').value;
   const newCompanyName = document.getElementById('aaCompanyNew').value.trim();
+  const newCompanyAddress = document.getElementById('aaCompanyNewAddress').value.trim();
 
   let companyId, companyName;
   if (companySelectVal === '__new__') {
@@ -2772,7 +2855,9 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     const companyRef = doc(db, 'companies', companyId);
     const companySnap = await getDoc(companyRef);
     if (!companySnap.exists()) {
-      await setDoc(companyRef, { name: companyName, createdAt: serverTimestamp() });
+      const companyDoc = { name: companyName, createdAt: serverTimestamp() };
+      if (newCompanyAddress) companyDoc.address = newCompanyAddress;
+      await setDoc(companyRef, companyDoc);
     }
 
     // Firestore rules only allow a brand-new users/{uid} doc to be
