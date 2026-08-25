@@ -438,6 +438,7 @@
       if (editingId) {
         await updateDoc(doc(db, 'listings', editingId), data);
       } else {
+        data.status = 'active';
         data.createdAt = serverTimestamp();
         await addDoc(collection(db, 'listings'), data);
       }
@@ -502,11 +503,19 @@
         </td>
         <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
         <td>
+          ${l.status === 'closed' ? '<span class="badge" style="background:#e5e8ee; color:#181c20;">' + (l.dealType === 'rent' ? trDash('admin.statusRented', 'Rented') : trDash('admin.statusSold', 'Sold')) + '</span>' : ''}
           ${l.verified ? '<span class="badge badge-verified">' + trDash('common.verified','Verified') + '</span>' : ''}
           ${l.private ? '<span class="badge badge-private">' + trDash('map.privateListing','Private') + '</span>' : ''}
         </td>
         <td></td>
       `;
+      const statusBtn = document.createElement('button');
+      statusBtn.className = 'icon-btn'; statusBtn.type = 'button';
+      const isClosed = l.status === 'closed';
+      const closeLabel = l.dealType === 'rent' ? trDash('admin.markRented', 'Mark as Rented') : trDash('admin.markSold', 'Mark as Sold');
+      statusBtn.title = isClosed ? trDash('admin.markActive', 'Mark as Active') : closeLabel;
+      statusBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:18px;">${isClosed ? 'restart_alt' : 'sell'}</span>`;
+      statusBtn.addEventListener('click', () => window.toggleListingStatus(docSnap.id, l));
       const editBtn = document.createElement('button');
       editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = trDash('common.edit','Edit');
       editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
@@ -515,10 +524,19 @@
       delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = trDash('common.delete','Delete');
       delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
       delBtn.addEventListener('click', () => window.deleteListing(docSnap.id));
-      tr.lastElementChild.append(editBtn, delBtn);
+      tr.lastElementChild.append(statusBtn, editBtn, delBtn);
       body.appendChild(tr);
     });
   }
+
+  // Agent-scoped counterpart to admin.html's version — flips this
+  // listing between active and closed (sold/rented) so it stops showing
+  // as available on the public site without deleting the record.
+  window.toggleListingStatus = async function (id, l) {
+    const newStatus = l.status === 'closed' ? 'active' : 'closed';
+    await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
+    loadMyListings();
+  };
 
   async function loadTeamListings() {
     const body = document.getElementById('teamListingsBody');

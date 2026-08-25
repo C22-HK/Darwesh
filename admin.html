@@ -1382,6 +1382,7 @@ async function onListingFormSubmit(e) {
       data.agentId = currentUid;
       data.agentName = currentAdminName + ' (Admin)';
       data.companyId = null;
+      data.status = 'active';
       data.createdAt = serverTimestamp();
       await addDoc(collection(db, 'listings'), data);
     }
@@ -1454,11 +1455,19 @@ async function renderListingsTable() {
       </td>
       <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
       <td>
+        ${l.status === 'closed' ? '<span class="badge" style="background:#e5e8ee; color:#181c20;">' + (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) + '</span>' : ''}
         ${l.verified ? '<span class="badge badge-verified">' + trAdmin('common.verified','Verified') + '</span>' : ''}
         ${l.private ? '<span class="badge badge-private">' + trAdmin('map.privateListing','Private') + '</span>' : ''}
       </td>
       <td></td>
     `;
+    const statusBtn = document.createElement('button');
+    statusBtn.className = 'icon-btn'; statusBtn.type = 'button';
+    const isClosed = l.status === 'closed';
+    const closeLabel = l.dealType === 'rent' ? trAdmin('admin.markRented', 'Mark as Rented') : trAdmin('admin.markSold', 'Mark as Sold');
+    statusBtn.title = isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel;
+    statusBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:18px;">${isClosed ? 'restart_alt' : 'sell'}</span>`;
+    statusBtn.addEventListener('click', () => window.toggleListingStatus(l.id));
     const editBtn = document.createElement('button');
     editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = trAdmin('common.edit','Edit');
     editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
@@ -1467,10 +1476,22 @@ async function renderListingsTable() {
     delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = trAdmin('common.delete','Delete');
     delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
     delBtn.addEventListener('click', () => window.deleteListing(l.id));
-    tr.lastElementChild.append(editBtn, delBtn);
+    tr.lastElementChild.append(statusBtn, editBtn, delBtn);
     body.appendChild(tr);
   });
 }
+
+// Available to admin for any listing (agent-dashboard.html has the
+// agent-scoped equivalent) — flips a listing between active and closed
+// (sold/rented) so it stops showing as available on the public site
+// without deleting the record.
+window.toggleListingStatus = async function (id) {
+  const l = allListingsCache.find(x => x.id === id);
+  if (!l) return;
+  const newStatus = l.status === 'closed' ? 'active' : 'closed';
+  await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
+  renderListingsTable();
+};
 
 // ---------------------------------------------------------------------
 // Customer Services tab — property submissions (sell.html) and viewing

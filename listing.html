@@ -126,6 +126,7 @@
 <span class="material-symbols-outlined text-[16px]">verified</span>
 <span class="font-label-caps text-label-caps text-[11px]" data-i18n="common.verified">Verified</span>
 </div>
+<div id="listingSoldBadge" class="hidden absolute top-4 left-4 bg-primary text-on-primary px-3 py-1.5 rounded-full font-label-caps text-label-caps text-[11px]"></div>
 <div id="listingDealBadge" class="absolute bottom-4 left-4 bg-primary/85 text-on-primary px-3 py-1.5 rounded-full font-label-caps text-label-caps text-[11px]"></div>
 </div>
 
@@ -177,6 +178,10 @@
 <div class="space-y-stack-md">
 <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-md sticky top-20">
 <p id="listingPrice" class="font-headline-md text-display-lg-mobile text-primary mb-1"></p>
+<p id="listingSoldNote" class="hidden font-body-md text-[13px] text-on-surface bg-surface-container rounded-lg px-3 py-2 mb-stack-md flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">info</span>
+<span id="listingSoldNoteText"></span>
+</p>
 <p id="listingVerifiedNote" class="hidden font-body-md text-[12.5px] text-on-tertiary-container flex items-center gap-1 mb-stack-md">
 <span class="material-symbols-outlined text-[15px]">verified_user</span>
 <span data-i18n="map.verifiedByDarwesh">Verified by Darwesh Group</span>
@@ -302,6 +307,21 @@
     if (l.verified) {
       document.getElementById('listingVerifiedBadge').classList.remove('hidden');
       document.getElementById('listingVerifiedNote').classList.remove('hidden');
+    }
+
+    // A listing an agent has marked sold/rented stays reachable by direct
+    // link (e.g. one someone already shared) rather than disappearing —
+    // it just shows honestly that it's no longer available instead of
+    // still offering to request a viewing on it.
+    if (l.status === 'closed') {
+      const closedLabel = l.dealType === 'rent' ? tr('listing.statusRented', 'Rented') : tr('listing.statusSold', 'Sold');
+      document.getElementById('listingSoldBadge').textContent = closedLabel;
+      document.getElementById('listingSoldBadge').classList.remove('hidden');
+      document.getElementById('listingSoldNoteText').textContent = l.dealType === 'rent'
+        ? tr('listing.rentedNote', 'This property has been rented and is no longer available.')
+        : tr('listing.soldNote', 'This property has been sold and is no longer available.');
+      document.getElementById('listingSoldNote').classList.remove('hidden');
+      document.getElementById('listingContactBtn').classList.add('hidden');
     }
 
     const amenities = Array.isArray(l.amenities) ? l.amenities.filter(Boolean) : [];
