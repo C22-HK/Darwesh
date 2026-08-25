@@ -118,6 +118,35 @@
       0%, 100% { transform: scale(1); opacity: 1; }
       50% { transform: scale(1.15); opacity: 0.75; }
     }
+    .voice-panel {
+      position: fixed; z-index: 200; width: 280px; max-height: 70vh; overflow-y: auto;
+      background: #ffffff; border: 1px solid #e0e3e8; border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(4,22,39,0.2); padding: 6px;
+    }
+    .voice-panel-header {
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 700;
+      letter-spacing: 0.03em; text-transform: uppercase; color: #44474c;
+      padding: 8px 10px 6px;
+    }
+    .voice-row {
+      display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; cursor: pointer;
+    }
+    .voice-row:hover { background: #f1f4f9; }
+    .voice-row.selected { background: #fed488; }
+    .voice-row-play {
+      flex: none; width: 30px; height: 30px; border-radius: 50%; border: none;
+      background: #ebeef3; color: #041627; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .voice-row-play:hover { background: #e5e8ee; }
+    .voice-row-label { flex: 1; min-width: 0; cursor: pointer; }
+    .voice-row-name { font-family: 'Inter', sans-serif; font-size: 13px; color: #181c20; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .voice-row-lang { font-family: 'Inter', sans-serif; font-size: 11px; color: #9aa1ab; }
+    .voice-panel-empty { font-family: 'Inter', sans-serif; font-size: 12.5px; color: #9aa1ab; padding: 10px; text-align: center; }
+    .voice-panel-showall {
+      width: 100%; margin-top: 4px; padding: 8px; border: none; background: none; cursor: pointer;
+      font-family: 'Inter', sans-serif; font-size: 12px; color: #775a19; text-align: center; border-top: 1px solid #e5e8ee;
+    }
+    .voice-panel-showall:hover { text-decoration: underline; }
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -164,6 +193,9 @@
 <span class="w-1.5 h-1.5 rounded-full bg-on-tertiary-container inline-block"></span> <span data-i18n="mamai.subtitle">Online · Darwesh Group Market Intelligence</span>
                     </p>
 </div>
+<button id="voiceSettingsBtn" aria-label="Choose voice" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Choose voice" data-i18n-title="mamai.voiceSettingsTitle">
+<span class="material-symbols-outlined">tune</span>
+</button>
 <button id="voiceOutputToggle" aria-label="Toggle voice replies" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Voice replies">
 <span class="material-symbols-outlined" id="voiceOutputIcon">volume_up</span>
 </button>
@@ -618,6 +650,23 @@ function pickVoice(langCandidates) {
   return en.slice().sort((a, b) => voiceScore(b, 'en') - voiceScore(a, 'en'))[0];
 }
 
+// A manually-chosen voice, one preference per UI language, so picking a
+// better-sounding Kurdish voice doesn't affect English/Arabic. Voice
+// objects aren't serializable/stable across reloads, so only name+lang
+// are stored and re-matched against cachedVoices each time.
+function voiceOverrideKey() { return 'mam_voice_override_' + (localStorage.getItem('darwesh_lang') || 'en'); }
+function getVoiceOverride() {
+  const stored = localStorage.getItem(voiceOverrideKey());
+  if (!stored) return null;
+  const sep = stored.lastIndexOf('|');
+  const name = stored.slice(0, sep), lang = stored.slice(sep + 1);
+  return cachedVoices.find(v => v.name === name && v.lang === lang) || null;
+}
+function setVoiceOverride(voice) {
+  if (voice) localStorage.setItem(voiceOverrideKey(), voice.name + '|' + voice.lang);
+  else localStorage.removeItem(voiceOverrideKey());
+}
+
 let voiceOutputEnabled = localStorage.getItem(VOICE_OUTPUT_KEY) === '1';
 
 function updateVoiceOutputIcon() {
@@ -631,7 +680,7 @@ function speakReply(text) {
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   const candidates = speechVoiceLangCandidates();
-  const voice = pickVoice(candidates);
+  const voice = getVoiceOverride() || pickVoice(candidates);
   if (voice) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
@@ -649,6 +698,133 @@ if (window.speechSynthesis) {
     localStorage.setItem(VOICE_OUTPUT_KEY, voiceOutputEnabled ? '1' : '0');
     updateVoiceOutputIcon();
     if (!voiceOutputEnabled) window.speechSynthesis.cancel();
+  });
+}
+
+// ---------------------------------------------------------------------
+// Voice picker — lets the visitor override the automatically-picked
+// voice with any voice actually installed on their device. Matters most
+// for Kurdish: most devices have no real Kurdish voice at all, so the
+// automatic pick falls back to Arabic, which mispronounces Kurdish text.
+// Letting the visitor browse what IS installed and pick whichever one
+// sounds best (or none, reverting to automatic) beats guessing for them.
+// ---------------------------------------------------------------------
+const VOICE_SAMPLE_TEXT = {
+  ku: 'سڵاو، ئەمە دەنگی منە بۆ وەڵامدانەوە.',
+  ar: 'مرحبًا، هذا هو صوتي في الرد على أسئلتك.',
+  en: "Hi, this is how I'll sound when I reply."
+};
+
+function previewVoice(voice) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const lang = localStorage.getItem('darwesh_lang') || 'en';
+  const utterance = new SpeechSynthesisUtterance(VOICE_SAMPLE_TEXT[lang] || VOICE_SAMPLE_TEXT.en);
+  utterance.voice = voice;
+  utterance.lang = voice.lang;
+  window.speechSynthesis.speak(utterance);
+}
+
+let voicePanelEl = null, voicePanelOutsideClick = null, voicePanelShowAll = false;
+
+function closeVoicePanel() {
+  if (voicePanelEl) { voicePanelEl.remove(); voicePanelEl = null; }
+  if (voicePanelOutsideClick) { document.removeEventListener('click', voicePanelOutsideClick, true); voicePanelOutsideClick = null; }
+}
+
+function voicesForPanel() {
+  const candidates = speechVoiceLangCandidates();
+  if (voicePanelShowAll) return cachedVoices.slice().sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
+  const seen = new Set();
+  const result = [];
+  candidates.forEach(prefix => {
+    cachedVoices.filter(v => v.lang.toLowerCase().startsWith(prefix)).forEach(v => {
+      if (!seen.has(v.name + '|' + v.lang)) { seen.add(v.name + '|' + v.lang); result.push(v); }
+    });
+  });
+  return result;
+}
+
+function renderVoicePanel() {
+  const current = getVoiceOverride();
+  const voices = voicesForPanel();
+  const rows = voices.map(v => {
+    const isSelected = current && current.name === v.name && current.lang === v.lang;
+    return `
+      <div class="voice-row${isSelected ? ' selected' : ''}" data-name="${v.name.replace(/"/g, '&quot;')}" data-lang="${v.lang}">
+        <button type="button" class="voice-row-play" aria-label="Preview" title="Preview">
+          <span class="material-symbols-outlined" style="font-size:18px;">play_arrow</span>
+        </button>
+        <div class="voice-row-label">
+          <p class="voice-row-name">${v.name}</p>
+          <p class="voice-row-lang">${v.lang}</p>
+        </div>
+        ${isSelected ? '<span class="material-symbols-outlined" style="font-size:18px; color:#775a19;">check</span>' : ''}
+      </div>`;
+  }).join('');
+
+  voicePanelEl.innerHTML = `
+    <div class="voice-panel-header">${tr('mamai.voiceSettingsTitle', 'Choose a voice')}</div>
+    <div class="voice-row${current ? '' : ' selected'}" data-auto="1">
+      <span class="material-symbols-outlined voice-row-play" style="padding:6px;">auto_awesome</span>
+      <div class="voice-row-label"><p class="voice-row-name">${tr('mamai.voiceAuto', 'Auto (recommended)')}</p></div>
+      ${current ? '' : '<span class="material-symbols-outlined" style="font-size:18px; color:#775a19;">check</span>'}
+    </div>
+    ${voices.length ? rows : `<p class="voice-panel-empty">${tr('mamai.voiceNoneFound', 'No voices found for this language on your device.')}</p>`}
+    <button type="button" class="voice-panel-showall">${voicePanelShowAll ? tr('mamai.voiceShowMatching', 'Show only matching voices') : tr('mamai.voiceShowAll', 'Show all installed voices')}</button>
+  `;
+
+  voicePanelEl.querySelector('[data-auto="1"]').addEventListener('click', () => {
+    setVoiceOverride(null);
+    renderVoicePanel();
+  });
+  voicePanelEl.querySelectorAll('.voice-row:not([data-auto])').forEach(row => {
+    const voice = cachedVoices.find(v => v.name === row.dataset.name && v.lang === row.dataset.lang);
+    if (!voice) return;
+    row.querySelector('.voice-row-play').addEventListener('click', (e) => { e.stopPropagation(); previewVoice(voice); });
+    row.querySelector('.voice-row-label').addEventListener('click', () => { setVoiceOverride(voice); renderVoicePanel(); });
+  });
+  voicePanelEl.querySelector('.voice-panel-showall').addEventListener('click', () => {
+    voicePanelShowAll = !voicePanelShowAll;
+    renderVoicePanel();
+  });
+}
+
+function openVoicePanel(btn) {
+  closeVoicePanel();
+  refreshVoices();
+  const panel = document.createElement('div');
+  panel.className = 'voice-panel';
+  document.body.appendChild(panel);
+  voicePanelEl = panel;
+  renderVoicePanel();
+
+  const rect = btn.getBoundingClientRect();
+  const w = 280;
+  panel.style.top = (rect.bottom + 8) + 'px';
+  let left = rect.right - w;
+  left = Math.min(Math.max(12, left), document.documentElement.clientWidth - w - 12);
+  panel.style.left = left + 'px';
+
+  setTimeout(() => {
+    // Capture phase, not bubble: a row click inside the panel re-renders
+    // the panel's own innerHTML (selecting a voice, toggling "show all"),
+    // which detaches the clicked element before a bubble-phase listener
+    // would ever see it — panel.contains(e.target) would wrongly read
+    // false and close the panel out from under its own click. Capture
+    // runs before that mutation happens, while the target is still real.
+    voicePanelOutsideClick = (e) => { if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) closeVoicePanel(); };
+    document.addEventListener('click', voicePanelOutsideClick, true);
+  }, 0);
+}
+
+const voiceSettingsBtn = document.getElementById('voiceSettingsBtn');
+if (window.speechSynthesis && voiceSettingsBtn) {
+  voiceSettingsBtn.classList.remove('hidden');
+  voiceSettingsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (voicePanelEl) { closeVoicePanel(); return; }
+    openVoicePanel(voiceSettingsBtn);
   });
 }
 

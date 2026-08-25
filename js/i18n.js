@@ -323,6 +323,11 @@ const translations = {
     'insights.listProperty': 'خانووبەرەکەت لیست بکە',
 
     'mamai.subtitle': 'ئۆنلاین · شارەزایی بازاڕی دەرەوش گروپ',
+    'mamai.voiceSettingsTitle': 'دەنگێک هەڵبژێرە',
+    'mamai.voiceAuto': 'خۆکار (پێشنیارکراو)',
+    'mamai.voiceShowAll': 'هەموو دەنگە دامەزراوەکان نیشان بدە',
+    'mamai.voiceShowMatching': 'تەنها دەنگە گونجاوەکان نیشان بدە',
+    'mamai.voiceNoneFound': 'هیچ دەنگێک بۆ ئەم زمانە لەسەر ئامێرەکەت نەدۆزرایەوە.',
     'mamai.greeting': 'سڵاو، من MAM ـم، یارمەتیدەری زیرەکی بازاڕی دەرەوش گروپم. پرسیارم لێ بکە دەربارەی نرخی خانووبەرە، گەڕەکەکان، یان ئەوەی باشترە بکڕیت یان بیگریتە بەکرێ.',
     'mamai.prompt1': 'نرخی خانووبەرەکەم چەندە؟',
     'mamai.prompt2': 'باشترین گەڕەکەکان بۆ وەبەرهێنان لە هەولێر',
@@ -1045,6 +1050,11 @@ const translations = {
     'insights.listProperty': 'أدرج عقارك',
 
     'mamai.subtitle': 'متصل · ذكاء سوق مجموعة درويش',
+    'mamai.voiceSettingsTitle': 'اختر صوتًا',
+    'mamai.voiceAuto': 'تلقائي (موصى به)',
+    'mamai.voiceShowAll': 'إظهار كل الأصوات المثبتة',
+    'mamai.voiceShowMatching': 'إظهار الأصوات المطابقة فقط',
+    'mamai.voiceNoneFound': 'لم يتم العثور على أي صوت لهذه اللغة على جهازك.',
     'mamai.greeting': 'مرحبًا، أنا MAM — مساعدك الذكي لسوق مجموعة درويش. اسألني عن تقييمات العقارات أو الأحياء أو ما إذا كان من الأفضل الشراء أو الإيجار الآن.',
     'mamai.prompt1': 'كم تبلغ قيمة عقاري؟',
     'mamai.prompt2': 'أفضل المناطق للاستثمار في أربيل',
