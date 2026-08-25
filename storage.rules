@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// Darwesh Group — Cloud Storage Security Rules
+// Paste this into Firebase Console → Storage → Rules → Publish.
+// (Storage must be enabled first — Firebase Console → Build → Storage →
+// Get started — if it hasn't been already.)
+//
+// Only one path is in use today: photos uploaded from the Sell form
+// (sell.html), before the submission itself even has an id. Each upload
+// batch gets its own random token generated client-side, so a submission's
+// photos land at sell-submissions/{token}/{fileName} and that token is
+// stored on the submission doc to link them back together.
+//
+// sell.html has no login requirement (a guest can list a property), so
+// this intentionally allows unauthenticated uploads — same trust model as
+// the `submissions` collection in firestore.rules, which already accepts
+// guest-created docs. The size/type checks are the only real guardrail
+// against abuse at this layer.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /sell-submissions/{token}/{fileName} {
+      allow read: if true;
+      allow write: if request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+  }
+}

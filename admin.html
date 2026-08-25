@@ -793,6 +793,7 @@
 <span class="material-symbols-outlined">close</span>
 </button>
 <h2 class="font-headline-md text-headline-md text-primary mb-4" id="requestDetailTitle" data-i18n="admin.requestDetails">Request Details</h2>
+<div class="hidden grid grid-cols-3 gap-2 mb-4" id="requestDetailPhotos"></div>
 <dl class="grid grid-cols-2 gap-x-4 gap-y-3" id="requestDetailBody"></dl>
 <div class="hidden mt-4" id="requestDetailMapWrap">
 <p class="admin-label mb-2" data-i18n="admin.nearbyForThisRequest">Nearby important places</p>
@@ -1625,6 +1626,19 @@ function openRequestDetail(id) {
   document.getElementById('requestDetailTitle').textContent = isSell
     ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
 
+  const photosWrap = document.getElementById('requestDetailPhotos');
+  const photoUrls = Array.isArray(s.photoUrls) ? s.photoUrls : [];
+  if (photoUrls.length) {
+    photosWrap.classList.remove('hidden');
+    photosWrap.innerHTML = photoUrls.map(url => `
+      <a href="${url}" target="_blank" rel="noopener" class="block aspect-square rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low">
+        <img src="${url}" class="w-full h-full object-cover"/>
+      </a>`).join('');
+  } else {
+    photosWrap.classList.add('hidden');
+    photosWrap.innerHTML = '';
+  }
+
   const rows = [];
   const fields = isSell ? SELL_DETAIL_FIELDS : VIEWING_DETAIL_FIELDS;
   fields.forEach(([key, i18nKey, fallback]) => {
@@ -1718,6 +1732,9 @@ function createListingFromSubmission(id) {
   document.getElementById('fBeds').value = s.beds || 0;
   document.getElementById('fBaths').value = s.baths || 0;
   document.getElementById('fSqft').value = s.size || 0;
+  if (Array.isArray(s.photoUrls) && s.photoUrls.length) {
+    document.getElementById('fImg').value = s.photoUrls[0];
+  }
 
   setTimeout(() => {
     if (window.adminPinMap) window.adminPinMap.invalidateSize();
