@@ -301,20 +301,19 @@ async function loadMarketStats() {
     const docs = [];
     snap.forEach(d => {
       const l = d.data();
+      if (l.status === 'closed') return; // sold/rented — not part of the live market picture
       total++;
       if (l.verified) verified++;
-      if (l.status !== 'closed') {
-        docs.push({
-          id: d.id,
-          title: l.title || l.address || 'Property',
-          city: l.city || '',
-          propertyType: l.propertyType || '',
-          dealType: l.dealType || '',
-          price: typeof l.price === 'number' ? l.price : Number(l.price) || 0,
-          beds: Number(l.beds) || 0,
-          verified: !!l.verified
-        });
-      }
+      docs.push({
+        id: d.id,
+        title: l.title || l.address || 'Property',
+        city: l.city || '',
+        propertyType: l.propertyType || '',
+        dealType: l.dealType || '',
+        price: typeof l.price === 'number' ? l.price : Number(l.price) || 0,
+        beds: Number(l.beds) || 0,
+        verified: !!l.verified
+      });
       if (!l.city) return;
       const c = byCity[l.city] || (byCity[l.city] = { count: 0, saleCount: 0, prices: [] });
       c.count++;
@@ -525,7 +524,7 @@ function searchResultLine(l) {
 }
 
 function searchReply(criteria) {
-  if (!allListings.length) {
+  if (marketStats === null) {
     return { reply: tr('mamai.searchNoData', "I don't have live listing data loaded right now — please try again in a moment, or browse listings directly."), cta: { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' } };
   }
   let matches = allListings.filter(l => l.city === criteria.city);
