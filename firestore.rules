@@ -110,5 +110,18 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow update, delete: if isAdmin();
     }
+
+    // ---- Agent financial ledger (accounting) ----
+    // Each agent's own manually-entered income/expense/purchase records
+    // for the Finances tab on agent-dashboard.html. Commission entries are
+    // never stored here — they're calculated live from that agent's real
+    // closed listings instead. Strictly owner-only: no agent can read or
+    // write another agent's numbers; only an admin can read across all of
+    // them.
+    match /agentTransactions/{transactionId} {
+      allow read: if isOwner(resource.data.agentId) || isAdmin();
+      allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.agentId) || isAdmin();
+    }
   }
 }

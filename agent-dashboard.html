@@ -259,6 +259,7 @@
           <button class="listings-tab active" data-tab="mine" type="button" data-i18n="agentDash.myListingsTab">My Listings</button>
           <button class="listings-tab" data-tab="team" type="button" data-i18n="agentDash.teamListingsTab">Team Listings</button>
           <button class="listings-tab" data-tab="map" type="button" data-i18n="agentDash.mapTab">Map</button>
+          <button class="listings-tab" data-tab="finances" type="button" data-i18n="agentDash.financesTab">Finances</button>
         </div>
 
         <div id="listingsPanel-mine" class="listings-panel">
@@ -296,6 +297,84 @@
           </div>
           <div class="rounded-xl overflow-hidden border border-outline-variant" style="height:520px;" id="agentTeamMap"></div>
         </div>
+
+        <div id="listingsPanel-finances" class="listings-panel hidden">
+          <p class="font-body-md text-[13px] text-on-surface-variant mb-4" data-i18n="agentDash.finIntro">Your own accounting — commissions are calculated automatically from your closed deals below; expenses, purchases, and other income are entered by hand.</p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
+              <p class="admin-label mb-1" data-i18n="agentDash.finTotalIncome">Total Income</p>
+              <p class="font-headline-md text-[22px] text-primary" id="finTotalIncome">$0</p>
+            </div>
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
+              <p class="admin-label mb-1" data-i18n="agentDash.finTotalExpenses">Total Expenses</p>
+              <p class="font-headline-md text-[22px] text-error" id="finTotalExpenses">$0</p>
+            </div>
+            <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
+              <p class="admin-label mb-1" data-i18n="agentDash.finNetProfit">Net Profit</p>
+              <p class="font-headline-md text-[22px] text-on-tertiary-container" id="finNetProfit">$0</p>
+            </div>
+          </div>
+
+          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 mb-5 flex items-end gap-3 flex-wrap">
+            <div>
+              <label class="admin-label" for="finCommissionRate" data-i18n="agentDash.finCommissionRate">Commission rate (%)</label>
+              <input id="finCommissionRate" type="number" min="0" max="100" step="0.1" class="admin-input" style="width:120px;"/>
+            </div>
+            <button id="finSaveRateBtn" type="button" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="common.save">Save</button>
+            <p id="finRateStatus" class="hidden font-body-md text-[12px] text-on-tertiary-container"></p>
+            <p class="font-body-md text-[12px] text-on-surface-variant basis-full mt-1" data-i18n="agentDash.finCommissionNote">Applied automatically to every one of your listings marked Sold or Rented below — no need to enter these by hand.</p>
+          </div>
+
+          <p class="font-headline-md text-[16px] text-primary mb-2" data-i18n="agentDash.finCommissionsTitle">Commissions from closed deals</p>
+          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden mb-6">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead><tr><th data-i18n="agentDash.thListing">Listing</th><th data-i18n="agentDash.thType">Type</th><th data-i18n="agentDash.finClosedPrice">Closed Price</th><th data-i18n="agentDash.finCommissionCol">Commission</th></tr></thead>
+                <tbody id="finCommissionsBody"></tbody>
+              </table>
+            </div>
+            <p id="finCommissionsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="agentDash.finNoCommissions">No closed deals yet — commissions appear here automatically once you mark a listing Sold or Rented.</p>
+          </div>
+
+          <p class="font-headline-md text-[16px] text-primary mb-2" data-i18n="agentDash.finLedgerTitle">Income &amp; expenses</p>
+          <form id="finTxForm" class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 mb-4 grid grid-cols-2 md:grid-cols-5 gap-3 items-end">
+            <div>
+              <label class="admin-label" for="finTxType" data-i18n="agentDash.finTxType">Type</label>
+              <select id="finTxType" class="admin-input">
+                <option value="income" data-i18n="agentDash.finIncome">Income</option>
+                <option value="expense" data-i18n="agentDash.finExpense">Expense</option>
+              </select>
+            </div>
+            <div>
+              <label class="admin-label" for="finTxCategory" data-i18n="agentDash.finTxCategory">Category</label>
+              <select id="finTxCategory" class="admin-input"></select>
+            </div>
+            <div>
+              <label class="admin-label" for="finTxAmount" data-i18n="agentDash.finTxAmount">Amount (USD)</label>
+              <input id="finTxAmount" type="number" min="0.01" step="0.01" class="admin-input" required/>
+            </div>
+            <div>
+              <label class="admin-label" for="finTxDate" data-i18n="agentDash.finTxDate">Date</label>
+              <input id="finTxDate" type="date" class="admin-input" required/>
+            </div>
+            <div class="flex gap-2">
+              <input id="finTxNote" class="admin-input flex-1" data-i18n-placeholder="agentDash.finTxNotePlaceholder" placeholder="Note (optional)"/>
+              <button type="submit" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex-none" data-i18n="common.add">Add</button>
+            </div>
+          </form>
+          <p id="finTxError" class="text-error text-[13px] mb-3 hidden"></p>
+
+          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="admin-table">
+                <thead><tr><th data-i18n="agentDash.finTxDate">Date</th><th data-i18n="agentDash.finTxType">Type</th><th data-i18n="agentDash.finTxCategory">Category</th><th data-i18n="agentDash.finTxAmount">Amount</th><th data-i18n="common.notes">Note</th><th></th></tr></thead>
+                <tbody id="finTxBody"></tbody>
+              </table>
+            </div>
+            <p id="finTxEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="agentDash.finNoTx">No manual entries yet. Use the form above to log an expense, purchase, or other income.</p>
+          </div>
+        </div>
       </div>
     </div>
   </main>
@@ -331,6 +410,7 @@
         setTimeout(() => { if (agentTeamMap) agentTeamMap.invalidateSize(); }, 50);
         renderAgentTeamMap();
       }
+      if (tab.dataset.tab === 'finances') loadFinances();
     });
   });
 
@@ -694,6 +774,164 @@
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Finances — an agent's personal accounting. Commissions are never
+  // stored: they're recalculated live from this agent's own closed
+  // listings (status === 'closed') every time this tab loads, using
+  // whatever commission rate is currently saved on their profile — so a
+  // rate change is reflected immediately and there's nothing to keep in
+  // sync or de-duplicate. Everything else (purchases, other expenses,
+  // other income) is a manual ledger entry in `agentTransactions`, since
+  // there's no existing data source for those.
+  // ---------------------------------------------------------------------
+  let agentCommissionRate = 0;
+
+  function escapeFin(str) {
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  const FIN_CATEGORIES = {
+    income: [['sale', 'agentDash.finCatSale', 'Sale'], ['other', 'agentDash.finCatOtherIncome', 'Other Income']],
+    expense: [['purchase', 'agentDash.finCatPurchase', 'Purchase'], ['expense', 'agentDash.finCatExpense', 'Expense']]
+  };
+  function populateFinCategories() {
+    const type = document.getElementById('finTxType').value;
+    document.getElementById('finTxCategory').innerHTML = FIN_CATEGORIES[type].map(([v, k, f]) => `<option value="${v}">${trDash(k, f)}</option>`).join('');
+  }
+  function finCategoryLabel(type, category) {
+    const entry = (FIN_CATEGORIES[type] || []).find(([v]) => v === category);
+    return entry ? trDash(entry[1], entry[2]) : category;
+  }
+  document.getElementById('finTxType').addEventListener('change', populateFinCategories);
+  populateFinCategories();
+  document.getElementById('finTxDate').value = new Date().toISOString().slice(0, 10);
+
+  function fmtFinAmount(n) { return '$' + Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+
+  async function loadFinances() {
+    document.getElementById('finCommissionRate').value = agentCommissionRate;
+
+    const listingsSnap = await getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)));
+    const closedDeals = [];
+    listingsSnap.forEach(d => { const l = d.data(); if (l.status === 'closed') closedDeals.push(l); });
+
+    const commissionBody = document.getElementById('finCommissionsBody');
+    const commissionEmpty = document.getElementById('finCommissionsEmpty');
+    let totalCommission = 0;
+    if (!closedDeals.length) {
+      commissionBody.innerHTML = '';
+      commissionEmpty.classList.remove('hidden');
+    } else {
+      commissionEmpty.classList.add('hidden');
+      commissionBody.innerHTML = closedDeals.map(l => {
+        const commission = Number(l.price || 0) * (agentCommissionRate / 100);
+        totalCommission += commission;
+        return `<tr>
+          <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeFin(l.title)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeFin(l.address)}, ${escapeFin(l.city)}</p></td>
+          <td><span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trDash('common.forSale', 'For Sale') : trDash('common.forRent', 'For Rent')}</span></td>
+          <td>${fmtFinAmount(l.price)}${l.dealType === 'rent' ? '/mo' : ''}</td>
+          <td>${fmtFinAmount(commission)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    const txSnap = await getDocs(query(collection(db, 'agentTransactions'), where('agentId', '==', currentUid)));
+    const txs = [];
+    txSnap.forEach(d => txs.push({ id: d.id, ...d.data() }));
+    txs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    let totalManualIncome = 0, totalExpenses = 0;
+    txs.forEach(tx => {
+      const amt = Number(tx.amount) || 0;
+      if (tx.type === 'income') totalManualIncome += amt; else totalExpenses += amt;
+    });
+
+    const txBody = document.getElementById('finTxBody');
+    const txEmpty = document.getElementById('finTxEmpty');
+    txBody.innerHTML = '';
+    if (!txs.length) {
+      txEmpty.classList.remove('hidden');
+    } else {
+      txEmpty.classList.add('hidden');
+      txs.forEach(tx => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeFin(tx.date)}</td>
+          <td>${tx.type === 'income' ? trDash('agentDash.finIncome', 'Income') : trDash('agentDash.finExpense', 'Expense')}</td>
+          <td>${escapeFin(finCategoryLabel(tx.type, tx.category))}</td>
+          <td>${fmtFinAmount(tx.amount)}</td>
+          <td>${escapeFin(tx.note || '')}</td>
+          <td></td>
+        `;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = trDash('common.delete', 'Delete');
+        delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
+        delBtn.addEventListener('click', () => window.deleteFinTx(tx.id));
+        tr.lastElementChild.appendChild(delBtn);
+        txBody.appendChild(tr);
+      });
+    }
+
+    const totalIncome = totalCommission + totalManualIncome;
+    const netProfit = totalIncome - totalExpenses;
+    document.getElementById('finTotalIncome').textContent = fmtFinAmount(totalIncome);
+    document.getElementById('finTotalExpenses').textContent = fmtFinAmount(totalExpenses);
+    const netEl = document.getElementById('finNetProfit');
+    netEl.textContent = (netProfit < 0 ? '-' : '') + fmtFinAmount(Math.abs(netProfit));
+    netEl.className = 'font-headline-md text-[22px] ' + (netProfit < 0 ? 'text-error' : 'text-on-tertiary-container');
+  }
+
+  document.getElementById('finSaveRateBtn').addEventListener('click', async () => {
+    const rate = Number(document.getElementById('finCommissionRate').value) || 0;
+    agentCommissionRate = rate;
+    await updateDoc(doc(db, 'users', currentUid), { commissionRate: rate });
+    const status = document.getElementById('finRateStatus');
+    status.textContent = trDash('agentDash.finRateSaved', 'Saved.');
+    status.classList.remove('hidden');
+    setTimeout(() => status.classList.add('hidden'), 2000);
+    loadFinances();
+  });
+
+  document.getElementById('finTxForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById('finTxError');
+    const amount = Number(document.getElementById('finTxAmount').value);
+    const date = document.getElementById('finTxDate').value;
+    if (!amount || amount <= 0 || !date) {
+      errEl.textContent = trDash('agentDash.finTxFillRequired', 'Please enter a valid amount and date.');
+      errEl.classList.remove('hidden');
+      return;
+    }
+    errEl.classList.add('hidden');
+    const data = {
+      agentId: currentUid,
+      type: document.getElementById('finTxType').value,
+      category: document.getElementById('finTxCategory').value,
+      amount,
+      date,
+      note: document.getElementById('finTxNote').value.trim(),
+      createdAt: serverTimestamp()
+    };
+    try {
+      await addDoc(collection(db, 'agentTransactions'), data);
+      document.getElementById('finTxForm').reset();
+      populateFinCategories();
+      document.getElementById('finTxDate').value = new Date().toISOString().slice(0, 10);
+      loadFinances();
+    } catch (err) {
+      errEl.textContent = trDash('agentDash.finTxSaveFailed', 'Could not save this entry: ') + err.message;
+      errEl.classList.remove('hidden');
+    }
+  });
+
+  window.deleteFinTx = async function (id) {
+    if (!confirm(trDash('agentDash.finTxDeleteConfirm', 'Delete this entry?'))) return;
+    await deleteDoc(doc(db, 'agentTransactions', id));
+    loadFinances();
+  };
+
   onAuthStateChanged(auth, async (user) => {
     if (!user) { window.location.href = 'login.html'; return; }
     const snap = await getDoc(doc(db, 'users', user.uid));
@@ -706,6 +944,7 @@
     currentUid = user.uid;
     currentAgentName = profile.displayName || user.email;
     currentCompanyId = profile.companyId || null;
+    agentCommissionRate = Number(profile.commissionRate) || 0;
     document.getElementById('agentNameLabel').textContent = currentAgentName;
     document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
     document.getElementById('agentWelcomeEmail').textContent = user.email;
