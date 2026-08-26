@@ -54,6 +54,17 @@
   .auth-input-wrap { position: relative; }
   .auth-input-wrap .auth-input { padding-left: 40px; }
   .auth-input-wrap .auth-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 19px; color: #9aa1ab; pointer-events: none; }
+  .auth-input-wrap .auth-input.has-toggle { padding-right: 40px; }
+  .auth-toggle-visibility { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: #9aa1ab; display: flex; align-items: center; justify-content: center; transition: background-color .15s ease, color .15s ease; }
+  .auth-toggle-visibility:hover { background: #f1f4f9; color: #44474c; }
+  .auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; }
+  @keyframes auth-spin { to { transform: rotate(360deg); } }
+  .auth-card { animation: auth-card-in .35s ease both; }
+  @keyframes auth-card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  #forgotModalOverlay .forgot-modal-panel { transition: transform .2s ease, opacity .2s ease; transform: scale(.97); opacity: 0; }
+  #forgotModalOverlay.modal-open .forgot-modal-panel { transform: scale(1); opacity: 1; }
+  #forgotModalOverlay { transition: opacity .2s ease; opacity: 0; }
+  #forgotModalOverlay.modal-open { opacity: 1; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -93,14 +104,25 @@
           <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
           <div class="auth-input-wrap">
             <span class="material-symbols-outlined auth-input-icon">lock</span>
-            <input id="fPassword" class="auth-input" required type="password" autocomplete="current-password"/>
+            <input id="fPassword" class="auth-input has-toggle" required type="password" autocomplete="current-password"/>
+            <button type="button" class="auth-toggle-visibility" id="toggleFPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
+              <span class="material-symbols-outlined" id="toggleFPasswordIcon" style="font-size:19px;">visibility</span>
+            </button>
           </div>
         </div>
+        <div class="flex items-center justify-between -mt-1">
+          <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface cursor-pointer select-none">
+            <input id="rememberMe" type="checkbox" class="rounded" checked/>
+            <span data-i18n="auth.rememberMe">Remember me</span>
+          </label>
+          <button id="forgotBtn" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" type="button" data-i18n="auth.forgotPassword">Forgot password?</button>
+        </div>
         <p id="authError" class="hidden text-error text-[13px]"></p>
-        <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="auth.logInBtn">Log In</button>
+        <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
+          <span class="auth-spinner hidden" id="submitSpinner"></span>
+          <span id="submitBtnLabel" data-i18n="auth.logInBtn">Log In</span>
+        </button>
       </form>
-
-      <button id="forgotBtn" class="block mx-auto mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" type="button" data-i18n="auth.forgotPassword">Forgot password?</button>
     </div>
 
     <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
@@ -113,7 +135,7 @@
 <!-- Forgot Password Modal -->
 <div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="forgotModalOverlay">
 <div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="forgotModalBackdrop"></div>
-<div class="relative bg-surface-container-lowest w-full md:max-w-sm rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+<div class="forgot-modal-panel relative bg-surface-container-lowest w-full md:max-w-sm rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
 <button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="forgotModalClose" type="button">
 <span class="material-symbols-outlined">close</span>
 </button>
@@ -149,7 +171,7 @@
 <script src="./js/i18n.js"></script>
 <script type="module">
   import { auth, db } from './js/firebase-init.js';
-  import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   // Already logged in? Skip straight to the right dashboard instead of
@@ -164,11 +186,34 @@
   const form = document.getElementById('loginForm');
   const errEl = document.getElementById('authError');
   const submitBtn = document.getElementById('submitBtn');
+  const submitSpinner = document.getElementById('submitSpinner');
+  const submitBtnLabel = document.getElementById('submitBtnLabel');
 
   function showError(msg) {
     errEl.textContent = msg;
     errEl.classList.remove('hidden');
   }
+
+  function setSubmitLoading(loading, loadingText, idleText) {
+    submitBtn.disabled = loading;
+    submitSpinner.classList.toggle('hidden', !loading);
+    submitBtnLabel.textContent = loading ? loadingText : idleText;
+  }
+
+  // Show/Hide password -- toggles the input type and swaps the eye icon;
+  // purely a visibility aid, doesn't change what's submitted.
+  function wirePasswordToggle(inputId, btnId, iconId) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    const icon = document.getElementById(iconId);
+    btn.addEventListener('click', () => {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      icon.textContent = showing ? 'visibility' : 'visibility_off';
+      btn.setAttribute('aria-label', showing ? tr('auth.showPassword', 'Show password') : tr('auth.hidePassword', 'Hide password'));
+    });
+  }
+  wirePasswordToggle('fPassword', 'toggleFPassword', 'toggleFPasswordIcon');
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -184,13 +229,15 @@
     }
   }
 
-  // Separate from friendlyLoginError: auth/user-not-found here means "no
-  // account with that email" — reusing the login flow's "Incorrect email
-  // or password" message for this would be a nonsensical, wrong message
-  // for a password-reset flow. This is that fix.
+  // auth/invalid-email and auth/too-many-requests are legitimate to show
+  // distinctly (a malformed email or a rate-limit isn't an enumeration
+  // risk). auth/user-not-found is deliberately NOT handled here — it's
+  // intercepted before it ever reaches this function (see the forgotForm
+  // submit handler below) and shown the exact same success message as a
+  // real send, so this flow can never be used to check whether an email
+  // is registered.
   function friendlyResetError(code) {
     switch (code) {
-      case 'auth/user-not-found': return tr('auth.errNoAccount', 'No account was found with that email.');
       case 'auth/invalid-email': return tr('auth.errBadEmail', "That email address doesn't look right.");
       case 'auth/too-many-requests': return tr('auth.errTooMany', 'Too many attempts — please wait a moment and try again.');
       default: return tr('auth.errResetGeneric', 'Something went wrong sending the reset email. Please try again.');
@@ -200,21 +247,25 @@
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errEl.classList.add('hidden');
-    submitBtn.disabled = true;
-    submitBtn.textContent = tr('auth.loggingIn', 'Logging in…');
+    setSubmitLoading(true, tr('auth.loggingIn', 'Logging in…'), tr('auth.logInBtn', 'Log In'));
 
     const email = document.getElementById('fEmail').value.trim();
     const password = document.getElementById('fPassword').value;
+    const rememberMe = document.getElementById('rememberMe').checked;
 
     try {
+      // "Remember me" controls whether the signed-in session survives
+      // closing the browser (LOCAL, the default) or is cleared with it
+      // (SESSION) -- set before signing in so it applies to this session
+      // from the start.
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const snap = await getDoc(doc(db, 'users', cred.user.uid));
       const role = snap.exists() ? snap.data().role : 'customer';
       window.location.href = role === 'agent' ? 'agent-dashboard.html' : 'account.html';
     } catch (err) {
       showError(friendlyLoginError(err.code));
-      submitBtn.disabled = false;
-      submitBtn.textContent = tr('auth.logInBtn', 'Log In');
+      setSubmitLoading(false, '', tr('auth.logInBtn', 'Log In'));
     }
   });
 
@@ -241,11 +292,16 @@
     resetEmailInput.value = document.getElementById('fEmail').value.trim();
     forgotOverlay.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    // Two-step so the transition (opacity/scale) actually plays instead of
+    // jumping straight to its end state — the browser needs a frame with
+    // "hidden" already removed but "modal-open" not yet added.
+    requestAnimationFrame(() => forgotOverlay.classList.add('modal-open'));
     resetEmailInput.focus();
   }
   function closeForgotModal() {
-    forgotOverlay.classList.add('hidden');
+    forgotOverlay.classList.remove('modal-open');
     document.body.style.overflow = '';
+    setTimeout(() => forgotOverlay.classList.add('hidden'), 200);
   }
 
   document.getElementById('forgotBtn').addEventListener('click', openForgotModal);
@@ -266,6 +322,13 @@
     handleCodeInApp: true
   };
 
+  function showForgotSuccess(email) {
+    document.getElementById('forgotModalSuccessBody').textContent =
+      tr('auth.resetLinkSentBody', 'If an account exists for') + ' ' + email + tr('auth.resetLinkSentBodySuffix', ", we've sent a link to reset your password.");
+    forgotFormView.classList.add('hidden');
+    forgotSuccessView.classList.remove('hidden');
+  }
+
   forgotForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     forgotError.classList.add('hidden');
@@ -273,13 +336,19 @@
     forgotSubmitBtn.disabled = true;
     try {
       await sendPasswordResetEmail(auth, email, resetActionCodeSettings);
-      document.getElementById('forgotModalSuccessBody').textContent =
-        tr('auth.resetLinkSentBody', 'If an account exists for') + ' ' + email + tr('auth.resetLinkSentBodySuffix', ", we've sent a link to reset your password.");
-      forgotFormView.classList.add('hidden');
-      forgotSuccessView.classList.remove('hidden');
+      showForgotSuccess(email);
     } catch (err) {
-      forgotError.textContent = friendlyResetError(err.code);
-      forgotError.classList.remove('hidden');
+      // No account with this email must look identical to a real send —
+      // otherwise this form becomes a way to check which emails are
+      // registered. auth/invalid-email and auth/too-many-requests are
+      // fine to show distinctly (format/rate-limit feedback, not an
+      // account-existence signal).
+      if (err.code === 'auth/user-not-found') {
+        showForgotSuccess(email);
+      } else {
+        forgotError.textContent = friendlyResetError(err.code);
+        forgotError.classList.remove('hidden');
+      }
     } finally {
       forgotSubmitBtn.disabled = false;
     }
