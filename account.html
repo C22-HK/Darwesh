@@ -77,9 +77,17 @@
     <section class="bg-primary-container rounded-2xl p-6 md:p-8 mb-8 relative overflow-hidden flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
       <div class="absolute -top-24 -right-24 w-64 h-64 bg-secondary opacity-10 rounded-full blur-3xl pointer-events-none"></div>
       <div class="relative z-10 flex-shrink-0">
-        <div class="w-24 h-24 md:w-28 md:h-28 rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg mx-auto">
-          <span class="material-symbols-outlined text-on-primary text-[44px]">person</span>
+        <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
+          <div id="acctPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
+            <span class="material-symbols-outlined text-on-primary text-[44px]" id="acctPhotoIcon">person</span>
+            <img id="acctPhotoImg" class="hidden w-full h-full object-cover"/>
+          </div>
+          <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
+            <span class="material-symbols-outlined text-[16px]">photo_camera</span>
+            <input id="acctPhotoUpload" type="file" accept="image/*" class="hidden"/>
+          </label>
         </div>
+        <p id="acctPhotoStatus" class="hidden font-body-md text-[11px] text-primary-fixed-dim text-center mt-1.5"></p>
       </div>
       <div class="relative z-10 flex-1">
         <h1 class="font-headline-md text-[26px] md:text-[30px] text-on-primary font-bold mb-1" id="welcomeName">Welcome</h1>
@@ -180,9 +188,10 @@
 </div>
 
 <script type="module">
-  import { auth, db } from './js/firebase-init.js';
+  import { auth, db, storage } from './js/firebase-init.js';
   import { onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, getDoc, updateDoc, collection, getDocs, deleteDoc, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
   document.querySelectorAll('.acct-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -199,6 +208,52 @@
   });
 
   function fmtUSD(n) { return '$' + Number(n).toLocaleString('en-US'); }
+
+  // Profile photo — same pattern as agent-dashboard.html's agent photo:
+  // stored on the user's own profile doc, which a customer is already
+  // allowed to update (firestore.rules only locks role/assignedAgentId/
+  // companyId on that doc, not arbitrary other fields).
+  function setAcctPhoto(url) {
+    const img = document.getElementById('acctPhotoImg');
+    const icon = document.getElementById('acctPhotoIcon');
+    if (url) { img.src = url; img.classList.remove('hidden'); icon.classList.add('hidden'); }
+    else { img.classList.add('hidden'); icon.classList.remove('hidden'); }
+  }
+
+  // A Storage upload can hang indefinitely instead of failing fast (seen
+  // in practice if Storage isn't actually provisioned on the Firebase
+  // project) — a hard timeout turns that into an ordinary, recoverable
+  // failure instead of a permanently stuck "Uploading..." status.
+  const PHOTO_UPLOAD_TIMEOUT_MS = 25000;
+  function withUploadTimeout(promise) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('Upload timed out')), PHOTO_UPLOAD_TIMEOUT_MS);
+      promise.then(v => { clearTimeout(timer); resolve(v); }, err => { clearTimeout(timer); reject(err); });
+    });
+  }
+
+  function wirePhotoUpload(uid) {
+    document.getElementById('acctPhotoUpload').addEventListener('change', async function () {
+      const file = this.files[0];
+      if (!file) return;
+      const statusEl = document.getElementById('acctPhotoStatus');
+      statusEl.textContent = 'Uploading...';
+      statusEl.classList.remove('hidden');
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileRef = storageRef(storage, `customer-photos/${uid}/${Date.now()}-${safeName}`);
+        await withUploadTimeout(uploadBytes(fileRef, file));
+        const url = await withUploadTimeout(getDownloadURL(fileRef));
+        await updateDoc(doc(db, 'users', uid), { photoURL: url });
+        setAcctPhoto(url);
+        statusEl.classList.add('hidden');
+      } catch (err) {
+        statusEl.textContent = 'Upload failed: ' + err.message;
+      } finally {
+        this.value = '';
+      }
+    });
+  }
 
   async function loadFavorites(uid) {
     const grid = document.getElementById('favoritesGrid');
@@ -390,6 +445,7 @@
     }
     document.getElementById('welcomeName').textContent = 'Welcome, ' + (profile.displayName || user.email);
     document.getElementById('welcomeEmail').textContent = user.email;
+    setAcctPhoto(profile.photoURL);
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('accountContent').classList.remove('hidden');
 
@@ -398,6 +454,7 @@
     loadSearches(user.uid);
     loadMyAgent(profile);
     wireSettings(user, profile);
+    wirePhotoUpload(user.uid);
   });
 </script>
 </body></html>
