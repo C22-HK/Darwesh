@@ -32,6 +32,10 @@ rules_version = '2';
 //   same-uid pattern firestore.rules already uses for a user's own
 //   profile doc.
 //
+// - customer-photos/{uid}/{fileName} — a regular customer's own profile
+//   photo, uploaded from account.html. Same owner-only pattern as
+//   agent-photos.
+//
 // The size/type checks are the only real guardrail against abuse at this
 // layer beyond that.
 service firebase.storage {
@@ -50,6 +54,13 @@ service firebase.storage {
       allow delete: if false;
     }
     match /agent-photos/{uid}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == uid
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+    match /customer-photos/{uid}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == uid
                      && request.resource.size < 10 * 1024 * 1024
