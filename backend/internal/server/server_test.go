@@ -15,7 +15,7 @@ func testLogger() *slog.Logger {
 }
 
 func TestHealthzReturnsOK(t *testing.T) {
-	router := New(config.Config{Env: "development"}, testLogger())
+	router := New(config.Config{Env: "development"}, testLogger(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -26,7 +26,7 @@ func TestHealthzReturnsOK(t *testing.T) {
 }
 
 func TestAPIV1HealthReturnsOK(t *testing.T) {
-	router := New(config.Config{Env: "development"}, testLogger())
+	router := New(config.Config{Env: "development"}, testLogger(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -37,7 +37,7 @@ func TestAPIV1HealthReturnsOK(t *testing.T) {
 }
 
 func TestCORSRejectsUnlistedOrigin(t *testing.T) {
-	router := New(config.Config{Env: "development", AllowedOrigins: []string{"https://www.darweshgroup.com"}}, testLogger())
+	router := New(config.Config{Env: "development", AllowedOrigins: []string{"https://www.darweshgroup.com"}}, testLogger(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	req.Header.Set("Origin", "https://evil.example.com")
 	rec := httptest.NewRecorder()
@@ -49,7 +49,7 @@ func TestCORSRejectsUnlistedOrigin(t *testing.T) {
 }
 
 func TestCORSAllowsListedOrigin(t *testing.T) {
-	router := New(config.Config{Env: "development", AllowedOrigins: []string{"https://www.darweshgroup.com"}}, testLogger())
+	router := New(config.Config{Env: "development", AllowedOrigins: []string{"https://www.darweshgroup.com"}}, testLogger(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/health", nil)
 	req.Header.Set("Origin", "https://www.darweshgroup.com")
 	rec := httptest.NewRecorder()
@@ -61,7 +61,7 @@ func TestCORSAllowsListedOrigin(t *testing.T) {
 }
 
 func TestSecurityHeadersPresent(t *testing.T) {
-	router := New(config.Config{Env: "development"}, testLogger())
+	router := New(config.Config{Env: "development"}, testLogger(), nil)
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -71,5 +71,16 @@ func TestSecurityHeadersPresent(t *testing.T) {
 	}
 	if rec.Header().Get("Referrer-Policy") != "no-referrer" {
 		t.Errorf("expected Referrer-Policy: no-referrer")
+	}
+}
+
+func TestForgotPasswordRouteNotRegisteredWhenUnconfigured(t *testing.T) {
+	router := New(config.Config{Env: "development"}, testLogger(), nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/forgot-password", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for an unconfigured route (not a route that exists but silently fails), got %d", rec.Code)
 	}
 }
