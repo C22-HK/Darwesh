@@ -166,10 +166,14 @@
 </div>
 <select id="typeFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-label-caps text-label-caps text-on-surface focus:ring-2 focus:ring-secondary">
 <option value="all" data-i18n="buy.allHomeTypes">All Home Types</option>
+<option value="house" data-i18n="map.house">House</option>
 <option value="villa" data-i18n="map.villa">Villa</option>
 <option value="apartment" data-i18n="map.apartment">Apartment</option>
-<option value="office" data-i18n="map.office">Office</option>
 <option value="land" data-i18n="map.land">Land</option>
+<option value="building" data-i18n="map.building">Building</option>
+<option value="office" data-i18n="map.office">Office</option>
+<option value="shop" data-i18n="map.shop">Shop</option>
+<option value="commercialProperty" data-i18n="map.commercialProperty">Commercial Property</option>
 </select>
 <select id="sortFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-label-caps text-label-caps text-on-surface focus:ring-2 focus:ring-secondary">
 <option value="default" data-i18n="buy.sortFeatured">Sort: Featured</option>
@@ -225,6 +229,14 @@ const IMAGES = {
   land: "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz",
   renovated: "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
 };
+// House/Building/Shop/Commercial Property don't have their own distinct
+// stock photo yet -- reuse the closest existing category's image rather
+// than leaving them undefined (an undefined entry here previously showed
+// as a broken image for any listing with an unrecognized type).
+IMAGES.house = IMAGES.villa;
+IMAGES.building = IMAGES.office;
+IMAGES.shop = IMAGES.office;
+IMAGES.commercialProperty = IMAGES.office;
 
 let LISTINGS = [];
 let listingsLoaded = false;
@@ -418,7 +430,7 @@ function render() {
 
 const urlParams = new URLSearchParams(window.location.search);
 const urlType = urlParams.get('type');
-if (urlType && ['villa', 'apartment', 'office', 'land'].includes(urlType)) {
+if (urlType && ['house', 'villa', 'apartment', 'land', 'building', 'office', 'shop', 'commercialProperty'].includes(urlType)) {
   document.getElementById('typeFilter').value = urlType;
 }
 const urlCity = urlParams.get('city');
