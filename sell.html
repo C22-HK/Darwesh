@@ -153,6 +153,19 @@
 
     .photo-thumb[draggable="true"] { cursor: grab; }
     .photo-thumb.dragging { opacity: 0.4; }
+
+    /* Extra clearance below Back/Continue/Submit on mobile, so wherever a
+       user's scroll happens to land after filling in a step, there's a
+       safety margin between the button row and the site's own always-on
+       fixed bottom nav rather than the two ever landing flush against
+       each other. (A position:fixed/sticky version of this was tried and
+       reverted -- it reliably pinned Continue above the fold, but testing
+       caught it also floating over a short step's own content, e.g.
+       eating a tap meant for the Location map. A static margin has no
+       such overlap risk.) */
+    @media (max-width: 767px) {
+      #wizardNav { margin-bottom: 96px !important; }
+    }
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
@@ -301,7 +314,7 @@
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.askingPrice">Asking Price</label>
 <div class="flex gap-2">
-<input class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="priceInput" min="0" type="number" required="" data-i18n-placeholder="sell.pricePlaceholder" placeholder="e.g. 250000"/>
+<input class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="priceInput" type="text" inputmode="numeric" required="" data-i18n-placeholder="sell.pricePlaceholder" placeholder="e.g. 250,000"/>
 <select class="w-28 flex-none bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2.5 font-body-md text-body-md text-on-surface" id="currencySelect">
 <option value="USD">USD</option>
 <option value="IQD">IQD</option>
@@ -356,11 +369,14 @@
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.propertyType">Property Type</label>
 <select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="typeSelect" required="">
 <option value="" data-i18n="sell.selectType">Select type</option>
+<option value="house" data-i18n="map.house">House</option>
 <option value="villa" data-i18n="map.villa">Villa</option>
 <option value="apartment" data-i18n="map.apartment">Apartment</option>
-<option value="office" data-i18n="map.office">Office</option>
 <option value="land" data-i18n="map.land">Land</option>
-<option value="retail" data-i18n="sell.retailShop">Retail Shop</option>
+<option value="building" data-i18n="map.building">Building</option>
+<option value="office" data-i18n="map.office">Office</option>
+<option value="shop" data-i18n="map.shop">Shop</option>
+<option value="commercialProperty" data-i18n="map.commercialProperty">Commercial Property</option>
 </select>
 </div>
 <div>
@@ -506,16 +522,19 @@
 <p id="submitError" class="hidden text-error text-[13px] px-6 pb-3" data-i18n="sell.submitError">Could not submit your listing — please check your connection and try again.</p>
 </section>
 
-<!-- Shared wizard footer nav -->
+<!-- Save Draft stays in normal document flow -->
+<div class="px-6 pt-0 pb-3 flex justify-center sm:justify-start">
+<button class="w-full sm:w-48 border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="saveDraftBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">save</span>
+                    <span data-i18n="sell.saveDraft">Save Draft</span>
+                </button>
+</div>
+<!-- Back/Continue/Submit -->
 <div class="p-6 pt-0 flex flex-col sm:flex-row gap-3" id="wizardNav">
 <button class="hidden sm:w-32 flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="backBtn" type="button">
 <span class="material-symbols-outlined text-[18px]">arrow_back</span>
 <span data-i18n="common.back">Back</span>
 </button>
-<button class="flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2 sm:w-48" id="saveDraftBtn" type="button">
-<span class="material-symbols-outlined text-[18px]">save</span>
-                    <span data-i18n="sell.saveDraft">Save Draft</span>
-                </button>
 <button class="flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60" id="nextBtn" type="button">
 <span id="nextBtnLabel" data-i18n="common.continue">Continue</span>
 <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
@@ -525,6 +544,7 @@
                     <span id="submitBtnLabel" data-i18n="sell.submitForVerification">Submit for Verification</span>
                 </button>
 </div>
+<p id="stepValidationMsg" class="hidden text-error text-[13px] px-6 pb-3 text-center"></p>
 <p class="font-body-md text-body-md text-on-surface-variant text-center px-6 pb-6 text-sm" data-i18n="sell.reviewNote">A Darwesh Group agent will review your listing and contact you within 24 hours.</p>
 </form>
 
@@ -533,7 +553,11 @@
 <div class="w-16 h-16 rounded-full bg-tertiary-container/60 text-on-tertiary-container flex items-center justify-center mx-auto mb-4">
 <span class="material-symbols-outlined text-3xl">check_circle</span>
 </div>
-<h2 class="font-headline-md text-headline-md text-primary mb-2" data-i18n="sell.listingSubmitted">Listing Submitted</h2>
+<h2 class="font-headline-md text-headline-md text-primary mb-2" data-i18n="sell.listingSubmitted">Listing Submitted Successfully</h2>
+<p class="inline-flex items-center gap-1.5 bg-secondary-container/50 text-on-secondary-container font-label-caps text-label-caps px-3 py-1.5 rounded-full mb-4">
+<span class="material-symbols-outlined text-[16px]">hourglass_top</span>
+<span data-i18n="sell.statusPendingReview">Status: Pending Review</span>
+</p>
 <p class="font-body-md text-body-md text-on-surface-variant max-w-md mx-auto mb-6" data-i18n="sell.confirmationBody">Thank you. A Darwesh Group agent will verify your details and reach out within 24 hours to schedule photography and finalize your listing.</p>
 <a class="inline-flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" href="index.html">
 <span class="material-symbols-outlined text-[18px]">home</span> <span data-i18n="sell.backToHome">Back to Home</span>
@@ -643,19 +667,39 @@ let maxReachedStep = 1;
 
 function stepEl(n) { return document.getElementById('step' + n); }
 
+function showStepValidationMsg(text) {
+  const el = document.getElementById('stepValidationMsg');
+  el.textContent = text;
+  el.classList.remove('hidden');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideStepValidationMsg() {
+  document.getElementById('stepValidationMsg').classList.add('hidden');
+}
+
+// Every failure path here shows the user *why* Continue didn't do
+// anything -- silently no-op'ing on a blocked step is indistinguishable
+// from the button being broken, which is exactly what was reported.
 function validateStep(n) {
   if (n === 1) {
     const ok = !!(document.getElementById('pinLat').value && document.getElementById('pinLng').value);
     document.getElementById('locValidationMsg').classList.toggle('hidden', ok);
+    if (!ok) document.getElementById('locValidationMsg').scrollIntoView({ behavior: 'smooth', block: 'center' });
     return ok;
   }
   if (n === 2) {
-    const price = parseFloat(document.getElementById('priceInput').value) || 0;
+    const price = rawPriceNumber();
     const size = parseFloat(document.getElementById('sizeInput').value) || 0;
-    return price > 0 && size > 0;
+    if (price <= 0) { showStepValidationMsg(tr('sell.errPriceRequired', 'Please enter an asking price.')); return false; }
+    if (size <= 0) { showStepValidationMsg(tr('sell.errSizeRequired', 'Please enter the property size.')); return false; }
+    return true;
   }
   if (n === 3) {
-    return !!document.getElementById('typeSelect').value;
+    if (!document.getElementById('typeSelect').value) {
+      showStepValidationMsg(tr('sell.errTypeRequired', 'Please select a property type to continue.'));
+      return false;
+    }
+    return true;
   }
   return true;
 }
@@ -690,6 +734,7 @@ function showStep(n) {
   if (n > maxReachedStep) maxReachedStep = n;
   updateStepIndicator();
   updateWizardNav();
+  hideStepValidationMsg();
   if (n === 5) renderReview();
   document.getElementById('stepIndicator').scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (n === 1) setTimeout(() => pinMap.invalidateSize(), 100);
@@ -698,6 +743,7 @@ function showStep(n) {
 document.getElementById('backBtn').addEventListener('click', () => { if (currentStep > 1) showStep(currentStep - 1); });
 document.getElementById('nextBtn').addEventListener('click', () => {
   if (!validateStep(currentStep)) return;
+  hideStepValidationMsg();
   if (currentStep < TOTAL_STEPS) showStep(currentStep + 1);
 });
 document.querySelectorAll('#stepIndicator .step-item').forEach(item => {
@@ -760,12 +806,41 @@ const priceInput = document.getElementById('priceInput');
 const currencySelect = document.getElementById('currencySelect');
 const priceEquivalentReadout = document.getElementById('priceEquivalentReadout');
 
+// priceInput is a text field (not type="number") specifically so it can
+// display live thousands separators as the user types -- a plain
+// type="number" input silently strips any character that isn't part of
+// a valid number, so commas can never be shown in one. The underlying
+// numeric value used everywhere else (validation, conversion, storage)
+// is always re-derived from the digits only, never from the formatted
+// display string.
+function digitsOnly(str) { return (str || '').replace(/[^\d]/g, ''); }
+function formatWithCommas(digitsStr) { return digitsStr.replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function rawPriceNumber() { return Number(digitsOnly(priceInput.value)) || 0; }
+
+priceInput.addEventListener('input', () => {
+  const cursorPos = priceInput.selectionStart;
+  const digitsBeforeCursor = digitsOnly(priceInput.value.slice(0, cursorPos)).length;
+  const formatted = formatWithCommas(digitsOnly(priceInput.value));
+  priceInput.value = formatted;
+  let seen = 0, pos = formatted.length;
+  if (digitsBeforeCursor === 0) {
+    pos = 0;
+  } else {
+    for (let i = 0; i < formatted.length; i++) {
+      if (/\d/.test(formatted[i])) seen++;
+      if (seen === digitsBeforeCursor) { pos = i + 1; break; }
+    }
+  }
+  priceInput.setSelectionRange(pos, pos);
+  updatePriceEquivalent();
+});
+
 function priceInUSD() {
-  const raw = parseFloat(priceInput.value) || 0;
+  const raw = rawPriceNumber();
   return currencySelect.value === 'USD' ? raw : raw / IQD_PER_USD;
 }
 function updatePriceEquivalent() {
-  const raw = parseFloat(priceInput.value) || 0;
+  const raw = rawPriceNumber();
   if (!raw) { priceEquivalentReadout.textContent = ''; return; }
   if (currencySelect.value === 'USD') {
     priceEquivalentReadout.textContent = '≈ ' + Math.round(raw * IQD_PER_USD).toLocaleString() + ' IQD · ' +
@@ -775,7 +850,6 @@ function updatePriceEquivalent() {
       tr('sell.iqdRateNote', '1 USD = {rate} IQD (Approx)').replace('{rate}', IQD_PER_USD.toLocaleString());
   }
 }
-priceInput.addEventListener('input', updatePriceEquivalent);
 currencySelect.addEventListener('change', updatePriceEquivalent);
 
 /* ==========================================================================
@@ -887,8 +961,18 @@ document.getElementById('editLocationBtn').addEventListener('click', () => {
   document.getElementById('locSearchInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
+function geolocationErrorMessage(err) {
+  // GeolocationPositionError codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
+  if (err.code === 1) return tr('sell.loc.locationErrorDenied', 'Location permission was denied. Please allow location access for this site in your browser settings and try again.');
+  if (err.code === 2) return tr('sell.loc.locationErrorUnavailable', 'Your device could not determine your location. Please check that location services are enabled, or place your pin manually on the map.');
+  return tr('sell.loc.locationErrorTimeout', 'Getting your location took too long. Please try again, or place your pin manually on the map.');
+}
+
 document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
-  if (!navigator.geolocation) return;
+  if (!navigator.geolocation) {
+    alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
+    return;
+  }
   const original = this.innerHTML;
   this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
   navigator.geolocation.getCurrentPosition(async (pos) => {
@@ -901,9 +985,9 @@ document.getElementById('useCurrentLocationBtn').addEventListener('click', funct
     this.innerHTML = original;
   }, (err) => {
     console.error('[sell] geolocation failed', err.code, err.message);
-    alert(tr('sell.loc.locationError', 'Could not get your location'));
+    alert(geolocationErrorMessage(err));
     this.innerHTML = original;
-  }, { timeout: 10000 });
+  }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
 });
 
 async function searchLocation(q) {
@@ -1152,6 +1236,9 @@ function applyDraft(data) {
   draftFieldIds.forEach(id => {
     if (data[id] !== undefined) document.getElementById(id).value = data[id];
   });
+  // Re-apply thousands separators in case this draft was saved before
+  // formatting was added, or was saved as plain digits.
+  priceInput.value = formatWithCommas(digitsOnly(priceInput.value));
   if (data.pinLat && data.pinLng) setPin(parseFloat(data.pinLat), parseFloat(data.pinLng), true);
   document.getElementById('bedsInputValue').textContent = document.getElementById('bedsInput').value || 0;
   document.getElementById('bathsInputValue').textContent = document.getElementById('bathsInput').value || 0;
@@ -1225,7 +1312,16 @@ const submissionAuthReady = (async function initSubmissionAuth() {
 // time it's treated exactly like any other failed upload (logged and
 // skipped), and the property details the visitor spent time filling in
 // still get through even if every photo fails.
+//
+// Two things made this slow on mobile in practice: uploading files one at
+// a time instead of in parallel, and uploading the original, uncompressed
+// phone-camera photo (often 3-8MB at 12MP+). Both are fixed here: photos
+// are resized/re-encoded client-side via canvas before upload (long edge
+// capped at 1600px, JPEG quality 0.82 -- plenty for a listing photo), and
+// all uploads run concurrently instead of sequentially.
 const PHOTO_UPLOAD_TIMEOUT_MS = 25000;
+const PHOTO_MAX_DIMENSION = 1600;
+const PHOTO_JPEG_QUALITY = 0.82;
 
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
@@ -1234,31 +1330,68 @@ function withTimeout(promise, ms) {
   });
 }
 
+// Resizes/re-encodes an image File down to a web-appropriate JPEG Blob.
+// Falls back to the original file untouched if anything about this fails
+// or isn't supported (e.g. an already-small file, or a non-image type
+// that slipped through the accept="image/*" filter) -- compression is a
+// speed optimization, never a reason to lose a photo.
+async function compressImage(file) {
+  if (!file.type.startsWith('image/')) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, PHOTO_MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    if (scale >= 1 && file.size < 600 * 1024) { bitmap.close(); return file; }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', PHOTO_JPEG_QUALITY));
+    return (blob && blob.size < file.size) ? blob : file;
+  } catch (err) {
+    console.error('[sell] image compression failed, uploading original', err);
+    return file;
+  }
+}
+
 async function uploadSelectedPhotos() {
   const files = [...photoUpload.files];
   if (!files.length) return { photoUrls: [], photoUploadToken: null };
   const token = crypto.randomUUID();
-  const urls = [];
-  for (let i = 0; i < files.length; i++) {
-    const submitBtnLabel = document.getElementById('submitBtnLabel');
+  let completed = 0;
+  const submitBtnLabel = document.getElementById('submitBtnLabel');
+  const updateProgress = () => {
     submitBtnLabel.textContent = tr('sell.uploadingPhoto', 'Uploading photo {n} of {total}...')
-      .replace('{n}', i + 1).replace('{total}', files.length);
+      .replace('{n}', completed).replace('{total}', files.length);
+  };
+  updateProgress();
+  const results = await Promise.all(files.map(async (file, i) => {
     try {
-      const file = files[i];
-      const safeName = i + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const compressed = await compressImage(file);
+      const safeName = i + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]*$/, '.jpg');
       const fileRef = storageFns.ref(submitStorage, `sell-submissions/${token}/${safeName}`);
-      await withTimeout(storageFns.uploadBytes(fileRef, file), PHOTO_UPLOAD_TIMEOUT_MS);
-      urls.push(await withTimeout(storageFns.getDownloadURL(fileRef), PHOTO_UPLOAD_TIMEOUT_MS));
+      await withTimeout(storageFns.uploadBytes(fileRef, compressed), PHOTO_UPLOAD_TIMEOUT_MS);
+      const url = await withTimeout(storageFns.getDownloadURL(fileRef), PHOTO_UPLOAD_TIMEOUT_MS);
+      completed++; updateProgress();
+      return url;
     } catch (err) {
       console.error('Could not upload photo', i, err);
+      completed++; updateProgress();
+      return null;
     }
-  }
-  return { photoUrls: urls, photoUploadToken: token };
+  }));
+  return { photoUrls: results.filter(Boolean), photoUploadToken: token };
 }
 
+let submissionInFlight = false;
 document.getElementById('sellForm').addEventListener('submit', async function (e) {
   e.preventDefault();
+  // Guards against a double-tap firing two submissions before the button's
+  // own disabled state takes visible effect on mobile.
+  if (submissionInFlight) return;
   if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
+  submissionInFlight = true;
   const draft = collectDraft();
   const errEl = document.getElementById('submitError');
   errEl.classList.add('hidden');
@@ -1267,6 +1400,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   const submitBtnLabel = document.getElementById('submitBtnLabel');
   const originalLabel = submitBtnLabel.textContent;
   submitBtn.disabled = true;
+  submitBtnLabel.textContent = tr('sell.submittingListing', 'Submitting your listing...');
 
   await submissionAuthReady;
   try {
@@ -1298,6 +1432,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     submitBtn.disabled = false;
     submitBtnLabel.textContent = originalLabel;
+    submissionInFlight = false;
     return;
   }
 
