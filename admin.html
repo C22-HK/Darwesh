@@ -847,6 +847,17 @@
 <h2 class="font-headline-md text-headline-md text-primary mb-4" id="requestDetailTitle" data-i18n="admin.requestDetails">Request Details</h2>
 <div class="hidden grid grid-cols-3 gap-2 mb-4" id="requestDetailPhotos"></div>
 <dl class="grid grid-cols-2 gap-x-4 gap-y-3" id="requestDetailBody"></dl>
+<div class="hidden mt-4 pt-4 border-t border-outline-variant" id="requestDetailVerificationWrap">
+<p class="admin-label mb-2 flex items-center gap-1.5">
+<span class="material-symbols-outlined" style="font-size:16px;">verified_user</span>
+<span data-i18n="admin.privateVerification">Private Verification</span>
+</p>
+<dl class="grid grid-cols-2 gap-x-4 gap-y-2 mb-3">
+<dt class="font-label-caps text-label-caps text-on-surface-variant text-[11px]" data-i18n="admin.listingId">Listing ID</dt>
+<dd class="font-body-md text-[13px] text-on-surface" id="requestDetailListingId"></dd>
+</dl>
+<div id="requestDetailVerificationPhotoArea"></div>
+</div>
 <div class="hidden mt-4" id="requestDetailMapWrap">
 <p class="admin-label mb-2" data-i18n="admin.nearbyForThisRequest">Nearby important places</p>
 <div class="rounded-lg overflow-hidden border border-outline-variant h-40" id="requestDetailMap"></div>
@@ -955,7 +966,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordRe
 import {
   doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, getFirestore
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
 function trAdmin(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -1750,7 +1761,7 @@ function renderServicesRows() {
       ? `<img src="${thumbUrl}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
       : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
     const detailsText = isSell
-      ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.title || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.address || ''}, ${s.city || ''}${s.price ? ' &middot; $' + Number(s.price).toLocaleString() : ''}</p>`
+      ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.title || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.address || ''}, ${s.city || ''}${s.price ? ' &middot; $' + Math.round(Number(s.price)).toLocaleString() : ''}</p>`
       : `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.address || ''}, ${s.city || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.priceLabel || ''}</p>`;
     const details = `<div class="flex items-center gap-2.5">${thumb}<div class="min-w-0">${detailsText}</div></div>`;
     const from = (s.name || s.phone || s.email)
@@ -1832,6 +1843,52 @@ const VIEWING_DETAIL_FIELDS = [
   ['priceLabel', 'agentDash.priceLabel', 'Price']
 ];
 
+// The verification selfie lives at a Storage path that only admins can
+// read (storage.rules requires request.auth + role == 'admin'). A plain
+// <img src="downloadURL"> would NOT work here even for a signed-in admin
+// -- an <img> request carries no Authorization header, so the rule would
+// reject it regardless of who's actually logged in. Fetching the bytes
+// through the authenticated SDK call and rendering a local blob URL is
+// what actually respects that boundary while still letting a real admin
+// view it. Never auto-loaded -- only fetched when an admin explicitly
+// asks to see it, and revoked when the modal closes.
+let verificationPhotoBlobUrl = null;
+
+function renderVerificationPhotoArea(s) {
+  const area = document.getElementById('requestDetailVerificationPhotoArea');
+  if (verificationPhotoBlobUrl) { URL.revokeObjectURL(verificationPhotoBlobUrl); verificationPhotoBlobUrl = null; }
+
+  if (!s.verificationPhotoPath) {
+    area.innerHTML = `<p class="font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noVerificationPhoto', 'No verification photo on file.')}</p>`;
+    return;
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'w-full border border-outline-variant rounded-lg py-2.5 font-label-caps text-label-caps text-on-surface flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors';
+  btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:18px;">visibility</span><span>${trAdmin('admin.viewVerificationPhoto', 'View Verification Photo')}</span>`;
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.querySelector('span:last-child').textContent = trAdmin('admin.loading', 'Loading...');
+    try {
+      const bytes = await getBytes(storageRef(storage, s.verificationPhotoPath));
+      const blob = new Blob([bytes], { type: 'image/jpeg' });
+      verificationPhotoBlobUrl = URL.createObjectURL(blob);
+      area.innerHTML = `
+        <img src="${verificationPhotoBlobUrl}" class="w-full max-w-[200px] mx-auto rounded-xl border border-outline-variant block"/>
+        <p class="font-body-md text-[11px] text-on-surface-variant text-center mt-2">${trAdmin('admin.verificationPhotoPrivateNote', 'Private — visible to admins only, never shown on the public listing.')}</p>
+      `;
+    } catch (err) {
+      console.error('[admin] could not load verification photo', err);
+      btn.disabled = false;
+      btn.querySelector('span:last-child').textContent = trAdmin('admin.viewVerificationPhoto', 'View Verification Photo');
+      alert('Could not load verification photo: ' + err.message);
+    }
+  });
+  area.innerHTML = '';
+  area.appendChild(btn);
+}
+
 function openRequestDetail(id) {
   const s = allSubmissionsCache.find(x => x.id === id);
   if (!s) return;
@@ -1857,12 +1914,16 @@ function openRequestDetail(id) {
   fields.forEach(([key, i18nKey, fallback]) => {
     if (s[key] === undefined || s[key] === '') return;
     let val = s[key];
-    if (key === 'price') val = '$' + Number(val).toLocaleString();
+    if (key === 'price') val = '$' + Math.round(Number(val)).toLocaleString();
     rows.push([trAdmin(i18nKey, fallback), val]);
   });
   rows.push([trAdmin('sell.fullName', 'Full Name'), s.name || '—']);
   rows.push([trAdmin('sell.phoneNumber', 'Phone Number'), s.phone || '—']);
-  rows.push([trAdmin('auth.email', 'Email'), s.email || '—']);
+  // Older submissions may still carry an email/WhatsApp from before those
+  // fields were removed from sell.html -- shown only if actually present,
+  // rather than a permanent "Email: —" row on every future submission.
+  if (s.email) rows.push([trAdmin('auth.email', 'Email'), s.email]);
+  if (s.whatsapp) rows.push([trAdmin('sell.whatsappNumber', 'WhatsApp Number'), s.whatsapp]);
   if (isSell && s.pinLat && s.pinLng) {
     rows.push([trAdmin('sell.pinExactLocation', 'Pin Exact Location'), `${s.pinLat}, ${s.pinLng}`]);
   }
@@ -1873,6 +1934,15 @@ function openRequestDetail(id) {
     <dt class="col-span-2 sm:col-span-1 font-label-caps text-label-caps text-on-surface-variant text-[11px]">${label}</dt>
     <dd class="col-span-2 sm:col-span-1 font-body-md text-[13.5px] text-on-surface mb-2">${val}</dd>
   `).join('');
+
+  const verificationWrap = document.getElementById('requestDetailVerificationWrap');
+  if (isSell) {
+    verificationWrap.classList.remove('hidden');
+    document.getElementById('requestDetailListingId').textContent = s.id;
+    renderVerificationPhotoArea(s);
+  } else {
+    verificationWrap.classList.add('hidden');
+  }
 
   const createBtn = document.getElementById('requestDetailCreateListing');
   createBtn.classList.toggle('hidden', !isSell);
@@ -1916,6 +1986,7 @@ function getRequestLatLng(s) {
 function closeRequestDetail() {
   document.getElementById('requestDetailOverlay').classList.add('hidden');
   document.body.style.overflow = '';
+  if (verificationPhotoBlobUrl) { URL.revokeObjectURL(verificationPhotoBlobUrl); verificationPhotoBlobUrl = null; }
 }
 document.getElementById('requestDetailClose').addEventListener('click', closeRequestDetail);
 document.getElementById('requestDetailBackdrop').addEventListener('click', closeRequestDetail);
@@ -1964,7 +2035,7 @@ function createListingFromSubmission(id) {
   if (s.listingType) document.getElementById('fDealType').value = s.listingType;
   document.getElementById('fAddress').value = s.address || '';
   if (s.propertyType) document.getElementById('fPropertyType').value = s.propertyType;
-  document.getElementById('fPrice').value = s.price || '';
+  document.getElementById('fPrice').value = s.price ? Math.round(Number(s.price)) : '';
   document.getElementById('fBeds').value = s.beds || 0;
   document.getElementById('fBaths').value = s.baths || 0;
   document.getElementById('fSqft').value = s.size || 0;

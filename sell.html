@@ -219,6 +219,7 @@
 <div class="step-item" data-step="4"><div class="step-circle"><span>4</span></div><span class="step-label" data-i18n="sell.step.photos">Photos</span></div>
 <div class="step-item" data-step="5"><div class="step-circle"><span>5</span></div><span class="step-label" data-i18n="sell.step.review">Review</span></div>
 <div class="step-item" data-step="6"><div class="step-circle"><span>6</span></div><span class="step-label" data-i18n="sell.step.ownerInfo">Owner Info</span></div>
+<div class="step-item" data-step="7"><div class="step-circle"><span>7</span></div><span class="step-label" data-i18n="sell.step.verification">Verification</span></div>
 </div>
 </div>
 
@@ -497,7 +498,7 @@
 <h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step6Heading">Owner Information</h2>
 <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step6.subheading">Add your contact details</p>
 </div>
-<div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="p-6 grid grid-cols-1 gap-4">
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.fullName">Full Name</label>
 <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="fullNameInput" required="" type="text"/>
@@ -506,17 +507,48 @@
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.phoneNumber">Phone Number</label>
 <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="phoneInput" placeholder="+964 750 000 0000" required="" type="tel"/>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.whatsappNumber">WhatsApp Number (Optional)</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="whatsappInput" placeholder="+964 750 000 0000" type="tel"/>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="auth.email">Email</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="emailInput" required="" type="email"/>
+</section>
+
+<!-- STEP 7: Identity Verification -->
+<section class="wizard-step hidden" data-step="7" id="step7">
+<div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step7Heading">Identity Verification</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step7.subheading">Verify the identity of the person submitting this property.</p>
 </div>
-<div class="sm:col-span-2 bg-surface-container-low border border-outline-variant rounded-xl p-4 flex items-start gap-3">
+<div class="p-6 flex flex-col items-center gap-4">
+
+<div class="hidden flex-col items-center gap-4 w-full" id="verifyCameraWrap">
+<div class="relative w-64 h-64 rounded-full overflow-hidden bg-surface-container-high border-4 border-outline-variant flex items-center justify-center">
+<video id="verifyVideo" autoplay="" playsinline="" muted="" class="w-full h-full object-cover"></video>
+<p class="absolute bottom-4 left-0 right-0 text-center text-white text-[12.5px] font-label-caps px-4" style="text-shadow:0 1px 4px rgba(0,0,0,0.7);" data-i18n="sell.verify.positionFace">Position your face inside the frame</p>
+</div>
+<button class="bg-primary text-on-primary px-6 py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="takeVerificationPhotoBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+<span data-i18n="sell.verify.takePhoto">Take Verification Photo</span>
+</button>
+</div>
+
+<div class="hidden flex-col items-center gap-4 w-full" id="verifyCapturedWrap">
+<div class="relative w-64 h-64 rounded-full overflow-hidden border-4 border-tertiary-container">
+<img id="verifyCapturedImg" class="w-full h-full object-cover" alt=""/>
+</div>
+<p class="flex items-center gap-1.5 text-on-tertiary-container bg-tertiary-container/30 px-4 py-1.5 rounded-full font-label-caps text-label-caps">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span data-i18n="sell.verify.photoCaptured">Photo Captured</span>
+</p>
+<button class="border border-primary text-primary px-6 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="retakeVerificationPhotoBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">refresh</span>
+<span data-i18n="sell.verify.retake">Retake Photo</span>
+</button>
+</div>
+
+<p class="hidden text-error text-[13px] text-center" id="verifyCameraError"></p>
+<canvas id="verifyCanvas" class="hidden"></canvas>
+
+<div class="w-full bg-surface-container-low border border-outline-variant rounded-xl p-4 flex items-start gap-3 mt-2">
 <span class="material-symbols-outlined text-secondary flex-none">lock</span>
-<p class="font-body-md text-[12.5px] text-on-surface-variant" data-i18n="sell.privacyNotice">Your contact information will not be displayed publicly. It will only be shared with serious buyers and our team.</p>
+<p class="font-body-md text-[12.5px] text-on-surface-variant" data-i18n="sell.verify.privacyNotice">Your verification photo is private and will only be used by Darwesh Group to verify the person submitting this property.</p>
 </div>
 </div>
 <p id="submitError" class="hidden text-error text-[13px] px-6 pb-3" data-i18n="sell.submitError">Could not submit your listing — please check your connection and try again.</p>
@@ -661,7 +693,7 @@ function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 /* ==========================================================================
    Wizard step navigation
    ========================================================================== */
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 let currentStep = 1;
 let maxReachedStep = 1;
 
@@ -697,6 +729,28 @@ function validateStep(n) {
   if (n === 3) {
     if (!document.getElementById('typeSelect').value) {
       showStepValidationMsg(tr('sell.errTypeRequired', 'Please select a property type to continue.'));
+      return false;
+    }
+    return true;
+  }
+  if (n === 6) {
+    // Owner Information is no longer the final step, so its required
+    // fields are on a hidden section by the time the form actually
+    // submits -- native HTML5 constraint validation skips fields with no
+    // rendered box, so this explicit check is what actually enforces it now.
+    if (!document.getElementById('fullNameInput').value.trim()) {
+      showStepValidationMsg(tr('sell.errNameRequired', 'Please enter your full name.'));
+      return false;
+    }
+    if (!document.getElementById('phoneInput').value.trim()) {
+      showStepValidationMsg(tr('sell.errPhoneRequired', 'Please enter your phone number.'));
+      return false;
+    }
+    return true;
+  }
+  if (n === 7) {
+    if (!verificationBlob) {
+      showStepValidationMsg(tr('sell.verify.errRequired', 'Please take a verification photo before submitting.'));
       return false;
     }
     return true;
@@ -738,6 +792,7 @@ function showStep(n) {
   if (n === 5) renderReview();
   document.getElementById('stepIndicator').scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (n === 1) setTimeout(() => pinMap.invalidateSize(), 100);
+  if (n === 7) { if (!verificationBlob) startVerificationCamera(); } else { stopVerificationCamera(); }
 }
 
 document.getElementById('backBtn').addEventListener('click', () => { if (currentStep > 1) showStep(currentStep - 1); });
@@ -837,7 +892,14 @@ priceInput.addEventListener('input', () => {
 
 function priceInUSD() {
   const raw = rawPriceNumber();
-  return currencySelect.value === 'USD' ? raw : raw / IQD_PER_USD;
+  // Whole dollars only -- everywhere else on the site (buy.html, admin.html,
+  // listing.html) formats price as an integer with no cents, and dividing
+  // an IQD amount by the 1,310 rate produces a long repeating decimal if
+  // this isn't rounded (e.g. 300,000,000 IQD -> 229007.633587786259...).
+  // That unrounded value used to go straight into the stored submission,
+  // which only became visible later when admin.html prefilled the Add
+  // Listing form's price field directly from it.
+  return currencySelect.value === 'USD' ? raw : Math.round(raw / IQD_PER_USD);
 }
 function updatePriceEquivalent() {
   const raw = rawPriceNumber();
@@ -1154,6 +1216,107 @@ dropzone.addEventListener('drop', (e) => {
 });
 
 /* ==========================================================================
+   Identity Verification (Step 7) — a live selfie via getUserMedia, never
+   a gallery upload (accept from an existing photo would defeat the point
+   of verifying who's actually submitting right now). The captured photo
+   is kept as a Blob in memory until the final submit uploads it straight
+   to a Storage path that only admins can read (see storage.rules) --
+   it's never added to the public photoUrls array and never displayed
+   anywhere in the review step.
+   ========================================================================== */
+let verificationStream = null;
+let verificationBlob = null;
+let verificationObjectUrl = null;
+
+function cameraErrorMessage(err) {
+  if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+    return tr('sell.verify.errDenied', 'Camera permission was denied. Please allow camera access for this site in your browser settings and try again.');
+  }
+  if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+    return tr('sell.verify.errNoCamera', 'No camera was found on this device.');
+  }
+  if (err.name === 'NotReadableError') {
+    return tr('sell.verify.errInUse', 'Your camera could not be accessed -- it may be in use by another app.');
+  }
+  return tr('sell.verify.errGeneric', 'Could not access your camera. Please try again.');
+}
+
+async function startVerificationCamera() {
+  const cameraWrap = document.getElementById('verifyCameraWrap');
+  const capturedWrap = document.getElementById('verifyCapturedWrap');
+  const errEl = document.getElementById('verifyCameraError');
+  capturedWrap.classList.add('hidden');
+  capturedWrap.classList.remove('flex');
+  errEl.classList.add('hidden');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    errEl.textContent = tr('sell.verify.errUnsupported', 'Your browser does not support camera access, which is required for identity verification.');
+    errEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    verificationStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    const video = document.getElementById('verifyVideo');
+    video.srcObject = verificationStream;
+    cameraWrap.classList.remove('hidden');
+    cameraWrap.classList.add('flex');
+  } catch (err) {
+    console.error('[sell] camera access failed', err.name, err.message);
+    errEl.textContent = cameraErrorMessage(err);
+    errEl.classList.remove('hidden');
+    cameraWrap.classList.add('hidden');
+    cameraWrap.classList.remove('flex');
+  }
+}
+
+function stopVerificationCamera() {
+  if (verificationStream) {
+    verificationStream.getTracks().forEach(t => t.stop());
+    verificationStream = null;
+  }
+}
+window.addEventListener('pagehide', stopVerificationCamera);
+
+document.getElementById('takeVerificationPhotoBtn').addEventListener('click', async () => {
+  const video = document.getElementById('verifyVideo');
+  if (!video.videoWidth) return;
+  // Crop to a centered square to match the circular frame shown on screen.
+  const size = Math.min(video.videoWidth, video.videoHeight);
+  const sx = (video.videoWidth - size) / 2;
+  const sy = (video.videoHeight - size) / 2;
+  const canvas = document.getElementById('verifyCanvas');
+  canvas.width = size; canvas.height = size;
+  canvas.getContext('2d').drawImage(video, sx, sy, size, size, 0, 0, size, size);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  if (!blob) return;
+  verificationBlob = blob;
+  if (verificationObjectUrl) URL.revokeObjectURL(verificationObjectUrl);
+  verificationObjectUrl = URL.createObjectURL(blob);
+  document.getElementById('verifyCapturedImg').src = verificationObjectUrl;
+  stopVerificationCamera();
+  document.getElementById('verifyCameraWrap').classList.add('hidden');
+  document.getElementById('verifyCameraWrap').classList.remove('flex');
+  document.getElementById('verifyCapturedWrap').classList.remove('hidden');
+  document.getElementById('verifyCapturedWrap').classList.add('flex');
+  hideStepValidationMsg();
+});
+
+document.getElementById('retakeVerificationPhotoBtn').addEventListener('click', () => {
+  verificationBlob = null;
+  if (verificationObjectUrl) { URL.revokeObjectURL(verificationObjectUrl); verificationObjectUrl = null; }
+  startVerificationCamera();
+});
+
+async function uploadVerificationPhoto() {
+  if (!verificationBlob) return null;
+  const token = crypto.randomUUID();
+  const path = `sell-verification/${token}/selfie.jpg`;
+  const fileRef = storageFns.ref(submitStorage, path);
+  await withTimeout(storageFns.uploadBytes(fileRef, verificationBlob), PHOTO_UPLOAD_TIMEOUT_MS);
+  return path;
+}
+
+/* ==========================================================================
    Review step — renders a live preview of the listing from the current
    wizard state, matching the site's listing-card look.
    ========================================================================== */
@@ -1221,7 +1384,7 @@ function renderReview() {
 const DRAFT_KEY = 'darwesh_sell_draft';
 const draftFieldIds = ['typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'currencySelect',
   'sizeInput', 'landSizeInput', 'bedsInput', 'bathsInput', 'hallsInput', 'floorsInput', 'kitchensInput', 'parkingInput',
-  'conditionSelect', 'yearBuiltInput', 'fullNameInput', 'phoneInput', 'whatsappInput', 'emailInput', 'negotiableInput'];
+  'conditionSelect', 'yearBuiltInput', 'fullNameInput', 'phoneInput', 'negotiableInput'];
 
 function collectDraft() {
   const data = {};
@@ -1390,7 +1553,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   // Guards against a double-tap firing two submissions before the button's
   // own disabled state takes visible effect on mobile.
   if (submissionInFlight) return;
-  if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
+  if (!validateStep(1) || !validateStep(2) || !validateStep(3) || !validateStep(6) || !validateStep(7)) return;
   submissionInFlight = true;
   const draft = collectDraft();
   const errEl = document.getElementById('submitError');
@@ -1404,7 +1567,13 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
 
   await submissionAuthReady;
   try {
-    const { photoUrls, photoUploadToken } = await uploadSelectedPhotos();
+    // The verification selfie uploads to a separate, admin-only-read
+    // Storage path (see storage.rules) -- it never becomes part of
+    // photoUrls, so it can't end up on the public listing.
+    const [{ photoUrls, photoUploadToken }, verificationPhotoPath] = await Promise.all([
+      uploadSelectedPhotos(),
+      uploadVerificationPhoto()
+    ]);
     submitBtnLabel.textContent = tr('sell.submitForVerification', 'Submit for Verification');
     const type = document.getElementById('typeSelect');
     const typeLabel = type.selectedOptions[0] ? type.selectedOptions[0].textContent : '';
@@ -1413,7 +1582,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
       uid: (submitAuth && submitAuth.currentUser) ? submitAuth.currentUser.uid : null,
       type: 'sell',
       title: `${typeLabel} ${dealLabel}`,
-      name: draft.fullNameInput, phone: draft.phoneInput, whatsapp: draft.whatsappInput, email: draft.emailInput,
+      name: draft.fullNameInput, phone: draft.phoneInput,
       propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
       city: draft.citySelect, address: draft.addressInput,
       price: priceInUSD(), negotiable: draft.negotiableInput === 'true',
@@ -1423,6 +1592,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
       amenities: draft.amenities, condition: draft.conditionSelect, yearBuilt: draft.yearBuiltInput,
       pinLat: draft.pinLat, pinLng: draft.pinLng,
       photoUrls, photoUploadToken,
+      verificationPhotoPath,
       status: 'pending', createdAt: submitFns.serverTimestamp()
     });
   } catch (err) {
