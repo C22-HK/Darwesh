@@ -1619,8 +1619,13 @@ window.editListing = function (id) {
 
 window.deleteListing = async function (id) {
   if (!confirm(trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.'))) return;
-  await deleteDoc(doc(db, 'listings', id));
-  renderListingsTable();
+  try {
+    await deleteDoc(doc(db, 'listings', id));
+    renderListingsTable();
+  } catch (err) {
+    console.error('[admin] deleteListing failed', err.code || err.name, err.message);
+    alert('Could not delete listing: ' + err.message);
+  }
 };
 
 async function renderListingsTable() {
@@ -1685,8 +1690,13 @@ window.toggleListingStatus = async function (id) {
   const l = allListingsCache.find(x => x.id === id);
   if (!l) return;
   const newStatus = l.status === 'closed' ? 'active' : 'closed';
-  await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
-  renderListingsTable();
+  try {
+    await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
+    renderListingsTable();
+  } catch (err) {
+    console.error('[admin] toggleListingStatus failed', err.code || err.name, err.message);
+    alert('Could not update listing status: ' + err.message);
+  }
 };
 
 // ---------------------------------------------------------------------

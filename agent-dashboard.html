@@ -671,8 +671,13 @@
 
   window.deleteListing = async function (id) {
     if (!confirm(trDash('agentDash.deleteConfirm','Delete this listing? It will be removed from the public site immediately.'))) return;
-    await deleteDoc(doc(db, 'listings', id));
-    loadMyListings();
+    try {
+      await deleteDoc(doc(db, 'listings', id));
+      loadMyListings();
+    } catch (err) {
+      console.error('[agent-dashboard] deleteListing failed', err.code || err.name, err.message);
+      alert('Could not delete listing: ' + err.message);
+    }
   };
 
   async function loadMyListings() {
@@ -729,8 +734,13 @@
   // as available on the public site without deleting the record.
   window.toggleListingStatus = async function (id, l) {
     const newStatus = l.status === 'closed' ? 'active' : 'closed';
-    await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
-    loadMyListings();
+    try {
+      await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
+      loadMyListings();
+    } catch (err) {
+      console.error('[agent-dashboard] toggleListingStatus failed', err.code || err.name, err.message);
+      alert('Could not update listing status: ' + err.message);
+    }
   };
 
   async function loadTeamListings() {
