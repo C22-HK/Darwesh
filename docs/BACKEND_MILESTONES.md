@@ -54,15 +54,49 @@ Once deployed: confirm `https://<wherever>/healthz` responds from the
 real internet, and only then wire the live frontend to call it for
 anything.
 
-## Milestone 3 — First real endpoint (candidate: branded password-reset email)
+## Milestone 3 — Branded password-reset email ✅ code done, not deployed
 
-The smallest, already-scoped-and-wanted real feature: a Cloud Function/
-endpoint that generates a Firebase password-reset link server-side
-(Admin SDK) and sends a branded HTML email via a transactional email API
-(Resend/SendGrid/etc.). Exercises real secrets (Firebase service account,
-email API key) via environment variables for the first time — a good
-forcing function to get secret management right before anything bigger
-depends on it.
+`POST /api/v1/auth/forgot-password` — generates a Firebase password-reset
+link server-side (Admin SDK) and sends a branded HTML email via Resend.
+Only registers at all when `FIREBASE_SERVICE_ACCOUNT_JSON`,
+`RESET_PASSWORD_CONTINUE_URL`, `RESEND_API_KEY`, and `RESET_EMAIL_FROM`
+are all set — otherwise it's a 404, not a route that silently fails.
+
+**A real bug fix falls out of this, not just a feature add:** the
+Admin SDK's generated link *also* routes through
+`<project>.firebaseapp.com/__/auth/action` first — the same domain that
+turned out to be unreachable on some networks earlier (why
+`reset-password.html` exists as a custom page in the first place). Since
+this endpoint builds its own email, it extracts just the `oobCode` from
+Firebase's link and constructs a URL pointing straight at
+`reset-password.html`, so the visitor's browser never has to load
+anything from `firebaseapp.com` at all. Verified against the exact link
+format Firebase produced in production (see
+`internal/auth/firebase_reset_test.go`).
+
+**Verified for real:**
+- 18 tests across the auth/server packages, all passing — including the
+  enumeration-safety property itself (a registered vs. unregistered
+  email get byte-identical responses, asserted directly, not just
+  "looks right"), rate limiting (a burst gets blocked, a different IP
+  is tracked independently, the window expiring unblocks it), the
+  oobCode-extraction bug fix against the real link format, and HTML
+  injection can't break out of the email's `href`.
+- Ran the actual built binary three ways: fully unconfigured (route
+  correctly absent, health checks unaffected), with invalid credentials
+  present (logs the specific error, still doesn't crash or half-register
+  the route), and confirmed `gofmt`/`go vet`/`go build` all clean.
+- **Not tested against real Firebase or Resend** — no real service
+  account or API key exists yet. The interfaces (`ResetLinkGenerator`,
+  `EmailSender`) are exactly what make the parts that *can* be verified
+  without real credentials (validation, enumeration-safety, rate
+  limiting, the link fix) actually get verified, rather than everything
+  being an unverifiable black box behind two API calls.
+
+**To actually turn this on:** create a Firebase service account key
+(Console → Project Settings → Service Accounts) and a free Resend
+account with a verified sending domain, then set the four env vars above
+on wherever this ends up deployed (milestone 2).
 
 ## Milestone 4+ — everything else, only as justified
 

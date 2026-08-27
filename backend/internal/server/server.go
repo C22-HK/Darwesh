@@ -10,13 +10,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/C22-HK/darwesh-backend/internal/auth"
 	"github.com/C22-HK/darwesh-backend/internal/config"
 )
 
 // New builds the Gin engine: middleware, routes, everything except
 // actually listening on a port (that's main.go's job, so this can be
 // unit-tested with httptest without opening a real socket).
-func New(cfg config.Config, logger *slog.Logger) *gin.Engine {
+//
+// authHandler is nil-able on purpose: main.go only constructs one when
+// FIREBASE_SERVICE_ACCOUNT_JSON/RESEND_API_KEY/etc. are all actually set.
+// When it's nil, /api/v1/auth/forgot-password simply isn't registered --
+// a 404 for a route that isn't configured, rather than a route that
+// exists but silently can't do its job.
+func New(cfg config.Config, logger *slog.Logger, authHandler *auth.Handler) *gin.Engine {
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -37,6 +44,9 @@ func New(cfg config.Config, logger *slog.Logger) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	{
 		v1.GET("/health", healthCheck)
+		if authHandler != nil {
+			v1.POST("/auth/forgot-password", authHandler.ForgotPassword)
+		}
 	}
 
 	return r

@@ -18,9 +18,44 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/C22-HK/darwesh-backend/internal/auth"
 	"github.com/C22-HK/darwesh-backend/internal/config"
 	"github.com/C22-HK/darwesh-backend/internal/server"
 )
+
+// buildAuthHandler wires up the password-reset endpoint only when every
+// required setting is present -- see server.New's doc comment for why a
+// missing config means "route doesn't exist" rather than "route exists
+// and fails at request time."
+func buildAuthHandler(ctx context.Context, cfg config.Config, logger *slog.Logger) *auth.Handler {
+	if cfg.FirebaseServiceAccountJSON == "" || cfg.ResendAPIKey == "" {
+		logger.Info("password-reset endpoint not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON and RESEND_API_KEY to enable it)")
+		return nil
+	}
+
+	links, err := auth.NewFirebaseResetLinkGenerator(ctx, cfg.FirebaseServiceAccountJSON, cfg.ResetPasswordContinueURL)
+	if err != nil {
+		logger.Error("password-reset endpoint misconfigured, skipping", "error", err.Error())
+		return nil
+	}
+	emails, err := auth.NewResendEmailSender(cfg.ResendAPIKey, cfg.ResetEmailFrom)
+	if err != nil {
+		logger.Error("password-reset endpoint misconfigured, skipping", "error", err.Error())
+		return nil
+	}
+
+	logger.Info("password-reset endpoint enabled")
+	return &auth.Handler{
+		Links:  links,
+		Emails: emails,
+		// 5 requests per 15 minutes per IP -- generous enough for a
+		// real user who mistypes their email or re-checks their inbox,
+		// tight enough to make scripted abuse expensive. Revisit if
+		// real usage patterns say otherwise.
+		Limiter: auth.NewRateLimiter(5, 15*time.Minute),
+		Logger:  logger,
+	}
+}
 
 func main() {
 	cfg := config.Load()
@@ -32,7 +67,8 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
-	router := server.New(cfg, logger)
+	authHandler := buildAuthHandler(context.Background(), cfg, logger)
+	router := server.New(cfg, logger, authHandler)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

@@ -30,6 +30,15 @@ type Config struct {
 	// a real frontend integration needs it -- an open CORS policy is a
 	// common way APIs accidentally expose themselves to any website.
 	AllowedOrigins []string
+
+	// The four settings below back the password-reset email endpoint
+	// (milestone 3). All empty by default -- see server.New, which only
+	// registers that route when every one of them is actually set,
+	// rather than registering a route that would silently misbehave.
+	FirebaseServiceAccountJSON string // full JSON key contents, not a file path -- see .env.example
+	ResetPasswordContinueURL   string // e.g. https://www.darweshgroup.com/reset-password.html
+	ResendAPIKey               string
+	ResetEmailFrom             string // e.g. "Darwesh Group <no-reply@darweshgroup.com>"
 }
 
 // Load reads configuration from environment variables. Returns sane,
@@ -41,6 +50,11 @@ func Load() Config {
 		Port:           getEnv("PORT", "8080"),
 		Env:            getEnv("APP_ENV", "development"),
 		AllowedOrigins: splitNonEmpty(os.Getenv("ALLOWED_ORIGINS")),
+
+		FirebaseServiceAccountJSON: os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON"),
+		ResetPasswordContinueURL:   os.Getenv("RESET_PASSWORD_CONTINUE_URL"),
+		ResendAPIKey:               os.Getenv("RESEND_API_KEY"),
+		ResetEmailFrom:             os.Getenv("RESET_EMAIL_FROM"),
 	}
 }
 
