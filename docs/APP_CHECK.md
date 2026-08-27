@@ -1,0 +1,109 @@
+# Firebase App Check
+
+Tracks the App Check rollout the same way `docs/BACKEND_MILESTONES.md`
+tracks the backend: as a sequence of real, verified steps — SDK
+integrated is not the same claim as tokens verified, which is not the
+same claim as enforcement enabled. Each stage below is only claimed once
+it's actually true.
+
+**Provider**: reCAPTCHA Enterprise. **Site key**: registered and
+generated in Firebase Console (Security → Fraud Defense → reCAPTCHA
+Enterprise → "Darwesh Group Website" key) before this code was written —
+this file only wires up the existing key, it did not create a new one,
+a new reCAPTCHA key, or a new Firebase app.
+
+## Where it's wired up
+
+`js/firebase-init.js` — the one module every Firebase-touching page or
+shared script (`js/notification-bell.js`, `js/city-nav.js`) ultimately
+imports, directly or dynamically. `initializeAppCheck()` runs
+immediately after `initializeApp()`, before `getAuth()`/`getFirestore()`/
+`getStorage()` hand out their instances to any caller. Because ES module
+top-level code runs exactly once per page regardless of how many
+different scripts import the module, this is the single choke point —
+no per-page duplication, no risk of initializing it twice.
+
+Wrapped in `try/catch`: if reCAPTCHA Enterprise's script fails to load
+(ad-blocker, offline, misconfiguration), the site must keep working —
+App Check is a second layer on top of Firebase Auth + Security Rules,
+never a replacement for them, and losing it must degrade to "unverified"
+for that session, not "site is down."
+
+## NOT covered by this change
+
+`admin.html`'s "Add Agent" flow creates a **second, temporary Firebase
+app instance** (`initializeApp(firebaseConfig, 'agent-create-' + ...)`) so
+creating a new agent account doesn't sign the admin out of their own
+session. App Check is bound per-app-instance, so this secondary app does
+**not** inherit App Check from the primary one. It calls
+`createUserWithEmailAndPassword` (Auth) and `setDoc` (Firestore) on that
+secondary instance. **If Authentication or Firestore enforcement is ever
+turned on, the Add Agent flow will need this addressed first** — it was
+deliberately left untouched this pass rather than modifying an already
+delicate flow (an admin creating a user without losing their own
+session) while enforcement isn't even on yet. Small, scoped, and worth
+testing on its own when that day comes.
+
+## Debug tokens (local/dev testing)
+
+Not needed right now — enforcement is off, so an unverified/missing
+token doesn't block anything. **When Firestore/Storage/Auth enforcement
+is later turned on**, local testing (a dev server on `localhost`, or
+Playwright) will need a real debug token: Firebase Console → App Check →
+generate a debug token, then set it via a **local-only**,
+**never-committed** snippet (e.g. `window.FIREBASE_APPCHECK_DEBUG_TOKEN =
+'<token>'` before `firebase-init.js` loads, in a file added to
+`.gitignore` at that time — this repo has no build step / env-var
+injection, so a debug token must never be hardcoded directly into a
+committed `.html`/`.js` file). Production must never set this.
+
+## Firebase services and whether they support App Check enforcement
+
+| Service | Used by this site | Supports App Check enforcement |
+|---|---|---|
+| Cloud Firestore | Yes — every collection | Yes |
+| Cloud Storage | Yes — `sell-submissions`, `sell-verification`, `listing-photos`, `agent-photos`, `customer-photos` | Yes |
+| Firebase Authentication | Yes | Yes (Console: App Check → APIs → Authentication) |
+| Backend (`backend/`) | Uses the **Admin SDK**, server-side, service-account authenticated | N/A — App Check is a client-SDK concept; Admin SDK calls are already trusted server-to-server and are not gated by App Check either way |
+
+## Recommended rollout (do not skip stages)
+
+**Phase 1 — done, this change.** SDK integrated, enforcement OFF. Every
+Firebase-touching page now attaches an App Check token to its requests
+when it can; nothing is rejected yet if it can't.
+
+**Phase 2 — your action, Console only.** Watch Firebase Console → App
+Check → Firestore / Storage / Authentication metrics for a few days of
+real production traffic. Look for the split between "Verified" and
+"Unverified/outdated client" requests. Verified should climb toward
+matching your real traffic volume.
+
+**Phase 3 — confirm before enforcing.** Don't enforce until Verified
+requests look like your actual traffic pattern (not just a handful of
+test hits from you). A low Verified count usually means the reCAPTCHA
+Enterprise key's registered domain doesn't match where the site is
+actually served from, or a page is loading Firebase before App Check
+attaches — worth chasing down before enforcing, not after.
+
+**Phase 4 — enforce one service at a time, starting with the
+lowest-blast-radius one:**
+1. **Storage first** — narrowest surface (file upload/read paths only),
+   easiest to visually confirm broken (an image fails to load/upload).
+2. **Firestore second** — the widest surface on this site (every page).
+   Enforcing here without Phase 2/3 confirmation first is the one most
+   likely to silently break the whole site for real visitors if done too
+   early.
+3. **Authentication last, and only after fixing the Add Agent gap
+   above** — enforcing Auth while the secondary-app flow has no App
+   Check would break "Add Agent" specifically.
+
+**Phase 5 — test production immediately after each enforcement
+toggle**, not just once at the end: reload the homepage, browse
+listings, log in, and (once Storage is enforced) try a photo upload,
+before moving to the next service. If anything breaks, the fastest
+rollback is the same Console toggle, back to unenforced, while you
+investigate.
+
+I did not enable enforcement on any service — that's a Console action
+only you take, per Phase 4 above, once Phase 2/3's metrics say it's
+safe.
