@@ -537,6 +537,7 @@
 <span class="material-symbols-outlined text-[16px]">check_circle</span>
 <span data-i18n="sell.verify.photoCaptured">Photo Captured</span>
 </p>
+<p id="verifyUploadStatus" class="text-[11px] text-on-surface-variant"></p>
 <button class="border border-primary text-primary px-6 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="retakeVerificationPhotoBtn" type="button">
 <span class="material-symbols-outlined text-[18px]">refresh</span>
 <span data-i18n="sell.verify.retake">Retake Photo</span>
@@ -1117,6 +1118,14 @@ document.addEventListener('click', (e) => {
 /* ==========================================================================
    Photo upload: click + drag-and-drop, with thumbnail previews and
    drag-to-reorder (first photo is always the listing's cover image).
+
+   Each photo starts uploading to Storage the moment it's added here in
+   Step 4 -- not when the user finally hits Submit on Step 7. By the time
+   they've gone through Review and Owner Info, uploads that would
+   otherwise have made Submit feel slow have usually already finished in
+   the background. photoUploadState tracks each selected File's own
+   upload (by object reference, so it survives reordering/removal, which
+   only rebuild the FileList, not the File objects inside it).
    ========================================================================== */
 const dropzone = document.getElementById('dropzone');
 const photoUpload = document.getElementById('photoUpload');
@@ -1125,6 +1134,45 @@ const photoPreviewGrid = document.getElementById('photoPreviewGrid');
 const photoGalleryLabel = document.getElementById('photoGalleryLabel');
 let photoPreviewUrls = [];
 let dragFromIndex = null;
+const photoUploadState = new Map(); // File -> { url, error, promise }
+let sellPhotoToken = null;
+
+function ensurePhotoUploadStarted(file) {
+  if (photoUploadState.has(file)) return;
+  const state = { url: null, error: null, promise: null };
+  photoUploadState.set(file, state);
+  state.promise = (async () => {
+    const t0 = performance.now();
+    try {
+      await submissionAuthReady;
+      const compressed = await compressImage(file);
+      if (!sellPhotoToken) sellPhotoToken = crypto.randomUUID();
+      const safeName = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' +
+        file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]*$/, '.jpg');
+      const fileRef = storageFns.ref(submitStorage, `sell-submissions/${sellPhotoToken}/${safeName}`);
+      await withTimeout(storageFns.uploadBytes(fileRef, compressed), PHOTO_UPLOAD_TIMEOUT_MS);
+      state.url = await withTimeout(storageFns.getDownloadURL(fileRef), PHOTO_UPLOAD_TIMEOUT_MS);
+      console.log('[sell][perf] property photo uploaded in', Math.round(performance.now() - t0) + 'ms:', file.name);
+    } catch (err) {
+      state.error = err;
+      console.error('[sell] property photo upload failed', file.name, err);
+    }
+    renderPhotoPreviews();
+  })();
+}
+
+// Reads whatever's uploaded so far, in the CURRENT display order (so
+// reordering/removal is respected even if some uploads are still
+// in-flight) -- used both to build the submission payload without
+// waiting on stragglers, and to redraw each thumbnail's status badge.
+function getCurrentPhotoUploadStatus() {
+  const files = [...photoUpload.files];
+  const entries = files.map(f => photoUploadState.get(f)).filter(Boolean);
+  return {
+    readyUrls: entries.filter(e => e.url).map(e => e.url),
+    pendingPromises: entries.filter(e => !e.url && !e.error).map(e => e.promise)
+  };
+}
 
 function updatePhotoLabel(count) {
   photoLabel.textContent = count > 0
@@ -1148,9 +1196,18 @@ function renderPhotoPreviews() {
   photoPreviewGrid.innerHTML = files.map((file, i) => {
     const url = URL.createObjectURL(file);
     photoPreviewUrls.push(url);
+    ensurePhotoUploadStarted(file);
+    const state = photoUploadState.get(file);
+    let statusBadge = '';
+    if (state && state.error) {
+      statusBadge = `<button type="button" data-retry-index="${i}" class="photo-retry-btn absolute inset-0 bg-error/70 flex items-center justify-center" title="${tr('sell.retryUpload', 'Tap to retry upload')}"><span class="material-symbols-outlined text-white" style="font-size:20px;">refresh</span></button>`;
+    } else if (state && !state.url) {
+      statusBadge = `<div class="absolute inset-0 bg-primary/30 flex items-center justify-center pointer-events-none"><span class="material-symbols-outlined text-white animate-spin" style="font-size:18px;">progress_activity</span></div>`;
+    }
     return `<div class="photo-thumb relative rounded-lg overflow-hidden border border-outline-variant aspect-square bg-surface-container-low" draggable="true" data-index="${i}">
       <img src="${url}" class="w-full h-full object-cover pointer-events-none"/>
       ${i === 0 ? `<span class="absolute bottom-1 left-1 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none">${tr('sell.coverPhoto', 'Cover')}</span>` : ''}
+      ${statusBadge}
       <button type="button" data-index="${i}" aria-label="Remove photo" class="photo-remove-btn absolute top-1 right-1 w-5 h-5 rounded-full bg-primary/80 text-on-primary flex items-center justify-center">
         <span class="material-symbols-outlined" style="font-size:14px;">close</span>
       </button>
@@ -1161,6 +1218,14 @@ function renderPhotoPreviews() {
       e.preventDefault();
       e.stopPropagation();
       removePhoto(Number(btn.dataset.index));
+    });
+  });
+  photoPreviewGrid.querySelectorAll('.photo-retry-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const f = [...photoUpload.files][Number(btn.dataset.retryIndex)];
+      if (f) { photoUploadState.delete(f); ensurePhotoUploadStarted(f); renderPhotoPreviews(); }
     });
   });
   photoPreviewGrid.querySelectorAll('.photo-thumb').forEach(thumb => {
@@ -1277,17 +1342,56 @@ function stopVerificationCamera() {
 }
 window.addEventListener('pagehide', stopVerificationCamera);
 
+// Verification photo upload state -- separate from the property-photos
+// tracking above since there's only ever one of these. Upload starts the
+// instant a photo is captured, not when Submit is finally clicked.
+const VERIFY_MAX_DIMENSION = 800; // a face-verification selfie doesn't need 1600px
+let verificationPhotoPath = null;
+let verificationUploadError = null;
+let verificationUploadPromise = null;
+
+function updateVerifyUploadStatusUI() {
+  const el = document.getElementById('verifyUploadStatus');
+  if (verificationPhotoPath) el.textContent = tr('sell.verify.uploaded', 'Uploaded');
+  else if (verificationUploadError) el.textContent = tr('sell.verify.uploadFailed', 'Upload failed -- will retry when you submit');
+  else el.textContent = tr('sell.verify.uploading', 'Uploading...');
+}
+
+function startVerificationUpload(blob) {
+  verificationPhotoPath = null;
+  verificationUploadError = null;
+  updateVerifyUploadStatusUI();
+  const t0 = performance.now();
+  verificationUploadPromise = (async () => {
+    try {
+      await submissionAuthReady;
+      const token = crypto.randomUUID();
+      const path = `sell-verification/${token}/selfie.jpg`;
+      const fileRef = storageFns.ref(submitStorage, path);
+      await withTimeout(storageFns.uploadBytes(fileRef, blob), PHOTO_UPLOAD_TIMEOUT_MS);
+      verificationPhotoPath = path;
+      console.log('[sell][perf] verification photo uploaded in', Math.round(performance.now() - t0) + 'ms');
+    } catch (err) {
+      verificationUploadError = err;
+      console.error('[sell] verification photo upload failed', err);
+    }
+    updateVerifyUploadStatusUI();
+  })();
+}
+
 document.getElementById('takeVerificationPhotoBtn').addEventListener('click', async () => {
   const video = document.getElementById('verifyVideo');
   if (!video.videoWidth) return;
-  // Crop to a centered square to match the circular frame shown on screen.
-  const size = Math.min(video.videoWidth, video.videoHeight);
-  const sx = (video.videoWidth - size) / 2;
-  const sy = (video.videoHeight - size) / 2;
+  // Crop to a centered square matching the circular frame, capped to a
+  // sensible resolution for a face photo (not the raw camera resolution).
+  const nativeSize = Math.min(video.videoWidth, video.videoHeight);
+  const size = Math.min(nativeSize, VERIFY_MAX_DIMENSION);
+  const sx = (video.videoWidth - nativeSize) / 2;
+  const sy = (video.videoHeight - nativeSize) / 2;
   const canvas = document.getElementById('verifyCanvas');
   canvas.width = size; canvas.height = size;
-  canvas.getContext('2d').drawImage(video, sx, sy, size, size, 0, 0, size, size);
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  canvas.getContext('2d').drawImage(video, sx, sy, nativeSize, nativeSize, 0, 0, size, size);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
   if (!blob) return;
   verificationBlob = blob;
   if (verificationObjectUrl) URL.revokeObjectURL(verificationObjectUrl);
@@ -1299,22 +1403,17 @@ document.getElementById('takeVerificationPhotoBtn').addEventListener('click', as
   document.getElementById('verifyCapturedWrap').classList.remove('hidden');
   document.getElementById('verifyCapturedWrap').classList.add('flex');
   hideStepValidationMsg();
+  startVerificationUpload(blob);
 });
 
 document.getElementById('retakeVerificationPhotoBtn').addEventListener('click', () => {
   verificationBlob = null;
+  verificationPhotoPath = null;
+  verificationUploadError = null;
+  verificationUploadPromise = null;
   if (verificationObjectUrl) { URL.revokeObjectURL(verificationObjectUrl); verificationObjectUrl = null; }
   startVerificationCamera();
 });
-
-async function uploadVerificationPhoto() {
-  if (!verificationBlob) return null;
-  const token = crypto.randomUUID();
-  const path = `sell-verification/${token}/selfie.jpg`;
-  const fileRef = storageFns.ref(submitStorage, path);
-  await withTimeout(storageFns.uploadBytes(fileRef, verificationBlob), PHOTO_UPLOAD_TIMEOUT_MS);
-  return path;
-}
 
 /* ==========================================================================
    Review step — renders a live preview of the listing from the current
@@ -1518,36 +1617,17 @@ async function compressImage(file) {
   }
 }
 
-async function uploadSelectedPhotos() {
-  const files = [...photoUpload.files];
-  if (!files.length) return { photoUrls: [], photoUploadToken: null };
-  const token = crypto.randomUUID();
-  let completed = 0;
-  const submitBtnLabel = document.getElementById('submitBtnLabel');
-  const updateProgress = () => {
-    submitBtnLabel.textContent = tr('sell.uploadingPhoto', 'Uploading photo {n} of {total}...')
-      .replace('{n}', completed).replace('{total}', files.length);
-  };
-  updateProgress();
-  const results = await Promise.all(files.map(async (file, i) => {
-    try {
-      const compressed = await compressImage(file);
-      const safeName = i + '-' + file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]*$/, '.jpg');
-      const fileRef = storageFns.ref(submitStorage, `sell-submissions/${token}/${safeName}`);
-      await withTimeout(storageFns.uploadBytes(fileRef, compressed), PHOTO_UPLOAD_TIMEOUT_MS);
-      const url = await withTimeout(storageFns.getDownloadURL(fileRef), PHOTO_UPLOAD_TIMEOUT_MS);
-      completed++; updateProgress();
-      return url;
-    } catch (err) {
-      console.error('Could not upload photo', i, err);
-      completed++; updateProgress();
-      return null;
-    }
-  }));
-  return { photoUrls: results.filter(Boolean), photoUploadToken: token };
-}
-
 let submissionInFlight = false;
+
+// The submission record is created the moment Submit is clicked, using
+// whatever photo/verification uploads have ALREADY finished by then --
+// it never waits on Storage. Uploads start as early as possible (a
+// property photo as soon as it's added in Step 4, the verification
+// selfie the instant it's captured in Step 7), so by the time a user has
+// gone through Review and Owner Info they're normally done already; this
+// is just the safety net for whatever's still in flight at submit time.
+// That's what makes "Submitting your listing..." fast and bounded by a
+// single Firestore write instead of however long Storage takes.
 document.getElementById('sellForm').addEventListener('submit', async function (e) {
   e.preventDefault();
   // Guards against a double-tap firing two submissions before the button's
@@ -1565,42 +1645,48 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   submitBtn.disabled = true;
   submitBtnLabel.textContent = tr('sell.submittingListing', 'Submitting your listing...');
 
+  const tSubmitStart = performance.now();
   await submissionAuthReady;
+  console.log('[sell][perf] Firebase SDK ready at +' + Math.round(performance.now() - tSubmitStart) + 'ms');
+
+  const photoStatus = getCurrentPhotoUploadStatus();
+  const type = document.getElementById('typeSelect');
+  const typeLabel = type.selectedOptions[0] ? type.selectedOptions[0].textContent : '';
+  const dealLabel = draft.listingTypeSelect === 'rent' ? 'for Rent' : 'for Sale';
+  const payload = {
+    uid: (submitAuth && submitAuth.currentUser) ? submitAuth.currentUser.uid : null,
+    type: 'sell',
+    title: `${typeLabel} ${dealLabel}`,
+    name: draft.fullNameInput, phone: draft.phoneInput,
+    propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
+    city: draft.citySelect, address: draft.addressInput,
+    // `price` is always the canonical USD figure other pages (buy.html,
+    // admin.html's listings table, etc.) expect. `currency` + `originalPrice`
+    // preserve exactly what the seller actually typed, so an admin
+    // reviewing the submission sees the real entered figure -- e.g.
+    // "300,000,000 IQD" -- rather than only a converted USD estimate.
+    price: priceInUSD(), currency: draft.currencySelect, originalPrice: rawPriceNumber(),
+    negotiable: draft.negotiableInput === 'true',
+    size: draft.sizeInput, landSize: draft.landSizeInput,
+    beds: draft.bedsInput, baths: draft.bathsInput, halls: draft.hallsInput,
+    floors: draft.floorsInput, kitchens: draft.kitchensInput, parking: draft.parkingInput,
+    amenities: draft.amenities, condition: draft.conditionSelect, yearBuilt: draft.yearBuiltInput,
+    pinLat: draft.pinLat, pinLng: draft.pinLng,
+    // Whatever's uploaded so far -- if anything's still in flight, the
+    // background patch below fills it in once it finishes. The verification
+    // selfie uploads to a separate, admin-only-read Storage path (see
+    // storage.rules) -- it never becomes part of photoUrls, so it can't
+    // end up on the public listing.
+    photoUrls: photoStatus.readyUrls, photoUploadToken: sellPhotoToken,
+    verificationPhotoPath,
+    status: 'pending', createdAt: submitFns.serverTimestamp()
+  };
+
+  let newDocRef;
   try {
-    // The verification selfie uploads to a separate, admin-only-read
-    // Storage path (see storage.rules) -- it never becomes part of
-    // photoUrls, so it can't end up on the public listing.
-    const [{ photoUrls, photoUploadToken }, verificationPhotoPath] = await Promise.all([
-      uploadSelectedPhotos(),
-      uploadVerificationPhoto()
-    ]);
-    submitBtnLabel.textContent = tr('sell.submitForVerification', 'Submit for Verification');
-    const type = document.getElementById('typeSelect');
-    const typeLabel = type.selectedOptions[0] ? type.selectedOptions[0].textContent : '';
-    const dealLabel = draft.listingTypeSelect === 'rent' ? 'for Rent' : 'for Sale';
-    await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), {
-      uid: (submitAuth && submitAuth.currentUser) ? submitAuth.currentUser.uid : null,
-      type: 'sell',
-      title: `${typeLabel} ${dealLabel}`,
-      name: draft.fullNameInput, phone: draft.phoneInput,
-      propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
-      city: draft.citySelect, address: draft.addressInput,
-      // `price` is always the canonical USD figure other pages (buy.html,
-      // admin.html's listings table, etc.) expect. `currency` + `originalPrice`
-      // preserve exactly what the seller actually typed, so an admin
-      // reviewing the submission sees the real entered figure -- e.g.
-      // "300,000,000 IQD" -- rather than only a converted USD estimate.
-      price: priceInUSD(), currency: draft.currencySelect, originalPrice: rawPriceNumber(),
-      negotiable: draft.negotiableInput === 'true',
-      size: draft.sizeInput, landSize: draft.landSizeInput,
-      beds: draft.bedsInput, baths: draft.bathsInput, halls: draft.hallsInput,
-      floors: draft.floorsInput, kitchens: draft.kitchensInput, parking: draft.parkingInput,
-      amenities: draft.amenities, condition: draft.conditionSelect, yearBuilt: draft.yearBuiltInput,
-      pinLat: draft.pinLat, pinLng: draft.pinLng,
-      photoUrls, photoUploadToken,
-      verificationPhotoPath,
-      status: 'pending', createdAt: submitFns.serverTimestamp()
-    });
+    const tCreate = performance.now();
+    newDocRef = await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), payload);
+    console.log('[sell][perf] Firestore create took ' + Math.round(performance.now() - tCreate) + 'ms');
   } catch (err) {
     console.error('Could not save submission:', err);
     errEl.textContent = ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.') + ' (' + err.message + ')';
@@ -1611,11 +1697,33 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     submissionInFlight = false;
     return;
   }
+  console.log('[sell][perf] total time to success: ' + Math.round(performance.now() - tSubmitStart) + 'ms');
 
   localStorage.removeItem(DRAFT_KEY);
   document.getElementById('sellForm').classList.add('hidden');
   document.getElementById('confirmation').classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Anything still uploading when Submit was clicked continues in the
+  // background and patches the doc just created, once it settles -- the
+  // listing itself never waited on it. Skipped entirely when every upload
+  // had already finished by submit time, which is the normal case.
+  const stillPending = [...photoStatus.pendingPromises];
+  if (verificationUploadPromise && !verificationPhotoPath) stillPending.push(verificationUploadPromise);
+  if (stillPending.length) {
+    Promise.all(stillPending).then(async () => {
+      try {
+        await submitFns.updateDoc(submitFns.doc(submitDb, 'submissions', newDocRef.id), {
+          photoUrls: getCurrentPhotoUploadStatus().readyUrls,
+          photoUploadToken: sellPhotoToken,
+          verificationPhotoPath
+        });
+        console.log('[sell][perf] background photo patch applied after uploads settled');
+      } catch (err) {
+        console.error('[sell] background photo patch failed (listing was already submitted successfully without it)', err);
+      }
+    });
+  }
 });
 
 /* Init */
