@@ -1585,7 +1585,13 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
       name: draft.fullNameInput, phone: draft.phoneInput,
       propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
       city: draft.citySelect, address: draft.addressInput,
-      price: priceInUSD(), negotiable: draft.negotiableInput === 'true',
+      // `price` is always the canonical USD figure other pages (buy.html,
+      // admin.html's listings table, etc.) expect. `currency` + `originalPrice`
+      // preserve exactly what the seller actually typed, so an admin
+      // reviewing the submission sees the real entered figure -- e.g.
+      // "300,000,000 IQD" -- rather than only a converted USD estimate.
+      price: priceInUSD(), currency: draft.currencySelect, originalPrice: rawPriceNumber(),
+      negotiable: draft.negotiableInput === 'true',
       size: draft.sizeInput, landSize: draft.landSizeInput,
       beds: draft.bedsInput, baths: draft.bathsInput, halls: draft.hallsInput,
       floors: draft.floorsInput, kitchens: draft.kitchensInput, parking: draft.parkingInput,

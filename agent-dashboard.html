@@ -215,8 +215,14 @@
             </select>
           </div>
           <div>
-            <label class="admin-label" id="priceLabel" for="fPrice" data-i18n="agentDash.priceLabel">Price (USD)</label>
-            <input id="fPrice" type="number" min="0" class="admin-input" placeholder="250000" required/>
+            <label class="admin-label" id="priceLabel" for="fPrice" data-i18n="agentDash.priceLabel">Price</label>
+            <div class="flex gap-2">
+            <input id="fPrice" type="number" min="0" class="admin-input" style="flex:1;" placeholder="250000" required/>
+            <select id="fPriceCurrency" class="admin-input" style="width:auto;">
+              <option value="USD">USD</option>
+              <option value="IQD">IQD</option>
+            </select>
+            </div>
           </div>
         </div>
 
@@ -419,7 +425,7 @@
   });
 
   document.getElementById('fDealType').addEventListener('change', (e) => {
-    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? trDash('agentDash.monthlyRentLabel','Monthly rent (USD)') : trDash('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? trDash('agentDash.monthlyRentLabel','Monthly rent') : trDash('agentDash.priceLabel','Price');
   });
 
   // CartoDB's free "Positron" basemap (no key needed) — a clean, minimal
@@ -511,7 +517,7 @@
     document.getElementById('formSubmitBtn').textContent = trDash('agentDash.addListing','Add Listing');
     document.getElementById('formCancelBtn').classList.add('hidden');
     document.getElementById('formError').classList.add('hidden');
-    document.getElementById('priceLabel').textContent = trDash('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = trDash('agentDash.priceLabel','Price');
     pinLat = null; pinLng = null;
     document.getElementById('pinReadout').textContent = trDash('agentDash.noPinYet','No location pinned yet');
     if (agentPinMarker) { agentPinMap.removeLayer(agentPinMarker); agentPinMarker = null; }
@@ -602,7 +608,13 @@
     const errEl = document.getElementById('formError');
     const title = document.getElementById('fTitle').value.trim();
     const address = document.getElementById('fAddress').value.trim();
-    const price = Number(document.getElementById('fPrice').value);
+    // The currency selector is a data-entry convenience only -- listings.price
+    // stays a plain USD number everywhere on the site (buy.html/map.html/
+    // insights.html all sort and filter assuming that), so an IQD entry gets
+    // converted and rounded right here, at the moment of save.
+    const enteredPrice = Number(document.getElementById('fPrice').value);
+    const priceCurrency = document.getElementById('fPriceCurrency').value;
+    const price = priceCurrency === 'IQD' ? Math.round(enteredPrice / 1310) : enteredPrice;
 
     if (!title || !address || !price || pinLat === null || pinLng === null) {
       errEl.textContent = trDash('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
@@ -654,9 +666,10 @@
     document.getElementById('fCity').value = l.city;
     document.getElementById('fAddress').value = l.address;
     document.getElementById('fDealType').value = l.dealType;
-    document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? trDash('agentDash.monthlyRentLabel','Monthly rent (USD)') : trDash('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? trDash('agentDash.monthlyRentLabel','Monthly rent') : trDash('agentDash.priceLabel','Price');
     document.getElementById('fPropertyType').value = l.propertyType;
     document.getElementById('fPrice').value = l.price;
+    document.getElementById('fPriceCurrency').value = 'USD'; // l.price is always the stored USD figure
     document.getElementById('fBeds').value = l.beds;
     document.getElementById('fBaths').value = l.baths;
     document.getElementById('fSqft').value = l.sqft;

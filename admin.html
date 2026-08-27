@@ -684,8 +684,14 @@
               </select>
             </div>
             <div>
-              <label class="admin-label" id="priceLabel" for="fPrice" data-i18n="agentDash.priceLabel">Price (USD)</label>
-              <input id="fPrice" type="number" min="0" class="admin-input" placeholder="250000" required/>
+              <label class="admin-label" id="priceLabel" for="fPrice" data-i18n="agentDash.priceLabel">Price</label>
+              <div class="flex gap-2">
+              <input id="fPrice" type="number" min="0" class="admin-input" style="flex:1;" placeholder="250000" required/>
+              <select id="fPriceCurrency" class="admin-input" style="width:auto;">
+                <option value="USD">USD</option>
+                <option value="IQD">IQD</option>
+              </select>
+              </div>
             </div>
           </div>
 
@@ -1326,7 +1332,7 @@ function initListingsTab() {
   setTimeout(() => adminPinMap.invalidateSize(), 100);
 
   document.getElementById('fDealType').addEventListener('change', (e) => {
-    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? trAdmin('agentDash.monthlyRentLabel','Monthly rent (USD)') : trAdmin('agentDash.priceLabel','Price (USD)');
+    document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? trAdmin('agentDash.monthlyRentLabel','Monthly rent') : trAdmin('agentDash.priceLabel','Price');
   });
 
   document.getElementById('listingForm').addEventListener('submit', onListingFormSubmit);
@@ -1351,7 +1357,7 @@ function resetListingForm() {
   document.getElementById('formSubmitBtn').textContent = trAdmin('agentDash.addListing','Add Listing');
   document.getElementById('formCancelBtn').classList.add('hidden');
   document.getElementById('formError').classList.add('hidden');
-  document.getElementById('priceLabel').textContent = trAdmin('agentDash.priceLabel','Price (USD)');
+  document.getElementById('priceLabel').textContent = trAdmin('agentDash.priceLabel','Price');
   pinLat = null; pinLng = null;
   document.getElementById('pinReadout').textContent = trAdmin('agentDash.noPinYet','No location pinned yet');
   if (adminPinMarker) { adminPinMap.removeLayer(adminPinMarker); adminPinMarker = null; }
@@ -1557,7 +1563,13 @@ async function onListingFormSubmit(e) {
   const errEl = document.getElementById('formError');
   const title = document.getElementById('fTitle').value.trim();
   const address = document.getElementById('fAddress').value.trim();
-  const price = Number(document.getElementById('fPrice').value);
+  // The currency selector is a data-entry convenience only -- listings.price
+  // stays a plain USD number everywhere on the site (buy.html/map.html/
+  // insights.html all sort and filter assuming that), so an IQD entry gets
+  // converted and rounded right here, at the moment of save.
+  const enteredPrice = Number(document.getElementById('fPrice').value);
+  const priceCurrency = document.getElementById('fPriceCurrency').value;
+  const price = priceCurrency === 'IQD' ? Math.round(enteredPrice / 1310) : enteredPrice;
 
   if (!title || !address || !price || pinLat === null || pinLng === null) {
     errEl.textContent = trAdmin('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
@@ -1611,9 +1623,10 @@ window.editListing = function (id) {
   document.getElementById('fCity').value = l.city;
   document.getElementById('fAddress').value = l.address;
   document.getElementById('fDealType').value = l.dealType;
-  document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? trAdmin('agentDash.monthlyRentLabel','Monthly rent (USD)') : trAdmin('agentDash.priceLabel','Price (USD)');
+  document.getElementById('priceLabel').textContent = l.dealType === 'rent' ? trAdmin('agentDash.monthlyRentLabel','Monthly rent') : trAdmin('agentDash.priceLabel','Price');
   document.getElementById('fPropertyType').value = l.propertyType;
   document.getElementById('fPrice').value = l.price;
+  document.getElementById('fPriceCurrency').value = 'USD'; // l.price is always the stored USD figure
   document.getElementById('fBeds').value = l.beds;
   document.getElementById('fBaths').value = l.baths;
   document.getElementById('fSqft').value = l.sqft;
@@ -1758,14 +1771,14 @@ function renderServicesRows() {
     const typeIcon = isSell ? 'sell' : 'event_available';
     const thumbUrl = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
     const thumb = thumbUrl
-      ? `<img src="${thumbUrl}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
+      ? `<img src="${escapeAdmin(thumbUrl)}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
       : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
     const detailsText = isSell
-      ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.title || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.address || ''}, ${s.city || ''}${s.price ? ' &middot; $' + Math.round(Number(s.price)).toLocaleString() : ''}</p>`
-      : `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${s.address || ''}, ${s.city || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.priceLabel || ''}</p>`;
+      ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.title)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.address)}, ${escapeAdmin(s.city)}${s.price ? ' &middot; $' + Math.round(Number(s.price)).toLocaleString() : ''}</p>`
+      : `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.address)}, ${escapeAdmin(s.city)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.priceLabel)}</p>`;
     const details = `<div class="flex items-center gap-2.5">${thumb}<div class="min-w-0">${detailsText}</div></div>`;
     const from = (s.name || s.phone || s.email)
-      ? `<p class="font-body-md text-[13px] text-on-surface">${s.name || ''}</p><p class="font-body-md text-[12px] text-on-surface-variant">${s.phone || ''}${s.email ? ' &middot; ' + s.email : ''}</p>`
+      ? `<p class="font-body-md text-[13px] text-on-surface">${escapeAdmin(s.name)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.phone)}${s.email ? ' &middot; ' + escapeAdmin(s.email) : ''}</p>`
       : `<p class="font-body-md text-[13px] text-on-surface">${s.uid ? trAdmin('admin.viaAccount', 'Registered customer') : ''}</p>`;
     const submitted = s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000).toLocaleDateString() : '—';
 
@@ -1825,16 +1838,53 @@ function renderServicesRows() {
 // Customer Services: full request detail modal — every field the
 // submission carries, not just the table's condensed summary.
 // ---------------------------------------------------------------------
+// The `submissions` collection deliberately accepts writes from
+// unauthenticated visitors (a guest can list a property or request a
+// viewing with no account), and firestore.rules only validates status/
+// type/uid -- it never checks the CONTENT of title/address/name/etc. So
+// every string field here is attacker-controllable by anyone willing to
+// call the Firestore REST API directly instead of going through
+// sell.html's form, and none of it was being escaped before landing in
+// innerHTML -- a classic stored-XSS-into-an-admin-session path. Every
+// submission-provided value rendered below goes through this first.
+function escapeAdmin(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+const CONDITION_LABELS = {
+  excellent: ['sell.condition.excellent', 'Excellent'],
+  good: ['sell.condition.good', 'Good'],
+  fair: ['sell.condition.fair', 'Fair'],
+  needsRenovation: ['sell.condition.needsRenovation', 'Needs Renovation']
+};
+const AMENITY_ADMIN_LABELS = {
+  furnished: ['sell.amenity.furnished', 'Furnished'],
+  garden: ['sell.amenity.garden', 'Garden'],
+  balcony: ['sell.amenity.balcony', 'Balcony'],
+  pool: ['sell.amenity.pool', 'Swimming Pool'],
+  centralAc: ['sell.amenity.centralAc', 'Central A/C'],
+  heating: ['sell.amenity.heating', 'Heating'],
+  internet: ['sell.amenity.internet', 'Internet'],
+  elevator: ['sell.amenity.elevator', 'Elevator']
+};
+
 const SELL_DETAIL_FIELDS = [
   ['title', 'agentDash.titleLabel', 'Title'],
   ['propertyType', 'sell.propertyType', 'Property type'],
   ['listingType', 'sell.listingType', 'Listing type'],
   ['city', 'sell.city', 'City'],
   ['address', 'sell.address', 'Address'],
-  ['price', 'agentDash.priceLabel', 'Price (USD)'],
   ['size', 'sell.size', 'Size (m²)'],
+  ['landSize', 'sell.landSize', 'Land Size (m²)'],
   ['beds', 'common.beds', 'Beds'],
   ['baths', 'common.baths', 'Baths'],
+  ['halls', 'sell.halls', 'Halls'],
+  ['floors', 'sell.floors', 'Floors'],
+  ['kitchens', 'sell.kitchens', 'Kitchens'],
+  ['parking', 'sell.parking', 'Parking'],
+  ['yearBuilt', 'sell.yearBuilt', 'Year Built'],
   ['description', 'sell.description', 'Description']
 ];
 const VIEWING_DETAIL_FIELDS = [
@@ -1901,8 +1951,8 @@ function openRequestDetail(id) {
   if (photoUrls.length) {
     photosWrap.classList.remove('hidden');
     photosWrap.innerHTML = photoUrls.map(url => `
-      <a href="${url}" target="_blank" rel="noopener" class="block aspect-square rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low">
-        <img src="${url}" class="w-full h-full object-cover"/>
+      <a href="${escapeAdmin(url)}" target="_blank" rel="noopener" class="block aspect-square rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low">
+        <img src="${escapeAdmin(url)}" class="w-full h-full object-cover"/>
       </a>`).join('');
   } else {
     photosWrap.classList.add('hidden');
@@ -1910,22 +1960,49 @@ function openRequestDetail(id) {
   }
 
   const rows = [];
+  // Price gets its own row, shown in whatever currency the seller actually
+  // entered (with a converted USD estimate underneath when that was IQD),
+  // rather than only the converted USD figure -- so review never loses
+  // what the seller literally typed.
+  if (isSell && s.price) {
+    const usdLabel = '$' + Math.round(Number(s.price)).toLocaleString();
+    if (s.currency === 'IQD' && s.originalPrice) {
+      rows.push([trAdmin('agentDash.priceLabel', 'Price'),
+        `${Math.round(Number(s.originalPrice)).toLocaleString()} IQD<br><span class="text-on-surface-variant text-[12px]">≈ ${usdLabel}</span>`]);
+    } else {
+      rows.push([trAdmin('agentDash.priceLabel', 'Price'), usdLabel]);
+    }
+  } else if (!isSell && s.priceLabel) {
+    rows.push([trAdmin('agentDash.priceLabel', 'Price'), escapeAdmin(s.priceLabel)]);
+  }
   const fields = isSell ? SELL_DETAIL_FIELDS : VIEWING_DETAIL_FIELDS;
   fields.forEach(([key, i18nKey, fallback]) => {
-    if (s[key] === undefined || s[key] === '') return;
-    let val = s[key];
-    if (key === 'price') val = '$' + Math.round(Number(val)).toLocaleString();
-    rows.push([trAdmin(i18nKey, fallback), val]);
+    if (s[key] === undefined || s[key] === '' || key === 'priceLabel') return;
+    rows.push([trAdmin(i18nKey, fallback), escapeAdmin(s[key])]);
   });
-  rows.push([trAdmin('sell.fullName', 'Full Name'), s.name || '—']);
-  rows.push([trAdmin('sell.phoneNumber', 'Phone Number'), s.phone || '—']);
+  if (isSell && s.condition && CONDITION_LABELS[s.condition]) {
+    const [k, f] = CONDITION_LABELS[s.condition];
+    rows.push([trAdmin('sell.condition', 'Condition'), trAdmin(k, f)]);
+  }
+  if (isSell && s.negotiable !== undefined) {
+    rows.push([trAdmin('sell.negotiable', 'Negotiable'), s.negotiable ? trAdmin('common.yes', 'Yes') : trAdmin('common.no', 'No')]);
+  }
+  if (isSell && Array.isArray(s.amenities) && s.amenities.length) {
+    const labels = s.amenities.map(a => {
+      const entry = AMENITY_ADMIN_LABELS[a];
+      return entry ? trAdmin(entry[0], entry[1]) : escapeAdmin(a);
+    });
+    rows.push([trAdmin('sell.amenities', 'Amenities'), labels.join(', ')]);
+  }
+  rows.push([trAdmin('sell.fullName', 'Full Name'), s.name ? escapeAdmin(s.name) : '—']);
+  rows.push([trAdmin('sell.phoneNumber', 'Phone Number'), s.phone ? escapeAdmin(s.phone) : '—']);
   // Older submissions may still carry an email/WhatsApp from before those
   // fields were removed from sell.html -- shown only if actually present,
   // rather than a permanent "Email: —" row on every future submission.
-  if (s.email) rows.push([trAdmin('auth.email', 'Email'), s.email]);
-  if (s.whatsapp) rows.push([trAdmin('sell.whatsappNumber', 'WhatsApp Number'), s.whatsapp]);
+  if (s.email) rows.push([trAdmin('auth.email', 'Email'), escapeAdmin(s.email)]);
+  if (s.whatsapp) rows.push([trAdmin('sell.whatsappNumber', 'WhatsApp Number'), escapeAdmin(s.whatsapp)]);
   if (isSell && s.pinLat && s.pinLng) {
-    rows.push([trAdmin('sell.pinExactLocation', 'Pin Exact Location'), `${s.pinLat}, ${s.pinLng}`]);
+    rows.push([trAdmin('sell.pinExactLocation', 'Pin Exact Location'), `${escapeAdmin(s.pinLat)}, ${escapeAdmin(s.pinLng)}`]);
   }
   rows.push([trAdmin('admin.thSubmitted', 'Submitted'), s.createdAt?.seconds ? new Date(s.createdAt.seconds * 1000).toLocaleString() : '—']);
   rows.push([trAdmin('admin.thStatus', 'Status'), SERVICES_STATUS_LABEL_FN()[s.status] || s.status]);
@@ -2035,7 +2112,16 @@ function createListingFromSubmission(id) {
   if (s.listingType) document.getElementById('fDealType').value = s.listingType;
   document.getElementById('fAddress').value = s.address || '';
   if (s.propertyType) document.getElementById('fPropertyType').value = s.propertyType;
-  document.getElementById('fPrice').value = s.price ? Math.round(Number(s.price)) : '';
+  // Prefill in whatever currency the seller actually entered, so the
+  // admin sees and can double-check the real figure -- not just a
+  // converted USD estimate -- before it becomes the stored listing price.
+  if (s.currency === 'IQD' && s.originalPrice) {
+    document.getElementById('fPrice').value = Math.round(Number(s.originalPrice));
+    document.getElementById('fPriceCurrency').value = 'IQD';
+  } else {
+    document.getElementById('fPrice').value = s.price ? Math.round(Number(s.price)) : '';
+    document.getElementById('fPriceCurrency').value = 'USD';
+  }
   document.getElementById('fBeds').value = s.beds || 0;
   document.getElementById('fBaths').value = s.baths || 0;
   document.getElementById('fSqft').value = s.size || 0;
