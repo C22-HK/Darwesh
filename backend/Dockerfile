@@ -1,18 +1,17 @@
-# Multi-stage build: compile with the full Go toolchain, ship only the
-# static binary in a minimal runtime image. Runs as a non-root user per
-# the VPS/container security guidance in docs/SECURITY_AUDIT.md.
+# Multi-stage build: install dependencies with the full Python image,
+# ship only the app + a slim runtime. Runs as a non-root user per the
+# VPS/container security guidance in docs/SECURITY_AUDIT.md.
 
-FROM golang:1.25-alpine AS build
+FROM python:3.11-slim AS build
 WORKDIR /src
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 go build -o /out/server ./cmd/server
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-FROM alpine:3.20
-RUN apk add --no-cache ca-certificates && \
-    addgroup -S app && adduser -S app -G app
+FROM python:3.11-slim
+RUN addgroup --system app && adduser --system --ingroup app app
+COPY --from=build /install /usr/local
+WORKDIR /app
+COPY app ./app
 USER app
-COPY --from=build /out/server /usr/local/bin/server
 EXPOSE 8080
-ENTRYPOINT ["/usr/local/bin/server"]
+CMD ["python", "-m", "app.main"]

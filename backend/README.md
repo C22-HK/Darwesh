@@ -1,23 +1,25 @@
 # Darwesh Backend
 
-A Go/Gin API service. This is **milestone 1**: a real, working server
-foundation only -- health checks, structured logging, CORS, security
-headers, graceful shutdown. No database, no Redis, no Firebase Admin SDK,
-no business-logic endpoints yet. See
+A Python/FastAPI API service. This is **milestone 1 + milestone 3**: a
+real, working server foundation -- health checks, structured logging,
+CORS, security headers -- plus the password-reset email endpoint. No
+database, no Redis yet. See
 [`docs/BACKEND_MILESTONES.md`](../docs/BACKEND_MILESTONES.md) for what
 comes next and why it's sequenced this way.
 
-Nothing in this directory is deployed anywhere yet. It exists, builds,
-and its tests pass, but it isn't running in production until it's
-deployed somewhere (see "Deployment" below) and the frontend/DNS are
-pointed at it.
+Nothing in this directory is deployed anywhere yet. It exists, its tests
+pass, but it isn't running in production until it's deployed somewhere
+(see "Deployment" below) and the frontend/DNS are pointed at it.
 
 ## Run locally
 
 ```bash
 cd backend
 cp .env.example .env   # edit if you want non-default values
-go run ./cmd/server
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m app.main
 ```
 
 Then:
@@ -30,13 +32,15 @@ curl http://localhost:8080/api/v1/health
 ## Test
 
 ```bash
-go test ./...
+pip install -r requirements-dev.txt
+pytest
 ```
 
-## Build
+## Lint + format check
 
 ```bash
-go build -o darwesh-backend ./cmd/server
+ruff check app tests
+ruff format --check app tests
 ```
 
 ## Build the container image
@@ -48,8 +52,8 @@ docker run --rm -p 8080:8080 -e APP_ENV=production darwesh-backend
 
 ## Deployment (not yet done -- needs your decision)
 
-This binary/container can run on any of the following; none of them are
-set up yet:
+This container can run on any of the following; none of them are set up
+yet:
 
 - **Google Cloud Run** (recommended first choice) -- pay-per-request,
   scales to zero when idle, fits naturally alongside the existing
