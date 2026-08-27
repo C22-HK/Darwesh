@@ -97,14 +97,14 @@
           <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
           <div class="auth-input-wrap">
             <span class="material-symbols-outlined auth-input-icon">mail</span>
-            <input id="fEmail" class="auth-input" required type="email" autocomplete="email"/>
+            <input id="fEmail" class="auth-input" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
           </div>
         </div>
         <div>
           <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
           <div class="auth-input-wrap">
             <span class="material-symbols-outlined auth-input-icon">lock</span>
-            <input id="fPassword" class="auth-input has-toggle" required type="password" autocomplete="current-password"/>
+            <input id="fPassword" class="auth-input has-toggle" required type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
             <button type="button" class="auth-toggle-visibility" id="toggleFPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
               <span class="material-symbols-outlined" id="toggleFPasswordIcon" style="font-size:19px;">visibility</span>
             </button>
@@ -147,7 +147,7 @@
 <label class="auth-label" for="resetEmail" data-i18n="auth.email">Email</label>
 <div class="auth-input-wrap">
 <span class="material-symbols-outlined auth-input-icon">mail</span>
-<input class="auth-input" id="resetEmail" required type="email" autocomplete="email"/>
+<input class="auth-input" id="resetEmail" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
 </div>
 </div>
 <p id="forgotError" class="text-error text-[13px] mb-3 hidden"></p>
@@ -249,21 +249,45 @@
     errEl.classList.add('hidden');
     setSubmitLoading(true, tr('auth.loggingIn', 'Logging in…'), tr('auth.logInBtn', 'Log In'));
 
-    const email = document.getElementById('fEmail').value.trim();
-    const password = document.getElementById('fPassword').value;
+    const email = document.getElementById('fEmail').value.trim().toLowerCase();
+    // Trimmed -- a trailing/leading space or newline from autofill or a
+    // mobile keyboard quirk is never something a real user intends as
+    // part of their password, and Firebase does NOT trim or normalize
+    // whitespace itself. Left untrimmed, "the same" password captured
+    // slightly differently by two devices' autofill silently stops
+    // matching -- this is applied identically here, on signup.html, and
+    // on reset-password.html so whatever a user sets their password to
+    // always compares the same way everywhere.
+    const password = document.getElementById('fPassword').value.trim();
     const rememberMe = document.getElementById('rememberMe').checked;
 
+    // "Remember me" controls whether the signed-in session survives
+    // closing the browser (LOCAL) or is cleared with it (SESSION).
+    // Deliberately NOT in the same try/catch as the actual sign-in
+    // below: Safari Private Browsing and several in-app browsers
+    // (Instagram/Facebook/WhatsApp link previews) block IndexedDB,
+    // which this call depends on -- when that happens the correct
+    // email+password would otherwise never even get submitted, and the
+    // visitor sees a generic "something went wrong" that looks
+    // identical to a real credentials error. A failure here is now
+    // logged for diagnosis and simply skipped; the browser's default
+    // persistence still applies, so sign-in can proceed regardless.
     try {
-      // "Remember me" controls whether the signed-in session survives
-      // closing the browser (LOCAL, the default) or is cleared with it
-      // (SESSION) -- set before signing in so it applies to this session
-      // from the start.
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+    } catch (persistErr) {
+      console.error('[login] setPersistence failed, continuing with sign-in anyway', persistErr.code || persistErr.name, persistErr.message);
+    }
+
+    try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const snap = await getDoc(doc(db, 'users', cred.user.uid));
       const role = snap.exists() ? snap.data().role : 'customer';
       window.location.href = role === 'agent' ? 'agent-dashboard.html' : 'account.html';
     } catch (err) {
+      // The real error is always captured here (and, once Sentry is
+      // configured via js/error-monitor.js, reported) -- only the safe,
+      // generic friendlyLoginError() text ever reaches the visitor.
+      console.error('[login] sign-in failed', err.code || err.name, err.message);
       showError(friendlyLoginError(err.code));
       setSubmitLoading(false, '', tr('auth.logInBtn', 'Log In'));
     }
@@ -332,7 +356,7 @@
   forgotForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     forgotError.classList.add('hidden');
-    const email = resetEmailInput.value.trim();
+    const email = resetEmailInput.value.trim().toLowerCase();
     forgotSubmitBtn.disabled = true;
     try {
       await sendPasswordResetEmail(auth, email, resetActionCodeSettings);
@@ -346,6 +370,7 @@
       if (err.code === 'auth/user-not-found') {
         showForgotSuccess(email);
       } else {
+        console.error('[login] password reset request failed', err.code || err.name, err.message);
         forgotError.textContent = friendlyResetError(err.code);
         forgotError.classList.remove('hidden');
       }
