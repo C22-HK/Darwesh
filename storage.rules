@@ -36,12 +36,37 @@ rules_version = '2';
 //   photo, uploaded from account.html. Same owner-only pattern as
 //   agent-photos.
 //
+// - sell-verification/{token}/{fileName} — the live selfie captured on
+//   sell.html's Identity Verification step. This one is deliberately NOT
+//   public read like the others: it's a private document used only for
+//   staff to verify who actually submitted a listing, so `allow read`
+//   requires an authenticated admin, checked the same way firestore.rules
+//   does (via that user's own `users/{uid}.role` document) using the
+//   cross-service `firestore.get()` rules function. Write stays open like
+//   sell-submissions, since sell.html has no login requirement.
+//   IMPORTANT: because this requires request.auth, admin.html cannot just
+//   point an <img> tag at a stored download URL (a plain image request
+//   carries no auth header, so the rule would reject it even for a
+//   logged-in admin) — it must fetch the bytes through the Storage SDK's
+//   authenticated getBytes()/getBlob() and render that as a local blob
+//   URL instead.
+//
 // The size/type checks are the only real guardrail against abuse at this
 // layer beyond that.
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
     match /sell-submissions/{token}/{fileName} {
       allow read: if true;
+      allow write: if request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+    match /sell-verification/{token}/{fileName} {
+      allow read: if isAdmin();
       allow write: if request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
