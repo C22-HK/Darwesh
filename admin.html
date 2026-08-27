@@ -1190,10 +1190,10 @@ async function renderUsers() {
       : '';
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${u.email || ''}</p>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
+        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(u.email)}</p>
       </td>
-      <td>${companyNames[u.companyId] || u.companyId || '—'}</td>
+      <td>${escapeAdmin(companyNames[u.companyId]) || escapeAdmin(u.companyId) || '—'}</td>
       <td>${listingCount}</td>
       <td>${joined}</td>
       <td></td>
@@ -1673,13 +1673,13 @@ async function renderListingsTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(l.title)}</p>
+        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
       </td>
-      <td>${l.agentName || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
+      <td>${escapeAdmin(l.agentName) || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
       <td>
         <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent')}</span>
-        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeAdmin(l.propertyType)}</div>
       </td>
       <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
       <td>
@@ -1853,6 +1853,23 @@ function escapeAdmin(str) {
   return div.innerHTML;
 }
 
+// Photo/verification URLs (photoURL, photoUrls, etc.) are just as
+// attacker-controllable as any other submission/profile field -- nothing
+// stops a direct Firestore REST write from setting one to a
+// `javascript:`/`data:` URI instead of a real image URL. HTML-escaping
+// alone doesn't neutralize that (it protects attribute breakout, not the
+// URL scheme itself), so every such value used as an <img src>/<a href>
+// is checked against this allowlist first, in addition to being escaped.
+function isSafeHttpUrl(url) {
+  if (typeof url !== 'string' || url.trim() === '') return false;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 const CONDITION_LABELS = {
   excellent: ['sell.condition.excellent', 'Excellent'],
   good: ['sell.condition.good', 'Good'],
@@ -1947,7 +1964,7 @@ function openRequestDetail(id) {
     ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
 
   const photosWrap = document.getElementById('requestDetailPhotos');
-  const photoUrls = Array.isArray(s.photoUrls) ? s.photoUrls : [];
+  const photoUrls = Array.isArray(s.photoUrls) ? s.photoUrls.filter(isSafeHttpUrl) : [];
   if (photoUrls.length) {
     photosWrap.classList.remove('hidden');
     photosWrap.innerHTML = photoUrls.map(url => `
@@ -2215,7 +2232,7 @@ async function renderDashboardTab() {
   const chartEl = document.getElementById('dashCityChart');
   chartEl.innerHTML = cities.length ? cities.map(([city, count]) => `
     <div class="city-bar-row">
-      <span class="city-bar-label"><span class="material-symbols-outlined">location_on</span>${cityLabel ? cityLabel(city) : city}</span>
+      <span class="city-bar-label"><span class="material-symbols-outlined">location_on</span>${escapeAdmin(cityLabel ? cityLabel(city) : city)}</span>
       <div class="city-bar-track"><div class="city-bar-fill" style="width:${Math.round(count / maxCount * 100)}%"></div></div>
       <span class="city-bar-count">${count}</span>
     </div>`).join('') : `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noListingsYet2', 'No listings yet.')}</p>`;
@@ -2223,7 +2240,7 @@ async function renderDashboardTab() {
   const heatmapEl = document.getElementById('dashCityHeatmap');
   heatmapEl.innerHTML = cities.length ? cities.map(([city, count]) => {
     const intensity = 0.25 + 0.75 * (count / maxCount);
-    return `<div style="flex:${count};min-width:4px;border-radius:2px;background:rgba(74,225,131,${intensity.toFixed(2)});" title="${cityLabel ? cityLabel(city) : city}: ${count}"></div>`;
+    return `<div style="flex:${count};min-width:4px;border-radius:2px;background:rgba(74,225,131,${intensity.toFixed(2)});" title="${escapeAdmin(cityLabel ? cityLabel(city) : city)}: ${count}"></div>`;
   }).join('') : `<div style="flex:1;border-radius:2px;background:rgba(255,255,255,0.06);"></div>`;
 
   renderDashCitySnapshot(cities, listings);
@@ -2235,8 +2252,8 @@ async function renderDashboardTab() {
     viewing: { bg: 'rgba(139,178,255,0.16)', color: '#8ab2ff', icon: 'event_available' }
   };
   const activity = [
-    ...listings.map(l => ({ kind: 'listing', label: trAdmin('admin.activityNewListing', 'New listing'), detail: `${l.title || ''} — ${l.city || ''}`, seconds: l.createdAt?.seconds })),
-    ...submissions.map(s => ({ kind: s.type === 'sell' ? 'sell' : 'viewing', label: s.type === 'sell' ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request'), detail: `${s.address || s.title || ''} — ${s.city || ''}`, seconds: s.createdAt?.seconds }))
+    ...listings.map(l => ({ kind: 'listing', label: trAdmin('admin.activityNewListing', 'New listing'), detail: `${escapeAdmin(l.title)} — ${escapeAdmin(l.city)}`, seconds: l.createdAt?.seconds })),
+    ...submissions.map(s => ({ kind: s.type === 'sell' ? 'sell' : 'viewing', label: s.type === 'sell' ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request'), detail: `${escapeAdmin(s.address || s.title)} — ${escapeAdmin(s.city)}`, seconds: s.createdAt?.seconds }))
   ].filter(a => a.seconds).sort((a, b) => b.seconds - a.seconds).slice(0, 8);
 
   const feedEl = document.getElementById('dashActivityFeed');
@@ -2275,7 +2292,7 @@ function renderDashCitySnapshot(cities, listings) {
   }
   if (!dashSelectedCity || !topCities.includes(dashSelectedCity)) dashSelectedCity = topCities[0];
 
-  tabsEl.innerHTML = topCities.map(city => `<button type="button" class="dash-city-tab${city === dashSelectedCity ? ' active' : ''}" data-city="${city}">${cityLabel ? cityLabel(city) : city}</button>`).join('');
+  tabsEl.innerHTML = topCities.map(city => `<button type="button" class="dash-city-tab${city === dashSelectedCity ? ' active' : ''}" data-city="${escapeAdmin(city)}">${escapeAdmin(cityLabel ? cityLabel(city) : city)}</button>`).join('');
   tabsEl.querySelectorAll('.dash-city-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       dashSelectedCity = btn.dataset.city;
@@ -2356,7 +2373,7 @@ function renderDashPriceTrends(cities, listings) {
     return `<div class="trend-card">
       <div class="grid-bg"></div>
       <div class="flex justify-between items-start" style="position:relative;">
-        <span class="trend-city">${cityLabel ? cityLabel(city) : city}</span>
+        <span class="trend-city">${escapeAdmin(cityLabel ? cityLabel(city) : city)}</span>
         ${chipHtml}
       </div>
       <p class="trend-value" style="position:relative;">${current !== null ? '$' + Math.round(current).toLocaleString() : '—'}</p>
@@ -2421,11 +2438,11 @@ function reqMapListingPopup(l) {
     l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#c9a6f5;">${trAdmin('map.privateListing', 'Private')}</span>` : ''
   ].filter(Boolean).join(' ');
   return `<div style="min-width:190px;">
-    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${l.title || l.address || ''}</p>
-    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${l.address || ''}, ${l.city || ''}</p>
+    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${escapeAdmin(l.title || l.address)}</p>
+    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
     <p style="font-size:12.5px; margin-bottom:4px;">$${Number(l.price || 0).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''} &middot; ${l.beds || 0}bd &middot; ${l.baths || 0}ba</p>
     <div style="margin-bottom:2px;">${badges}</div>
-    <button class="req-map-btn" onclick="jumpToListingFromMap('${l.id}')">${trAdmin('common.edit', 'Edit')}</button>
+    <button class="req-map-btn" onclick="jumpToListingFromMap('${escapeAdmin(l.id)}')">${trAdmin('common.edit', 'Edit')}</button>
   </div>`;
 }
 
@@ -2433,10 +2450,10 @@ function reqMapSubmissionPopup(s) {
   const isSell = s.type === 'sell';
   return `<div style="min-width:190px;">
     <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request')}</p>
-    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${s.title || s.address || ''}${s.city ? ', ' + s.city : ''}</p>
-    ${s.name ? `<p style="font-size:12.5px; margin-bottom:2px;">${s.name}</p>` : ''}
-    ${s.phone ? `<p style="font-size:12.5px; color:#44474c; margin-bottom:2px;">${s.phone}</p>` : ''}
-    <button class="req-map-btn" onclick="jumpToSubmissionFromMap('${s.id}')">${trAdmin('admin.manage', 'Manage')}</button>
+    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${escapeAdmin(s.title || s.address)}${s.city ? ', ' + escapeAdmin(s.city) : ''}</p>
+    ${s.name ? `<p style="font-size:12.5px; margin-bottom:2px;">${escapeAdmin(s.name)}</p>` : ''}
+    ${s.phone ? `<p style="font-size:12.5px; color:#44474c; margin-bottom:2px;">${escapeAdmin(s.phone)}</p>` : ''}
+    <button class="req-map-btn" onclick="jumpToSubmissionFromMap('${escapeAdmin(s.id)}')">${trAdmin('admin.manage', 'Manage')}</button>
   </div>`;
 }
 
@@ -2747,16 +2764,16 @@ async function renderAgentsTab() {
     <tr>
       <td>
         <div class="flex items-center gap-2.5">
-          ${a.photoURL
-            ? `<img src="${a.photoURL}" class="w-8 h-8 rounded-full object-cover flex-none"/>`
+          ${isSafeHttpUrl(a.photoURL)
+            ? `<img src="${escapeAdmin(a.photoURL)}" class="w-8 h-8 rounded-full object-cover flex-none"/>`
             : `<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
           <div class="min-w-0">
-            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${a.displayName || '(no name)'}</p>
-            <p class="font-body-md text-[12px] text-on-surface-variant truncate">${a.email || ''}</p>
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
+            <p class="font-body-md text-[12px] text-on-surface-variant truncate">${escapeAdmin(a.email)}</p>
           </div>
         </div>
       </td>
-      <td>${a.companyName}</td>
+      <td>${escapeAdmin(a.companyName)}</td>
       <td>${a.listingCount}</td>
       <td>${a.verifiedCount}</td>
       <td>${a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
@@ -2783,17 +2800,17 @@ function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, bad
   const classes = ['net-node', 'net-node-' + tier];
   if (dim) classes.push('dim');
   if (match) classes.push('match-ring');
-  const circleInner = photo
-    ? `<img src="${photo}" alt=""/>`
-    : `<span>${netInitials(tier === 'root' ? 'DG' : title)}</span>`;
+  const circleInner = isSafeHttpUrl(photo)
+    ? `<img src="${escapeAdmin(photo)}" alt=""/>`
+    : `<span>${escapeAdmin(netInitials(tier === 'root' ? 'DG' : title))}</span>`;
   const badgeHtml = (typeof badge === 'number') ? `<span class="net-badge">${badge}</span>` : '';
   const tooltipText = tooltipExtra ? `${title} — ${tooltipExtra}` : (title || '');
-  const safeTitle = tooltipText.replace(/"/g, '&quot;');
+  const safeTitle = escapeAdmin(tooltipText);
   return `
-    <div class="${classes.join(' ')}" style="left:${x}px; top:${y - r}px;" data-id="${id}" data-clickable="${clickable ? '1' : '0'}" title="${safeTitle}">
+    <div class="${classes.join(' ')}" style="left:${x}px; top:${y - r}px;" data-id="${escapeAdmin(id)}" data-clickable="${clickable ? '1' : '0'}" title="${safeTitle}">
       <div class="net-node-circle" style="width:${r * 2}px; height:${r * 2}px;">${circleInner}${badgeHtml}</div>
-      <p class="net-node-label">${title}</p>
-      ${sub ? `<p class="net-node-sub">${sub}</p>` : ''}
+      <p class="net-node-label">${escapeAdmin(title)}</p>
+      ${sub ? `<p class="net-node-sub">${escapeAdmin(sub)}</p>` : ''}
     </div>`;
 }
 
@@ -2939,16 +2956,16 @@ function openNetAgentPopover(el, agent) {
   pop.id = 'netAgentPopover';
   pop.innerHTML = `
     <div class="flex items-center gap-2 mb-2">
-      ${agent.photoURL
-        ? `<img src="${agent.photoURL}" class="w-9 h-9 rounded-full object-cover flex-none"/>`
+      ${isSafeHttpUrl(agent.photoURL)
+        ? `<img src="${escapeAdmin(agent.photoURL)}" class="w-9 h-9 rounded-full object-cover flex-none"/>`
         : `<div class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
       <div class="min-w-0">
-        <p class="font-medium truncate">${agent.displayName || '(no name)'}</p>
-        <p class="text-[11px] text-on-surface-variant truncate">${agent.companyName}</p>
+        <p class="font-medium truncate">${escapeAdmin(agent.displayName) || '(no name)'}</p>
+        <p class="text-[11px] text-on-surface-variant truncate">${escapeAdmin(agent.companyName)}</p>
       </div>
     </div>
-    <p class="truncate">${agent.email || ''}</p>
-    ${agent.phone ? `<p>${agent.phone}</p>` : ''}
+    <p class="truncate">${escapeAdmin(agent.email)}</p>
+    ${agent.phone ? `<p>${escapeAdmin(agent.phone)}</p>` : ''}
     <div class="flex gap-3 mt-2 pt-2 border-t border-outline-variant text-[11.5px] text-on-surface-variant">
       <span>${agent.listingCount} ${trAdmin('admin.networkListingsWord', 'listings')}</span>
       <span>${agent.verifiedCount} ${trAdmin('admin.thVerifiedCount', 'Verified')}</span>
@@ -3127,8 +3144,8 @@ async function renderLeaderboardTab() {
   body.innerHTML = agents.map((a, i) => `
     <tr>
       <td><span class="badge ${i === 0 ? 'badge-verified' : 'badge-private'}">#${i + 1}</span></td>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${a.displayName || '(no name)'}</p></td>
-      <td>${a.companyName}</td>
+      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(a.displayName) || '(no name)'}</p></td>
+      <td>${escapeAdmin(a.companyName)}</td>
       <td>${a.listingCount}</td>
       <td>${a.verifiedCount}</td>
     </tr>`).join('');

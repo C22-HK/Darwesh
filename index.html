@@ -301,6 +301,7 @@
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
 <script type="module" src="./js/city-nav.js"></script>
+<script src="./js/escape-html.js"></script>
 <script src="./js/i18n.js"></script>
 <script>
 function goToAiSearch() {
@@ -389,7 +390,8 @@ function fmtFeaturedPrice(l) {
 }
 
 function featuredCard(l) {
-  const img = l.img || FEATURED_IMAGES[l.propertyType] || FEATURED_IMAGES.villa;
+  const rawImg = l.img || FEATURED_IMAGES[l.propertyType] || FEATURED_IMAGES.villa;
+  const img = isSafeHttpUrl(rawImg) ? escapeHtml(rawImg) : FEATURED_IMAGES.villa;
   const cityLabelText = (window.cityLabel && window.cityLabel(l.city)) || l.city || '';
   const badge = l.verified ? `
     <div class="absolute top-4 right-4 bg-tertiary-container/90 backdrop-blur-sm text-on-tertiary-container px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
@@ -404,9 +406,9 @@ function featuredCard(l) {
         ${badge}
       </div>
       <div class="p-4">
-        <h3 class="font-headline-md text-[18px] leading-tight text-on-surface mb-1">${l.title || l.address || ''}</h3>
+        <h3 class="font-headline-md text-[18px] leading-tight text-on-surface mb-1">${escapeHtml(l.title || l.address)}</h3>
         <p class="font-body-md text-body-md text-on-surface-variant mb-4 flex items-center gap-1">
-          <span class="material-symbols-outlined text-[16px]">location_on</span> ${l.address ? l.address + ', ' : ''}${cityLabelText}
+          <span class="material-symbols-outlined text-[16px]">location_on</span> ${l.address ? escapeHtml(l.address) + ', ' : ''}${escapeHtml(cityLabelText)}
         </p>
         <div class="flex justify-between items-center mb-4 pb-4 border-b border-surface-variant">
           <div class="flex gap-4">

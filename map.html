@@ -899,9 +899,10 @@ function card(l) {
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
 
+  const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
   const imageBlock = hidden ? `
     <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover blur-md scale-110" src="${l.img}"/>
+      <img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}"/>
       ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex flex-col items-center justify-center gap-1 text-on-primary">
         <span class="material-symbols-outlined text-[26px]">lock</span>
@@ -910,15 +911,15 @@ function card(l) {
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
     </div>` : `
     <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover" src="${l.img}"/>
+      <img class="w-full h-full object-cover" src="${safeImg}"/>
       ${favBtn}
       ${badge}
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
     </div>`;
 
   const addressLine = hidden
-    ? `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${tr('map.approximateArea','Approximate area')} &middot; ${l.city}</p>`
-    : `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${l.address}, ${l.city}</p>`;
+    ? `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${tr('map.approximateArea','Approximate area')} &middot; ${escapeHtml(l.city)}</p>`
+    : `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${escapeHtml(l.address)}, ${escapeHtml(l.city)}</p>`;
 
   const actions = hidden ? `
     <div class="flex gap-2 mt-3">
@@ -1380,6 +1381,7 @@ setTimeout(() => { layoutMain(); map.invalidateSize(); }, 600);
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
 <script type="module" src="./js/city-nav.js"></script>
+<script src="./js/escape-html.js"></script>
 <script src="./js/i18n.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
 </body></html>

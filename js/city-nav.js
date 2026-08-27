@@ -19,6 +19,18 @@ function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
 function cityLabel(city) { return (window.cityLabel && window.cityLabel(city)) || city; }
 
+// `city` ultimately comes from listings.city in Firestore, which any
+// agent account (or a direct Firestore REST write, since firestore.rules
+// only checks who can write a listing, not its field content) can set to
+// arbitrary text -- and this widget renders on every page site-wide via
+// #citiesNavSlot, so an unescaped value here would be a zero-click,
+// site-wide stored XSS. Escaped before ever reaching innerHTML.
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
 // Dynamically-injected content never gets caught by i18n.js's one-time
 // data-i18n walk on DOMContentLoaded (this runs later, after an async
 // Firestore fetch), so every string here is translated directly via
@@ -32,7 +44,7 @@ function buildDropdownHtml(cityCounts, totalCount) {
     <a href="map.html?city=${encodeURIComponent(city)}&type=all" class="flex items-center justify-between px-4 py-2.5 hover:bg-surface-container transition-colors">
       <span class="flex items-center gap-2 font-body-md text-[13.5px] text-on-surface">
         <span class="material-symbols-outlined text-[16px] text-on-surface-variant">location_on</span>
-        ${cityLabel(city)}
+        ${escapeHtml(cityLabel(city))}
       </span>
       <span class="font-data-mono text-data-mono text-[12px] text-on-surface-variant">${count}</span>
     </a>`).join('');
