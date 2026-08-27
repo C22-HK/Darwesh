@@ -126,14 +126,14 @@
           <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
           <div class="auth-input-wrap">
             <span class="material-symbols-outlined auth-input-icon">mail</span>
-            <input id="fEmail" class="auth-input" required type="email" autocomplete="email"/>
+            <input id="fEmail" class="auth-input" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
           </div>
         </div>
         <div>
           <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
           <div class="auth-input-wrap">
             <span class="material-symbols-outlined auth-input-icon">lock</span>
-            <input id="fPassword" class="auth-input" required minlength="6" type="password" autocomplete="new-password"/>
+            <input id="fPassword" class="auth-input" required minlength="6" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
           </div>
           <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars">At least 6 characters.</p>
         </div>
@@ -247,8 +247,15 @@
     const lastName = document.getElementById('fLastName').value.trim();
     const phone = document.getElementById('fPhone').value.trim();
     const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
-    const email = document.getElementById('fEmail').value.trim();
-    const password = document.getElementById('fPassword').value;
+    const email = document.getElementById('fEmail').value.trim().toLowerCase();
+    // Trimmed for the same reason as login.html and reset-password.html:
+    // Firebase does not trim/normalize password whitespace itself, so a
+    // stray leading/trailing space captured at signup (autofill, a
+    // mobile keyboard quirk) would silently become a permanent part of
+    // the account's real password -- invisible to the user, and only
+    // reliably reproduced again by whichever exact device/autofill
+    // combination happened to add it in the first place.
+    const password = document.getElementById('fPassword').value.trim();
     const wantsAgent = signupRole === 'agent';
     const companyName = wantsAgent ? document.getElementById('fCompany').value.trim() : '';
 
@@ -273,6 +280,7 @@
       });
       window.location.href = 'account.html';
     } catch (err) {
+      console.error('[signup] account creation failed', err.code || err.name, err.message);
       showError(friendlyError(err.code));
       submitBtn.disabled = false;
       submitBtn.textContent = tr('auth.signUpBtn', 'Create Account');
