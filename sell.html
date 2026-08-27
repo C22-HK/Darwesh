@@ -108,6 +108,51 @@
     input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #775a19; border-color: transparent; }
     #pinMap { background: #e5e8ee; }
     .dropzone.drag-over { background: #f1f4f9; border-color: #775a19; }
+
+    /* Step indicator */
+    .step-indicator { display: flex; align-items: flex-start; justify-content: space-between; }
+    .step-indicator .step-item { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; position: relative; }
+    .step-indicator .step-item:not(:last-child)::after {
+      content: ""; position: absolute; top: 15px; left: calc(50% + 22px); width: calc(100% - 44px); height: 0;
+      border-top: 2px dashed #c4c6cd;
+    }
+    html[dir="rtl"] .step-indicator .step-item:not(:last-child)::after { left: auto; right: calc(50% + 22px); }
+    .step-indicator .step-item.done:not(:last-child)::after { border-top-color: #775a19; border-top-style: solid; }
+    .step-indicator .step-circle {
+      width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; border: 2px solid #c4c6cd; color: #74777d; background: #ffffff; z-index: 1;
+      transition: all .2s ease;
+    }
+    .step-indicator .step-item.active .step-circle { border-color: #775a19; background: #775a19; color: #ffffff; }
+    .step-indicator .step-item.done .step-circle { border-color: #775a19; background: #fed488; color: #5d4201; }
+    .step-indicator .step-label { font-size: 11px; font-weight: 600; color: #74777d; text-align: center; }
+    .step-indicator .step-item.active .step-label { color: #775a19; }
+    .step-indicator .step-item.done .step-label { color: #181c20; }
+    .step-indicator .step-item.clickable { cursor: pointer; }
+
+    .wizard-step.hidden { display: none; }
+
+    /* Counters */
+    .counter-widget { border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px 8px; text-align: center; }
+    .counter-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; }
+    .counter-btn { width: 26px; height: 26px; border-radius: 999px; border: 1px solid #c4c6cd; background: #ffffff; display: flex; align-items: center; justify-content: center; }
+    .counter-btn:active { background: #f1f4f9; }
+    .counter-value { min-width: 20px; font-weight: 700; font-size: 14px; }
+
+    /* Amenity + toggle chips */
+    .chip-toggle {
+      border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px 12px; font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px; color: #44474c; background: #ffffff; transition: all .15s ease;
+    }
+    .chip-toggle.active { border-color: #775a19; background: #fef6e6; color: #5d4201; }
+    .pill-toggle {
+      flex: 1; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px; font-size: 13px; font-weight: 700;
+      color: #44474c; background: #ffffff;
+    }
+    .pill-toggle.active { border-color: #775a19; background: #fef6e6; color: #5d4201; }
+
+    .photo-thumb[draggable="true"] { cursor: grab; }
+    .photo-thumb.dragging { opacity: 0.4; }
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
@@ -152,8 +197,20 @@
 </div>
 </section>
 
+<!-- Step Indicator -->
+<div class="max-w-3xl mx-auto mb-stack-md px-2" id="stepIndicator">
+<div class="step-indicator">
+<div class="step-item" data-step="1"><div class="step-circle"><span>1</span></div><span class="step-label" data-i18n="sell.step.location">Location</span></div>
+<div class="step-item" data-step="2"><div class="step-circle"><span>2</span></div><span class="step-label" data-i18n="sell.step.priceSize">Price &amp; Size</span></div>
+<div class="step-item" data-step="3"><div class="step-circle"><span>3</span></div><span class="step-label" data-i18n="sell.step.details">Details</span></div>
+<div class="step-item" data-step="4"><div class="step-circle"><span>4</span></div><span class="step-label" data-i18n="sell.step.photos">Photos</span></div>
+<div class="step-item" data-step="5"><div class="step-circle"><span>5</span></div><span class="step-label" data-i18n="sell.step.review">Review</span></div>
+<div class="step-item" data-step="6"><div class="step-circle"><span>6</span></div><span class="step-label" data-i18n="sell.step.ownerInfo">Owner Info</span></div>
+</div>
+</div>
+
 <div class="grid grid-cols-1 md:grid-cols-12 gap-stack-lg pb-stack-lg">
-<!-- Listing Form -->
+<!-- Wizard -->
 <div class="md:col-span-8">
 <!-- Draft Restore Banner -->
 <div class="hidden mb-4 bg-secondary-container/40 border border-secondary/40 rounded-xl px-4 py-3 flex items-center justify-between gap-3" id="draftBanner">
@@ -166,33 +223,39 @@
 <button class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" id="discardDraftBtn" type="button" data-i18n="sell.discard">Discard</button>
 </div>
 </div>
+
 <form class="bg-surface-container-lowest rounded-2xl shadow-[0_4px_20px_rgba(26,43,60,0.05)] border border-outline-variant overflow-hidden" id="sellForm">
+
+<!-- STEP 1: Location -->
+<section class="wizard-step" data-step="1" id="step1">
 <div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
-<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.propertyDetails">Property Details</h2>
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step.location">Location</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.loc.subheading">Set the exact location of your property</p>
 </div>
-<div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-<div class="sm:col-span-2">
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.propertyTitle">Property Title</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="titleInput" placeholder="e.g. Modern Villa in Italian Village" required="" type="text" data-i18n-placeholder="sell.titlePlaceholder"/>
+<div class="p-6 space-y-4">
+<div class="relative">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2.5 font-body-md text-body-md text-on-surface" id="locSearchInput" type="text" autocomplete="off" data-i18n-placeholder="sell.loc.searchPlaceholder" placeholder="Search for area, street or landmark"/>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.propertyType">Property Type</label>
-<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="typeSelect" required="">
-<option value="" data-i18n="sell.selectType">Select type</option>
-<option value="villa" data-i18n="map.villa">Villa</option>
-<option value="apartment" data-i18n="map.apartment">Apartment</option>
-<option value="office" data-i18n="map.office">Office</option>
-<option value="land" data-i18n="map.land">Land</option>
-<option value="retail" data-i18n="sell.retailShop">Retail Shop</option>
-</select>
+<div class="hidden absolute left-0 right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto" id="locSearchResults"></div>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.listingType">Listing Type</label>
-<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="listingTypeSelect" required="">
-<option value="sale" data-i18n="common.forSale">For Sale</option>
-<option value="rent" data-i18n="common.forRent">For Rent</option>
-</select>
+<div class="flex flex-col sm:flex-row gap-3">
+<button class="flex-1 border border-outline-variant rounded-lg py-2.5 font-label-caps text-label-caps text-on-surface flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors" id="useCurrentLocationBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">my_location</span>
+<span data-i18n="sell.loc.useCurrentLocation">Use My Current Location</span>
+</button>
+<button class="flex-1 border border-outline-variant rounded-lg py-2.5 font-label-caps text-label-caps text-on-surface flex items-center justify-center gap-2 hover:bg-surface-container-low transition-colors" id="dropPinBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">pin_drop</span>
+<span data-i18n="sell.loc.dropPin">Drop Pin on Map</span>
+</button>
 </div>
+<div class="rounded-lg overflow-hidden border border-outline-variant h-56" id="pinMap"></div>
+<p class="hidden font-body-md text-[12.5px] text-secondary text-center" id="dropPinHint" data-i18n="sell.loc.tapMapHint">Click anywhere on the map to place your pin</p>
+<input id="pinLat" type="hidden"/>
+<input id="pinLng" type="hidden"/>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.city">City</label>
 <select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="citySelect" required="">
@@ -209,50 +272,214 @@
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.neighborhoodAddress">Neighborhood / Address</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="addressInput" placeholder="e.g. Italian Village" type="text" data-i18n-placeholder="sell.addressPlaceholder"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="addressInput" type="text" data-i18n-placeholder="sell.addressPlaceholder" placeholder="e.g. Italian Village"/>
 </div>
-<div class="sm:col-span-2">
-<label class="font-label-caps text-label-caps text-on-surface-variant flex items-center justify-between mb-2">
-<span data-i18n="sell.pinExactLocation">Pin Exact Location</span>
-<span class="font-body-md text-body-md text-on-surface-variant text-sm font-normal" id="pinReadout" data-i18n="sell.clickMapToPin">Click the map to drop a pin</span>
+</div>
+
+<div class="hidden bg-tertiary-container/20 border border-tertiary-container rounded-xl p-4 flex items-start justify-between gap-3" id="selectedLocationCard">
+<div class="flex items-start gap-3 min-w-0">
+<span class="material-symbols-outlined text-on-tertiary-container flex-none mt-0.5">check_circle</span>
+<div class="min-w-0">
+<p class="font-label-caps text-label-caps text-on-tertiary-container mb-1" data-i18n="sell.loc.selectedLocation">Selected Location</p>
+<p class="font-body-md text-[13.5px] text-on-surface font-medium truncate" id="locAddressReadout"></p>
+<p class="font-body-md text-[12px] text-on-surface-variant" id="locCoordsReadout"></p>
+</div>
+</div>
+<button class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors flex-none" id="editLocationBtn" type="button" data-i18n="sell.loc.editLocation">Edit Location</button>
+</div>
+<p class="hidden text-error text-[13px]" id="locValidationMsg" data-i18n="sell.loc.noPinYet">Search above or click the map to set your property's location</p>
+</div>
+</section>
+
+<!-- STEP 2: Price & Size -->
+<section class="wizard-step hidden" data-step="2" id="step2">
+<div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step.priceSize">Price &amp; Size</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step2.subheading">Set your asking price and property size</p>
+</div>
+<div class="p-6 space-y-4">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.askingPrice">Asking Price</label>
+<div class="flex gap-2">
+<input class="flex-1 bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="priceInput" min="0" type="number" required="" data-i18n-placeholder="sell.pricePlaceholder" placeholder="e.g. 250000"/>
+<select class="w-28 flex-none bg-surface-container-low border border-outline-variant rounded-lg px-3 py-2.5 font-body-md text-body-md text-on-surface" id="currencySelect">
+<option value="USD">USD</option>
+<option value="IQD">IQD</option>
+</select>
+</div>
+<p class="font-data-mono text-data-mono text-secondary mt-2" id="priceEquivalentReadout"></p>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.negotiable">Price is Negotiable?</label>
+<div class="flex gap-3">
+<button class="pill-toggle" id="negYesBtn" type="button" data-i18n="common.yes">Yes</button>
+<button class="pill-toggle" id="negNoBtn" type="button" data-i18n="common.no">No</button>
+</div>
+<input id="negotiableInput" type="hidden" value=""/>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.size">Property Size (m²)</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="sizeInput" min="0" required="" type="number" data-i18n-placeholder="sell.sizePlaceholder" placeholder="e.g. 220"/>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant flex items-center gap-1 mb-2">
+<span data-i18n="sell.landSize">Land Size (m²)</span>
+<span class="text-on-surface-variant font-normal text-[11px]" data-i18n="common.optional">(Optional)</span>
 </label>
-<div class="rounded-lg overflow-hidden border border-outline-variant h-48" id="pinMap"></div>
-<input id="pinLat" type="hidden"/>
-<input id="pinLng" type="hidden"/>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="landSizeInput" min="0" type="number"/>
+</div>
+</div>
+<div class="bg-surface-container-low border border-outline-variant rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+<div class="flex items-center gap-3 min-w-0">
+<span class="material-symbols-outlined text-secondary">smart_toy</span>
+<div class="min-w-0">
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.valuationTitle">MAM AI Valuation</p>
+<p class="font-body-md text-[12.5px] text-on-surface-variant" data-i18n="sell.valuationBody">Get an estimated market value for your property</p>
+</div>
+</div>
+<button class="flex-none bg-primary text-on-primary px-4 py-2 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" id="getValuationBtn" type="button" data-i18n="sell.getValuation">Get Valuation</button>
+</div>
+<p class="font-body-md text-[13px] text-on-surface" id="valuationResult"></p>
+</div>
+</section>
+
+<!-- STEP 3: Property Details -->
+<section class="wizard-step hidden" data-step="3" id="step3">
+<div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.propertyDetails">Property Details</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step3.subheading">Add features and specifications</p>
+</div>
+<div class="p-6 space-y-5">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.propertyType">Property Type</label>
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="typeSelect" required="">
+<option value="" data-i18n="sell.selectType">Select type</option>
+<option value="villa" data-i18n="map.villa">Villa</option>
+<option value="apartment" data-i18n="map.apartment">Apartment</option>
+<option value="office" data-i18n="map.office">Office</option>
+<option value="land" data-i18n="map.land">Land</option>
+<option value="retail" data-i18n="sell.retailShop">Retail Shop</option>
+</select>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.askingPrice">Asking Price (USD)</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="priceInput" min="0" placeholder="e.g. 250000" required="" type="number" data-i18n-placeholder="sell.pricePlaceholder"/>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.listingType">Listing Type</label>
+<div class="flex gap-3">
+<button class="pill-toggle" id="dealSaleBtn" type="button" data-i18n="common.forSale">For Sale</button>
+<button class="pill-toggle" id="dealRentBtn" type="button" data-i18n="common.forRent">For Rent</button>
+</div>
+<input id="listingTypeSelect" type="hidden" value="sale"/>
+</div>
+</div>
+
+<div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
+<div class="counter-widget">
+<span class="material-symbols-outlined text-outline text-[20px]">bed</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1" data-i18n="sell.bedrooms">Bedrooms</p>
+<div class="counter-controls"><button class="counter-btn" type="button" data-counter="bedsInput" data-delta="-1">−</button><span class="counter-value" id="bedsInputValue">0</span><button class="counter-btn" type="button" data-counter="bedsInput" data-delta="1">+</button></div>
+<input id="bedsInput" type="hidden" value="0"/>
+</div>
+<div class="counter-widget">
+<span class="material-symbols-outlined text-outline text-[20px]">bathtub</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1" data-i18n="sell.bathrooms">Bathrooms</p>
+<div class="counter-controls"><button class="counter-btn" type="button" data-counter="bathsInput" data-delta="-1">−</button><span class="counter-value" id="bathsInputValue">0</span><button class="counter-btn" type="button" data-counter="bathsInput" data-delta="1">+</button></div>
+<input id="bathsInput" type="hidden" value="0"/>
+</div>
+<div class="counter-widget">
+<span class="material-symbols-outlined text-outline text-[20px]">living</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1" data-i18n="sell.halls">Halls</p>
+<div class="counter-controls"><button class="counter-btn" type="button" data-counter="hallsInput" data-delta="-1">−</button><span class="counter-value" id="hallsInputValue">0</span><button class="counter-btn" type="button" data-counter="hallsInput" data-delta="1">+</button></div>
+<input id="hallsInput" type="hidden" value="0"/>
+</div>
+<div class="counter-widget">
+<span class="material-symbols-outlined text-outline text-[20px]">stairs</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1" data-i18n="sell.floors">Floors</p>
+<div class="counter-controls"><button class="counter-btn" type="button" data-counter="floorsInput" data-delta="-1">−</button><span class="counter-value" id="floorsInputValue">1</span><button class="counter-btn" type="button" data-counter="floorsInput" data-delta="1">+</button></div>
+<input id="floorsInput" type="hidden" value="1"/>
+</div>
+<div class="counter-widget">
+<span class="material-symbols-outlined text-outline text-[20px]">countertops</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1" data-i18n="sell.kitchens">Kitchens</p>
+<div class="counter-controls"><button class="counter-btn" type="button" data-counter="kitchensInput" data-delta="-1">−</button><span class="counter-value" id="kitchensInputValue">0</span><button class="counter-btn" type="button" data-counter="kitchensInput" data-delta="1">+</button></div>
+<input id="kitchensInput" type="hidden" value="0"/>
+</div>
+<div class="counter-widget">
+<span class="material-symbols-outlined text-outline text-[20px]">local_parking</span>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1" data-i18n="sell.parking">Parking</p>
+<div class="counter-controls"><button class="counter-btn" type="button" data-counter="parkingInput" data-delta="-1">−</button><span class="counter-value" id="parkingInputValue">0</span><button class="counter-btn" type="button" data-counter="parkingInput" data-delta="1">+</button></div>
+<input id="parkingInput" type="hidden" value="0"/>
+</div>
+</div>
+
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.amenities">Amenities</label>
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+<button class="chip-toggle" type="button" data-amenity="furnished"><span class="material-symbols-outlined text-[16px]">chair</span><span data-i18n="sell.amenity.furnished">Furnished</span></button>
+<button class="chip-toggle" type="button" data-amenity="garden"><span class="material-symbols-outlined text-[16px]">yard</span><span data-i18n="sell.amenity.garden">Garden</span></button>
+<button class="chip-toggle" type="button" data-amenity="balcony"><span class="material-symbols-outlined text-[16px]">balcony</span><span data-i18n="sell.amenity.balcony">Balcony</span></button>
+<button class="chip-toggle" type="button" data-amenity="pool"><span class="material-symbols-outlined text-[16px]">pool</span><span data-i18n="sell.amenity.pool">Swimming Pool</span></button>
+<button class="chip-toggle" type="button" data-amenity="centralAc"><span class="material-symbols-outlined text-[16px]">ac_unit</span><span data-i18n="sell.amenity.centralAc">Central A/C</span></button>
+<button class="chip-toggle" type="button" data-amenity="heating"><span class="material-symbols-outlined text-[16px]">mode_heat</span><span data-i18n="sell.amenity.heating">Heating</span></button>
+<button class="chip-toggle" type="button" data-amenity="internet"><span class="material-symbols-outlined text-[16px]">wifi</span><span data-i18n="sell.amenity.internet">Internet</span></button>
+<button class="chip-toggle" type="button" data-amenity="elevator"><span class="material-symbols-outlined text-[16px]">elevator</span><span data-i18n="sell.amenity.elevator">Elevator</span></button>
+</div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.condition">Property Condition</label>
+<select class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="conditionSelect">
+<option value="" data-i18n="sell.selectType">Select type</option>
+<option value="excellent" data-i18n="sell.condition.excellent">Excellent</option>
+<option value="good" data-i18n="sell.condition.good">Good</option>
+<option value="fair" data-i18n="sell.condition.fair">Fair</option>
+<option value="needsRenovation" data-i18n="sell.condition.needsRenovation">Needs Renovation</option>
+</select>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.size">Size (m²)</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="sizeInput" min="0" placeholder="e.g. 220" type="number" data-i18n-placeholder="sell.sizePlaceholder"/>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.yearBuilt">Year Built</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="yearBuiltInput" min="1900" max="2100" placeholder="e.g. 2020" type="number"/>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.bedrooms">Bedrooms</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="bedsInput" min="0" type="number"/>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.bathrooms">Bathrooms</label>
-<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="bathsInput" min="0" type="number"/>
 </div>
-<div class="sm:col-span-2">
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.description">Description</label>
-<textarea class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="descriptionInput" placeholder="Describe the property, its condition, and standout features..." rows="4" data-i18n-placeholder="sell.descriptionPlaceholder"></textarea>
+</section>
+
+<!-- STEP 4: Photos -->
+<section class="wizard-step hidden" data-step="4" id="step4">
+<div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step.photos">Photos</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step4.subheading">Add photos of your property</p>
 </div>
-<div class="sm:col-span-2">
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.photosFloorPlans">Photos &amp; Floor Plans</label>
+<div class="p-6 space-y-4">
 <label class="dropzone flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline-variant rounded-lg py-8 cursor-pointer hover:bg-surface-container-low transition-colors" for="photoUpload" id="dropzone">
 <span class="material-symbols-outlined text-outline text-3xl">upload_file</span>
 <span id="photoLabel" class="font-body-md text-body-md text-on-surface font-bold" data-i18n="sell.uploadPhotos">Upload Photos &amp; Floor Plans</span>
 <span class="font-body-md text-body-md text-on-surface-variant text-sm" data-i18n="sell.dragDrop">Drag and drop or click to browse</span>
+<span class="font-body-md text-on-surface-variant text-[12px]" data-i18n="sell.fileSizeHint">JPG, PNG up to 10MB each</span>
 <input accept="image/*" class="hidden" id="photoUpload" multiple="" type="file"/>
 </label>
-<div id="photoPreviewGrid" class="hidden grid grid-cols-4 sm:grid-cols-6 gap-2 mt-3 max-h-56 overflow-y-auto"></div>
+<div>
+<p class="hidden font-label-caps text-label-caps text-on-surface-variant mb-2" id="photoGalleryLabel" data-i18n="sell.photoGallery">Photo Gallery (you can reorder photos)</p>
+<div id="photoPreviewGrid" class="hidden grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-64 overflow-y-auto"></div>
 </div>
 </div>
-<div class="px-6 py-4 bg-surface-container-low border-t border-outline-variant">
-<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.contactInfo">Your Contact Information</h2>
+</section>
+
+<!-- STEP 5: Review -->
+<section class="wizard-step hidden" data-step="5" id="step5">
+<div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step5Heading">Review Listing</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step5.subheading">Review your listing before submitting</p>
+</div>
+<div class="p-6" id="reviewContent"></div>
+</section>
+
+<!-- STEP 6: Owner Information -->
+<section class="wizard-step hidden" data-step="6" id="step6">
+<div class="px-6 py-4 bg-surface-container-low border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" data-i18n="sell.step6Heading">Owner Information</h2>
+<p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="sell.step6.subheading">Add your contact details</p>
 </div>
 <div class="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div>
@@ -263,18 +490,37 @@
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.phoneNumber">Phone Number</label>
 <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="phoneInput" placeholder="+964 750 000 0000" required="" type="tel"/>
 </div>
-<div class="sm:col-span-2">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.whatsappNumber">WhatsApp Number (Optional)</label>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="whatsappInput" placeholder="+964 750 000 0000" type="tel"/>
+</div>
+<div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="auth.email">Email</label>
 <input class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-4 py-2.5 font-body-md text-body-md text-on-surface" id="emailInput" required="" type="email"/>
 </div>
+<div class="sm:col-span-2 bg-surface-container-low border border-outline-variant rounded-xl p-4 flex items-start gap-3">
+<span class="material-symbols-outlined text-secondary flex-none">lock</span>
+<p class="font-body-md text-[12.5px] text-on-surface-variant" data-i18n="sell.privacyNotice">Your contact information will not be displayed publicly. It will only be shared with serious buyers and our team.</p>
+</div>
 </div>
 <p id="submitError" class="hidden text-error text-[13px] px-6 pb-3" data-i18n="sell.submitError">Could not submit your listing — please check your connection and try again.</p>
-<div class="p-6 pt-0 flex flex-col sm:flex-row gap-3">
-<button class="sm:w-48 flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="saveDraftBtn" type="button">
+</section>
+
+<!-- Shared wizard footer nav -->
+<div class="p-6 pt-0 flex flex-col sm:flex-row gap-3" id="wizardNav">
+<button class="hidden sm:w-32 flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2" id="backBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span data-i18n="common.back">Back</span>
+</button>
+<button class="flex-none border border-primary text-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2 sm:w-48" id="saveDraftBtn" type="button">
 <span class="material-symbols-outlined text-[18px]">save</span>
                     <span data-i18n="sell.saveDraft">Save Draft</span>
                 </button>
-<button class="flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60" id="submitBtn" type="submit">
+<button class="flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60" id="nextBtn" type="button">
+<span id="nextBtnLabel" data-i18n="common.continue">Continue</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+<button class="hidden flex-1 bg-primary text-on-primary py-3.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2 disabled:opacity-60" id="submitBtn" type="submit">
 <span class="material-symbols-outlined text-[18px]">send</span>
                     <span id="submitBtnLabel" data-i18n="sell.submitForVerification">Submit for Verification</span>
                 </button>
@@ -326,6 +572,40 @@
 </div>
 </div>
 </div>
+
+<!-- Trust badges footer -->
+<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 pb-stack-lg text-center">
+<div class="flex flex-col items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary">verified_user</span>
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.trust.verifiedBuyers">Verified Buyers</p>
+<p class="font-body-md text-[11px] text-on-surface-variant" data-i18n="sell.trust.verifiedBuyersSub">Reach real and verified buyers</p>
+</div>
+<div class="flex flex-col items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary">smart_toy</span>
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.trust.mamValuation">MAM AI Valuation</p>
+<p class="font-body-md text-[11px] text-on-surface-variant" data-i18n="sell.trust.mamValuationSub">Get accurate price estimate</p>
+</div>
+<div class="flex flex-col items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary">bolt</span>
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.trust.fastReview">Fast Review</p>
+<p class="font-body-md text-[11px] text-on-surface-variant" data-i18n="sell.trust.fastReviewSub">Reviewed within 24 hours</p>
+</div>
+<div class="flex flex-col items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary">lock</span>
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.trust.securePrivate">Secure &amp; Private</p>
+<p class="font-body-md text-[11px] text-on-surface-variant" data-i18n="sell.trust.securePrivateSub">Your data is always safe</p>
+</div>
+<div class="flex flex-col items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary">support_agent</span>
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.trust.support">Professional Support</p>
+<p class="font-body-md text-[11px] text-on-surface-variant" data-i18n="sell.trust.supportSub">Our team is here to help</p>
+</div>
+<div class="flex flex-col items-center gap-1.5">
+<span class="material-symbols-outlined text-secondary">visibility</span>
+<p class="font-label-caps text-label-caps text-on-surface" data-i18n="sell.trust.exposure">High Exposure</p>
+<p class="font-body-md text-[11px] text-on-surface-variant" data-i18n="sell.trust.exposureSub">Featured across platforms</p>
+</div>
+</div>
 </main>
 
 <!-- BottomNavBar (Mobile Only) -->
@@ -352,16 +632,353 @@
 </nav>
 
 <script>
-/* Photo upload: click + drag-and-drop, with thumbnail previews of what
-   was actually selected — a text count alone doesn't confirm the right
-   files were picked, especially when dragging several in at once. */
+function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+/* ==========================================================================
+   Wizard step navigation
+   ========================================================================== */
+const TOTAL_STEPS = 6;
+let currentStep = 1;
+let maxReachedStep = 1;
+
+function stepEl(n) { return document.getElementById('step' + n); }
+
+function validateStep(n) {
+  if (n === 1) {
+    const ok = !!(document.getElementById('pinLat').value && document.getElementById('pinLng').value);
+    document.getElementById('locValidationMsg').classList.toggle('hidden', ok);
+    return ok;
+  }
+  if (n === 2) {
+    const price = parseFloat(document.getElementById('priceInput').value) || 0;
+    const size = parseFloat(document.getElementById('sizeInput').value) || 0;
+    return price > 0 && size > 0;
+  }
+  if (n === 3) {
+    return !!document.getElementById('typeSelect').value;
+  }
+  return true;
+}
+
+function updateStepIndicator() {
+  document.querySelectorAll('#stepIndicator .step-item').forEach(item => {
+    const n = Number(item.dataset.step);
+    item.classList.toggle('active', n === currentStep);
+    item.classList.toggle('done', n < currentStep);
+    item.classList.toggle('clickable', n <= maxReachedStep);
+  });
+}
+
+function updateWizardNav() {
+  document.getElementById('backBtn').classList.toggle('hidden', currentStep === 1);
+  const nextBtn = document.getElementById('nextBtn');
+  const submitBtn = document.getElementById('submitBtn');
+  if (currentStep === TOTAL_STEPS) {
+    nextBtn.classList.add('hidden');
+    submitBtn.classList.remove('hidden');
+  } else {
+    nextBtn.classList.remove('hidden');
+    submitBtn.classList.add('hidden');
+    document.getElementById('nextBtnLabel').textContent =
+      currentStep === 5 ? tr('sell.looksGoodContinue', 'Looks Good, Continue') : tr('common.continue', 'Continue');
+  }
+}
+
+function showStep(n) {
+  for (let i = 1; i <= TOTAL_STEPS; i++) stepEl(i).classList.toggle('hidden', i !== n);
+  currentStep = n;
+  if (n > maxReachedStep) maxReachedStep = n;
+  updateStepIndicator();
+  updateWizardNav();
+  if (n === 5) renderReview();
+  document.getElementById('stepIndicator').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (n === 1) setTimeout(() => pinMap.invalidateSize(), 100);
+}
+
+document.getElementById('backBtn').addEventListener('click', () => { if (currentStep > 1) showStep(currentStep - 1); });
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (!validateStep(currentStep)) return;
+  if (currentStep < TOTAL_STEPS) showStep(currentStep + 1);
+});
+document.querySelectorAll('#stepIndicator .step-item').forEach(item => {
+  item.addEventListener('click', () => {
+    const n = Number(item.dataset.step);
+    if (n <= maxReachedStep) showStep(n);
+  });
+});
+
+/* ==========================================================================
+   Counters (bedrooms, bathrooms, halls, floors, kitchens, parking)
+   ========================================================================== */
+document.querySelectorAll('.counter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.dataset.counter;
+    const delta = Number(btn.dataset.delta);
+    const input = document.getElementById(id);
+    const next = Math.max(0, (Number(input.value) || 0) + delta);
+    input.value = next;
+    document.getElementById(id + 'Value').textContent = next;
+  });
+});
+
+/* ==========================================================================
+   Negotiable / Deal type pill toggles
+   ========================================================================== */
+function wirePillPair(yesBtn, noBtn, hiddenInput, yesValue, noValue) {
+  function set(val) {
+    hiddenInput.value = val;
+    yesBtn.classList.toggle('active', val === yesValue);
+    noBtn.classList.toggle('active', val === noValue);
+  }
+  yesBtn.addEventListener('click', () => set(yesValue));
+  noBtn.addEventListener('click', () => set(noValue));
+  return set;
+}
+const setNegotiable = wirePillPair(document.getElementById('negYesBtn'), document.getElementById('negNoBtn'), document.getElementById('negotiableInput'), 'true', 'false');
+setNegotiable('true');
+const setDealType = wirePillPair(document.getElementById('dealSaleBtn'), document.getElementById('dealRentBtn'), document.getElementById('listingTypeSelect'), 'sale', 'rent');
+setDealType('sale');
+
+/* ==========================================================================
+   Amenity chips
+   ========================================================================== */
+const amenitiesSet = new Set();
+document.querySelectorAll('.chip-toggle').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.amenity;
+    if (amenitiesSet.has(key)) { amenitiesSet.delete(key); btn.classList.remove('active'); }
+    else { amenitiesSet.add(key); btn.classList.add('active'); }
+  });
+});
+
+/* ==========================================================================
+   Price currency conversion (matches the 1,310 IQD/USD rate used
+   elsewhere on the site, e.g. MAM AI's price parsing).
+   ========================================================================== */
+const IQD_PER_USD = 1310;
+const priceInput = document.getElementById('priceInput');
+const currencySelect = document.getElementById('currencySelect');
+const priceEquivalentReadout = document.getElementById('priceEquivalentReadout');
+
+function priceInUSD() {
+  const raw = parseFloat(priceInput.value) || 0;
+  return currencySelect.value === 'USD' ? raw : raw / IQD_PER_USD;
+}
+function updatePriceEquivalent() {
+  const raw = parseFloat(priceInput.value) || 0;
+  if (!raw) { priceEquivalentReadout.textContent = ''; return; }
+  if (currencySelect.value === 'USD') {
+    priceEquivalentReadout.textContent = '≈ ' + Math.round(raw * IQD_PER_USD).toLocaleString() + ' IQD · ' +
+      tr('sell.iqdRateNote', '1 USD = {rate} IQD (Approx)').replace('{rate}', IQD_PER_USD.toLocaleString());
+  } else {
+    priceEquivalentReadout.textContent = '≈ $' + Math.round(raw / IQD_PER_USD).toLocaleString() + ' USD · ' +
+      tr('sell.iqdRateNote', '1 USD = {rate} IQD (Approx)').replace('{rate}', IQD_PER_USD.toLocaleString());
+  }
+}
+priceInput.addEventListener('input', updatePriceEquivalent);
+currencySelect.addEventListener('change', updatePriceEquivalent);
+
+/* ==========================================================================
+   MAM AI Valuation — a real, data-driven estimate computed from live
+   active listings in the same city (average price per m²), not a
+   fabricated number. If there aren't enough comparable listings yet,
+   that's shown honestly instead of guessing.
+   ========================================================================== */
+document.getElementById('getValuationBtn').addEventListener('click', async () => {
+  const resultEl = document.getElementById('valuationResult');
+  const city = document.getElementById('citySelect').value;
+  const size = parseFloat(document.getElementById('sizeInput').value) || 0;
+  if (!city || !size) {
+    resultEl.textContent = tr('sell.valuationNoData', 'Not enough comparable listings yet for an estimate.');
+    return;
+  }
+  resultEl.textContent = tr('sell.valuationLoading', 'Estimating...');
+  try {
+    await submissionAuthReady;
+    const snap = await submitFns.getDocs(submitFns.collection(submitDb, 'listings'));
+    const comparable = [];
+    snap.forEach(d => {
+      const l = d.data();
+      if (l.status === 'active' && l.city === city && Number(l.price) > 0 && Number(l.size) > 0) {
+        comparable.push(Number(l.price) / Number(l.size));
+      }
+    });
+    if (comparable.length < 2) {
+      resultEl.textContent = tr('sell.valuationNoData', 'Not enough comparable listings yet for an estimate.');
+      return;
+    }
+    const avgPerSqm = comparable.reduce((a, b) => a + b, 0) / comparable.length;
+    const estimate = avgPerSqm * size;
+    const low = Math.round(estimate * 0.85);
+    const high = Math.round(estimate * 1.15);
+    resultEl.textContent = tr('sell.valuationResult', 'Estimated value: {low} – {high}')
+      .replace('{low}', '$' + low.toLocaleString()).replace('{high}', '$' + high.toLocaleString());
+  } catch (err) {
+    console.error('[sell] valuation failed', err);
+    resultEl.textContent = tr('sell.valuationNoData', 'Not enough comparable listings yet for an estimate.');
+  }
+});
+
+/* ==========================================================================
+   Location: search (Nominatim/OpenStreetMap), current location, pin map
+   ========================================================================== */
+const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 18
+}).addTo(pinMap);
+let pinMarker = null;
+
+const KNOWN_CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
+const CITY_ALIASES = {
+  erbil: 'Erbil', hewler: 'Erbil', hawler: 'Erbil', arbil: 'Erbil',
+  sulaymaniyah: 'Sulaymaniyah', sulaymaniya: 'Sulaymaniyah', slemani: 'Sulaymaniyah', sulaimaniya: 'Sulaymaniyah',
+  duhok: 'Duhok', dahuk: 'Duhok', dohuk: 'Duhok',
+  zakho: 'Zakho', soran: 'Soran', koya: 'Koya', koysinjaq: 'Koya',
+  halabja: 'Halabja', kirkuk: 'Kirkuk'
+};
+function matchKnownCity(addressObj) {
+  if (!addressObj) return null;
+  const candidates = [addressObj.city, addressObj.town, addressObj.county, addressObj.state, addressObj.state_district].filter(Boolean);
+  for (const c of candidates) {
+    const norm = String(c).toLowerCase().trim();
+    if (CITY_ALIASES[norm]) return CITY_ALIASES[norm];
+  }
+  return null;
+}
+
+function setPin(lat, lng, pan) {
+  if (pinMarker) pinMarker.setLatLng([lat, lng]);
+  else pinMarker = L.marker([lat, lng]).addTo(pinMap);
+  if (pan) pinMap.panTo([lat, lng]);
+  document.getElementById('pinLat').value = lat.toFixed(5);
+  document.getElementById('pinLng').value = lng.toFixed(5);
+  document.getElementById('locValidationMsg').classList.add('hidden');
+  updateSelectedLocationCard();
+}
+
+function updateSelectedLocationCard() {
+  const lat = document.getElementById('pinLat').value;
+  const lng = document.getElementById('pinLng').value;
+  const card = document.getElementById('selectedLocationCard');
+  if (!lat || !lng) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const address = document.getElementById('addressInput').value;
+  const city = document.getElementById('citySelect').selectedOptions[0] ? document.getElementById('citySelect').selectedOptions[0].textContent : '';
+  document.getElementById('locAddressReadout').textContent = [address, city].filter(Boolean).join(', ') || (lat + ', ' + lng);
+  document.getElementById('locCoordsReadout').textContent = lat + ', ' + lng;
+}
+document.getElementById('addressInput').addEventListener('input', updateSelectedLocationCard);
+document.getElementById('citySelect').addEventListener('change', updateSelectedLocationCard);
+
+pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
+setTimeout(() => pinMap.invalidateSize(), 100);
+
+document.getElementById('dropPinBtn').addEventListener('click', () => {
+  const hint = document.getElementById('dropPinHint');
+  hint.classList.remove('hidden');
+  document.getElementById('pinMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => hint.classList.add('hidden'), 4000);
+});
+
+document.getElementById('editLocationBtn').addEventListener('click', () => {
+  document.getElementById('locSearchInput').focus();
+  document.getElementById('locSearchInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
+  if (!navigator.geolocation) return;
+  const original = this.innerHTML;
+  this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    setPin(pos.coords.latitude, pos.coords.longitude, true);
+    pinMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    try {
+      const data = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      applyReverseGeocode(data);
+    } catch (err) { console.error('[sell] reverse geocode failed', err); }
+    this.innerHTML = original;
+  }, (err) => {
+    console.error('[sell] geolocation failed', err.code, err.message);
+    alert(tr('sell.loc.locationError', 'Could not get your location'));
+    this.innerHTML = original;
+  }, { timeout: 10000 });
+});
+
+async function searchLocation(q) {
+  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
+  if (!res.ok) throw new Error('Search failed');
+  return res.json();
+}
+async function reverseGeocode(lat, lng) {
+  const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
+  if (!res.ok) throw new Error('Reverse geocode failed');
+  return res.json();
+}
+function applyReverseGeocode(data) {
+  if (!data) return;
+  const matchedCity = matchKnownCity(data.address);
+  if (matchedCity) document.getElementById('citySelect').value = matchedCity;
+  const addr = data.address || {};
+  const short = [addr.neighbourhood || addr.suburb || addr.road, addr.city || addr.town].filter(Boolean).join(', ') || data.display_name;
+  document.getElementById('addressInput').value = short;
+  updateSelectedLocationCard();
+}
+
+let locSearchTimer = null;
+const locSearchInput = document.getElementById('locSearchInput');
+const locSearchResults = document.getElementById('locSearchResults');
+locSearchInput.addEventListener('input', () => {
+  clearTimeout(locSearchTimer);
+  const q = locSearchInput.value.trim();
+  if (q.length < 3) { locSearchResults.classList.add('hidden'); return; }
+  locSearchTimer = setTimeout(async () => {
+    locSearchResults.classList.remove('hidden');
+    locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
+    try {
+      const results = await searchLocation(q);
+      if (!results.length) {
+        locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+        return;
+      }
+      locSearchResults.innerHTML = '';
+      results.forEach(r => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0';
+        item.textContent = r.display_name;
+        item.addEventListener('click', () => {
+          const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+          setPin(lat, lng, true);
+          pinMap.setView([lat, lng], 15);
+          applyReverseGeocode(r);
+          locSearchResults.classList.add('hidden');
+          locSearchInput.value = r.display_name;
+        });
+        locSearchResults.appendChild(item);
+      });
+    } catch (err) {
+      console.error('[sell] location search failed', err);
+      locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+    }
+  }, 400);
+});
+document.addEventListener('click', (e) => {
+  if (!locSearchInput.contains(e.target) && !locSearchResults.contains(e.target)) locSearchResults.classList.add('hidden');
+});
+
+/* ==========================================================================
+   Photo upload: click + drag-and-drop, with thumbnail previews and
+   drag-to-reorder (first photo is always the listing's cover image).
+   ========================================================================== */
 const dropzone = document.getElementById('dropzone');
 const photoUpload = document.getElementById('photoUpload');
 const photoLabel = document.getElementById('photoLabel');
 const photoPreviewGrid = document.getElementById('photoPreviewGrid');
+const photoGalleryLabel = document.getElementById('photoGalleryLabel');
 let photoPreviewUrls = [];
-
-function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+let dragFromIndex = null;
 
 function updatePhotoLabel(count) {
   photoLabel.textContent = count > 0
@@ -376,15 +993,18 @@ function renderPhotoPreviews() {
   updatePhotoLabel(files.length);
   if (!files.length) {
     photoPreviewGrid.classList.add('hidden');
+    photoGalleryLabel.classList.add('hidden');
     photoPreviewGrid.innerHTML = '';
     return;
   }
   photoPreviewGrid.classList.remove('hidden');
+  photoGalleryLabel.classList.remove('hidden');
   photoPreviewGrid.innerHTML = files.map((file, i) => {
     const url = URL.createObjectURL(file);
     photoPreviewUrls.push(url);
-    return `<div class="relative rounded-lg overflow-hidden border border-outline-variant aspect-square bg-surface-container-low">
-      <img src="${url}" class="w-full h-full object-cover"/>
+    return `<div class="photo-thumb relative rounded-lg overflow-hidden border border-outline-variant aspect-square bg-surface-container-low" draggable="true" data-index="${i}">
+      <img src="${url}" class="w-full h-full object-cover pointer-events-none"/>
+      ${i === 0 ? `<span class="absolute bottom-1 left-1 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none">${tr('sell.coverPhoto', 'Cover')}</span>` : ''}
       <button type="button" data-index="${i}" aria-label="Remove photo" class="photo-remove-btn absolute top-1 right-1 w-5 h-5 rounded-full bg-primary/80 text-on-primary flex items-center justify-center">
         <span class="material-symbols-outlined" style="font-size:14px;">close</span>
       </button>
@@ -397,9 +1017,27 @@ function renderPhotoPreviews() {
       removePhoto(Number(btn.dataset.index));
     });
   });
+  photoPreviewGrid.querySelectorAll('.photo-thumb').forEach(thumb => {
+    thumb.addEventListener('dragstart', () => {
+      dragFromIndex = Number(thumb.dataset.index);
+      thumb.classList.add('dragging');
+    });
+    thumb.addEventListener('dragend', () => thumb.classList.remove('dragging'));
+    thumb.addEventListener('dragover', (e) => e.preventDefault());
+    thumb.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const toIndex = Number(thumb.dataset.index);
+      if (dragFromIndex === null || dragFromIndex === toIndex) return;
+      const files2 = [...photoUpload.files];
+      const [moved] = files2.splice(dragFromIndex, 1);
+      files2.splice(toIndex, 0, moved);
+      setPhotoFiles(files2);
+      dragFromIndex = null;
+    });
+  });
 }
 
-// input.files is read-only, so adding/removing from an existing
+// input.files is read-only, so adding/removing/reordering an existing
 // selection means rebuilding it through a DataTransfer instead.
 function setPhotoFiles(fileList) {
   const dt = new DataTransfer();
@@ -428,42 +1066,85 @@ photoUpload.addEventListener('change', renderPhotoPreviews);
 });
 dropzone.addEventListener('drop', (e) => {
   const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    setPhotoFiles(files);
-  }
+  if (files.length > 0 && !e.target.closest('.photo-thumb')) setPhotoFiles(files);
 });
 
-/* Pin location map */
-const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 18
-}).addTo(pinMap);
-let pinMarker = null;
-function setPin(lat, lng, pan) {
-  if (pinMarker) {
-    pinMarker.setLatLng([lat, lng]);
-  } else {
-    pinMarker = L.marker([lat, lng]).addTo(pinMap);
-  }
-  if (pan) pinMap.panTo([lat, lng]);
-  document.getElementById('pinLat').value = lat.toFixed(5);
-  document.getElementById('pinLng').value = lng.toFixed(5);
-  document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-}
-pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
-setTimeout(() => pinMap.invalidateSize(), 100);
+/* ==========================================================================
+   Review step — renders a live preview of the listing from the current
+   wizard state, matching the site's listing-card look.
+   ========================================================================== */
+const AMENITY_LABELS = {};
+document.querySelectorAll('.chip-toggle').forEach(btn => {
+  AMENITY_LABELS[btn.dataset.amenity] = btn.querySelector('span[data-i18n]').textContent;
+});
 
-/* Save Draft (localStorage) */
+function escapeReview(str) {
+  const div = document.createElement('div');
+  div.textContent = str == null ? '' : String(str);
+  return div.innerHTML;
+}
+
+function renderReview() {
+  const el = document.getElementById('reviewContent');
+  const type = document.getElementById('typeSelect');
+  const typeLabel = type.selectedOptions[0] ? type.selectedOptions[0].textContent : '';
+  const dealType = document.getElementById('listingTypeSelect').value;
+  const dealLabel = dealType === 'rent' ? tr('common.forRent', 'For Rent') : tr('common.forSale', 'For Sale');
+  const usd = priceInUSD();
+  const priceLine = usd ? '$' + Math.round(usd).toLocaleString() + ' USD ≈ ' + Math.round(usd * IQD_PER_USD).toLocaleString() + ' IQD' : '';
+  const size = document.getElementById('sizeInput').value;
+  const city = document.getElementById('citySelect').selectedOptions[0] ? document.getElementById('citySelect').selectedOptions[0].textContent : '';
+  const address = document.getElementById('addressInput').value;
+  const condition = document.getElementById('conditionSelect');
+  const conditionLabel = condition.selectedOptions[0] && condition.value ? condition.selectedOptions[0].textContent : '';
+  const yearBuilt = document.getElementById('yearBuiltInput').value;
+
+  const specs = [
+    ['bed', document.getElementById('bedsInput').value, tr('sell.bedrooms', 'Bedrooms')],
+    ['bathtub', document.getElementById('bathsInput').value, tr('sell.bathrooms', 'Bathrooms')],
+    ['living', document.getElementById('hallsInput').value, tr('sell.halls', 'Halls')],
+    ['stairs', document.getElementById('floorsInput').value, tr('sell.floors', 'Floors')],
+    ['countertops', document.getElementById('kitchensInput').value, tr('sell.kitchens', 'Kitchens')],
+    ['local_parking', document.getElementById('parkingInput').value, tr('sell.parking', 'Parking')]
+  ].filter(s => Number(s[1]) > 0);
+
+  const amenityChips = [...amenitiesSet].map(a => `<span class="chip-toggle active" style="pointer-events:none;">${escapeReview(AMENITY_LABELS[a] || a)}</span>`);
+  if (conditionLabel) amenityChips.push(`<span class="chip-toggle active" style="pointer-events:none;">${escapeReview(conditionLabel)}</span>`);
+  if (yearBuilt) amenityChips.push(`<span class="chip-toggle active" style="pointer-events:none;">${escapeReview(yearBuilt)}</span>`);
+
+  const files = [...photoUpload.files];
+  const coverUrl = photoPreviewUrls[0] || '';
+  const thumbs = files.slice(0, 8).map((f, i) => `<img src="${photoPreviewUrls[i]}" class="w-12 h-12 rounded-lg object-cover border border-outline-variant"/>`).join('');
+
+  el.innerHTML = `
+    <div class="rounded-2xl border border-outline-variant overflow-hidden">
+      ${coverUrl ? `<img src="${coverUrl}" class="w-full h-48 object-cover"/>` : `<div class="w-full h-48 bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined text-outline text-4xl">image</span></div>`}
+      <div class="p-5 space-y-3">
+        <h3 class="font-headline-md text-headline-md font-bold text-primary">${escapeReview(typeLabel)} ${escapeReview(dealLabel)}</h3>
+        <p class="font-data-mono text-data-mono text-secondary">${escapeReview(priceLine)}</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant">${escapeReview([address, city].filter(Boolean).join(', '))}${size ? ' · ' + escapeReview(size) + ' m²' : ''}</p>
+        ${specs.length ? `<div class="flex flex-wrap gap-4 pt-1">${specs.map(([icon, val, label]) => `<span class="flex items-center gap-1.5 text-[12.5px] text-on-surface"><span class="material-symbols-outlined text-outline text-[18px]">${icon}</span>${escapeReview(val)} ${escapeReview(label)}</span>`).join('')}</div>` : ''}
+        ${amenityChips.length ? `<div class="flex flex-wrap gap-2 pt-1">${amenityChips.join('')}</div>` : ''}
+        ${thumbs ? `<div class="flex flex-wrap gap-2 pt-2">${thumbs}</div>` : `<p class="text-[12.5px] text-on-surface-variant pt-1">${tr('sell.noPhotosYet', 'No photos added yet')}</p>`}
+      </div>
+    </div>
+  `;
+}
+
+/* ==========================================================================
+   Save Draft (localStorage)
+   ========================================================================== */
 const DRAFT_KEY = 'darwesh_sell_draft';
-const draftFieldIds = ['titleInput', 'typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'sizeInput', 'bedsInput', 'bathsInput', 'descriptionInput', 'fullNameInput', 'phoneInput', 'emailInput'];
+const draftFieldIds = ['typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'currencySelect',
+  'sizeInput', 'landSizeInput', 'bedsInput', 'bathsInput', 'hallsInput', 'floorsInput', 'kitchensInput', 'parkingInput',
+  'conditionSelect', 'yearBuiltInput', 'fullNameInput', 'phoneInput', 'whatsappInput', 'emailInput', 'negotiableInput'];
 
 function collectDraft() {
   const data = {};
   draftFieldIds.forEach(id => { data[id] = document.getElementById(id).value; });
   data.pinLat = document.getElementById('pinLat').value;
   data.pinLng = document.getElementById('pinLng').value;
+  data.amenities = [...amenitiesSet];
   return data;
 }
 
@@ -471,15 +1152,30 @@ function applyDraft(data) {
   draftFieldIds.forEach(id => {
     if (data[id] !== undefined) document.getElementById(id).value = data[id];
   });
-  if (data.pinLat && data.pinLng) {
-    setPin(parseFloat(data.pinLat), parseFloat(data.pinLng), true);
+  if (data.pinLat && data.pinLng) setPin(parseFloat(data.pinLat), parseFloat(data.pinLng), true);
+  document.getElementById('bedsInputValue').textContent = document.getElementById('bedsInput').value || 0;
+  document.getElementById('bathsInputValue').textContent = document.getElementById('bathsInput').value || 0;
+  document.getElementById('hallsInputValue').textContent = document.getElementById('hallsInput').value || 0;
+  document.getElementById('floorsInputValue').textContent = document.getElementById('floorsInput').value || 1;
+  document.getElementById('kitchensInputValue').textContent = document.getElementById('kitchensInput').value || 0;
+  document.getElementById('parkingInputValue').textContent = document.getElementById('parkingInput').value || 0;
+  setNegotiable(data.negotiableInput === 'false' ? 'false' : 'true');
+  setDealType(data.listingTypeSelect === 'rent' ? 'rent' : 'sale');
+  if (Array.isArray(data.amenities)) {
+    data.amenities.forEach(a => {
+      amenitiesSet.add(a);
+      const btn = document.querySelector(`.chip-toggle[data-amenity="${a}"]`);
+      if (btn) btn.classList.add('active');
+    });
   }
+  updatePriceEquivalent();
+  updateSelectedLocationCard();
 }
 
 document.getElementById('saveDraftBtn').addEventListener('click', function () {
   localStorage.setItem(DRAFT_KEY, JSON.stringify(collectDraft()));
   const original = this.innerHTML;
-  this.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> Draft Saved';
+  this.innerHTML = '<span class="material-symbols-outlined text-[18px]">check</span> ' + tr('sell.draftSaved', 'Draft Saved');
   setTimeout(() => { this.innerHTML = original; }, 1800);
 });
 
@@ -487,6 +1183,7 @@ document.getElementById('restoreDraftBtn').addEventListener('click', () => {
   const saved = localStorage.getItem(DRAFT_KEY);
   if (saved) applyDraft(JSON.parse(saved));
   document.getElementById('draftBanner').classList.add('hidden');
+  showStep(1);
 });
 
 document.getElementById('discardDraftBtn').addEventListener('click', () => {
@@ -498,11 +1195,13 @@ if (localStorage.getItem(DRAFT_KEY)) {
   document.getElementById('draftBanner').classList.remove('hidden');
 }
 
-// Every submission is saved to the shared `submissions` collection so an
-// admin can see and verify it on admin.html's Customer Services tab —
-// whether or not the visitor is logged in. A logged-in visitor's uid is
-// attached too, so they can also track it on account.html; a guest's
-// submission is saved with uid: null and is only visible to staff.
+/* ==========================================================================
+   Firebase submission — every submission is saved to the shared
+   `submissions` collection so an admin can see and verify it on
+   admin.html's Customer Services tab, whether or not the visitor is
+   logged in. A logged-in visitor's uid is attached too; a guest's
+   submission is saved with uid: null and is only visible to staff.
+   ========================================================================== */
 let submitAuth = null, submitDb = null, submitFns = null, submitStorage = null, storageFns = null;
 const submissionAuthReady = (async function initSubmissionAuth() {
   const [{ auth, db, storage }, authMod, storeMod, storageMod] = await Promise.all([
@@ -559,6 +1258,7 @@ async function uploadSelectedPhotos() {
 
 document.getElementById('sellForm').addEventListener('submit', async function (e) {
   e.preventDefault();
+  if (!validateStep(1) || !validateStep(2) || !validateStep(3)) return;
   const draft = collectDraft();
   const errEl = document.getElementById('submitError');
   errEl.classList.add('hidden');
@@ -572,14 +1272,22 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   try {
     const { photoUrls, photoUploadToken } = await uploadSelectedPhotos();
     submitBtnLabel.textContent = tr('sell.submitForVerification', 'Submit for Verification');
+    const type = document.getElementById('typeSelect');
+    const typeLabel = type.selectedOptions[0] ? type.selectedOptions[0].textContent : '';
+    const dealLabel = draft.listingTypeSelect === 'rent' ? 'for Rent' : 'for Sale';
     await submitFns.addDoc(submitFns.collection(submitDb, 'submissions'), {
       uid: (submitAuth && submitAuth.currentUser) ? submitAuth.currentUser.uid : null,
       type: 'sell',
-      name: draft.fullNameInput, phone: draft.phoneInput, email: draft.emailInput,
-      title: draft.titleInput, propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
-      city: draft.citySelect, address: draft.addressInput, price: draft.priceInput,
-      size: draft.sizeInput, beds: draft.bedsInput, baths: draft.bathsInput,
-      description: draft.descriptionInput, pinLat: draft.pinLat, pinLng: draft.pinLng,
+      title: `${typeLabel} ${dealLabel}`,
+      name: draft.fullNameInput, phone: draft.phoneInput, whatsapp: draft.whatsappInput, email: draft.emailInput,
+      propertyType: draft.typeSelect, listingType: draft.listingTypeSelect,
+      city: draft.citySelect, address: draft.addressInput,
+      price: priceInUSD(), negotiable: draft.negotiableInput === 'true',
+      size: draft.sizeInput, landSize: draft.landSizeInput,
+      beds: draft.bedsInput, baths: draft.bathsInput, halls: draft.hallsInput,
+      floors: draft.floorsInput, kitchens: draft.kitchensInput, parking: draft.parkingInput,
+      amenities: draft.amenities, condition: draft.conditionSelect, yearBuilt: draft.yearBuiltInput,
+      pinLat: draft.pinLat, pinLng: draft.pinLng,
       photoUrls, photoUploadToken,
       status: 'pending', createdAt: submitFns.serverTimestamp()
     });
@@ -594,10 +1302,14 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   }
 
   localStorage.removeItem(DRAFT_KEY);
-  this.classList.add('hidden');
+  document.getElementById('sellForm').classList.add('hidden');
   document.getElementById('confirmation').classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
+
+/* Init */
+updateStepIndicator();
+updateWizardNav();
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
