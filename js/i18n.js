@@ -360,6 +360,10 @@ const translations = {
     'sell.verify.errGeneric': 'نەمانتوانی دەستمان بگات بە کامێراکەت. تکایە دووبارە هەوڵبدەرەوە.',
     'sell.verify.errUnsupported': 'وێبگەڕەکەت پشتگیری دەستگەیشتن بە کامێرا ناکات، کە پێویستە بۆ پشتڕاستکردنەوەی ناسنامە.',
     'sell.verify.errRequired': 'تکایە پێش ناردن وێنەی پشتڕاستکردنەوە بگرە.',
+    'sell.retryUpload': 'کلیک بکە بۆ دووبارە هەوڵدانەوە',
+    'sell.verify.uploaded': 'بارکرا',
+    'sell.verify.uploadFailed': 'بارکردن سەرنەکەوت -- کاتی ناردن دووبارە هەوڵدەدرێتەوە',
+    'sell.verify.uploading': 'بارکردن...',
 
     'cities.erbil': 'هەولێر',
     'cities.sulaymaniyah': 'سلێمانی',
@@ -1260,6 +1264,10 @@ const translations = {
     'sell.verify.errGeneric': 'تعذر الوصول إلى الكاميرا. يرجى المحاولة مرة أخرى.',
     'sell.verify.errUnsupported': 'متصفحك لا يدعم الوصول إلى الكاميرا، وهو مطلوب للتحقق من الهوية.',
     'sell.verify.errRequired': 'يرجى التقاط صورة التحقق قبل الإرسال.',
+    'sell.retryUpload': 'اضغط لإعادة المحاولة',
+    'sell.verify.uploaded': 'تم الرفع',
+    'sell.verify.uploadFailed': 'فشل الرفع -- ستتم إعادة المحاولة عند الإرسال',
+    'sell.verify.uploading': 'جارٍ الرفع...',
 
     'cities.erbil': 'أربيل',
     'cities.sulaymaniyah': 'السليمانية',

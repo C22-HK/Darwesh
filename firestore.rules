@@ -108,7 +108,21 @@ service cloud.firestore {
                     && (request.resource.data.uid == null
                         || (isSignedIn() && request.resource.data.uid == request.auth.uid));
       allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      allow update, delete: if isAdmin();
+      // sell.html starts uploading photos (and the verification selfie) the
+      // moment they're added/captured, not when Submit is finally clicked --
+      // whatever hasn't finished by submit time keeps uploading in the
+      // background and patches this same doc afterward, so listing creation
+      // never blocks on Storage. That background patch runs as the same
+      // unauthenticated guest who created the submission (sell.html has no
+      // login requirement), so it can't be limited to isAdmin() the way
+      // other updates are -- narrowed instead to touching only the photo
+      // fields, and only while the submission is still pending (an admin
+      // has full update rights regardless, e.g. once they start reviewing).
+      allow update: if isAdmin()
+                    || (resource.data.status == 'pending'
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['photoUrls', 'photoUploadToken', 'verificationPhotoPath']));
+      allow delete: if isAdmin();
     }
 
     // ---- Agent financial ledger (accounting) ----
