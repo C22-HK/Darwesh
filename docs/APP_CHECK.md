@@ -66,6 +66,31 @@ committed `.html`/`.js` file). Production must never set this.
 | Firebase Authentication | Yes | Yes (Console: App Check → APIs → Authentication) |
 | Backend (`backend/`) | Uses the **Admin SDK**, server-side, service-account authenticated | N/A — App Check is a client-SDK concept; Admin SDK calls are already trusted server-to-server and are not gated by App Check either way |
 
+## Status log (Phase 2 — Console metrics, real production traffic)
+
+| Checkpoint | Storage | Firestore | Authentication |
+|---|---|---|---|
+| 1st reading | 100% verified | 1% verified (99% unverified) | 100% verified |
+| 2nd reading | 100% verified | 5% verified (95% unverified) | 100% verified |
+
+Firestore's 1%→5% move is not "it just needed more time" — it's still
+overwhelmingly unverified, consistent with the root cause below, not
+disproving it. Storage and Auth holding steady at 100% across two
+readings is the more meaningful signal so far.
+
+**Why Firestore lags Storage/Auth so far behind**: Storage requests
+happen after a deliberate action (viewing/uploading a photo) and Auth
+requests after a deliberate sign-in/sign-up click — both well after page
+load, giving reCAPTCHA Enterprise's own script time to load and produce
+a token. Firestore gets hit immediately on page load on several pages
+(`buy.html`/`map.html`/`index.html` all fetch `listings` right away, and
+`js/city-nav.js`/`js/notification-bell.js` do the same on nearly every
+page) — these early reads are racing ahead of the token being ready, and
+once the long-lived real-time `Listen` channel is established without
+one, later reads over that same channel don't necessarily get a token
+retroactively attached. **Do not enable Firestore enforcement while this
+holds** — it would reject the large majority of real traffic.
+
 ## Recommended rollout (do not skip stages)
 
 **Phase 1 — done, this change.** SDK integrated, enforcement OFF. Every
