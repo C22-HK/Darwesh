@@ -88,13 +88,24 @@ class _RequestLoggingMiddleware(BaseHTTPMiddleware):
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Sets the response headers this API controls directly -- distinct
     from the ones GitHub Pages can't set for the static frontend (see
-    docs/SECURITY_AUDIT.md, L1). A real Content-Security-Policy is left
-    out here deliberately: this is a JSON API with no HTML responses, so
-    a CSP has nothing to constrain yet -- adding one prematurely just for
-    the sake of it would be checkbox security, not real protection."""
+    docs/SECURITY_AUDIT.md, L1). Content-Security-Policy, X-Frame-Options,
+    and Permissions-Policy are left out deliberately: this is a JSON API
+    with no HTML responses, so there is no page for a browser to render,
+    frame, or grant feature access to -- those headers protect an HTML
+    document's rendering context, which doesn't exist here, so adding
+    them would be checkbox security with nothing real to constrain.
+    Strict-Transport-Security is different: it's a per-origin instruction
+    a browser honors for *any* future request to this host over HTTPS,
+    regardless of response content type, so it's included."""
 
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
+        # 2 years, includes subdomains -- long enough to be a durable
+        # commitment once this is actually deployed on a real domain,
+        # short of preload-list submission (which requires production
+        # traffic on a stable domain first, not appropriate to opt into
+        # from a codebase that isn't deployed anywhere yet).
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response

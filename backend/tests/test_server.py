@@ -40,6 +40,7 @@ def test_security_headers_present():
     resp = client.get("/healthz")
     assert resp.headers.get("x-content-type-options") == "nosniff"
     assert resp.headers.get("referrer-policy") == "no-referrer"
+    assert resp.headers.get("strict-transport-security") == "max-age=63072000; includeSubDomains"
 
 
 def test_forgot_password_route_not_registered_when_unconfigured():
