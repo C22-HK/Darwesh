@@ -892,7 +892,14 @@ priceInput.addEventListener('input', () => {
 
 function priceInUSD() {
   const raw = rawPriceNumber();
-  return currencySelect.value === 'USD' ? raw : raw / IQD_PER_USD;
+  // Whole dollars only -- everywhere else on the site (buy.html, admin.html,
+  // listing.html) formats price as an integer with no cents, and dividing
+  // an IQD amount by the 1,310 rate produces a long repeating decimal if
+  // this isn't rounded (e.g. 300,000,000 IQD -> 229007.633587786259...).
+  // That unrounded value used to go straight into the stored submission,
+  // which only became visible later when admin.html prefilled the Add
+  // Listing form's price field directly from it.
+  return currencySelect.value === 'USD' ? raw : Math.round(raw / IQD_PER_USD);
 }
 function updatePriceEquivalent() {
   const raw = rawPriceNumber();
