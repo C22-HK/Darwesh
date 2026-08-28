@@ -39,8 +39,8 @@ pytest
 ## Lint + format check
 
 ```bash
-ruff check app tests
-ruff format --check app tests
+ruff check app tests scripts
+ruff format --check app tests scripts
 ```
 
 ## Build the container image

@@ -303,6 +303,52 @@ successful rollback completes cleanly with exactly one surviving
 account, and retrying after a *failed* rollback gets a clean 409
 instead of a second orphan.
 
+## Orphan-account detection (operational)
+
+The rollback above handles the common case. The remaining case --
+Auth account created, profile write fails, AND the compensating
+rollback itself also fails -- has no automated recovery (there's no
+shared transaction across Firebase Auth and Firestore to retry into),
+so it's handled operationally instead: `backend/scripts/
+find_orphaned_auth_accounts.py` is a small, **read-only** script that
+lists every Firebase Auth user and flags any with no corresponding
+`users/{uid}` Firestore document.
+
+```bash
+FIREBASE_SERVICE_ACCOUNT_JSON='<service account JSON contents>' \
+    python3 scripts/find_orphaned_auth_accounts.py [--min-age-minutes N]
+```
+
+- Makes only Admin SDK reads (`list_users`, Firestore `get()`) -- never
+  creates, deletes, disables, or modifies anything. Deciding what to do
+  with a flagged account is left to a human, deliberately: the script
+  prints the account's uid suffix, masked email
+  (`m******d@example.com`, same shape as the frontend's `maskEmail` in
+  `js/otp-ui.js`), and creation time, plus the manual steps to confirm
+  and resolve it -- it never prints or acts as if it were the
+  authority on which flagged accounts are safe to delete.
+- `--min-age-minutes` (default 60) excludes anything created more
+  recently than that: a normal signup has a real, if usually
+  sub-second, window between the Auth account existing and its profile
+  write completing, so an unfiltered listing run at the wrong instant
+  could flag an entirely healthy, in-flight signup.
+- When to run it: on demand right after a "rollback of orphaned auth
+  account FAILED" log line appears (that log line already carries the
+  `uid_suffix` needed to find the same account directly, so this
+  script's main value there is confirming there's nothing else
+  outstanding); or periodically as a safety net in case such a log
+  line was ever missed -- e.g. a weekly Cloud Scheduler job invoking
+  this script and forwarding its output, once the backend is deployed
+  and a way to schedule/notify is chosen. Not wired into the live
+  server process or any endpoint -- this is an operator-run tool
+  against the same GCP project, not a new attack surface.
+
+The `docs/EMAIL_OTP.md`-documented Firestore TTL policy (see "Shared
+production storage" above) is unrelated to this -- that's for expiring
+`otpChallenges`/`otpResetTokens` documents, which are backend-internal
+records with no Auth account attached at all. This section is
+specifically about the `users/{uid}` <-> Firebase Auth user pairing.
+
 ## Email design
 
 Original Darwesh Group branding (reuses this project's own established
