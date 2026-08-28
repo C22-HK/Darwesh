@@ -23,7 +23,7 @@ from app.otp.email_sender import MockEmailSender, ResendOtpEmailSender
 from app.otp.firebase_admin_ops import EmailUidResolver, FirebaseAccountOps
 from app.otp.handler import PasswordResetConfirmHandler
 from app.otp.service import OtpService
-from app.otp.store import InMemoryChallengeStore
+from app.otp.store import FirestoreChallengeStore, InMemoryChallengeStore
 from app.server import create_app
 
 logger = logging.getLogger("darwesh")
@@ -113,7 +113,18 @@ def build_email_otp_handlers(
         sender = MockEmailSender()
         logger.info("Email OTP endpoints enabled", extra={"provider": "mock"})
 
-    store = InMemoryChallengeStore()
+    # Cloud Run (and most real hosts) scale to more than one instance --
+    # InMemoryChallengeStore's state would then be invisible across them
+    # (a /send hitting one instance and /verify hitting another would see
+    # no matching challenge at all), so production always uses the
+    # Firestore-backed store instead, sharing the same client
+    # FirebaseAccountOps already holds. Development/tests keep the
+    # simpler in-memory store -- no Firestore round-trips needed there.
+    store = (
+        FirestoreChallengeStore(accounts.firestore_client, logger=logger)
+        if cfg.is_production
+        else InMemoryChallengeStore()
+    )
     service = OtpService(
         store=store, sender=sender, uids=EmailUidResolver(accounts), otp_secret=cfg.otp_hmac_secret, logger=logger
     )

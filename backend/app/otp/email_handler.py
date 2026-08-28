@@ -140,7 +140,7 @@ class EmailOtpVerifyHandler:
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )
 
-        result, token = self.service.verify(email, purpose, code)
+        result, token = await self.service.verify(email, purpose, code)
         if result == VerifyResult.TOO_MANY_ATTEMPTS:
             return JSONResponse(
                 {"error": "Too many incorrect attempts. Please request a new code."}, status_code=429
@@ -214,7 +214,7 @@ class SignupCompleteHandler:
                 )
             company_id = _slugify_company(company_name)
 
-        entry = self.store.get_reset_token(token)
+        entry = await self.store.get_reset_token(token)
         expired_msg = "This verification code has expired or already been used. Please start over."
         if entry is None or entry.consumed or entry.expires_at < time.time():
             return JSONResponse({"error": expired_msg}, status_code=400)
@@ -230,7 +230,7 @@ class SignupCompleteHandler:
         # Consumed immediately, before touching Firebase -- a token can
         # authorize at most one account creation even if something below
         # fails partway and the caller retries.
-        self.store.consume_reset_token(token)
+        await self.store.consume_reset_token(token)
         email = entry.identifier
 
         try:

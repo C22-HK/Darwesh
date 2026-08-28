@@ -196,7 +196,7 @@ async def test_signup_verify_sends_even_with_no_existing_account():
     assert result == SendResult.SENT
     assert len(sender.sent) == 1
     assert resolver.calls == []  # never even consulted for signup
-    challenge = store.get_challenge(f"{Purpose.SIGNUP_EMAIL_VERIFY.value}:{EMAIL_A}")
+    challenge = await store.get_challenge(f"{Purpose.SIGNUP_EMAIL_VERIFY.value}:{EMAIL_A}")
     assert challenge is not None
     assert challenge.uid is None  # no account exists yet
 
@@ -209,7 +209,7 @@ async def test_password_reset_noops_for_unregistered_email():
 
     assert result == SendResult.NOOP
     assert sender.sent == []
-    assert store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{EMAIL_A}") is None
+    assert await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{EMAIL_A}") is None
 
 
 async def test_password_reset_sends_for_registered_email_and_binds_uid():
@@ -219,7 +219,7 @@ async def test_password_reset_sends_for_registered_email_and_binds_uid():
     result = await service.send(EMAIL_A, Purpose.PASSWORD_RESET)
 
     assert result == SendResult.SENT
-    challenge = store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{EMAIL_A}")
+    challenge = await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{EMAIL_A}")
     assert challenge.uid == "uid-a"
 
 
@@ -232,7 +232,7 @@ async def test_signup_otp_success():
     await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
     code = _sent_code(sender, EMAIL_A)
 
-    result, token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
+    result, token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
 
     assert result == VerifyResult.OK
     assert token is not None
@@ -243,7 +243,7 @@ async def test_incorrect_signup_otp_rejected():
     service, _ = make_service(sender=sender)
     await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
 
-    result, token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, "000000")
+    result, token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, "000000")
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -256,7 +256,7 @@ async def test_expired_signup_otp_rejected():
     code = _sent_code(sender, EMAIL_A)
     time.sleep(0.04)
 
-    result, token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
+    result, token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -268,8 +268,8 @@ async def test_consumed_signup_otp_cannot_be_reused():
     await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
     code = _sent_code(sender, EMAIL_A)
 
-    first, first_token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
-    second, second_token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
+    first, first_token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
+    second, second_token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
 
     assert first == VerifyResult.OK and first_token is not None
     assert second == VerifyResult.INVALID_OR_EXPIRED and second_token is None
@@ -279,12 +279,12 @@ async def test_resend_cooldown_works():
     service, store = make_service(resend_cooldown_seconds=60)
 
     await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
-    first_hash = store.get_challenge(f"{Purpose.SIGNUP_EMAIL_VERIFY.value}:{EMAIL_A}").otp_hash
+    first_hash = (await store.get_challenge(f"{Purpose.SIGNUP_EMAIL_VERIFY.value}:{EMAIL_A}")).otp_hash
 
     result = await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
 
     assert result == SendResult.COOLDOWN
-    assert store.get_challenge(f"{Purpose.SIGNUP_EMAIL_VERIFY.value}:{EMAIL_A}").otp_hash == first_hash
+    assert (await store.get_challenge(f"{Purpose.SIGNUP_EMAIL_VERIFY.value}:{EMAIL_A}")).otp_hash == first_hash
 
 
 async def test_attempt_limit_works():
@@ -293,8 +293,8 @@ async def test_attempt_limit_works():
     await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
     code = _sent_code(sender, EMAIL_A)
 
-    results = [service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, "000000")[0] for _ in range(3)]
-    final_result, final_token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
+    results = [(await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, "000000"))[0] for _ in range(3)]
+    final_result, final_token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, code)
 
     assert results[-1] == VerifyResult.TOO_MANY_ATTEMPTS
     assert final_result == VerifyResult.TOO_MANY_ATTEMPTS
@@ -314,7 +314,7 @@ async def test_signup_otp_cannot_authorize_password_reset():
     await service.send(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY)
     signup_code = _sent_code(sender, EMAIL_A)
 
-    result, token = service.verify(EMAIL_A, Purpose.PASSWORD_RESET, signup_code)
+    result, token = await service.verify(EMAIL_A, Purpose.PASSWORD_RESET, signup_code)
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -326,7 +326,7 @@ async def test_password_reset_otp_cannot_activate_signup():
     await service.send(EMAIL_A, Purpose.PASSWORD_RESET)
     reset_code = _sent_code(sender, EMAIL_A)
 
-    result, token = service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, reset_code)
+    result, token = await service.verify(EMAIL_A, Purpose.SIGNUP_EMAIL_VERIFY, reset_code)
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -338,7 +338,7 @@ async def test_password_reset_otp_success():
     await service.send(EMAIL_A, Purpose.PASSWORD_RESET)
     code = _sent_code(sender, EMAIL_A)
 
-    result, token = service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
+    result, token = await service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
 
     assert result == VerifyResult.OK
     assert token is not None
@@ -349,7 +349,7 @@ async def test_wrong_password_reset_otp_rejected():
     service, _ = make_service(sender=sender, uids=FakeEmailUidResolver({EMAIL_A: "uid-a"}))
     await service.send(EMAIL_A, Purpose.PASSWORD_RESET)
 
-    result, token = service.verify(EMAIL_A, Purpose.PASSWORD_RESET, "999999")
+    result, token = await service.verify(EMAIL_A, Purpose.PASSWORD_RESET, "999999")
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -362,7 +362,7 @@ async def test_expired_reset_otp_rejected():
     code = _sent_code(sender, EMAIL_A)
     time.sleep(0.04)
 
-    result, token = service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
+    result, token = await service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -374,8 +374,8 @@ async def test_reused_reset_otp_rejected():
     await service.send(EMAIL_A, Purpose.PASSWORD_RESET)
     code = _sent_code(sender, EMAIL_A)
 
-    first, _ = service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
-    second, _ = service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
+    first, _ = await service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
+    second, _ = await service.verify(EMAIL_A, Purpose.PASSWORD_RESET, code)
 
     assert first == VerifyResult.OK
     assert second == VerifyResult.INVALID_OR_EXPIRED
@@ -392,7 +392,7 @@ async def test_provider_failure_does_not_leak_account_existence():
 
     assert result == SendResult.NOOP
     assert sender.sent == []
-    assert store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{EMAIL_A}") is None
+    assert await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{EMAIL_A}") is None
 
 
 # ---------- HTTP layer ----------

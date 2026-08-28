@@ -116,7 +116,9 @@ email directly).
   (purpose-aware, unlike the original WhatsApp-only version).
 - `backend/app/otp/store.py` -- `Challenge`/`ResetToken`, `identifier`
   generalized from `phone_e164`, `uid` now `str | None` (None for
-  `SIGNUP_EMAIL_VERIFY`, since no account exists at send time).
+  `SIGNUP_EMAIL_VERIFY`, since no account exists at send time). Two
+  storage implementations behind the same async `ChallengeStore`
+  Protocol -- see "Shared production storage" below.
 - `backend/app/otp/email_address.py` -- email normalization
   (lowercase, trim).
 - `backend/app/otp/email_templates.py` -- the two branded HTML emails
@@ -170,6 +172,65 @@ Same control set as the WhatsApp-OTP phase, reused via the shared
 | Session revocation after reset | `revoke_refresh_tokens(uid)` called immediately after `update_user` |
 | Never store plaintext passwords | Firebase Admin SDK owns password hashing/storage throughout; this backend never persists a password anywhere, in Firestore or otherwise |
 
+## Shared production storage
+
+`InMemoryChallengeStore` (process-local, guarded by a lock) is correct
+only for a single backend instance/worker. Cloud Run (the recommended
+host -- see `backend/README.md`) scales to multiple instances by
+default, and a signup's `/send` hitting one instance while `/verify`
+hits another would see no matching challenge at all under that store.
+`app.main.build_email_otp_handlers` now selects between the two
+implementations automatically:
+
+- **`cfg.is_production` true** -> `FirestoreChallengeStore`
+  (`app/otp/store.py`), backed by the same Firestore client
+  `FirebaseAccountOps` already holds (`accounts.firestore_client`) --
+  no second client, no new service to provision. Every OTP
+  challenge/reset-token write goes through the backend's own Admin SDK
+  credential, which bypasses `firestore.rules` entirely (as any Admin
+  SDK access does) -- `firestore.rules` additionally denies all
+  client read/write on `otpChallenges/{key}` and
+  `otpResetTokens/{token}` explicitly, so this is never reachable from
+  the browser even in principle, not just "the frontend doesn't call
+  it."
+- **Otherwise (development/tests)** -> `InMemoryChallengeStore`, no
+  Firestore round-trips needed.
+
+No paid dependency was introduced -- Firestore is already provisioned
+for this same Firebase project. Redis (e.g. Cloud Memorystore, ~$35+/mo
+minimum) was considered and rejected for this phase on cost/complexity
+grounds; Firestore is free-tier-eligible at OTP-store traffic volumes
+and needs no new infrastructure.
+
+**Correctness properties, verified against a real Firestore emulator
+(not just read from the rules/code) before this was reported ready:**
+a challenge created via one store instance is immediately visible to a
+second, independently-constructed store instance (the property
+`InMemoryChallengeStore` cannot provide once there's more than one
+backend instance); `record_failed_attempt` -- the one operation two
+concurrent wrong-guesses could race on -- runs inside a real Firestore
+transaction and was confirmed atomic and lossless under realistic
+concurrency (multiple simultaneous guesses against one challenge, split
+across two independent store/client instances simulating two backend
+workers). Under artificial, far-beyond-realistic contention (10-way,
+zero backoff, well past what `max_attempts=5` would ever allow to
+build up against a single challenge) the Firestore client's own commit
+retries can be exhausted; `record_failed_attempt` catches that and
+returns `None`, which `OtpService.verify` already treats identically to
+"no such challenge" (`VerifyResult.INVALID_OR_EXPIRED`) -- logged at
+error level so repeated occurrences get attention, but never an
+unhandled exception reaching the HTTP layer.
+
+**Expiration** is enforced by application logic (`OtpService` checks
+`expires_at` on every read) regardless of which store is active, so
+correctness never depends on Firestore actually deleting expired
+documents. For storage hygiene (not correctness), configure a native
+Firestore TTL policy on the `expiresAt` field of both collections --
+via Console (Firestore -> a collection -> the field's TTL setting) or
+`gcloud firestore fields ttls update expiresAt --collection-group=otpChallenges ...`
+-- once this is deployed; this is a manual, one-time infrastructure
+step, not something application code can set.
+
 ## Email design
 
 Original Darwesh Group branding (reuses this project's own established
@@ -219,7 +280,10 @@ flow's design and the (live) email flow.
 2. **Deployment** -- this backend isn't deployed anywhere yet (see
    `docs/BACKEND_MILESTONES.md`, milestone 2). Email-OTP endpoints need
    a real, reachable server before any of this can run against
-   production traffic.
+   production traffic. The multi-instance OTP-storage concern that
+   would otherwise block a scale-to-many-instances host like Cloud Run
+   is already resolved (see "Shared production storage" above) --
+   deployment itself, not this, is what's outstanding.
 3. **Frontend integration** -- `signup.html` and a rebuilt
    `reset-password.html` (or new pages) need to actually call these
    four endpoints with a 6-digit code entry UI. Not built in this

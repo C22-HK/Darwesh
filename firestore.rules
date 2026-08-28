@@ -158,5 +158,22 @@ service cloud.firestore {
       allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
       allow update, delete: if isOwner(resource.data.agentId) || isAdmin();
     }
+
+    // ---- Email OTP storage (backend-only) ----
+    // Written and read exclusively by the backend's Firebase Admin SDK
+    // credential (see backend/app/otp/store.py's FirestoreChallengeStore),
+    // which bypasses these rules entirely, as any Admin SDK access does --
+    // these two blocks change nothing about what the backend itself can
+    // do. They exist so that fact isn't just implicit: no normal client
+    // (signed in or not, including an admin) can ever read or write an
+    // OTP challenge or reset/verify token directly, which would otherwise
+    // let someone read a challenge's otpHash or forge a consumed/attempts
+    // value straight through the client SDK.
+    match /otpChallenges/{key} {
+      allow read, write: if false;
+    }
+    match /otpResetTokens/{token} {
+      allow read, write: if false;
+    }
   }
 }

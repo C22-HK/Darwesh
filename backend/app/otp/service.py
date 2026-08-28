@@ -99,7 +99,7 @@ class OtpService:
 
     async def send(self, identifier: str, purpose: Purpose) -> SendResult:
         key = self._challenge_key(identifier, purpose)
-        existing = self.store.get_challenge(key)
+        existing = await self.store.get_challenge(key)
         if (
             existing is not None
             and not existing.consumed
@@ -152,7 +152,7 @@ class OtpService:
         # was pending before it -- only the newest code for a given
         # identifier+purpose is ever valid ("invalidate/replace previous
         # OTP when appropriate").
-        self.store.create_challenge(key, challenge)
+        await self.store.create_challenge(key, challenge)
 
         try:
             await self.sender.send_otp(identifier, code, purpose)
@@ -165,13 +165,13 @@ class OtpService:
             self.logger.info("otp send: delivery attempted", extra={"purpose": purpose.value})
         return SendResult.SENT
 
-    def verify(self, identifier: str, purpose: Purpose, code: str) -> tuple[VerifyResult, str | None]:
+    async def verify(self, identifier: str, purpose: Purpose, code: str) -> tuple[VerifyResult, str | None]:
         """Returns (result, token). token is only non-None on
         VerifyResult.OK -- callers name it resetToken or verifyToken
         depending on purpose (see app/otp/email_handler.py); it's the
         same underlying single-use, purpose-bound token either way."""
         key = self._challenge_key(identifier, purpose)
-        challenge = self.store.get_challenge(key)
+        challenge = await self.store.get_challenge(key)
 
         if challenge is None or challenge.consumed or challenge.expires_at < time.time():
             return VerifyResult.INVALID_OR_EXPIRED, None
@@ -179,17 +179,17 @@ class OtpService:
             return VerifyResult.TOO_MANY_ATTEMPTS, None
 
         if not verify_otp_hash(code, challenge.otp_hash, self.otp_secret):
-            updated = self.store.record_failed_attempt(key)
+            updated = await self.store.record_failed_attempt(key)
             if updated is not None and updated.attempts >= updated.max_attempts:
                 return VerifyResult.TOO_MANY_ATTEMPTS, None
             return VerifyResult.INVALID_OR_EXPIRED, None
 
-        self.store.consume_challenge(key)
+        await self.store.consume_challenge(key)
         self.logger.info("otp verify: success", extra={"purpose": purpose.value})
 
         token = secrets.token_urlsafe(32)
         now = time.time()
-        self.store.create_reset_token(
+        await self.store.create_reset_token(
             token,
             ResetToken(
                 uid=challenge.uid,

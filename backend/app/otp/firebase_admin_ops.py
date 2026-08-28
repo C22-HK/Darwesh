@@ -74,6 +74,14 @@ class FirebaseAccountOps:
         self._app = firebase_admin.initialize_app(cred, name=f"darwesh-otp-{id(self)}")
         self._db = fb_firestore.client(self._app)
 
+    @property
+    def firestore_client(self) -> fb_firestore.Client:
+        """Exposes the same Firestore client this instance already holds,
+        so app.otp.store.FirestoreChallengeStore can reuse it in
+        production instead of opening a second client (see
+        app.main.build_email_otp_handlers)."""
+        return self._db
+
     async def resolve_uid_by_email(self, email: str) -> str | None:
         try:
             user = await asyncio.to_thread(fb_auth.get_user_by_email, email, app=self._app)

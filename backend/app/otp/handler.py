@@ -132,7 +132,7 @@ class OtpVerifyHandler:
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )
 
-        result, reset_token = self.service.verify(phone, purpose, code_raw)
+        result, reset_token = await self.service.verify(phone, purpose, code_raw)
         if result == VerifyResult.TOO_MANY_ATTEMPTS:
             return JSONResponse(
                 {"error": "Too many incorrect attempts. Please request a new code."}, status_code=429
@@ -171,7 +171,7 @@ class PasswordResetConfirmHandler:
                 {"error": f"Password must be at least {_MIN_PASSWORD_LENGTH} characters."}, status_code=400
             )
 
-        entry = self.store.get_reset_token(token)
+        entry = await self.store.get_reset_token(token)
         _EXPIRED_MSG = "This reset link has expired or already been used. Please request a new code."
         if entry is None or entry.consumed or entry.expires_at < time.time():
             return JSONResponse({"error": _EXPIRED_MSG}, status_code=400)
@@ -187,7 +187,7 @@ class PasswordResetConfirmHandler:
         # Consume immediately, before calling Firebase -- a token can
         # authorize at most one reset attempt even if the Firebase call
         # below fails partway and the caller retries.
-        self.store.consume_reset_token(token)
+        await self.store.consume_reset_token(token)
 
         try:
             await self.firebase.set_password_and_revoke_sessions(entry.uid, new_password)

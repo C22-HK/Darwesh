@@ -122,7 +122,7 @@ async def test_send_noop_for_unregistered_phone_creates_no_challenge_and_contact
 
     assert result == SendResult.NOOP
     assert sender.sent == []
-    assert store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}") is None
+    assert await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}") is None
 
 
 @pytest.mark.asyncio
@@ -134,7 +134,7 @@ async def test_send_degrades_to_noop_when_uid_resolution_itself_fails():
 
     assert result == SendResult.NOOP  # never a raised exception reaching the HTTP layer
     assert sender.sent == []
-    assert store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}") is None
+    assert await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}") is None
 
 
 @pytest.mark.asyncio
@@ -150,7 +150,7 @@ async def test_send_for_registered_phone_creates_hashed_challenge_and_sends_via_
     assert sent_phone == PHONE_A
     assert len(sent_code) == 6 and sent_code.isdigit()
 
-    challenge = store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}")
+    challenge = await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}")
     assert challenge is not None
     assert challenge.uid == "uid-a"
     assert challenge.otp_hash != sent_code  # never stored in plaintext
@@ -171,12 +171,12 @@ async def test_resend_within_cooldown_is_blocked_and_does_not_replace_the_pendin
     service, store = make_service(uids=FakeUidResolver({PHONE_A: "uid-a"}), resend_cooldown_seconds=60)
 
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
-    first_hash = store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}").otp_hash
+    first_hash = (await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}")).otp_hash
 
     result = await service.send(PHONE_A, Purpose.PASSWORD_RESET)
 
     assert result == SendResult.COOLDOWN
-    assert store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}").otp_hash == first_hash
+    assert (await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}")).otp_hash == first_hash
 
 
 @pytest.mark.asyncio
@@ -184,13 +184,13 @@ async def test_resend_after_cooldown_expires_replaces_the_previous_code():
     service, store = make_service(uids=FakeUidResolver({PHONE_A: "uid-a"}), resend_cooldown_seconds=0.03)
 
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
-    first_hash = store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}").otp_hash
+    first_hash = (await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}")).otp_hash
     time.sleep(0.04)
 
     result = await service.send(PHONE_A, Purpose.PASSWORD_RESET)
 
     assert result == SendResult.SENT
-    new_hash = store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}").otp_hash
+    new_hash = (await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_A}")).otp_hash
     assert new_hash != first_hash  # old code invalidated by the new one
 
 
@@ -211,7 +211,7 @@ async def test_verify_correct_code_returns_ok_and_a_reset_token():
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
     code = _sent_code(sender, PHONE_A)
 
-    result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
+    result, token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
 
     assert result == VerifyResult.OK
     assert token is not None and len(token) > 20
@@ -223,7 +223,7 @@ async def test_verify_wrong_code_is_rejected_generically():
     service, _ = make_service(sender=sender, uids=FakeUidResolver({PHONE_A: "uid-a"}))
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
 
-    result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, "000000")
+    result, token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, "000000")
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -233,7 +233,7 @@ async def test_verify_wrong_code_is_rejected_generically():
 async def test_verify_with_no_challenge_at_all_is_rejected_identically_to_wrong_code():
     service, _ = make_service(uids=FakeUidResolver({PHONE_A: "uid-a"}))
 
-    result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, "123456")
+    result, token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, "123456")
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -247,7 +247,7 @@ async def test_verify_expired_code_is_rejected():
     code = _sent_code(sender, PHONE_A)
     time.sleep(0.04)
 
-    result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
+    result, token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -260,8 +260,8 @@ async def test_verify_reused_code_is_rejected_the_second_time():
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
     code = _sent_code(sender, PHONE_A)
 
-    first, first_token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
-    second, second_token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
+    first, first_token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
+    second, second_token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
 
     assert first == VerifyResult.OK and first_token is not None
     assert second == VerifyResult.INVALID_OR_EXPIRED and second_token is None
@@ -274,8 +274,8 @@ async def test_verify_exceeding_max_attempts_locks_out_even_the_correct_code():
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
     code = _sent_code(sender, PHONE_A)
 
-    results = [service.verify(PHONE_A, Purpose.PASSWORD_RESET, "000000")[0] for _ in range(3)]
-    final_result, final_token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
+    results = [(await service.verify(PHONE_A, Purpose.PASSWORD_RESET, "000000"))[0] for _ in range(3)]
+    final_result, final_token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, code)
 
     assert results[-1] == VerifyResult.TOO_MANY_ATTEMPTS
     assert final_result == VerifyResult.TOO_MANY_ATTEMPTS
@@ -289,7 +289,7 @@ async def test_purpose_binding_a_challenge_for_one_purpose_cannot_verify_under_a
     await service.send(PHONE_A, Purpose.SIGNUP_EMAIL_VERIFY)
     signup_code = _sent_code(sender, PHONE_A)
 
-    result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, signup_code)
+    result, token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, signup_code)
 
     assert result == VerifyResult.INVALID_OR_EXPIRED
     assert token is None
@@ -302,15 +302,15 @@ async def test_user_a_verification_can_never_produce_a_reset_token_bound_to_user
     await service.send(PHONE_A, Purpose.PASSWORD_RESET)
     code_a = _sent_code(sender, PHONE_A)
 
-    result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, code_a)
+    result, token = await service.verify(PHONE_A, Purpose.PASSWORD_RESET, code_a)
 
     assert result == VerifyResult.OK
-    entry = store.get_reset_token(token)
+    entry = await store.get_reset_token(token)
     assert entry.uid == "uid-a"
     assert entry.uid != "uid-b"
     # Phone B never requested or verified anything -- no token exists
     # that could possibly resolve to uid-b.
-    assert store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_B}") is None
+    assert await store.get_challenge(f"{Purpose.PASSWORD_RESET.value}:{PHONE_B}") is None
 
 
 # ---------- HTTP layer ----------
