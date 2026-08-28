@@ -5,6 +5,12 @@
 # without a chosen provider and real credentials to build and test
 # against; inventing an untested integration against a guessed API shape
 # would be worse than not having one.
+#
+# Superseded: the product requirement moved to email OTP
+# (docs/EMAIL_OTP.md, app/otp/email_sender.py). Nothing here is wired
+# into app.main anymore and no WhatsApp provider was ever activated in
+# production. Left in place as a reusable component if phone-channel
+# OTP is ever revisited.
 from __future__ import annotations
 
 from typing import Protocol

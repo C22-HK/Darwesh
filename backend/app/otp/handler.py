@@ -1,13 +1,21 @@
-# HTTP layer for the WhatsApp-OTP password-recovery flow. Three
-# handlers, three endpoints (wired up in app/server.py):
+# HTTP layer originally built for the WhatsApp-OTP password-recovery
+# flow (see docs/WHATSAPP_OTP.md). The product requirement has since
+# moved to email OTP (docs/EMAIL_OTP.md) -- app.main no longer wires
+# OtpSendHandler/OtpVerifyHandler below into the live app, and no
+# WhatsApp provider was ever activated, so nothing here has ever run in
+# production. Left in place, still fully tested (tests/test_otp.py), as
+# a reusable component if phone-channel OTP is ever revisited, rather
+# than deleted outright.
 #
-#   POST /api/v1/auth/otp/send            {phoneNumber, purpose}
-#   POST /api/v1/auth/otp/verify          {phoneNumber, purpose, code}   -> {resetToken}
-#   POST /api/v1/auth/password-reset/confirm  {resetToken, newPassword}
+# PasswordResetConfirmHandler is the one exception: it was already
+# channel-agnostic (it only ever consumes an opaque token from
+# app.otp.store, never a phone number or email directly), so it's
+# reused UNCHANGED as the live confirm endpoint for the email-OTP flow
+# too -- see app/otp/email_handler.py and app.main.build_email_otp_handlers.
 #
-# Only PASSWORD_RESET is accepted as `purpose` today -- see
-# app/otp/service.py's Purpose enum for why SIGNUP already exists there
-# but isn't reachable from here yet.
+#   POST /api/v1/auth/otp/send            {phoneNumber, purpose}          -- superseded, not wired up
+#   POST /api/v1/auth/otp/verify          {phoneNumber, purpose, code}    -- superseded, not wired up
+#   POST /api/v1/auth/password-reset/confirm  {resetToken, newPassword}   -- still live
 from __future__ import annotations
 
 import json

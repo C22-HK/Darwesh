@@ -18,11 +18,12 @@ from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import Handler, RateLimiter
 from app.config import Config, load
-from app.otp.firebase_admin_ops import FirebasePhoneAuthManager
-from app.otp.handler import OtpSendHandler, OtpVerifyHandler, PasswordResetConfirmHandler
+from app.otp.email_handler import EmailOtpSendHandler, EmailOtpVerifyHandler, SignupCompleteHandler
+from app.otp.email_sender import MockEmailSender, ResendOtpEmailSender
+from app.otp.firebase_admin_ops import EmailUidResolver, FirebaseAccountOps
+from app.otp.handler import PasswordResetConfirmHandler
 from app.otp.service import OtpService
 from app.otp.store import InMemoryChallengeStore
-from app.otp.whatsapp import MockWhatsAppSender
 from app.server import create_app
 
 logger = logging.getLogger("darwesh")
@@ -60,70 +61,83 @@ def build_auth_handler(cfg: Config) -> Handler | None:
     )
 
 
-def build_otp_handlers(
+def build_email_otp_handlers(
     cfg: Config,
-) -> tuple[OtpSendHandler, OtpVerifyHandler, PasswordResetConfirmHandler] | tuple[None, None, None]:
-    """Wires up the WhatsApp-OTP password-recovery endpoints only when
-    both FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET are set --
-    same "route doesn't exist" philosophy as build_auth_handler above.
-    WHATSAPP_PROVIDER controls delivery: unset/"mock" (the default) uses
-    MockWhatsAppSender, which delivers nothing anywhere -- every other
-    part of the flow (rate limiting, hashing, expiry, single-use
-    enforcement, Firebase UID resolution, session revocation) is real
-    regardless of which provider is selected."""
+) -> (
+    tuple[EmailOtpSendHandler, EmailOtpVerifyHandler, SignupCompleteHandler, PasswordResetConfirmHandler]
+    | tuple[None, None, None, None]
+):
+    """Wires up the email-OTP signup + password-recovery endpoints.
+    Requires FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET -- same
+    "route doesn't exist if unconfigured" rule as build_auth_handler
+    above.
+
+    Email delivery additionally needs RESEND_API_KEY and
+    RESET_EMAIL_FROM to use the real Resend sender. Unlike the earlier
+    WhatsApp-OTP phase's warn-and-continue-on-mock approach, this is a
+    hard gate, not a warning: in a production environment, missing
+    either of those means the routes are simply NOT registered at all --
+    mock email delivery must never run in production. In development,
+    missing them falls back to MockEmailSender (delivers nothing,
+    records what it would have sent, used by tests)."""
     if not cfg.firebase_service_account_json or not cfg.otp_hmac_secret:
         logger.info(
-            "WhatsApp OTP endpoints not configured, skipping "
+            "Email OTP endpoints not configured, skipping "
             "(set FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET to enable them)"
         )
-        return None, None, None
+        return None, None, None, None
 
     try:
-        firebase = FirebasePhoneAuthManager(cfg.firebase_service_account_json)
+        accounts = FirebaseAccountOps(cfg.firebase_service_account_json)
     except ValueError as exc:
-        logger.error("WhatsApp OTP endpoints misconfigured, skipping", extra={"error": str(exc)})
-        return None, None, None
+        logger.error("Email OTP endpoints misconfigured, skipping", extra={"error": str(exc)})
+        return None, None, None, None
 
-    if cfg.whatsapp_provider != "mock":
-        # No real provider is implemented yet (see docs/WHATSAPP_OTP.md) --
-        # this branch exists so a typo'd or aspirational env var fails
-        # loudly at startup instead of silently falling back to mock in
-        # what looks like a production configuration.
+    has_real_email_provider = bool(cfg.resend_api_key and cfg.reset_email_from)
+    if cfg.is_production and not has_real_email_provider:
         logger.error(
-            "WHATSAPP_PROVIDER=%s is not a supported provider yet -- WhatsApp OTP endpoints not started",
-            cfg.whatsapp_provider,
+            "Email OTP endpoints NOT started: APP_ENV=production requires a real email "
+            "provider (RESEND_API_KEY and RESET_EMAIL_FROM) -- mock email delivery must "
+            "never run in production. Set both to enable signup/password-recovery email."
         )
-        return None, None, None
+        return None, None, None, None
 
-    sender = MockWhatsAppSender()
-    if cfg.is_production:
-        logger.warning(
-            "WhatsApp OTP endpoints are starting with the MOCK provider in a PRODUCTION "
-            "environment -- no WhatsApp message will actually be delivered. Phone-based "
-            "password recovery is NOT live until a real WHATSAPP_PROVIDER is configured. "
-            "See docs/WHATSAPP_OTP.md."
-        )
+    if has_real_email_provider:
+        try:
+            sender = ResendOtpEmailSender(cfg.resend_api_key, cfg.reset_email_from)
+        except ValueError as exc:
+            logger.error("Email OTP endpoints misconfigured, skipping", extra={"error": str(exc)})
+            return None, None, None, None
+        logger.info("Email OTP endpoints enabled", extra={"provider": "resend"})
+    else:
+        sender = MockEmailSender()
+        logger.info("Email OTP endpoints enabled", extra={"provider": "mock"})
 
     store = InMemoryChallengeStore()
-    service = OtpService(store=store, sender=sender, uids=firebase, otp_secret=cfg.otp_hmac_secret, logger=logger)
+    service = OtpService(
+        store=store, sender=sender, uids=EmailUidResolver(accounts), otp_secret=cfg.otp_hmac_secret, logger=logger
+    )
 
-    # 5 sends per phone / 15 per IP per 15 minutes -- generous for a real
-    # user who fat-fingers their phone or re-requests a code, tight
-    # enough to make scripted abuse of a (future) real WhatsApp send
-    # expensive. Verify gets its own, looser IP limiter since the
-    # per-challenge attempt cap (OtpService.max_attempts) already bounds
-    # guessing against any single code.
-    send_phone_limiter = RateLimiter(limit=5, window_seconds=15 * 60)
+    # 5 sends per email / 15 per IP per 15 minutes -- generous for a real
+    # user who mistypes or re-requests a code, tight enough to make
+    # scripted abuse of real Resend send volume expensive. Verify gets
+    # its own, looser IP limiter since the per-challenge attempt cap
+    # (OtpService.max_attempts) already bounds guessing against any
+    # single code. Signup completion gets its own limiter too --
+    # account creation is its own abuse surface, independent of how many
+    # codes were sent/verified.
+    send_email_limiter = RateLimiter(limit=5, window_seconds=15 * 60)
     send_ip_limiter = RateLimiter(limit=15, window_seconds=15 * 60)
     verify_ip_limiter = RateLimiter(limit=30, window_seconds=15 * 60)
+    complete_ip_limiter = RateLimiter(limit=10, window_seconds=15 * 60)
 
-    logger.info("WhatsApp OTP endpoints enabled", extra={"provider": cfg.whatsapp_provider})
     return (
-        OtpSendHandler(
-            service=service, ip_limiter=send_ip_limiter, phone_limiter=send_phone_limiter, logger=logger
+        EmailOtpSendHandler(
+            service=service, ip_limiter=send_ip_limiter, email_limiter=send_email_limiter, logger=logger
         ),
-        OtpVerifyHandler(service=service, ip_limiter=verify_ip_limiter, logger=logger),
-        PasswordResetConfirmHandler(store=store, firebase=firebase, logger=logger),
+        EmailOtpVerifyHandler(service=service, ip_limiter=verify_ip_limiter, logger=logger),
+        SignupCompleteHandler(store=store, accounts=accounts, ip_limiter=complete_ip_limiter, logger=logger),
+        PasswordResetConfirmHandler(store=store, firebase=accounts, logger=logger),
     )
 
 
@@ -135,8 +149,17 @@ def create_configured_app():
         stream=sys.stdout,
     )
     auth_handler = build_auth_handler(cfg)
-    otp_send_handler, otp_verify_handler, password_reset_confirm_handler = build_otp_handlers(cfg)
-    return create_app(cfg, auth_handler, otp_send_handler, otp_verify_handler, password_reset_confirm_handler)
+    email_otp_send_handler, email_otp_verify_handler, signup_complete_handler, password_reset_confirm_handler = (
+        build_email_otp_handlers(cfg)
+    )
+    return create_app(
+        cfg,
+        auth_handler,
+        email_otp_send_handler,
+        email_otp_verify_handler,
+        signup_complete_handler,
+        password_reset_confirm_handler,
+    )
 
 
 # Module-level so `uvicorn app.main:app` (the production entrypoint, e.g.

@@ -36,21 +36,20 @@ class Config:
     resend_api_key: str = ""
     reset_email_from: str = ""  # e.g. "Darwesh Group <no-reply@darweshgroup.com>"
 
-    # --- WhatsApp OTP password recovery ---
+    # --- Email OTP: signup verification + password recovery ---
     # OTP_HMAC_SECRET plus FIREBASE_SERVICE_ACCOUNT_JSON (above) must both
-    # be set for the /api/v1/auth/otp/* and /api/v1/auth/password-reset/*
-    # routes to exist at all -- see app.main.build_otp_service. A missing
-    # secret must never fall back to hashing OTPs with an empty/default
-    # key, so this has no default.
+    # be set for the /api/v1/auth/email-otp/*, /api/v1/auth/signup/complete,
+    # and /api/v1/auth/password-reset/confirm routes to exist at all -- see
+    # app.main.build_email_otp_handlers. A missing secret must never fall
+    # back to hashing OTPs with an empty/default key, so this has no
+    # default. resend_api_key/reset_email_from (above -- already used by
+    # the legacy link-based forgot-password endpoint) double as the email-
+    # OTP sender's credentials too, since it's the same Resend account:
+    # when both are set, real Resend delivery is used; otherwise
+    # MockEmailSender is used in development, and the email-OTP routes
+    # simply don't register at all in production (mock email delivery
+    # must never run in production -- see build_email_otp_handlers).
     otp_hmac_secret: str = ""
-    # "mock" (default) uses MockWhatsAppSender -- delivers nothing, records
-    # what it would have sent for tests only. Real providers are added as
-    # they're built (see docs/WHATSAPP_OTP.md); until one is set here and
-    # actually configured, phone-based password recovery is not live in
-    # production even though every other part of the flow (rate limiting,
-    # hashing, expiry, single-use, Firebase UID resolution, session
-    # revocation) is real and fully wired.
-    whatsapp_provider: str = "mock"
 
     @property
     def is_production(self) -> bool:
@@ -77,5 +76,4 @@ def load() -> Config:
         resend_api_key=os.environ.get("RESEND_API_KEY", ""),
         reset_email_from=os.environ.get("RESET_EMAIL_FROM", ""),
         otp_hmac_secret=os.environ.get("OTP_HMAC_SECRET", ""),
-        whatsapp_provider=os.environ.get("WHATSAPP_PROVIDER", "mock"),
     )

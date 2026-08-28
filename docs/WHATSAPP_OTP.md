@@ -1,10 +1,23 @@
 # WhatsApp OTP — phone-based password recovery
 
-Status: **backend architecture implemented and tested, production
-delivery NOT enabled.** No real WhatsApp Business provider is wired up
-yet — every request currently runs against `MockWhatsAppSender`, which
-delivers nothing anywhere. Nothing in this document claims a real
-message was ever sent, because none has been.
+**Superseded.** The product requirement moved to email OTP for signup
+verification and password recovery — see `docs/EMAIL_OTP.md`. Nothing
+described below is wired into `app.main` anymore (`app/otp/handler.py`'s
+`OtpSendHandler`/`OtpVerifyHandler` and `app/otp/whatsapp.py` are no
+longer constructed or registered as routes), and no WhatsApp provider
+was ever activated, so nothing here has ever run in production. The
+code is left in place, still fully covered by `tests/test_otp.py`, as a
+reusable component if phone-channel OTP is revisited later — not
+deleted. `PasswordResetConfirmHandler` (`app/otp/handler.py`) is the one
+piece that carried forward unchanged: it was already channel-agnostic
+and is now the live confirm endpoint for the email-OTP flow instead.
+
+Status as of when this was live-in-code (kept for history): **backend
+architecture implemented and tested, production delivery NOT enabled.**
+No real WhatsApp Business provider was ever wired up — every request
+ran against `MockWhatsAppSender`, which delivers nothing anywhere.
+Nothing in this document claims a real message was ever sent, because
+none was.
 
 ## Why this exists
 

@@ -14,10 +14,16 @@ from typing import Protocol
 
 @dataclass
 class Challenge:
-    phone_e164: str
+    identifier: str  # normalized phone or email this challenge was sent to
     purpose: str
     otp_hash: str
-    uid: str  # Firebase UID this challenge is bound to, resolved once at send time
+    # Firebase UID this challenge is bound to, resolved once at send time --
+    # None for a purpose that doesn't require an existing account yet
+    # (SIGNUP_EMAIL_VERIFY: there's deliberately no account until AFTER
+    # verification succeeds). Purposes that DO require one (PASSWORD_RESET)
+    # always have this set by the time a Challenge exists at all -- see
+    # OtpService.send.
+    uid: str | None
     created_at: float
     expires_at: float
     max_attempts: int
@@ -27,8 +33,10 @@ class Challenge:
 
 @dataclass
 class ResetToken:
-    uid: str
-    phone_e164: str
+    # None for SIGNUP_EMAIL_VERIFY (no account exists yet); always set for
+    # PASSWORD_RESET (see Challenge.uid).
+    uid: str | None
+    identifier: str
     purpose: str
     created_at: float
     expires_at: float

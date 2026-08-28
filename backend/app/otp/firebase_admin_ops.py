@@ -1,11 +1,12 @@
 # The only component in the OTP package that talks to the Firebase
-# Admin SDK: resolving a verified phone number to the Firebase UID that
-# owns it, and -- once a reset has been authorized by OTP verification --
-# setting a new password on that exact UID and revoking its existing
-# sessions. Mirrors app.auth.firebase_reset.FirebaseResetLinkGenerator's
-# own uniquely-named-app pattern so the two can coexist in the same
-# process (and in the same pytest run) without colliding on Firebase
-# Admin SDK's single-app-per-name rule.
+# Admin SDK: resolving an email or phone number to the Firebase UID that
+# owns it, setting a new password and revoking sessions once a reset has
+# been authorized, and -- for signup -- creating the actual Firebase
+# Auth user plus their Firestore profile once email ownership has been
+# proven by OTP. Mirrors app.auth.firebase_reset.FirebaseResetLinkGenerator's
+# own uniquely-named-app pattern so the two (and this one) can coexist in
+# the same process (and in the same pytest run) without colliding on
+# Firebase Admin SDK's single-app-per-name rule.
 from __future__ import annotations
 
 import asyncio
@@ -15,36 +16,53 @@ from typing import Protocol
 import firebase_admin
 from firebase_admin import auth as fb_auth
 from firebase_admin import credentials
+from firebase_admin import firestore as fb_firestore
 
 
 class UidResolver(Protocol):
-    """Resolves a normalized phone number to the Firebase UID that has it
-    as a verified phone_number on their Auth record, or None if no
-    account does. Production implementation below calls
-    firebase_admin.auth.get_user_by_phone_number; tests use a fake."""
+    """Resolves an identifier (email or phone, depending on which
+    concrete resolver is used) to the Firebase UID that has it verified
+    on their Auth record, or None if no account does. EmailUidResolver
+    and PhoneUidResolver below are thin adapters over
+    FirebaseAccountOps's two lookup methods; tests use a fake that
+    implements this Protocol directly."""
 
-    async def resolve(self, phone_e164: str) -> str | None: ...
+    async def resolve(self, identifier: str) -> str | None: ...
 
 
 class PasswordResetExecutor(Protocol):
     """Performs the actual, authoritative password change and session
     revocation once OtpService has already verified the OTP and bound a
-    reset token to a specific uid. Never sees a plaintext OTP, and never
+    token to a specific uid. Never sees a plaintext OTP, and never
     receives anything from the browser directly -- only called by
-    app.otp.handler.PasswordResetHandler with a uid it already resolved
-    server-side."""
+    app.otp.handler.PasswordResetConfirmHandler with a uid it already
+    resolved server-side."""
 
     async def set_password_and_revoke_sessions(self, uid: str, new_password: str) -> None: ...
 
 
-class FirebasePhoneAuthManager:
-    """Real implementation of both UidResolver and PasswordResetExecutor,
-    backed by a real Firebase service account."""
+class AccountAlreadyExists(Exception):
+    """Raised by FirebaseAccountOps.create_account when the email or
+    phone number is already attached to a different Firebase user.
+    `field` is "email" or "phone" -- telling a signup applicant their
+    email/phone is already registered is normal, expected UX (unlike
+    revealing account existence during password reset, which stays
+    generic elsewhere in this package)."""
+
+    def __init__(self, field: str) -> None:
+        self.field = field
+        super().__init__(f"an account already exists with this {field}")
+
+
+class FirebaseAccountOps:
+    """Real implementation of UidResolver (via the two adapters below),
+    PasswordResetExecutor, and signup account creation -- backed by a
+    real Firebase service account."""
 
     def __init__(self, service_account_json: str) -> None:
         """Same fail-fast philosophy as FirebaseResetLinkGenerator: refuses
         to construct rather than silently becoming a no-op that can't
-        actually resolve phones or reset passwords."""
+        actually resolve accounts or reset passwords."""
         if not service_account_json:
             raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON is not set")
         try:
@@ -54,8 +72,20 @@ class FirebasePhoneAuthManager:
 
         cred = credentials.Certificate(parsed)
         self._app = firebase_admin.initialize_app(cred, name=f"darwesh-otp-{id(self)}")
+        self._db = fb_firestore.client(self._app)
 
-    async def resolve(self, phone_e164: str) -> str | None:
+    async def resolve_uid_by_email(self, email: str) -> str | None:
+        try:
+            user = await asyncio.to_thread(fb_auth.get_user_by_email, email, app=self._app)
+        except fb_auth.UserNotFoundError:
+            return None
+        return user.uid
+
+    async def resolve_uid_by_phone(self, phone_e164: str) -> str | None:
+        """Kept for the future Phone + Password login phase (not
+        implemented yet -- see docs/EMAIL_OTP.md). Not used by the
+        current email-OTP wiring, which resolves password-reset
+        challenges by email."""
         try:
             user = await asyncio.to_thread(fb_auth.get_user_by_phone_number, phone_e164, app=self._app)
         except fb_auth.UserNotFoundError:
@@ -73,3 +103,85 @@ class FirebasePhoneAuthManager:
         # client's next step is a fresh login, which mints a new,
         # legitimate session.
         await asyncio.to_thread(fb_auth.revoke_refresh_tokens, uid, app=self._app)
+
+    async def create_account(self, *, email: str, phone_e164: str, password: str, display_name: str) -> str:
+        """Creates the real Firebase Auth user for a just-verified signup.
+        email_verified=True is set here deliberately -- OTP verification
+        just proved ownership of this exact address, so this isn't a
+        guess or a default, it's a fact this call is allowed to assert.
+        Relies on the Admin SDK's own duplicate checks (atomic, no
+        separate lookup-then-create race) rather than pre-checking with
+        get_user_by_email/get_user_by_phone_number first."""
+        try:
+            user = await asyncio.to_thread(
+                fb_auth.create_user,
+                email=email,
+                email_verified=True,
+                phone_number=phone_e164,
+                password=password,
+                display_name=display_name,
+                app=self._app,
+            )
+        except fb_auth.EmailAlreadyExistsError as exc:
+            raise AccountAlreadyExists("email") from exc
+        except fb_auth.PhoneNumberAlreadyExistsError as exc:
+            raise AccountAlreadyExists("phone") from exc
+        return user.uid
+
+    async def create_user_profile(self, uid: str, *, display_name: str, email: str, phone_e164: str) -> None:
+        """Writes users/{uid} via the Admin SDK -- bypasses firestore.rules
+        entirely (as any Admin SDK write does), which is expected and
+        correct here: this IS the trusted, server-authoritative account-
+        creation path firestore.rules' client-facing `create` rule for
+        `users/{uid}` (isOwner(uid) && role == 'customer') exists
+        alongside, not in place of."""
+
+        def _write() -> None:
+            self._db.collection("users").document(uid).set(
+                {
+                    "displayName": display_name,
+                    "email": email,
+                    "phone": phone_e164,
+                    "role": "customer",
+                    "phoneVerified": True,
+                    "phoneVerifiedAt": fb_firestore.SERVER_TIMESTAMP,
+                    "emailVerified": True,
+                    "createdAt": fb_firestore.SERVER_TIMESTAMP,
+                }
+            )
+
+        await asyncio.to_thread(_write)
+
+    async def mint_custom_token(self, uid: str) -> str:
+        """A short-lived Firebase custom token the client exchanges via
+        signInWithCustomToken() to establish its session right after
+        signup -- create_user() above does not itself sign anyone in
+        (unlike the client SDK's createUserWithEmailAndPassword), so this
+        is what gives the newly created account a real, working session
+        without the browser ever touching a password-verification call
+        itself."""
+        token_bytes = await asyncio.to_thread(fb_auth.create_custom_token, uid, app=self._app)
+        return token_bytes.decode("utf-8")
+
+
+class EmailUidResolver:
+    """Adapts FirebaseAccountOps.resolve_uid_by_email to the generic
+    UidResolver Protocol OtpService depends on."""
+
+    def __init__(self, ops: FirebaseAccountOps) -> None:
+        self._ops = ops
+
+    async def resolve(self, identifier: str) -> str | None:
+        return await self._ops.resolve_uid_by_email(identifier)
+
+
+class PhoneUidResolver:
+    """Adapts FirebaseAccountOps.resolve_uid_by_phone to the generic
+    UidResolver Protocol. Not wired up by app.main today -- kept for the
+    future Phone + Password login phase."""
+
+    def __init__(self, ops: FirebaseAccountOps) -> None:
+        self._ops = ops
+
+    async def resolve(self, identifier: str) -> str | None:
+        return await self._ops.resolve_uid_by_phone(identifier)

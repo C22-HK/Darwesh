@@ -20,19 +20,21 @@ request_logger = logging.getLogger("darwesh.request")
 def create_app(
     cfg: Config,
     auth_handler: object | None = None,
-    otp_send_handler: object | None = None,
-    otp_verify_handler: object | None = None,
+    email_otp_send_handler: object | None = None,
+    email_otp_verify_handler: object | None = None,
+    signup_complete_handler: object | None = None,
     password_reset_confirm_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
     one is None, its route simply isn't registered -- a 404 for a route
     that isn't configured, rather than a route that exists but silently
-    can't do its job. auth_handler backs the legacy email-based
-    /api/v1/auth/forgot-password; the otp_*/password_reset_confirm
-    handlers back the newer WhatsApp-OTP phone recovery flow -- both can
-    be registered at once (the email flow stays available for legacy
-    accounts) or independently."""
+    can't do its job. auth_handler backs the legacy link-based
+    /api/v1/auth/forgot-password; the email_otp_*/signup_complete/
+    password_reset_confirm handlers back the email-OTP signup and
+    password-recovery flow -- both can be registered at once (the legacy
+    link-based flow stays available as a fallback for any account) or
+    independently."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -62,10 +64,12 @@ def create_app(
             auth_handler.forgot_password,
             methods=["POST"],
         )
-    if otp_send_handler is not None:
-        app.add_api_route("/api/v1/auth/otp/send", otp_send_handler.send, methods=["POST"])
-    if otp_verify_handler is not None:
-        app.add_api_route("/api/v1/auth/otp/verify", otp_verify_handler.verify, methods=["POST"])
+    if email_otp_send_handler is not None:
+        app.add_api_route("/api/v1/auth/email-otp/send", email_otp_send_handler.send, methods=["POST"])
+    if email_otp_verify_handler is not None:
+        app.add_api_route("/api/v1/auth/email-otp/verify", email_otp_verify_handler.verify, methods=["POST"])
+    if signup_complete_handler is not None:
+        app.add_api_route("/api/v1/auth/signup/complete", signup_complete_handler.complete, methods=["POST"])
     if password_reset_confirm_handler is not None:
         app.add_api_route(
             "/api/v1/auth/password-reset/confirm",

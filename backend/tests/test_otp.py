@@ -30,10 +30,10 @@ class FakeSender:
         self.sent: list[tuple[str, str]] = []
         self.fail = fail
 
-    async def send_otp_message(self, phone_e164: str, code: str) -> None:
+    async def send_otp(self, identifier: str, code: str, purpose) -> None:
         if self.fail:
             raise RuntimeError("provider down")
-        self.sent.append((phone_e164, code))
+        self.sent.append((identifier, code))
 
 
 class FakeUidResolver:
@@ -286,7 +286,7 @@ async def test_verify_exceeding_max_attempts_locks_out_even_the_correct_code():
 async def test_purpose_binding_a_challenge_for_one_purpose_cannot_verify_under_another():
     sender = FakeSender()
     service, _ = make_service(sender=sender, uids=FakeUidResolver({PHONE_A: "uid-a"}))
-    await service.send(PHONE_A, Purpose.SIGNUP)
+    await service.send(PHONE_A, Purpose.SIGNUP_EMAIL_VERIFY)
     signup_code = _sent_code(sender, PHONE_A)
 
     result, token = service.verify(PHONE_A, Purpose.PASSWORD_RESET, signup_code)

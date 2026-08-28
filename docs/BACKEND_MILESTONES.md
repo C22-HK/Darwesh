@@ -107,35 +107,55 @@ format Firebase produced in production (see
 account with a verified sending domain, then set the four env vars above
 on wherever this ends up deployed (milestone 2).
 
-## Milestone 4 — WhatsApp OTP password recovery ✅ code done, not deployed, no real provider
+## Milestone 4 — WhatsApp OTP password recovery ⚠️ superseded by milestone 4b
 
-`POST /api/v1/auth/otp/send`, `POST /api/v1/auth/otp/verify`,
-`POST /api/v1/auth/password-reset/confirm` — a WhatsApp-delivered
-one-time-code flow letting a phone-verified account reset its password
-without an email. Full architecture, security controls, and what's still
-needed before real WhatsApp delivery works: `docs/WHATSAPP_OTP.md`.
+Code built and fully tested (18 tests at the time), never deployed, no
+real WhatsApp provider ever activated. The product requirement moved to
+email OTP before this went live — see milestone 4b and
+`docs/WHATSAPP_OTP.md` (now marked superseded there). The code
+(`app/otp/handler.py`'s `OtpSendHandler`/`OtpVerifyHandler`,
+`app/otp/whatsapp.py`) is preserved, not deleted, and still covered by
+`backend/tests/test_otp.py`, but is no longer wired into `app.main`.
+
+## Milestone 4b — Email OTP: signup verification + password recovery ✅ code done, not deployed, no real provider
+
+`POST /api/v1/auth/email-otp/send`, `POST /api/v1/auth/email-otp/verify`,
+`POST /api/v1/auth/signup/complete`, `POST /api/v1/auth/password-reset/confirm`
+— a 6-digit email code for both new-account verification and password
+recovery, replacing milestone 4's WhatsApp design as the current product
+requirement. Full architecture, security controls, and what's still
+needed before real delivery works: `docs/EMAIL_OTP.md`.
 
 Only registers when `FIREBASE_SERVICE_ACCOUNT_JSON` and `OTP_HMAC_SECRET`
 are both set — same "route doesn't exist if unconfigured" rule as
-milestone 3. Runs against `MockWhatsAppSender` (delivers nothing) until a
-real provider is chosen and implemented; logs a startup warning if
-`APP_ENV=production` while still on mock, so this can never look live by
-accident.
+milestone 3. Unlike milestone 4's warn-and-continue approach, this is a
+**hard gate**: in a production environment, missing `RESEND_API_KEY`/
+`RESET_EMAIL_FROM` means the routes are NOT registered at all — mock
+email delivery cannot run in production, structurally, not just by
+convention.
 
 **Verified for real:** the full OTP lifecycle (generation, HMAC hashing,
-expiry, single use, attempt cap, resend cooldown, per-phone/per-IP rate
-limits, purpose binding, reset-token issuance/consumption, Firebase UID
-resolution, password update, session revocation) is exercised by
-`backend/tests/test_otp.py` against fakes for the WhatsApp send and the
-Firebase Admin SDK calls — including wrong/expired/reused OTP, exceeding
-max attempts, and a direct test that verifying phone A's code can never
-produce a reset for phone B's UID.
+~10-minute expiry, single use, attempt cap, resend cooldown, per-email/
+per-IP rate limits, purpose binding between `SIGNUP_EMAIL_VERIFY` and
+`PASSWORD_RESET`, verify/reset-token issuance and consumption, Firebase
+UID resolution by email, account creation with duplicate-email/phone
+rejection, custom-token minting, password update, session revocation)
+is exercised by `backend/tests/test_email_otp.py` and
+`backend/tests/test_email_templates.py` against fakes for the Resend
+send and the Firebase Admin SDK calls — including wrong/expired/reused/
+too-many-attempts OTP, a signup code that can't authorize a password
+reset and vice versa, user A's verification never producing a token
+usable on user B's account, and the production mock-delivery gate
+itself (confirmed via 4 real server-startup scenarios: unconfigured,
+configured/dev-with-mock, configured/production-without-Resend-creds
+[routes absent], configured/production-with-Resend-creds [routes live]).
 
-**Not tested against a real WhatsApp provider or a real Firebase project**
-— no provider account or extra service-account credentials exist for
-this yet. **Not wired into any frontend page** — this milestone is
-backend-only; `login.html`/`reset-password.html`/a phone-based signup UI
-are separate, later work once the backend design is confirmed.
+**Not tested against a real Resend account or a real Firebase project**
+— no API key or valid service-account credentials exist for this yet.
+**Not wired into any frontend page** — this milestone is backend-only;
+`signup.html`/a rebuilt `reset-password.html` with a 6-digit code UI are
+separate, later work now that the backend's exact request/response
+shapes are settled and tested.
 
 ## Milestone 5+ — everything else, only as justified
 
