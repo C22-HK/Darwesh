@@ -70,8 +70,15 @@ export function verifyEmailOtp(email, purpose, code) {
   return postJson('/api/v1/auth/email-otp/verify', { email, purpose, code });
 }
 
-export function completeSignup({ verifyToken, fullName, phoneNumber, password }) {
-  return postJson('/api/v1/auth/signup/complete', { verifyToken, fullName, phoneNumber, password });
+export function completeSignup({ verifyToken, fullName, phoneNumber, password, requestedRole, companyName }) {
+  return postJson('/api/v1/auth/signup/complete', {
+    verifyToken,
+    fullName,
+    phoneNumber,
+    password,
+    requestedRole,
+    companyName
+  });
 }
 
 export function confirmPasswordReset({ resetToken, newPassword }) {

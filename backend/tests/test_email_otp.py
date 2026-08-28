@@ -79,6 +79,7 @@ class FakeAccountOps:
         self.existing_phones = existing_phones or set()
         self.created: list[dict] = []
         self.profiles_written: list[dict] = []
+        self.companies_ensured: list[tuple[str, str]] = []
         self._next_uid = 1
         self.mint_calls: list[str] = []
         self.fail_profile_write = False
@@ -104,12 +105,31 @@ class FakeAccountOps:
         )
         return uid
 
-    async def create_user_profile(self, uid: str, *, display_name: str, email: str, phone_e164: str) -> None:
+    async def create_user_profile(
+        self,
+        uid: str,
+        *,
+        display_name: str,
+        email: str,
+        phone_e164: str,
+        requested_role: str = "customer",
+        company_id: str | None = None,
+    ) -> None:
         if self.fail_profile_write:
             raise RuntimeError("firestore down")
         self.profiles_written.append(
-            {"uid": uid, "display_name": display_name, "email": email, "phone_e164": phone_e164}
+            {
+                "uid": uid,
+                "display_name": display_name,
+                "email": email,
+                "phone_e164": phone_e164,
+                "requested_role": requested_role,
+                "company_id": company_id,
+            }
         )
+
+    async def ensure_company(self, company_id: str, company_name: str) -> None:
+        self.companies_ensured.append((company_id, company_name))
 
     async def mint_custom_token(self, uid: str) -> str:
         self.mint_calls.append(uid)
@@ -529,6 +549,106 @@ def test_signup_complete_creates_account_and_returns_custom_token():
     assert ops.created[0]["email"] == EMAIL_A
     assert ops.created[0]["phone_e164"] == PHONE_A  # normalized
     assert ops.profiles_written[0]["email"] == EMAIL_A
+    # requestedRole/companyName omitted entirely -> defaults to a plain
+    # customer signup, no company touched.
+    assert ops.profiles_written[0]["requested_role"] == "customer"
+    assert ops.profiles_written[0]["company_id"] is None
+    assert ops.companies_ensured == []
+
+
+def test_signup_complete_as_agent_records_requested_role_and_creates_company():
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "requestedRole": "agent",
+            "companyName": "Darwesh Group",
+        },
+    )
+
+    assert resp.status_code == 200
+    # role is ALWAYS "customer" at creation -- requestedRole is only ever
+    # a recorded signal an admin reviews, never a real grant (matches
+    # firestore.rules: a client can never self-promote to agent/admin).
+    assert ops.profiles_written[0]["requested_role"] == "agent"
+    assert ops.profiles_written[0]["company_id"] == "darwesh-group"
+    assert ops.companies_ensured == [("darwesh-group", "Darwesh Group")]
+
+
+def test_signup_complete_as_agent_without_company_name_rejected():
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "requestedRole": "agent",
+            "companyName": "",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert ops.created == []  # never even reaches account creation
+
+
+def test_signup_complete_rejects_invalid_requested_role():
+    # A client asking for "admin" (or anything other than the two real
+    # options) is rejected outright, never silently downgraded to
+    # "customer" -- a typo or a probing request should fail loudly, not
+    # quietly succeed with different data than what was asked for.
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "requestedRole": "admin",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert ops.created == []
 
 
 def test_signup_complete_email_is_bound_to_the_verified_token_not_client_supplied():

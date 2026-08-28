@@ -128,13 +128,29 @@ class FirebaseAccountOps:
             raise AccountAlreadyExists("phone") from exc
         return user.uid
 
-    async def create_user_profile(self, uid: str, *, display_name: str, email: str, phone_e164: str) -> None:
+    async def create_user_profile(
+        self,
+        uid: str,
+        *,
+        display_name: str,
+        email: str,
+        phone_e164: str,
+        requested_role: str = "customer",
+        company_id: str | None = None,
+    ) -> None:
         """Writes users/{uid} via the Admin SDK -- bypasses firestore.rules
         entirely (as any Admin SDK write does), which is expected and
         correct here: this IS the trusted, server-authoritative account-
         creation path firestore.rules' client-facing `create` rule for
         `users/{uid}` (isOwner(uid) && role == 'customer') exists
-        alongside, not in place of."""
+        alongside, not in place of.
+
+        `role` is always "customer" here regardless of requested_role --
+        the same rule the old client-side signup flow relied on
+        (firestore.rules: a user can never self-grant 'agent'/'admin').
+        `requestedRole` is only ever a recorded signal an admin reviews
+        in the Users & Roles tab before manually promoting the account;
+        it is never trusted as an actual privilege grant."""
 
         def _write() -> None:
             self._db.collection("users").document(uid).set(
@@ -143,12 +159,31 @@ class FirebaseAccountOps:
                     "email": email,
                     "phone": phone_e164,
                     "role": "customer",
+                    "requestedRole": requested_role,
+                    "companyId": company_id,
                     "phoneVerified": True,
                     "phoneVerifiedAt": fb_firestore.SERVER_TIMESTAMP,
                     "emailVerified": True,
                     "createdAt": fb_firestore.SERVER_TIMESTAMP,
                 }
             )
+
+        await asyncio.to_thread(_write)
+
+    async def ensure_company(self, company_id: str, company_name: str) -> None:
+        """Creates companies/{company_id} the first time this name is
+        used at signup; a later signup with the same (slugified) name
+        just joins the existing one. Mirrors the create-if-not-exists
+        semantics firestore.rules already grants a signed-in client
+        (`allow create: if isSignedIn() && !exists(...)`) -- performed
+        here via the Admin SDK instead, since the applicant isn't signed
+        in yet at signup time (no Firebase user exists until
+        create_account succeeds)."""
+
+        def _write() -> None:
+            ref = self._db.collection("companies").document(company_id)
+            if not ref.get().exists:
+                ref.set({"name": company_name, "createdAt": fb_firestore.SERVER_TIMESTAMP})
 
         await asyncio.to_thread(_write)
 

@@ -5,12 +5,14 @@
 #
 #   POST /api/v1/auth/email-otp/send       {email, purpose}
 #   POST /api/v1/auth/email-otp/verify     {email, purpose, code}  -> {verifyToken | resetToken}
-#   POST /api/v1/auth/signup/complete      {verifyToken, fullName, phoneNumber, password}
+#   POST /api/v1/auth/signup/complete      {verifyToken, fullName, phoneNumber, password,
+#                                            requestedRole?, companyName?}
 #   POST /api/v1/auth/password-reset/confirm  {resetToken, newPassword}   (app.otp.handler)
 from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 
@@ -28,6 +30,21 @@ GENERIC_SEND_MESSAGE = "If this email is registered, a verification code has bee
 _MIN_PASSWORD_LENGTH = 8
 _MIN_NAME_LENGTH = 2
 _ACCEPTED_PURPOSES = {"SIGNUP_EMAIL_VERIFY": Purpose.SIGNUP_EMAIL_VERIFY, "PASSWORD_RESET": Purpose.PASSWORD_RESET}
+# The only two values a signup applicant may request -- never trusted as
+# an actual role grant (see FirebaseAccountOps.create_user_profile),
+# just a recorded signal an admin reviews before manually promoting the
+# account. Any other value is rejected outright rather than silently
+# coerced to "customer", so a client typo or a probing request never
+# passes quietly.
+_VALID_REQUESTED_ROLES = {"customer", "agent"}
+
+
+def _slugify_company(name: str) -> str:
+    """Turns a typed company name into a stable document id -- "Darwesh
+    Group" -> "darwesh-group" -- so two signups with the same name land
+    on the same companies/{id} doc without a manual Firestore edit."""
+    slug = re.sub(r"[^a-z0-9]+", "-", name.strip().lower()).strip("-")
+    return slug or "company"
 
 
 async def _parse_json_body(request: Request) -> dict | None:
@@ -166,6 +183,8 @@ class SignupCompleteHandler:
         full_name = body.get("fullName", "")
         password = body.get("password", "")
         phone_raw = body.get("phoneNumber", "")
+        requested_role = body.get("requestedRole", "customer")
+        company_name = body.get("companyName", "")
 
         if not isinstance(token, str) or not token:
             return JSONResponse({"error": "Missing or invalid verification token."}, status_code=400)
@@ -179,6 +198,15 @@ class SignupCompleteHandler:
             phone_e164 = normalize_iraqi_phone(str(phone_raw))
         except InvalidPhoneNumber:
             return JSONResponse({"error": "That phone number doesn't look right."}, status_code=400)
+        if not isinstance(requested_role, str) or requested_role not in _VALID_REQUESTED_ROLES:
+            return JSONResponse({"error": "Invalid requested role."}, status_code=400)
+        company_id = None
+        if requested_role == "agent":
+            if not isinstance(company_name, str) or not company_name.strip():
+                return JSONResponse(
+                    {"error": "Please provide the company or agency you work for."}, status_code=400
+                )
+            company_id = _slugify_company(company_name)
 
         entry = self.store.get_reset_token(token)
         expired_msg = "This verification code has expired or already been used. Please start over."
@@ -215,8 +243,15 @@ class SignupCompleteHandler:
             )
 
         try:
+            if company_id:
+                await self.accounts.ensure_company(company_id, company_name.strip())
             await self.accounts.create_user_profile(
-                uid, display_name=full_name.strip(), email=email, phone_e164=phone_e164
+                uid,
+                display_name=full_name.strip(),
+                email=email,
+                phone_e164=phone_e164,
+                requested_role=requested_role,
+                company_id=company_id,
             )
         except Exception as exc:
             # The Auth account already exists at this point -- failing

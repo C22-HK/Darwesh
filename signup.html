@@ -97,6 +97,15 @@
       </div>
 
       <div class="auth-card">
+        <div class="mb-5">
+          <label class="auth-label" data-i18n="auth.signingUpAs">I'm signing up as</label>
+          <div class="inline-flex items-center bg-surface-container rounded-full p-1 w-full">
+            <button id="roleCustomerBtn" type="button" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps bg-primary text-on-primary transition-all" data-i18n="auth.roleCustomer">Customer</button>
+            <button id="roleAgentBtn" type="button" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface-variant transition-all" data-i18n="auth.roleAgent">Real Estate Agent</button>
+          </div>
+          <p id="agentRoleNote" class="hidden font-body-md text-[11.5px] text-on-surface-variant mt-2" data-i18n="auth.agentRoleNote">Agent accounts are reviewed before full agent access is granted — we'll set you up once your company confirms you.</p>
+        </div>
+
         <form id="signupForm" class="space-y-4" autocomplete="on">
           <div>
             <label class="auth-label" for="fFullName" data-i18n="auth.fullName">Full Name</label>
@@ -139,6 +148,14 @@
                 <span class="material-symbols-outlined" id="toggleFConfirmPasswordIcon" style="font-size:19px;">visibility</span>
               </button>
             </div>
+          </div>
+          <div id="companyFieldWrap" class="hidden">
+            <label class="auth-label" for="fCompany" data-i18n="auth.company">Company / Agency</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">business_center</span>
+              <input id="fCompany" class="auth-input" type="text" value="Darwesh Group"/>
+            </div>
+            <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.companyHelp">Most people leave this as Darwesh Group. If you work for a different agency using this platform, enter its name instead.</p>
           </div>
           <p id="authError" class="hidden text-error text-[13px]" role="alert"></p>
           <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
@@ -253,6 +270,38 @@
   wirePasswordToggle('fPassword', 'toggleFPassword', 'toggleFPasswordIcon');
   wirePasswordToggle('fConfirmPassword', 'toggleFConfirmPassword', 'toggleFConfirmPasswordIcon');
 
+  // ---------------------------------------------------------------------
+  // Customer / Agent toggle. Picking "Agent" here does NOT grant agent
+  // access by itself -- the backend always creates the account with
+  // role: 'customer' (see FirebaseAccountOps.create_user_profile); an
+  // admin still promotes an account to agent manually in the Users &
+  // Roles tab. This toggle only records the stated intent
+  // (requestedRole) and reveals the Company/Agency field, so an admin
+  // can see who's asking.
+  // ---------------------------------------------------------------------
+  let signupRole = 'customer';
+  const roleCustomerBtn = document.getElementById('roleCustomerBtn');
+  const roleAgentBtn = document.getElementById('roleAgentBtn');
+  const companyFieldWrap = document.getElementById('companyFieldWrap');
+  const agentRoleNote = document.getElementById('agentRoleNote');
+  const fCompany = document.getElementById('fCompany');
+
+  function setSignupRole(role) {
+    signupRole = role;
+    const isAgent = role === 'agent';
+    roleAgentBtn.classList.toggle('bg-primary', isAgent);
+    roleAgentBtn.classList.toggle('text-on-primary', isAgent);
+    roleAgentBtn.classList.toggle('text-on-surface-variant', !isAgent);
+    roleCustomerBtn.classList.toggle('bg-primary', !isAgent);
+    roleCustomerBtn.classList.toggle('text-on-primary', !isAgent);
+    roleCustomerBtn.classList.toggle('text-on-surface-variant', isAgent);
+    companyFieldWrap.classList.toggle('hidden', !isAgent);
+    agentRoleNote.classList.toggle('hidden', !isAgent);
+    fCompany.required = isAgent;
+  }
+  roleCustomerBtn.addEventListener('click', () => setSignupRole('customer'));
+  roleAgentBtn.addEventListener('click', () => setSignupRole('agent'));
+
   // Backend error messages are already written to be safe to show a
   // user (see backend/app/otp/email_handler.py) -- shown verbatim.
   // Only the two error TYPES this module defines (unavailable vs. a
@@ -293,12 +342,18 @@
       showError(tr('auth.errPasswordRequirements', 'Password is too weak — please meet all the requirements shown above.'));
       return;
     }
+    const wantsAgent = signupRole === 'agent';
+    const companyName = wantsAgent ? fCompany.value.trim() : '';
+    if (wantsAgent && !companyName) {
+      showError(tr('auth.errCompanyRequired', 'Enter the company or agency you work for.'));
+      return;
+    }
 
     submitting = true;
     setSubmitLoading(true);
     try {
       await sendEmailOtp(email, 'SIGNUP_EMAIL_VERIFY');
-      pendingSignup = { fullName, phoneNumber, email, password };
+      pendingSignup = { fullName, phoneNumber, email, password, requestedRole: signupRole, companyName };
       enterOtpStep();
     } catch (err) {
       console.error('[signup] otp send failed', err.name, err.status || '');
@@ -431,7 +486,9 @@
         verifyToken,
         fullName: pendingSignup.fullName,
         phoneNumber: pendingSignup.phoneNumber,
-        password: pendingSignup.password
+        password: pendingSignup.password,
+        requestedRole: pendingSignup.requestedRole,
+        companyName: pendingSignup.companyName
       });
 
       if (result.customToken) {
