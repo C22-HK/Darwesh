@@ -29,30 +29,97 @@ App Check is a second layer on top of Firebase Auth + Security Rules,
 never a replacement for them, and losing it must degrade to "unverified"
 for that session, not "site is down."
 
-## NOT covered by this change
+## Secondary Firebase app (Add Agent) now also uses App Check — closed
 
 `admin.html`'s "Add Agent" flow creates a **second, temporary Firebase
 app instance** (`initializeApp(firebaseConfig, 'agent-create-' + ...)`) so
 creating a new agent account doesn't sign the admin out of their own
-session. App Check is bound per-app-instance, so this secondary app does
-**not** inherit App Check from the primary one. It calls
-`createUserWithEmailAndPassword` (Auth) and `setDoc` (Firestore) on that
-secondary instance. **If Authentication or Firestore enforcement is ever
-turned on, the Add Agent flow will need this addressed first** — it was
-deliberately left untouched this pass rather than modifying an already
-delicate flow (an admin creating a user without losing their own
-session) while enforcement isn't even on yet. Small, scoped, and worth
-testing on its own when that day comes.
+session — `createUserWithEmailAndPassword` signs in as whatever `auth`
+instance it's called on, so doing that on the admin's own session would
+kick them out of it. App Check is bound per-app-instance, so this
+secondary app never inherited App Check from the primary one — its
+`createUserWithEmailAndPassword` (Auth) and `setDoc` (Firestore) calls
+were completely unprotected, previously flagged here as a gap to close
+before Authentication/Firestore enforcement.
 
-Note on the race-condition fix below: since `setDoc` (like every other
-Firestore network call) is now a gated wrapper from `firebase-init.js`,
-the secondary app's `setDoc` call also waits on the *primary* app's App
-Check token before proceeding. That wait is harmless (it's typically
-already resolved by the time an admin fills out the Add Agent form) but
-doesn't actually help the secondary app's own App Check status either
-way — it has no token attached regardless, gated or not. Worth knowing,
-not worth engineering around before enforcement is even being considered
-for that flow.
+**Fix**: `js/firebase-init.js` now exports `waitForAppCheckToken()` and
+`RECAPTCHA_ENTERPRISE_SITE_KEY` — the exact wait/timeout/logging logic
+the primary app's own gate is built from, generalized to accept any
+FirebaseApp instance, not duplicated a second time. `admin.html` calls
+`initializeAppCheck(secondaryApp, { provider: new
+ReCaptchaEnterpriseProvider(RECAPTCHA_ENTERPRISE_SITE_KEY),
+isTokenAutoRefreshEnabled: false })` on the secondary app right after
+creating it (same site key, no new key or project), then `await`s
+`waitForAppCheckToken(secondaryAppCheck, 'admin:add-agent')` before
+*both* `createUserWithEmailAndPassword` and the secondary `setDoc` —
+unlike the primary app's calls (which happen well after page load, so
+its token is typically already cached by the time anyone clicks
+anything), this app instance is created fresh at the moment of
+submission and has no such head start, so its very first request would
+race the same way Firestore's did sitewide before the earlier fix.
+`isTokenAutoRefreshEnabled: false` (vs. `true` on the primary app): this
+instance lives for one request cycle and is deleted moments later, so a
+background refresh timer would just be torn down unused.
+
+**Also added — rollback on partial failure.** The original code already
+cleaned up the secondary *app instance* on any error
+(`deleteApp(secondaryApp)`), but if the Auth account had already been
+created before a *later* step failed (the company/role Firestore writes
+on the primary app), nothing rolled back the just-created Auth account
+or its `users/{uid}` doc — a real orphaned account, silently left
+behind. The catch block now tracks whether the Auth account
+(`cred`) and the Firestore profile doc (`secondaryUserDocCreated`) were
+actually created, and on failure: deletes the `users/{uid}` doc via the
+**admin's own session** (`db`, not `secondaryDb` — Firestore rules only
+grant delete on that collection to `isAdmin()`, not to the document's
+own newly-created, `role:'customer'` owner), then deletes the Auth
+account itself (`deleteUser(cred.user)`, which needs no special role
+since it's operating directly on the Auth user object the code already
+holds a reference to). Every rollback step is wrapped so a rollback
+*itself* failing (e.g. the delete also errors) is logged clearly rather
+than throwing past the user-facing error message.
+
+**Verified with Playwright** against a mock that tracks calls per
+FirebaseApp instance (by name), covering:
+- **Success**: `initializeAppCheck` fires on the *secondary* instance
+  specifically (confirmed by app name, not inferred), same site key,
+  `isTokenAutoRefreshEnabled: false`. Both `createUserWithEmailAndPassword`
+  and the secondary `setDoc` landed strictly after the secondary app's
+  own token resolved. The role-promotion `updateDoc` correctly went
+  through the *primary* `db`. `signOut` + `deleteApp` fired on the
+  secondary app. Exactly one new user ended up in the data, at
+  `role: 'agent'` — no duplicates.
+- **Failure 1 — secondary App Check token acquisition fails**: caught
+  and logged (`[admin:add-agent] App Check getToken() failed...`), the
+  operation still completes normally — correct, not a bug: enforcement
+  is off, so a missing token was never meant to block the feature, only
+  to show up as unverified in Console metrics, same design as the
+  primary gate.
+- **Failure 2 — Auth account creation itself fails**: friendly error
+  shown, `deleteUser`/Firestore write never attempted (nothing was ever
+  created), secondary app still deleted.
+- **Failure 3 — Firestore write fails after the Auth account already
+  exists**: the real test of the rollback. Confirmed `deleteUser` was
+  called and succeeded, no `users/{uid}` doc was left behind, and the
+  final data set carried zero orphaned entries.
+- **Across all four runs** (success + 3 failure modes): zero `signOut`
+  calls ever targeted the *primary* `[DEFAULT]` app, and the admin
+  dashboard stayed active and rendered throughout — the admin's own
+  session was never touched, in success or in any failure mode.
+
+**Repository-wide re-scan** (`grep -rn "initializeApp(" *.html js/*.js`):
+exactly two `initializeApp()` calls exist anywhere in this codebase —
+the primary one in `js/firebase-init.js` and this secondary one in
+`admin.html`. Both are now App-Check-protected. No other FirebaseApp
+instance exists anywhere, including `backend/` (Admin SDK, server-side,
+not a client-SDK/App-Check concern either way).
+
+The primary app's 5-second circuit-breaker (`APP_CHECK_TOKEN_TIMEOUT_MS`
+in `js/firebase-init.js`) was **not modified** as part of this fix — it
+was refactored (extracted into the reusable `waitForAppCheckToken()`
+so the secondary app's gate could reuse the identical logic instead of
+a second hand-rolled copy) but its value and behavior for the primary
+app are unchanged. No bug was found in it.
 
 ## Race condition fix — first Firestore read on every page now waits for a real token
 

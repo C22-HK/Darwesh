@@ -966,9 +966,10 @@
 </div>
 
 <script type="module">
-import { auth, db, storage, firebaseConfig, getDoc, setDoc, updateDoc, addDoc, deleteDoc, getDocs } from './js/firebase-init.js';
+import { auth, db, storage, firebaseConfig, getDoc, setDoc, updateDoc, addDoc, deleteDoc, getDocs, waitForAppCheckToken, RECAPTCHA_ENTERPRISE_SITE_KEY } from './js/firebase-init.js';
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth, deleteUser } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
   doc, collection, serverTimestamp, getFirestore
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
@@ -3089,8 +3090,40 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
   const secondaryAuth = getAuth(secondaryApp);
   const secondaryDb = getFirestore(secondaryApp);
 
+  // App Check is bound per-FirebaseApp instance -- the primary app's App
+  // Check (js/firebase-init.js) does NOT cover this secondary, throwaway
+  // app's own Auth/Firestore requests. Same reCAPTCHA Enterprise site
+  // key, a fresh provider scoped to secondaryApp specifically.
+  // isTokenAutoRefreshEnabled is false here (unlike the primary app's
+  // true): this instance lives for one request cycle and is deleted
+  // moments later, so a background refresh timer would just be torn
+  // down unused.
+  let secondaryAppCheck = null;
   try {
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    secondaryAppCheck = initializeAppCheck(secondaryApp, {
+      provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_ENTERPRISE_SITE_KEY),
+      isTokenAutoRefreshEnabled: false
+    });
+  } catch (err) {
+    console.error('[admin] secondary App Check failed to initialize -- continuing without it', err.code || err.name, err.message);
+  }
+  // Reuses the exact same wait/timeout/logging logic the primary app's
+  // own appCheckReady is built from (js/firebase-init.js) -- not a
+  // second, hand-rolled copy of it.
+  const secondaryAppCheckReady = waitForAppCheckToken(secondaryAppCheck, 'admin:add-agent');
+
+  let cred = null;
+  let secondaryUserDocCreated = false;
+  try {
+    // Gates BOTH the Auth signup and the Firestore write below on the
+    // SECONDARY app's own token -- unlike the primary app's calls (which
+    // happen well after page load, giving its token plenty of time to
+    // already be cached), this app instance is created fresh right here
+    // and has no such head start, so its very first request would race
+    // the same way Firestore's did before the fix in js/firebase-init.js.
+    await secondaryAppCheckReady;
+
+    cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
     await updateProfile(cred.user, { displayName });
 
     const companyRef = doc(db, 'companies', companyId);
@@ -3110,6 +3143,7 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
       email, displayName, firstName, lastName, phone,
       role: 'customer', companyId, createdAt: serverTimestamp()
     });
+    secondaryUserDocCreated = true;
     await updateDoc(doc(db, 'users', cred.user.uid), { role: 'agent', companyId });
 
     await signOut(secondaryAuth);
@@ -3123,6 +3157,29 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     networkExpanded.add(companyId);
     renderNetworkTab(); renderAgentsTab(); renderBranchesTab(); renderUsers(); renderLeaderboardTab();
   } catch (err) {
+    // Best-effort rollback -- never leave a half-created agent behind. A
+    // real Firebase Auth account with no matching Firestore profile (or
+    // one stuck at role:'customer', never promoted) is exactly the kind
+    // of silent partial state that's easy to miss and confusing to find
+    // and clean up by hand later.
+    if (cred) {
+      if (secondaryUserDocCreated) {
+        try {
+          // Deleted via the ADMIN session (db), not secondaryDb -- rules
+          // only grant delete on users/{uid} to isAdmin(); the
+          // newly-created account itself (role:'customer') has no
+          // delete right on its own doc.
+          await deleteDoc(doc(db, 'users', cred.user.uid));
+        } catch (cleanupErr) {
+          console.error('[admin] rollback: could not delete partially-created users/ doc -- may need manual cleanup', cred.user.uid, cleanupErr.code || cleanupErr.name, cleanupErr.message);
+        }
+      }
+      try {
+        await deleteUser(cred.user);
+      } catch (cleanupErr) {
+        console.error('[admin] rollback: could not delete partially-created Auth account -- may need manual cleanup in Firebase Console', email, cleanupErr.code || cleanupErr.name, cleanupErr.message);
+      }
+    }
     try { await deleteApp(secondaryApp); } catch (_) {}
     errEl.textContent = friendlyAddAgentError(err.code);
     errEl.classList.remove('hidden');

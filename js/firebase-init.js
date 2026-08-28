@@ -37,8 +37,49 @@ export const firebaseConfig = {
 // firebaseConfig.apiKey above is -- it identifies which site is asking
 // for a token, it isn't a credential. The matching SECRET key never
 // leaves Google Cloud Console and has no reason to ever be near this
-// codebase.
-const RECAPTCHA_ENTERPRISE_SITE_KEY = "6Lf0R5wtAAAAAOdPlVleLXnMdvbKilzztL27kUNq";
+// codebase. Exported so any page that creates its OWN secondary/
+// temporary FirebaseApp instance (App Check is bound per-app-instance,
+// so the primary app's token doesn't cover a second instance -- see
+// admin.html's "Add Agent" flow) can attach App Check to it too,
+// without hardcoding the key a second time.
+export const RECAPTCHA_ENTERPRISE_SITE_KEY = "6Lf0R5wtAAAAAOdPlVleLXnMdvbKilzztL27kUNq";
+
+// 5s: a bounded circuit breaker against a hard-hung external dependency
+// (e.g. an ad-blocker silently swallowing the reCAPTCHA request with
+// neither success nor error), not a blanket "wait a bit and hope" delay
+// -- normal reCAPTCHA Enterprise round trips complete in a small
+// fraction of this. Exported so a secondary app instance's own gate
+// (see waitForAppCheckToken below) uses the identical value rather than
+// a second hardcoded number that could drift out of sync.
+export const APP_CHECK_TOKEN_TIMEOUT_MS = 5000;
+
+// Builds an "appCheckReady"-style promise for ANY FirebaseApp instance,
+// not just the primary one -- reused below for `app`, and reusable by
+// any page that creates its own secondary/temporary FirebaseApp
+// instance and needs the same guarantee: no request against THAT app's
+// Firestore/Auth/Storage should be sent before a real App Check token
+// has had a fair chance to attach to it. Written once, here, rather
+// than duplicating the wait/timeout/logging logic at every call site
+// that needs it.
+export function waitForAppCheckToken(appCheckInstance, label) {
+  if (!appCheckInstance) return Promise.resolve();
+  return Promise.race([
+    getAppCheckToken(appCheckInstance).then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), APP_CHECK_TOKEN_TIMEOUT_MS))
+  ])
+    .then((gotToken) => {
+      if (!gotToken) {
+        // Logged, not swallowed -- this is exactly the "unverified"
+        // outcome the App Check metrics are meant to surface, so it
+        // must show up somewhere a developer can actually see it, not
+        // just quietly disappear into a proceeding request.
+        console.error('[' + label + '] App Check token not obtained within ' + APP_CHECK_TOKEN_TIMEOUT_MS + 'ms -- proceeding without one for this session');
+      }
+    })
+    .catch((err) => {
+      console.error('[' + label + '] App Check getToken() failed -- proceeding without one for this session', err);
+    });
+}
 
 const app = initializeApp(firebaseConfig);
 
@@ -90,34 +131,7 @@ try {
 // the *metrics* honest by giving every Firestore call a real chance to
 // carry a token before it's sent, which is what the phased rollout in
 // docs/APP_CHECK.md is waiting on before enforcement can safely turn on.
-//
-// The 5s race against getAppCheckToken() is a bounded circuit breaker
-// against a hard-hung external dependency (e.g. an ad-blocker silently
-// swallowing the reCAPTCHA request with neither success nor error) --
-// not a blanket "wait a bit and hope" delay. It only ever fires once per
-// page load (this module's top-level code runs exactly once, ES modules
-// being cached/de-duped by the browser), and normal reCAPTCHA Enterprise
-// round trips complete in a small fraction of that.
-const APP_CHECK_TOKEN_TIMEOUT_MS = 5000;
-
-export const appCheckReady = appCheckInstance
-  ? Promise.race([
-      getAppCheckToken(appCheckInstance).then(() => true),
-      new Promise((resolve) => setTimeout(() => resolve(false), APP_CHECK_TOKEN_TIMEOUT_MS))
-    ])
-      .then((gotToken) => {
-        if (!gotToken) {
-          // Logged, not swallowed -- this is exactly the "unverified"
-          // outcome the App Check metrics are meant to surface, so it
-          // must show up somewhere a developer can actually see it, not
-          // just quietly disappear into a proceeding request.
-          console.error('[firebase-init] App Check token not obtained within ' + APP_CHECK_TOKEN_TIMEOUT_MS + 'ms -- proceeding without one for this session');
-        }
-      })
-      .catch((err) => {
-        console.error('[firebase-init] App Check getToken() failed -- proceeding without one for this session', err);
-      })
-  : Promise.resolve();
+export const appCheckReady = waitForAppCheckToken(appCheckInstance, 'firebase-init');
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
