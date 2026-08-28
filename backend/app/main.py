@@ -18,6 +18,11 @@ from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import Handler, RateLimiter
 from app.config import Config, load
+from app.otp.firebase_admin_ops import FirebasePhoneAuthManager
+from app.otp.handler import OtpSendHandler, OtpVerifyHandler, PasswordResetConfirmHandler
+from app.otp.service import OtpService
+from app.otp.store import InMemoryChallengeStore
+from app.otp.whatsapp import MockWhatsAppSender
 from app.server import create_app
 
 logger = logging.getLogger("darwesh")
@@ -55,6 +60,73 @@ def build_auth_handler(cfg: Config) -> Handler | None:
     )
 
 
+def build_otp_handlers(
+    cfg: Config,
+) -> tuple[OtpSendHandler, OtpVerifyHandler, PasswordResetConfirmHandler] | tuple[None, None, None]:
+    """Wires up the WhatsApp-OTP password-recovery endpoints only when
+    both FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET are set --
+    same "route doesn't exist" philosophy as build_auth_handler above.
+    WHATSAPP_PROVIDER controls delivery: unset/"mock" (the default) uses
+    MockWhatsAppSender, which delivers nothing anywhere -- every other
+    part of the flow (rate limiting, hashing, expiry, single-use
+    enforcement, Firebase UID resolution, session revocation) is real
+    regardless of which provider is selected."""
+    if not cfg.firebase_service_account_json or not cfg.otp_hmac_secret:
+        logger.info(
+            "WhatsApp OTP endpoints not configured, skipping "
+            "(set FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET to enable them)"
+        )
+        return None, None, None
+
+    try:
+        firebase = FirebasePhoneAuthManager(cfg.firebase_service_account_json)
+    except ValueError as exc:
+        logger.error("WhatsApp OTP endpoints misconfigured, skipping", extra={"error": str(exc)})
+        return None, None, None
+
+    if cfg.whatsapp_provider != "mock":
+        # No real provider is implemented yet (see docs/WHATSAPP_OTP.md) --
+        # this branch exists so a typo'd or aspirational env var fails
+        # loudly at startup instead of silently falling back to mock in
+        # what looks like a production configuration.
+        logger.error(
+            "WHATSAPP_PROVIDER=%s is not a supported provider yet -- WhatsApp OTP endpoints not started",
+            cfg.whatsapp_provider,
+        )
+        return None, None, None
+
+    sender = MockWhatsAppSender()
+    if cfg.is_production:
+        logger.warning(
+            "WhatsApp OTP endpoints are starting with the MOCK provider in a PRODUCTION "
+            "environment -- no WhatsApp message will actually be delivered. Phone-based "
+            "password recovery is NOT live until a real WHATSAPP_PROVIDER is configured. "
+            "See docs/WHATSAPP_OTP.md."
+        )
+
+    store = InMemoryChallengeStore()
+    service = OtpService(store=store, sender=sender, uids=firebase, otp_secret=cfg.otp_hmac_secret, logger=logger)
+
+    # 5 sends per phone / 15 per IP per 15 minutes -- generous for a real
+    # user who fat-fingers their phone or re-requests a code, tight
+    # enough to make scripted abuse of a (future) real WhatsApp send
+    # expensive. Verify gets its own, looser IP limiter since the
+    # per-challenge attempt cap (OtpService.max_attempts) already bounds
+    # guessing against any single code.
+    send_phone_limiter = RateLimiter(limit=5, window_seconds=15 * 60)
+    send_ip_limiter = RateLimiter(limit=15, window_seconds=15 * 60)
+    verify_ip_limiter = RateLimiter(limit=30, window_seconds=15 * 60)
+
+    logger.info("WhatsApp OTP endpoints enabled", extra={"provider": cfg.whatsapp_provider})
+    return (
+        OtpSendHandler(
+            service=service, ip_limiter=send_ip_limiter, phone_limiter=send_phone_limiter, logger=logger
+        ),
+        OtpVerifyHandler(service=service, ip_limiter=verify_ip_limiter, logger=logger),
+        PasswordResetConfirmHandler(store=store, firebase=firebase, logger=logger),
+    )
+
+
 def create_configured_app():
     cfg = load()
     logging.basicConfig(
@@ -63,7 +135,8 @@ def create_configured_app():
         stream=sys.stdout,
     )
     auth_handler = build_auth_handler(cfg)
-    return create_app(cfg, auth_handler)
+    otp_send_handler, otp_verify_handler, password_reset_confirm_handler = build_otp_handlers(cfg)
+    return create_app(cfg, auth_handler, otp_send_handler, otp_verify_handler, password_reset_confirm_handler)
 
 
 # Module-level so `uvicorn app.main:app` (the production entrypoint, e.g.

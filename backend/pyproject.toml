@@ -14,3 +14,10 @@ select = ["E4", "E7", "E9", "F", "I", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Only app/otp/service.py's send()/verify() are exercised directly as
+# coroutines in tests (everything else goes through FastAPI's
+# TestClient, which handles async endpoints on its own without this) --
+# "auto" mode means a plain `async def test_...` just works, matching
+# how every other test file in this project is written (no per-test
+# decorator to remember).
+asyncio_mode = "auto"

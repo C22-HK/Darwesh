@@ -107,7 +107,37 @@ format Firebase produced in production (see
 account with a verified sending domain, then set the four env vars above
 on wherever this ends up deployed (milestone 2).
 
-## Milestone 4+ — everything else, only as justified
+## Milestone 4 — WhatsApp OTP password recovery ✅ code done, not deployed, no real provider
+
+`POST /api/v1/auth/otp/send`, `POST /api/v1/auth/otp/verify`,
+`POST /api/v1/auth/password-reset/confirm` — a WhatsApp-delivered
+one-time-code flow letting a phone-verified account reset its password
+without an email. Full architecture, security controls, and what's still
+needed before real WhatsApp delivery works: `docs/WHATSAPP_OTP.md`.
+
+Only registers when `FIREBASE_SERVICE_ACCOUNT_JSON` and `OTP_HMAC_SECRET`
+are both set — same "route doesn't exist if unconfigured" rule as
+milestone 3. Runs against `MockWhatsAppSender` (delivers nothing) until a
+real provider is chosen and implemented; logs a startup warning if
+`APP_ENV=production` while still on mock, so this can never look live by
+accident.
+
+**Verified for real:** the full OTP lifecycle (generation, HMAC hashing,
+expiry, single use, attempt cap, resend cooldown, per-phone/per-IP rate
+limits, purpose binding, reset-token issuance/consumption, Firebase UID
+resolution, password update, session revocation) is exercised by
+`backend/tests/test_otp.py` against fakes for the WhatsApp send and the
+Firebase Admin SDK calls — including wrong/expired/reused OTP, exceeding
+max attempts, and a direct test that verifying phone A's code can never
+produce a reset for phone B's UID.
+
+**Not tested against a real WhatsApp provider or a real Firebase project**
+— no provider account or extra service-account credentials exist for
+this yet. **Not wired into any frontend page** — this milestone is
+backend-only; `login.html`/`reset-password.html`/a phone-based signup UI
+are separate, later work once the backend design is confirmed.
+
+## Milestone 5+ — everything else, only as justified
 
 PostgreSQL, Redis, the commission/contracts/audit-log engine, RBAC beyond
 what Firestore rules already enforce, AI backend, Cloudflare, CI/CD
