@@ -1567,19 +1567,21 @@ async function initSubmissionAuth() {
   // could plausibly have failed, or it just replays the same dead
   // import every time.
   //
-  // ./js/firebase-init.js is NEVER cache-busted, even on retry: unlike
-  // the three CDN modules below (stateless -- just re-exported SDK
-  // functions, safe to load twice under different URLs), firebase-init.js
-  // calls initializeApp() at its own top level. Re-importing it under a
-  // new URL would re-run that and throw Firebase's own
-  // "app named '[DEFAULT]' already exists" error, since a failed import
-  // (this one or any of ITS OWN transitive imports) means that call
-  // never ran the first time -- but a *successful* one only ever runs
-  // once, and must stay that way.
+  // ./js/firebase-init.js IS also cache-busted on retry, unlike a plain
+  // stateless CDN module -- it calls initializeApp() at its own top
+  // level, and re-importing it under a new URL would normally re-run
+  // that and throw Firebase's own "app named '[DEFAULT]' already
+  // exists" error. js/firebase-init.js guards against exactly that (it
+  // reuses the existing default app via getApps()/getApp() instead of
+  // calling initializeApp() again if one already exists), which is what
+  // makes this safe: a prior *successful* import is reused as-is, and a
+  // prior *failed* import (this module's own transitive dependencies,
+  // e.g. firebase-storage.js below, can be part of what failed) gets a
+  // genuine fresh attempt instead of replaying the same dead import.
   const bust = submissionAuthAttempt > 0 ? '?retry=' + submissionAuthAttempt : '';
   submissionAuthAttempt++;
   const [{ auth, db, storage, addDoc, updateDoc, getDocs }, authMod, storeMod, storageMod] = await Promise.all([
-    import('./js/firebase-init.js'),
+    import('./js/firebase-init.js' + bust),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js' + bust),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js' + bust),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js' + bust)
@@ -1603,10 +1605,12 @@ async function initSubmissionAuth() {
 // a fresh promise alone isn't enough if it just re-requests the exact
 // same doomed URL).
 let submissionAuthPromise = null;
+let submissionAuthFailureCount = 0;
 function getSubmissionAuthReady() {
   if (!submissionAuthPromise) {
     submissionAuthPromise = initSubmissionAuth().catch((err) => {
       submissionAuthPromise = null; // let the next caller retry from scratch
+      submissionAuthFailureCount++;
       throw err;
     });
   }
@@ -1713,7 +1717,22 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     await getSubmissionAuthReady();
   } catch (err) {
     console.error('Could not prepare submission:', err);
-    errEl.textContent = ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.') + ' (' + err.message + ')';
+    // The cache-busting retry in initSubmissionAuth() recovers most
+    // real failures (a genuinely transient drop in one of the three
+    // stateless CDN modules) without the user needing to do anything
+    // but click Submit again. It can't recover every case, though: if
+    // js/firebase-init.js's OWN internal, statically-imported
+    // dependencies are what failed, re-evaluating that module (even
+    // under a fresh URL) still resolves those via the exact same fixed
+    // URLs, which the browser has already permanently blacklisted --
+    // only a full page reload gets a clean module registry. Rather than
+    // let the user click Submit into the same wall repeatedly with no
+    // clear way out, a second failure in a row says so explicitly.
+    const reachedRetryCeiling = submissionAuthFailureCount >= 2;
+    const baseMsg = reachedRetryCeiling
+      ? ((window.t && window.t('sell.submitErrorReload')) || 'Could not submit your listing — please reload the page and try again.')
+      : ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.');
+    errEl.textContent = baseMsg + ' (' + err.message + ')';
     errEl.classList.remove('hidden');
     errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     submitBtn.disabled = false;

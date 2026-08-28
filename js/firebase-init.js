@@ -7,7 +7,7 @@
 // below) runs exactly once per page load no matter how many different
 // scripts import it. That's what makes this the single correct place
 // to wire up App Check, rather than repeating it per page.
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
@@ -81,7 +81,17 @@ export function waitForAppCheckToken(appCheckInstance, label) {
     });
 }
 
-const app = initializeApp(firebaseConfig);
+// Safe to import this exact module more than once under a different URL
+// -- sell.html's submission flow retries its dynamic imports under a
+// cache-busting query param if one fails, because a browser permanently
+// blacklists a URL that ever failed to fetch, even after the network
+// recovers, and this module's own transitive imports (e.g.
+// firebase-storage.js, needed below for getStorage) can be part of what
+// failed. Reuses the existing default app instance if one was already
+// created by an earlier successful import, instead of calling
+// initializeApp() again -- which would throw Firebase's own "app named
+// '[DEFAULT]' already exists" error.
+const app = getApps().some((a) => a.name === '[DEFAULT]') ? getApp() : initializeApp(firebaseConfig);
 
 // App Check proves a request is coming from this real web app (via a
 // reCAPTCHA Enterprise attestation), not just from someone with the
