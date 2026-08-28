@@ -129,7 +129,8 @@ email directly).
 - `backend/app/otp/firebase_admin_ops.py` -- renamed
   `FirebaseAccountOps` (was `FirebasePhoneAuthManager`); adds
   `resolve_uid_by_email`, `create_account`, `create_user_profile`,
-  `mint_custom_token`, `AccountAlreadyExists`; keeps
+  `delete_account` (compensating rollback -- see "Orphan-account
+  rollback" below), `mint_custom_token`, `AccountAlreadyExists`; keeps
   `resolve_uid_by_phone` (unused today, reserved for the future
   Phone + Password phase) and `set_password_and_revoke_sessions`
   (reused unchanged).
@@ -231,6 +232,77 @@ via Console (Firestore -> a collection -> the field's TTL setting) or
 -- once this is deployed; this is a manual, one-time infrastructure
 step, not something application code can set.
 
+## Orphan-account rollback
+
+`SignupCompleteHandler.complete()` does two Firebase operations that
+have no shared transaction: create the Auth account
+(`FirebaseAccountOps.create_account`), then write its Firestore profile
+(`create_user_profile`, plus `ensure_company` for an agent signup). If
+the first succeeds and the second fails (a transient Firestore error,
+for example), the naive outcome is an Auth account with no
+`users/{uid}` doc -- a real user record they could sign into but that
+none of the rest of the app can find. This is now handled as a
+best-effort compensating action, not left as a silent partial state:
+
+1. `try_consume_reset_token` (see "Shared production storage" -- this
+   fix reuses the same atomic primitive) checks-and-marks the
+   `verifyToken` consumed in one step, so two concurrent completions of
+   the same token can never both reach account creation -- only one
+   request ever gets to be the one that might need to roll back.
+2. `create_account` either fails outright (nothing to roll back -- an
+   `AccountAlreadyExists` 409, or a generic 500) or returns a `uid`
+   Firebase's Admin SDK generated fresh for this exact call. There is
+   no partial-success state for `create_user` and no way that `uid`
+   could belong to any other account, existing or otherwise -- so this
+   is the one and only account this request is ever allowed to delete.
+3. If `ensure_company`/`create_user_profile` then fails,
+   `FirebaseAccountOps.delete_account(uid)` is called with exactly that
+   `uid` as a compensating rollback, and the endpoint returns a plain
+   500 ("Could not complete your signup right now") -- never the 200 +
+   `customToken` the old behavior returned for a profile-less account.
+4. If the rollback itself also fails (no shared transaction means this
+   is genuinely possible), that's logged at error level as needing
+   manual reconciliation, and the account remains -- but a later retry
+   with a fresh token cannot silently duplicate it: `create_account`'s
+   own atomic email/phone check turns it into a normal 409 "already
+   exists" response, the same one a genuine duplicate signup gets.
+
+What this does NOT do: roll back `ensure_company`. A company doc is
+create-if-not-exists and never carries per-user data, so leaving one
+behind after a failed signup is harmless (a future signup for that
+company just joins it) and not part of the "orphan account" problem
+this fix targets. It also doesn't touch the `mint_custom_token` failure
+path -- by the time that call happens, both the Auth account AND its
+Firestore profile already exist; a token-minting failure there just
+means the sign-in convenience token didn't mint, not a partial account,
+so the existing "account created, please log in" response is correct
+and unchanged.
+
+Logging throughout this path carries only `uid_suffix` (last 6 chars,
+for correlating log lines) and `str(exc)`/`str(rollback_exc)` from
+Firebase/Firestore client errors -- never the password, the OTP code,
+the `verifyToken`, the minted custom token, or any credential; none of
+those values are ever passed into a log call in this file.
+
+Verified directly in `tests/test_email_otp.py` (scenarios A-F, matching
+the same lettering used to request this fix): (A) profile failure after
+successful Auth creation never returns 200; (B) a successful rollback
+actually frees the email/phone for reuse, not just marks something
+deleted; (C) a rollback that itself fails still returns a safe generic
+error rather than crashing, and leaves the account queryable via the
+normal duplicate-email path; (D) rollback is proven, end to end, to
+never touch a pre-existing account created outside the failing request
+(the fake account-ops layer additionally asserts this invariant
+directly: it refuses to "delete" any uid it didn't itself create); (E)
+two genuinely concurrent completions of the same verifyToken (issued
+through the real ASGI stack via `httpx.AsyncClient`/`ASGITransport`,
+not just two sequential calls) produce exactly one success and one
+clean rejection, plus a deterministic store-level test of the same
+atomic-consume guarantee; (F) retrying with a fresh token after a
+successful rollback completes cleanly with exactly one surviving
+account, and retrying after a *failed* rollback gets a clean 409
+instead of a second orphan.
+
 ## Email design
 
 Original Darwesh Group branding (reuses this project's own established
@@ -298,15 +370,13 @@ flow's design and the (live) email flow.
    password-sign-in-requires-an-email constraint -- see the
    architecture discussion from the earlier audit turn in this
    conversation).
-5. **Firestore profile write reconciliation gap** -- if
-   `create_user_profile` fails after `create_account` succeeds (e.g. a
-   transient Firestore error), the signup response still succeeds with
-   a working `customToken` (the Firebase Auth account is real and
-   usable) but `users/{uid}` doesn't exist yet. Logged loudly
-   server-side (`uid_suffix`) for manual reconciliation; no automated
-   retry/backfill exists yet. Worth a small follow-up (e.g. have
-   `account.html`/`login.html` self-heal a missing profile doc on next
-   sign-in) before this carries real signups.
+5. ~~Firestore profile write reconciliation gap~~ -- **resolved.** If
+   `create_user_profile` (or `ensure_company`) fails after
+   `create_account` succeeds, `SignupCompleteHandler` now attempts a
+   compensating rollback (`FirebaseAccountOps.delete_account(uid)`)
+   rather than returning success for a half-provisioned account -- see
+   "Orphan-account rollback" below for the full design and
+   `tests/test_email_otp.py`'s scenario A-F tests for coverage.
 
 Until (1)-(3) are addressed, the backend is safe to leave deployed (no
 route runs mock delivery in production; everything degrades to a 404

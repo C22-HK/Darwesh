@@ -136,6 +136,21 @@ class FirebaseAccountOps:
             raise AccountAlreadyExists("phone") from exc
         return user.uid
 
+    async def delete_account(self, uid: str) -> None:
+        """Rolls back a Firebase Auth account -- used ONLY by
+        SignupCompleteHandler, and ONLY with a uid it just received back
+        from this same call's create_account() a moment earlier, never a
+        uid resolved by looking anything up. create_user() (what
+        create_account calls) either fails outright or returns a
+        genuinely fresh, server-generated uid that could not have
+        collided with an existing account -- so a caller holding a uid
+        from create_account's return value has by construction the one
+        and only account that call created, and deleting it can never
+        touch a pre-existing account. This is the compensating action
+        for "Auth account created, but the required Firestore profile
+        write failed" -- see docs/EMAIL_OTP.md."""
+        await asyncio.to_thread(fb_auth.delete_user, uid, app=self._app)
+
     async def create_user_profile(
         self,
         uid: str,

@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import time
 from dataclasses import dataclass
 
 from fastapi import Request
@@ -214,9 +213,17 @@ class SignupCompleteHandler:
                 )
             company_id = _slugify_company(company_name)
 
-        entry = await self.store.get_reset_token(token)
+        # try_consume_reset_token atomically checks-and-marks the token
+        # consumed in one store operation -- two concurrent requests
+        # completing the same signup (a double-submitted form, a client
+        # retry racing the original request, or a replay attempt) can
+        # never both pass this check. Only the caller that wins may
+        # proceed to create_account below; the loser sees exactly the
+        # same response as an unknown/expired/already-used token, never
+        # reaching Firebase at all.
+        entry = await self.store.try_consume_reset_token(token)
         expired_msg = "This verification code has expired or already been used. Please start over."
-        if entry is None or entry.consumed or entry.expires_at < time.time():
+        if entry is None:
             return JSONResponse({"error": expired_msg}, status_code=400)
         if entry.purpose != Purpose.SIGNUP_EMAIL_VERIFY.value:
             # Defense in depth: EmailOtpVerifyHandler only ever mints a
@@ -224,13 +231,10 @@ class SignupCompleteHandler:
             # site, so this branch isn't reachable today -- but it stops
             # a PASSWORD_RESET token from ever activating a signup by
             # accident, rather than relying solely on "nothing mints one
-            # for the wrong purpose yet".
+            # for the wrong purpose yet". The token is already consumed
+            # above regardless of this check, so there's no reuse risk
+            # either way.
             return JSONResponse({"error": expired_msg}, status_code=400)
-
-        # Consumed immediately, before touching Firebase -- a token can
-        # authorize at most one account creation even if something below
-        # fails partway and the caller retries.
-        await self.store.consume_reset_token(token)
         email = entry.identifier
 
         try:
@@ -241,6 +245,8 @@ class SignupCompleteHandler:
             # Normal, expected signup UX -- unlike password-reset
             # enumeration, telling a signup applicant their own email or
             # phone is already registered isn't a sensitive disclosure.
+            # Nothing was created by this request, so there's nothing to
+            # roll back.
             return JSONResponse({"error": f"An account with this {exc.field} already exists."}, status_code=409)
         except Exception as exc:
             self.logger.error("signup complete: account creation failed", extra={"error": str(exc)})
@@ -248,6 +254,15 @@ class SignupCompleteHandler:
                 {"error": "Could not create your account right now. Please try again."}, status_code=500
             )
 
+        # From here on, `uid` is a genuinely fresh account create_account
+        # just created for this request (Firebase Admin SDK's create_user
+        # either fails outright or returns a brand-new, server-generated
+        # uid -- there is no partial-success, no pre-existing account it
+        # could refer to). If provisioning the required Firestore
+        # profile fails, this is exactly the "orphan Auth account" case
+        # to avoid: attempt a compensating rollback (delete the account
+        # THIS request created, never any other) rather than silently
+        # leaving a half-provisioned account behind.
         try:
             if company_id:
                 await self.accounts.ensure_company(company_id, company_name.strip())
@@ -260,15 +275,34 @@ class SignupCompleteHandler:
                 company_id=company_id,
             )
         except Exception as exc:
-            # The Auth account already exists at this point -- failing
-            # the whole signup here would leave a real Auth user with no
-            # clean way to retry (create_account would now report
-            # AccountAlreadyExists on any second attempt). Logged loudly
-            # so this gets reconciled; the account still works (Firebase
-            # Auth doesn't require a Firestore profile to sign in), it
-            # just starts without one -- see docs/EMAIL_OTP.md.
             self.logger.error(
-                "signup complete: profile write failed", extra={"error": str(exc), "uid_suffix": uid[-6:]}
+                "signup complete: profile provisioning failed, rolling back auth account",
+                extra={"error": str(exc), "uid_suffix": uid[-6:]},
+            )
+            try:
+                await self.accounts.delete_account(uid)
+            except Exception as rollback_exc:
+                # Best-effort compensating action, not a distributed
+                # transaction -- Firebase Auth and Firestore have no
+                # shared transaction to roll back atomically. If the
+                # rollback itself fails, the account is now a genuine
+                # orphan (Auth account, no profile) that a retry with a
+                # fresh verifyToken will correctly report as a 409
+                # "already exists" against, rather than silently
+                # duplicating -- but it does need a human to reconcile,
+                # hence error level with enough to find it (never the
+                # password, OTP, verifyToken, or any credential).
+                self.logger.error(
+                    "signup complete: rollback of orphaned auth account FAILED -- manual reconciliation required",
+                    extra={"rollback_error": str(rollback_exc), "uid_suffix": uid[-6:]},
+                )
+            else:
+                self.logger.info(
+                    "signup complete: auth account rolled back after profile provisioning failure",
+                    extra={"uid_suffix": uid[-6:]},
+                )
+            return JSONResponse(
+                {"error": "Could not complete your signup right now. Please try again."}, status_code=500
             )
 
         try:

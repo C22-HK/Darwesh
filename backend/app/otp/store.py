@@ -72,7 +72,7 @@ class ChallengeStore(Protocol):
     async def consume_challenge(self, key: str) -> None: ...
     async def create_reset_token(self, token: str, entry: ResetToken) -> None: ...
     async def get_reset_token(self, token: str) -> ResetToken | None: ...
-    async def consume_reset_token(self, token: str) -> None: ...
+    async def try_consume_reset_token(self, token: str) -> ResetToken | None: ...
 
 
 class InMemoryChallengeStore:
@@ -133,11 +133,26 @@ class InMemoryChallengeStore:
             self._prune_locked()
             return self._reset_tokens.get(token)
 
-    async def consume_reset_token(self, token: str) -> None:
+    async def try_consume_reset_token(self, token: str) -> ResetToken | None:
+        """Atomically checks-and-marks a token consumed in one operation
+        -- both the "is this still valid" check and the "mark it used"
+        write happen under the same lock acquisition, so two concurrent
+        callers with the same token (e.g. a double-submitted signup/
+        password-reset completion) can never both see it as valid. Only
+        the caller that wins this race gets the entry back; the other
+        gets None, identical to an unknown/expired/already-used token --
+        see app.otp.email_handler.SignupCompleteHandler and
+        app.otp.handler.PasswordResetConfirmHandler, which both rely on
+        this to guarantee a token authorizes at most one completed
+        operation even under real concurrency, not just under a single
+        request's own sequential logic."""
         with self._lock:
+            self._prune_locked()
             entry = self._reset_tokens.get(token)
-            if entry is not None:
-                entry.consumed = True
+            if entry is None or entry.consumed or entry.expires_at < time.time():
+                return None
+            entry.consumed = True
+            return entry
 
 
 _CHALLENGES_COLLECTION = "otpChallenges"
@@ -213,16 +228,18 @@ class FirestoreChallengeStore:
     -- this can't be done from application code, it's a per-field
     Firestore configuration.
 
-    Concurrency: create_challenge/consume_challenge/create_reset_token/
-    consume_reset_token are simple sets, safe under Firestore's own
-    last-write-wins semantics for this use case (each key is only ever
-    meaningfully written by the request that owns it at that moment).
-    record_failed_attempt is the one operation two concurrent requests
-    could genuinely race on (two wrong guesses arriving at the same
-    instant, on two different instances) -- run inside a Firestore
-    transaction so the increment is atomic even across instances,
-    which is the exact case InMemoryChallengeStore's in-process lock
-    could never cover. Under extreme contention on that same document
+    Concurrency: create_challenge/consume_challenge/create_reset_token
+    are simple sets, safe under Firestore's own last-write-wins
+    semantics for this use case (each key is only ever meaningfully
+    written by the request that owns it at that moment).
+    record_failed_attempt and try_consume_reset_token are the two
+    operations concurrent requests could genuinely race on (two wrong
+    guesses, or two completions of the same signup/password-reset
+    token, arriving at the same instant on two different instances) --
+    both run inside a Firestore transaction so the read-check-write is
+    atomic even across instances, which is the exact case
+    InMemoryChallengeStore's in-process lock could never cover on its
+    own. Under extreme contention on that same document
     (verified against a real Firestore emulator: ~10 fully concurrent
     guesses against one challenge with zero backoff -- far more than
     max_attempts ever allows in practice) the client library's own
@@ -300,7 +317,37 @@ class FirestoreChallengeStore:
 
         return await asyncio.to_thread(_read)
 
-    async def consume_reset_token(self, token: str) -> None:
-        await asyncio.to_thread(
-            self._db.collection(_RESET_TOKENS_COLLECTION).document(token).update, {"consumed": True}
-        )
+    async def try_consume_reset_token(self, token: str) -> ResetToken | None:
+        """Atomic check-and-mark-consumed, same contract as
+        InMemoryChallengeStore.try_consume_reset_token -- run inside a
+        Firestore transaction so two concurrent completions of the same
+        token (on the same or different instances) can never both win,
+        same reasoning as record_failed_attempt above. Degrades the same
+        way on retry-budget exhaustion: caught, logged, treated as "did
+        not consume" (None) rather than raised."""
+
+        def _consume() -> ResetToken | None:
+            ref = self._db.collection(_RESET_TOKENS_COLLECTION).document(token)
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn):
+                snap = ref.get(transaction=txn)
+                if not snap.exists:
+                    return None
+                data = snap.to_dict()
+                if data["consumed"] or data["expiresAt"] < time.time():
+                    return None
+                data["consumed"] = True
+                txn.set(ref, data)
+                return _reset_token_from_dict(data)
+
+            try:
+                return _txn(transaction)
+            except (google_api_exceptions.Aborted, ValueError) as exc:
+                self._logger.error(
+                    "otp store: try_consume_reset_token transaction failed", extra={"error": str(exc)}
+                )
+                return None
+
+        return await asyncio.to_thread(_consume)

@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 from dataclasses import dataclass
 
 from fastapi import Request
@@ -171,9 +170,13 @@ class PasswordResetConfirmHandler:
                 {"error": f"Password must be at least {_MIN_PASSWORD_LENGTH} characters."}, status_code=400
             )
 
-        entry = await self.store.get_reset_token(token)
+        # try_consume_reset_token atomically checks-and-marks the token
+        # consumed in one store operation -- two concurrent confirmations
+        # of the same resetToken (e.g. a double-submitted form) can never
+        # both pass this check; only the winner reaches Firebase below.
+        entry = await self.store.try_consume_reset_token(token)
         _EXPIRED_MSG = "This reset link has expired or already been used. Please request a new code."
-        if entry is None or entry.consumed or entry.expires_at < time.time():
+        if entry is None:
             return JSONResponse({"error": _EXPIRED_MSG}, status_code=400)
         if entry.purpose != Purpose.PASSWORD_RESET.value:
             # Defense in depth: OtpVerifyHandler only ever mints a
@@ -181,13 +184,9 @@ class PasswordResetConfirmHandler:
             # at the HTTP layer yet), so this branch isn't reachable --
             # but it stops a future purpose's token from ever being
             # usable here by accident, rather than relying solely on
-            # "nothing mints one yet."
+            # "nothing mints one yet." The token is already consumed
+            # above regardless, so there's no reuse risk either way.
             return JSONResponse({"error": _EXPIRED_MSG}, status_code=400)
-
-        # Consume immediately, before calling Firebase -- a token can
-        # authorize at most one reset attempt even if the Firebase call
-        # below fails partway and the caller retries.
-        await self.store.consume_reset_token(token)
 
         try:
             await self.firebase.set_password_and_revoke_sessions(entry.uid, new_password)
