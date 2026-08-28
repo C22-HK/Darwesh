@@ -51,10 +51,22 @@
   .auth-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
   .auth-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
   .auth-card { background: #ffffff; border: 1px solid #e0e3e8; border-radius: 20px; padding: 32px 28px; box-shadow: 0 4px 24px rgba(4,22,39,0.06); }
+  .auth-card { animation: auth-card-in .35s ease both; }
+  @keyframes auth-card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .auth-input-wrap { position: relative; }
   .auth-input-wrap .auth-input { padding-left: 40px; }
   .auth-input-wrap .auth-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 19px; color: #9aa1ab; pointer-events: none; }
-  .auth-optional-tag { font-size: 10.5px; font-weight: 400; text-transform: none; letter-spacing: normal; color: #9aa1ab; }
+  .auth-input-wrap .auth-input.has-toggle { padding-right: 40px; }
+  .auth-toggle-visibility { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: #9aa1ab; display: flex; align-items: center; justify-content: center; transition: background-color .15s ease, color .15s ease; }
+  .auth-toggle-visibility:hover { background: #f1f4f9; color: #44474c; }
+  .auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; }
+  @keyframes auth-spin { to { transform: rotate(360deg); } }
+
+  /* 6-digit OTP entry */
+  .otp-digits { display: flex; gap: 8px; justify-content: center; direction: ltr; }
+  .otp-digit { width: 44px; height: 52px; text-align: center; font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 600; border: 1px solid #c4c6cd; border-radius: 10px; background: #ffffff; color: #181c20; }
+  .otp-digit:focus { outline: 2px solid #775a19; outline-offset: 1px; border-color: #775a19; }
+  @media (max-width: 380px) { .otp-digit { width: 38px; height: 46px; font-size: 19px; } }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -76,215 +88,382 @@
 
 <main class="flex items-center justify-center px-4 py-12">
   <div class="w-full max-w-md">
-    <div class="text-center mb-6">
-      <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.signUpTitle">Create your account</p>
-      <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.signUpSubtitle">Save favorites, track your submissions, and get alerts on saved searches.</p>
-    </div>
 
-    <div class="auth-card">
-      <div class="mb-5">
-        <label class="auth-label" data-i18n="auth.signingUpAs">I'm signing up as</label>
-        <div class="inline-flex items-center bg-surface-container rounded-full p-1 w-full">
-          <button id="roleCustomerBtn" type="button" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps bg-primary text-on-primary transition-all" data-i18n="auth.roleCustomer">Customer</button>
-          <button id="roleAgentBtn" type="button" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface-variant transition-all" data-i18n="auth.roleAgent">Real Estate Agent</button>
-        </div>
-        <p id="agentRoleNote" class="hidden font-body-md text-[11.5px] text-on-surface-variant mt-2" data-i18n="auth.agentRoleNote">Agent accounts are reviewed before full agent access is granted — we'll set you up once your company confirms you.</p>
+    <!-- Step 1: details -->
+    <div id="formStepView">
+      <div class="text-center mb-6">
+        <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.signUpTitle">Create your account</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.signUpSubtitle">Save favorites, track your submissions, and get alerts on saved searches.</p>
       </div>
 
-      <form id="signupForm" class="space-y-4">
-        <div class="grid grid-cols-2 gap-3">
+      <div class="auth-card">
+        <form id="signupForm" class="space-y-4" autocomplete="on">
           <div>
-            <label class="auth-label" for="fFirstName" data-i18n="auth.firstName">First name</label>
+            <label class="auth-label" for="fFullName" data-i18n="auth.fullName">Full Name</label>
             <div class="auth-input-wrap">
               <span class="material-symbols-outlined auth-input-icon">person</span>
-              <input id="fFirstName" class="auth-input" required type="text" autocomplete="given-name"/>
+              <input id="fFullName" class="auth-input" required type="text" autocomplete="name"/>
             </div>
           </div>
           <div>
-            <label class="auth-label" for="fLastName" data-i18n="auth.lastName">Last name</label>
+            <label class="auth-label" for="fPhone" data-i18n="sell.phoneNumber">Phone Number</label>
             <div class="auth-input-wrap">
-              <span class="material-symbols-outlined auth-input-icon">person</span>
-              <input id="fLastName" class="auth-input" required type="text" autocomplete="family-name"/>
+              <span class="material-symbols-outlined auth-input-icon">call</span>
+              <input id="fPhone" class="auth-input" required type="tel" placeholder="0750 000 0000" autocomplete="tel"/>
             </div>
           </div>
-        </div>
-        <div>
-          <label class="auth-label" for="fMiddleName"><span data-i18n="auth.middleName">Middle name</span> <span class="auth-optional-tag" data-i18n="auth.optionalTag">(optional)</span></label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">person</span>
-            <input id="fMiddleName" class="auth-input" type="text" autocomplete="additional-name"/>
+          <div>
+            <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">mail</span>
+              <input id="fEmail" class="auth-input" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+            </div>
           </div>
-        </div>
-        <div>
-          <label class="auth-label" for="fPhone" data-i18n="sell.phoneNumber">Phone Number</label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">call</span>
-            <input id="fPhone" class="auth-input" required type="tel" placeholder="+964 750 000 0000" autocomplete="tel"/>
+          <div>
+            <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">lock</span>
+              <input id="fPassword" class="auth-input has-toggle" required minlength="8" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+              <button type="button" class="auth-toggle-visibility" id="toggleFPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
+                <span class="material-symbols-outlined" id="toggleFPasswordIcon" style="font-size:19px;">visibility</span>
+              </button>
+            </div>
+            <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars8">At least 8 characters.</p>
           </div>
-        </div>
-        <div>
-          <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">mail</span>
-            <input id="fEmail" class="auth-input" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+          <div>
+            <label class="auth-label" for="fConfirmPassword" data-i18n="auth.confirmPassword">Confirm Password</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">lock</span>
+              <input id="fConfirmPassword" class="auth-input has-toggle" required minlength="8" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+              <button type="button" class="auth-toggle-visibility" id="toggleFConfirmPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
+                <span class="material-symbols-outlined" id="toggleFConfirmPasswordIcon" style="font-size:19px;">visibility</span>
+              </button>
+            </div>
           </div>
-        </div>
-        <div>
-          <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">lock</span>
-            <input id="fPassword" class="auth-input" required minlength="6" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
-          </div>
-          <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars">At least 6 characters.</p>
-        </div>
-        <div id="companyFieldWrap" class="hidden">
-          <label class="auth-label" for="fCompany" data-i18n="auth.company">Company / Agency</label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">business_center</span>
-            <input id="fCompany" class="auth-input" type="text" value="Darwesh Group"/>
-          </div>
-          <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.companyHelp">Most people leave this as Darwesh Group. If you work for a different agency using this platform, enter its name instead.</p>
-        </div>
-        <p id="authError" class="hidden text-error text-[13px]"></p>
-        <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="submit" data-i18n="auth.signUpBtn">Create Account</button>
-      </form>
+          <p id="authError" class="hidden text-error text-[13px]" role="alert"></p>
+          <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
+            <span class="auth-spinner hidden" id="submitSpinner"></span>
+            <span id="submitBtnLabel" data-i18n="auth.signUpBtn">Create Account</span>
+          </button>
+        </form>
+      </div>
+
+      <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
+        <span data-i18n="auth.alreadyHaveAccount">Already have an account?</span> <a href="login.html" class="text-secondary font-medium hover:underline" data-i18n="auth.logInLink">Log in</a>
+      </p>
+      <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="nav.backToSite">Back to site</a>
     </div>
 
-    <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
-      <span data-i18n="auth.alreadyHaveAccount">Already have an account?</span> <a href="login.html" class="text-secondary font-medium hover:underline" data-i18n="auth.logInLink">Log in</a>
-    </p>
-    <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="nav.backToSite">Back to site</a>
+    <!-- Step 2: email OTP verification -->
+    <div id="otpStepView" class="hidden">
+      <div class="text-center mb-6">
+        <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.otp.verifyEmailTitle">Verify your email</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant">
+          <span data-i18n="auth.otp.codeSentTo">We sent a 6-digit code to</span> <span id="otpMaskedEmail" class="font-medium text-on-surface" style="direction:ltr; display:inline-block;"></span>
+        </p>
+      </div>
+
+      <div class="auth-card">
+        <label class="auth-label text-center block" for="otpDigit0" data-i18n="auth.otp.codeLabel">Verification code</label>
+        <div class="otp-digits mb-4" id="otpDigitsContainer" role="group" aria-label="Verification code">
+          <input class="otp-digit" id="otpDigit0" data-otp-index="0" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Digit 1"/>
+          <input class="otp-digit" id="otpDigit1" data-otp-index="1" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 2"/>
+          <input class="otp-digit" id="otpDigit2" data-otp-index="2" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 3"/>
+          <input class="otp-digit" id="otpDigit3" data-otp-index="3" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 4"/>
+          <input class="otp-digit" id="otpDigit4" data-otp-index="4" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 5"/>
+          <input class="otp-digit" id="otpDigit5" data-otp-index="5" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 6"/>
+        </div>
+        <p id="otpError" class="hidden text-error text-[13px] text-center mb-3" role="alert"></p>
+        <button id="otpVerifyBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="button">
+          <span class="auth-spinner hidden" id="otpVerifySpinner"></span>
+          <span id="otpVerifyBtnLabel" data-i18n="auth.otp.verifyBtn">Verify</span>
+        </button>
+        <div class="text-center mt-4">
+          <button id="otpResendBtn" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors disabled:text-on-surface-variant disabled:cursor-not-allowed" type="button" disabled>
+            <span id="otpResendLabel"></span>
+          </button>
+        </div>
+      </div>
+
+      <button id="otpBackBtn" type="button" class="block text-center w-full mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="auth.signup.backToForm">Edit details</button>
+    </div>
+
+    <!-- Step 3: finishing up -->
+    <div id="signingInView" class="hidden text-center py-12">
+      <span class="auth-spinner" style="border-top-color:#041627; border-color:rgba(4,22,39,0.15); width:28px; height:28px;"></span>
+      <p class="font-body-md text-body-md text-on-surface-variant mt-4" id="signingInLabel"></p>
+    </div>
+
   </div>
 </main>
 
 <script src="./js/i18n.js"></script>
 <script type="module">
-  import { auth, db, getDoc, setDoc } from './js/firebase-init.js';
-  import { createUserWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { auth, db, getDoc } from './js/firebase-init.js';
+  import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { sendEmailOtp, verifyEmailOtp, completeSignup, BackendUnavailableError, BackendResponseError } from './js/backend-api.js';
+  import { wireOtpInputs, maskEmail } from './js/otp-ui.js';
 
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  // ---------------------------------------------------------------------
+  // Step visibility
+  // ---------------------------------------------------------------------
+  const formStepView = document.getElementById('formStepView');
+  const otpStepView = document.getElementById('otpStepView');
+  const signingInView = document.getElementById('signingInView');
+  function showStep(view) {
+    [formStepView, otpStepView, signingInView].forEach(v => v.classList.add('hidden'));
+    view.classList.remove('hidden');
+  }
+
+  // ---------------------------------------------------------------------
+  // Step 1: the signup form itself. Never calls Firebase directly --
+  // no Firebase user is created until AFTER the email OTP is verified
+  // (SignupCompleteHandler on the backend does that with the Admin SDK).
+  // ---------------------------------------------------------------------
   const form = document.getElementById('signupForm');
   const errEl = document.getElementById('authError');
   const submitBtn = document.getElementById('submitBtn');
+  const submitSpinner = document.getElementById('submitSpinner');
+  const submitBtnLabel = document.getElementById('submitBtnLabel');
 
   function showError(msg) {
     errEl.textContent = msg;
     errEl.classList.remove('hidden');
   }
-
-  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
-
-  // ---------------------------------------------------------------------
-  // Customer / Agent toggle. Picking "Agent" here does NOT grant agent
-  // access by itself — firestore.rules only allows a new account to be
-  // created with role: 'customer' (self-granting 'agent' is blocked by
-  // design). What this toggle does is record the person's stated intent
-  // (requestedRole) and reveal the Company/Agency field, so an admin can
-  // see who's asking for agent access in the Users & Roles tab and
-  // approve it there — the same manual promotion flow that already
-  // exists, just with a visible signal instead of relying on someone
-  // asking out of band.
-  // ---------------------------------------------------------------------
-  let signupRole = 'customer';
-  const roleCustomerBtn = document.getElementById('roleCustomerBtn');
-  const roleAgentBtn = document.getElementById('roleAgentBtn');
-  const companyFieldWrap = document.getElementById('companyFieldWrap');
-  const agentRoleNote = document.getElementById('agentRoleNote');
-  const fCompany = document.getElementById('fCompany');
-
-  function setSignupRole(role) {
-    signupRole = role;
-    const isAgent = role === 'agent';
-    roleAgentBtn.classList.toggle('bg-primary', isAgent);
-    roleAgentBtn.classList.toggle('text-on-primary', isAgent);
-    roleAgentBtn.classList.toggle('text-on-surface-variant', !isAgent);
-    roleCustomerBtn.classList.toggle('bg-primary', !isAgent);
-    roleCustomerBtn.classList.toggle('text-on-primary', !isAgent);
-    roleCustomerBtn.classList.toggle('text-on-surface-variant', isAgent);
-    companyFieldWrap.classList.toggle('hidden', !isAgent);
-    agentRoleNote.classList.toggle('hidden', !isAgent);
-    fCompany.required = isAgent;
-  }
-  roleCustomerBtn.addEventListener('click', () => setSignupRole('customer'));
-  roleAgentBtn.addEventListener('click', () => setSignupRole('agent'));
-
-  // Turn a typed company name into a stable document id: "Darwesh Group"
-  // -> "darwesh-group". Anyone typing the same name lands on the same
-  // company automatically — no manual Firestore edit needed per signup.
-  function slugifyCompany(name) {
-    return name.trim().toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'company';
+  function setSubmitLoading(loading) {
+    submitBtn.disabled = loading;
+    submitSpinner.classList.toggle('hidden', !loading);
+    submitBtnLabel.textContent = loading ? tr('auth.signup.sendingCode', 'Sending code…') : tr('auth.signUpBtn', 'Create Account');
   }
 
-  // Creates the company doc the first time someone types that name;
-  // every signup after that just joins the existing one.
-  async function ensureCompany(companyId, companyName) {
-    const ref = doc(db, 'companies', companyId);
-    const snap = await getDoc(ref);
-    if (!snap.exists()) {
-      await setDoc(ref, { name: companyName, createdAt: serverTimestamp() });
-    }
+  function wirePasswordToggle(inputId, btnId, iconId) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    const icon = document.getElementById(iconId);
+    btn.addEventListener('click', () => {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      icon.textContent = showing ? 'visibility' : 'visibility_off';
+      btn.setAttribute('aria-label', showing ? tr('auth.showPassword', 'Show password') : tr('auth.hidePassword', 'Hide password'));
+    });
+  }
+  wirePasswordToggle('fPassword', 'toggleFPassword', 'toggleFPasswordIcon');
+  wirePasswordToggle('fConfirmPassword', 'toggleFConfirmPassword', 'toggleFConfirmPasswordIcon');
+
+  // Backend error messages are already written to be safe to show a
+  // user (see backend/app/otp/email_handler.py) -- shown verbatim.
+  // Only the two error TYPES this module defines (unavailable vs. a
+  // structured response) are branched on here, never a raw
+  // err.message from somewhere else.
+  function describeBackendError(err) {
+    if (err instanceof BackendUnavailableError) return tr('auth.otp.errBackendUnavailable', "Couldn't reach the server. Please check your connection and try again.");
+    if (err instanceof BackendResponseError) return err.message;
+    return tr('auth.otp.errGeneric', 'Something went wrong. Please try again.');
   }
 
-  function friendlyError(code) {
-    switch (code) {
-      case 'auth/email-already-in-use': return tr('auth.errEmailInUse', 'An account with that email already exists — try logging in instead.');
-      case 'auth/invalid-email': return tr('auth.errBadEmail', "That email address doesn't look right.");
-      case 'auth/weak-password': return tr('auth.errWeakPassword', 'Password is too weak — use at least 6 characters.');
-      default: return tr('auth.errSignupGeneric', 'Something went wrong creating your account. Please try again.');
-    }
-  }
+  // Everything the user typed on Step 1, kept only in memory (never in
+  // a URL/query param) so it survives the OTP step without asking them
+  // to retype it, and so signup/complete can send it once verification
+  // succeeds.
+  let pendingSignup = null;
+  let submitting = false;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (submitting) return;
     errEl.classList.add('hidden');
-    submitBtn.disabled = true;
-    submitBtn.textContent = tr('auth.creatingAccount', 'Creating account…');
 
-    const firstName = document.getElementById('fFirstName').value.trim();
-    const middleName = document.getElementById('fMiddleName').value.trim();
-    const lastName = document.getElementById('fLastName').value.trim();
-    const phone = document.getElementById('fPhone').value.trim();
-    const name = [firstName, middleName, lastName].filter(Boolean).join(' ');
+    const fullName = document.getElementById('fFullName').value.trim();
+    const phoneNumber = document.getElementById('fPhone').value.trim();
     const email = document.getElementById('fEmail').value.trim().toLowerCase();
-    // Trimmed for the same reason as login.html and reset-password.html:
-    // Firebase does not trim/normalize password whitespace itself, so a
-    // stray leading/trailing space captured at signup (autofill, a
-    // mobile keyboard quirk) would silently become a permanent part of
-    // the account's real password -- invisible to the user, and only
-    // reliably reproduced again by whichever exact device/autofill
-    // combination happened to add it in the first place.
+    // Trimmed for the same reason as login.html/reset-password.html:
+    // Firebase does not trim password whitespace itself, so whatever is
+    // sent here becomes the account's real password.
     const password = document.getElementById('fPassword').value.trim();
-    const wantsAgent = signupRole === 'agent';
-    const companyName = wantsAgent ? document.getElementById('fCompany').value.trim() : '';
+    const confirmPassword = document.getElementById('fConfirmPassword').value.trim();
 
-    if (wantsAgent && !companyName) {
-      showError(tr('auth.errCompanyRequired', 'Enter the company or agency you work for.'));
-      submitBtn.disabled = false;
-      submitBtn.textContent = tr('auth.signUpBtn', 'Create Account');
+    if (password !== confirmPassword) {
+      showError(tr('auth.passwordsDontMatch', "Passwords don't match."));
+      return;
+    }
+    if (password.length < 8) {
+      showError(tr('auth.errPasswordRequirements', 'Password is too weak — please meet all the requirements shown above.'));
       return;
     }
 
-    const companyId = wantsAgent ? slugifyCompany(companyName) : null;
-
+    submitting = true;
+    setSubmitLoading(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(cred.user, { displayName: name });
-      // Auth succeeded, so the user is signed in now — company doc and
-      // their own profile doc can both be created under that identity.
-      if (wantsAgent) await ensureCompany(companyId, companyName);
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        email, displayName: name, firstName, middleName, lastName, phone,
-        role: 'customer', requestedRole: signupRole, companyId, createdAt: serverTimestamp()
-      });
-      window.location.href = 'account.html';
+      await sendEmailOtp(email, 'SIGNUP_EMAIL_VERIFY');
+      pendingSignup = { fullName, phoneNumber, email, password };
+      enterOtpStep();
     } catch (err) {
-      console.error('[signup] account creation failed', err.code || err.name, err.message);
-      showError(friendlyError(err.code));
-      submitBtn.disabled = false;
-      submitBtn.textContent = tr('auth.signUpBtn', 'Create Account');
+      console.error('[signup] otp send failed', err.name, err.status || '');
+      showError(describeBackendError(err));
+    } finally {
+      submitting = false;
+      setSubmitLoading(false);
     }
+  });
+
+  // ---------------------------------------------------------------------
+  // Step 2: email OTP entry
+  // ---------------------------------------------------------------------
+  const otpMaskedEmail = document.getElementById('otpMaskedEmail');
+  const otpError = document.getElementById('otpError');
+  const otpVerifyBtn = document.getElementById('otpVerifyBtn');
+  const otpVerifySpinner = document.getElementById('otpVerifySpinner');
+  const otpVerifyBtnLabel = document.getElementById('otpVerifyBtnLabel');
+  const otpResendBtn = document.getElementById('otpResendBtn');
+  const otpResendLabel = document.getElementById('otpResendLabel');
+  const otpBackBtn = document.getElementById('otpBackBtn');
+
+  const otpInput = wireOtpInputs(document.getElementById('otpDigitsContainer'), {
+    onComplete: () => attemptVerify()
+  });
+  // ARIA label text is localized after i18n applies its own
+  // translations on DOMContentLoaded -- data-otp-index inputs already
+  // have a static English aria-label as a safe fallback (see markup).
+  document.querySelectorAll('[data-otp-index]').forEach((input, i) => {
+    const label = tr('auth.otp.ariaDigitLabel', 'Verification code digit');
+    input.setAttribute('aria-label', `${label} ${i + 1}`);
+  });
+
+  const RESEND_COOLDOWN_SECONDS = 60;
+  let resendTimer = null;
+  let resendSecondsLeft = 0;
+
+  function startResendCooldown() {
+    resendSecondsLeft = RESEND_COOLDOWN_SECONDS;
+    otpResendBtn.disabled = true;
+    updateResendLabel();
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      resendSecondsLeft -= 1;
+      if (resendSecondsLeft <= 0) {
+        clearInterval(resendTimer);
+        otpResendBtn.disabled = false;
+        otpResendLabel.textContent = tr('auth.otp.resendBtn', 'Resend code');
+      } else {
+        updateResendLabel();
+      }
+    }, 1000);
+  }
+  function updateResendLabel() {
+    otpResendLabel.textContent = `${tr('auth.otp.resendPrefix', 'Resend code in')} ${resendSecondsLeft}s`;
+  }
+
+  function enterOtpStep() {
+    otpMaskedEmail.textContent = maskEmail(pendingSignup.email);
+    otpError.classList.add('hidden');
+    otpInput.clear();
+    showStep(otpStepView);
+    startResendCooldown();
+  }
+
+  otpBackBtn.addEventListener('click', () => {
+    clearInterval(resendTimer);
+    showStep(formStepView);
+  });
+
+  otpResendBtn.addEventListener('click', async () => {
+    if (submitting || otpResendBtn.disabled) return;
+    submitting = true;
+    otpResendBtn.disabled = true;
+    try {
+      await sendEmailOtp(pendingSignup.email, 'SIGNUP_EMAIL_VERIFY');
+      otpError.classList.add('hidden');
+      otpInput.clear();
+      startResendCooldown();
+    } catch (err) {
+      console.error('[signup] otp resend failed', err.name, err.status || '');
+      otpError.textContent = describeBackendError(err);
+      otpError.classList.remove('hidden');
+      otpResendBtn.disabled = false;
+    } finally {
+      submitting = false;
+    }
+  });
+
+  function setOtpVerifyLoading(loading) {
+    otpVerifyBtn.disabled = loading;
+    otpVerifySpinner.classList.toggle('hidden', !loading);
+    otpVerifyBtnLabel.textContent = loading ? tr('auth.otp.verifying', 'Verifying…') : tr('auth.otp.verifyBtn', 'Verify');
+  }
+
+  async function attemptVerify() {
+    if (submitting) return;
+    const code = otpInput.getValue();
+    if (code.length !== 6) return;
+
+    submitting = true;
+    otpError.classList.add('hidden');
+    setOtpVerifyLoading(true);
+    try {
+      const verifyResp = await verifyEmailOtp(pendingSignup.email, 'SIGNUP_EMAIL_VERIFY', code);
+      await finishSignup(verifyResp.verifyToken);
+    } catch (err) {
+      console.error('[signup] otp verify failed', err.name, err.status || '');
+      otpError.textContent = describeBackendError(err);
+      otpError.classList.remove('hidden');
+      otpInput.clear();
+      submitting = false;
+      setOtpVerifyLoading(false);
+    }
+  }
+  otpVerifyBtn.addEventListener('click', attemptVerify);
+
+  // ---------------------------------------------------------------------
+  // Step 3: complete the signup server-side, then sign in with the
+  // custom token the backend hands back. No second Firebase app is
+  // created here -- this uses the same primary `auth` instance every
+  // other page shares (js/firebase-init.js); the secondary-app pattern
+  // used by admin.html's "Add Agent" flow is unrelated and untouched.
+  // ---------------------------------------------------------------------
+  async function finishSignup(verifyToken) {
+    showStep(signingInView);
+    document.getElementById('signingInLabel').textContent = tr('auth.creatingAccount', 'Creating account…');
+    try {
+      const result = await completeSignup({
+        verifyToken,
+        fullName: pendingSignup.fullName,
+        phoneNumber: pendingSignup.phoneNumber,
+        password: pendingSignup.password
+      });
+
+      if (result.customToken) {
+        document.getElementById('signingInLabel').textContent = tr('auth.signup.signingIn', 'Signing you in…');
+        try {
+          await signInWithCustomToken(auth, result.customToken);
+          window.location.href = 'account.html';
+          return;
+        } catch (signInErr) {
+          console.error('[signup] custom token sign-in failed', signInErr.code || signInErr.name);
+          // The account is real either way -- fall through to the
+          // login.html redirect below rather than stranding the user
+          // on a spinner.
+        }
+      }
+      window.location.href = 'login.html';
+    } catch (err) {
+      console.error('[signup] signup/complete failed', err.name, err.status || '');
+      showStep(otpStepView);
+      submitting = false;
+      setOtpVerifyLoading(false);
+      otpError.textContent = describeBackendError(err);
+      otpError.classList.remove('hidden');
+    }
+  }
+
+  // Already signed in? Skip straight to the right dashboard, same as login.html.
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) return;
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    const role = snap.exists() ? snap.data().role : 'customer';
+    window.location.href = role === 'agent' ? 'agent-dashboard.html' : 'account.html';
   });
 </script>
 <script type="module" src="./js/error-monitor.js"></script>

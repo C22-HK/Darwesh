@@ -61,10 +61,6 @@
   @keyframes auth-spin { to { transform: rotate(360deg); } }
   .auth-card { animation: auth-card-in .35s ease both; }
   @keyframes auth-card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  #forgotModalOverlay .forgot-modal-panel { transition: transform .2s ease, opacity .2s ease; transform: scale(.97); opacity: 0; }
-  #forgotModalOverlay.modal-open .forgot-modal-panel { transform: scale(1); opacity: 1; }
-  #forgotModalOverlay { transition: opacity .2s ease; opacity: 0; }
-  #forgotModalOverlay.modal-open { opacity: 1; }
 </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
@@ -115,7 +111,7 @@
             <input id="rememberMe" type="checkbox" class="rounded" checked/>
             <span data-i18n="auth.rememberMe">Remember me</span>
           </label>
-          <button id="forgotBtn" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" type="button" data-i18n="auth.forgotPassword">Forgot password?</button>
+          <a href="reset-password.html" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" data-i18n="auth.forgotPassword">Forgot password?</a>
         </div>
         <p id="authError" class="hidden text-error text-[13px]"></p>
         <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
@@ -132,46 +128,10 @@
   </div>
 </main>
 
-<!-- Forgot Password Modal -->
-<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="forgotModalOverlay">
-<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="forgotModalBackdrop"></div>
-<div class="forgot-modal-panel relative bg-surface-container-lowest w-full md:max-w-sm rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
-<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="forgotModalClose" type="button">
-<span class="material-symbols-outlined">close</span>
-</button>
-<div id="forgotModalFormView">
-<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.resetPasswordTitle">Reset your password</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md text-[13px]" data-i18n="auth.resetPasswordSubtitle">Enter the email on your account and we'll send you a link to reset your password.</p>
-<form id="forgotForm">
-<div class="mb-4">
-<label class="auth-label" for="resetEmail" data-i18n="auth.email">Email</label>
-<div class="auth-input-wrap">
-<span class="material-symbols-outlined auth-input-icon">mail</span>
-<input class="auth-input" id="resetEmail" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
-</div>
-</div>
-<p id="forgotError" class="text-error text-[13px] mb-3 hidden"></p>
-<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="forgotSubmitBtn" type="submit">
-<span class="material-symbols-outlined text-[18px]">send</span>
-<span data-i18n="auth.sendResetLink">Send Reset Link</span>
-</button>
-</form>
-</div>
-<div class="hidden text-center py-4" id="forgotModalSuccessView">
-<div class="w-14 h-14 rounded-full bg-tertiary-container/40 flex items-center justify-center mx-auto mb-4">
-<span class="material-symbols-outlined text-[28px] text-on-tertiary-container">mark_email_read</span>
-</div>
-<h2 class="font-headline-md text-headline-md text-primary mb-2" data-i18n="auth.resetLinkSentTitle">Check your inbox</h2>
-<p class="font-body-md text-body-md text-on-surface-variant text-[13.5px] mb-6" id="forgotModalSuccessBody"></p>
-<button class="w-full border border-outline-variant rounded-lg py-3 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" id="forgotModalDoneBtn" type="button" data-i18n="common.close">Close</button>
-</div>
-</div>
-</div>
-
 <script src="./js/i18n.js"></script>
 <script type="module">
   import { auth, db, getDoc } from './js/firebase-init.js';
-  import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   // Already logged in? Skip straight to the right dashboard instead of
@@ -229,21 +189,6 @@
     }
   }
 
-  // auth/invalid-email and auth/too-many-requests are legitimate to show
-  // distinctly (a malformed email or a rate-limit isn't an enumeration
-  // risk). auth/user-not-found is deliberately NOT handled here — it's
-  // intercepted before it ever reaches this function (see the forgotForm
-  // submit handler below) and shown the exact same success message as a
-  // real send, so this flow can never be used to check whether an email
-  // is registered.
-  function friendlyResetError(code) {
-    switch (code) {
-      case 'auth/invalid-email': return tr('auth.errBadEmail', "That email address doesn't look right.");
-      case 'auth/too-many-requests': return tr('auth.errTooMany', 'Too many attempts — please wait a moment and try again.');
-      default: return tr('auth.errResetGeneric', 'Something went wrong sending the reset email. Please try again.');
-    }
-  }
-
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errEl.classList.add('hidden');
@@ -290,92 +235,6 @@
       console.error('[login] sign-in failed', err.code || err.name, err.message);
       showError(friendlyLoginError(err.code));
       setSubmitLoading(false, '', tr('auth.logInBtn', 'Log In'));
-    }
-  });
-
-  // ---------------------------------------------------------------------
-  // Forgot Password modal — a dedicated flow with its own email field and
-  // its own error/success messaging, instead of reusing the login form's
-  // email input and reusing friendlyLoginError() (which used to show the
-  // wrong message — "Incorrect email or password" — for a flow that has
-  // no password to check).
-  // ---------------------------------------------------------------------
-  const forgotOverlay = document.getElementById('forgotModalOverlay');
-  const forgotFormView = document.getElementById('forgotModalFormView');
-  const forgotSuccessView = document.getElementById('forgotModalSuccessView');
-  const forgotForm = document.getElementById('forgotForm');
-  const forgotError = document.getElementById('forgotError');
-  const forgotSubmitBtn = document.getElementById('forgotSubmitBtn');
-  const resetEmailInput = document.getElementById('resetEmail');
-
-  function openForgotModal() {
-    forgotFormView.classList.remove('hidden');
-    forgotSuccessView.classList.add('hidden');
-    forgotError.classList.add('hidden');
-    forgotForm.reset();
-    resetEmailInput.value = document.getElementById('fEmail').value.trim();
-    forgotOverlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    // Two-step so the transition (opacity/scale) actually plays instead of
-    // jumping straight to its end state — the browser needs a frame with
-    // "hidden" already removed but "modal-open" not yet added.
-    requestAnimationFrame(() => forgotOverlay.classList.add('modal-open'));
-    resetEmailInput.focus();
-  }
-  function closeForgotModal() {
-    forgotOverlay.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    setTimeout(() => forgotOverlay.classList.add('hidden'), 200);
-  }
-
-  document.getElementById('forgotBtn').addEventListener('click', openForgotModal);
-  document.getElementById('forgotModalClose').addEventListener('click', closeForgotModal);
-  document.getElementById('forgotModalBackdrop').addEventListener('click', closeForgotModal);
-  document.getElementById('forgotModalDoneBtn').addEventListener('click', closeForgotModal);
-
-  // Point the reset link at our own reset-password.html instead of
-  // Firebase's default hosted handler (<project>.firebaseapp.com/__/auth/
-  // action) — some networks/DNS resolvers block *.firebaseapp.com
-  // outright, which made the emailed link fail to load at all even
-  // though the email itself arrived fine. handleCodeInApp: true makes
-  // Firebase link straight to our page with the oobCode as a query
-  // param; reset-password.html calls verifyPasswordResetCode /
-  // confirmPasswordReset itself using the same Firebase Auth SDK.
-  const resetActionCodeSettings = {
-    url: window.location.origin + '/reset-password.html',
-    handleCodeInApp: true
-  };
-
-  function showForgotSuccess(email) {
-    document.getElementById('forgotModalSuccessBody').textContent =
-      tr('auth.resetLinkSentBody', 'If an account exists for') + ' ' + email + tr('auth.resetLinkSentBodySuffix', ", we've sent a link to reset your password.");
-    forgotFormView.classList.add('hidden');
-    forgotSuccessView.classList.remove('hidden');
-  }
-
-  forgotForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    forgotError.classList.add('hidden');
-    const email = resetEmailInput.value.trim().toLowerCase();
-    forgotSubmitBtn.disabled = true;
-    try {
-      await sendPasswordResetEmail(auth, email, resetActionCodeSettings);
-      showForgotSuccess(email);
-    } catch (err) {
-      // No account with this email must look identical to a real send —
-      // otherwise this form becomes a way to check which emails are
-      // registered. auth/invalid-email and auth/too-many-requests are
-      // fine to show distinctly (format/rate-limit feedback, not an
-      // account-existence signal).
-      if (err.code === 'auth/user-not-found') {
-        showForgotSuccess(email);
-      } else {
-        console.error('[login] password reset request failed', err.code || err.name, err.message);
-        forgotError.textContent = friendlyResetError(err.code);
-        forgotError.classList.remove('hidden');
-      }
-    } finally {
-      forgotSubmitBtn.disabled = false;
     }
   });
 </script>
