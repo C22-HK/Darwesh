@@ -62,11 +62,32 @@ service cloud.firestore {
     // can change someone else's role, company, or agent assignment.
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin() || resource.data.role == 'agent';
-      allow create: if isOwner(uid) && request.resource.data.role == 'customer';
+      // requestedRole records a signup applicant's stated interest in
+      // becoming an agent (shown to admins as a "Wants Agent Access"
+      // signal in admin.html) -- it is never trusted as an actual grant
+      // (role above is the only field that matters for privilege), but
+      // its own value is still constrained here to the two real options
+      // rather than left open to any string a client cares to write.
+      allow create: if isOwner(uid) && request.resource.data.role == 'customer'
+                    && (!('requestedRole' in request.resource.data)
+                        || request.resource.data.requestedRole in ['customer', 'agent']);
+      // .get(field, null) rather than direct dot access for every locked
+      // field below -- Firestore rules THROWS (and denies the whole
+      // request) on a direct reference to a key that doesn't exist on
+      // the document, rather than treating it as unset/null the way
+      // JavaScript would. assignedAgentId is never actually set by any
+      // write path in this codebase (grep confirms it -- read-only,
+      // meant to be set by hand later), and requestedRole is absent on
+      // any account created via admin.html's "Add Agent" flow -- a
+      // direct comparison on either would have permanently denied every
+      // self-edit those accounts ever make (found and verified against
+      // a real Firestore emulator, not assumed), regardless of which
+      // field the edit actually touched.
       allow update: if (isOwner(uid)
                           && request.resource.data.role == resource.data.role
-                          && request.resource.data.assignedAgentId == resource.data.assignedAgentId
-                          && request.resource.data.companyId == resource.data.companyId)
+                          && request.resource.data.get('assignedAgentId', null) == resource.data.get('assignedAgentId', null)
+                          && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
+                          && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null))
                     || isAdmin();
       allow delete: if isAdmin();
 

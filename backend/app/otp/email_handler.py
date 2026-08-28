@@ -29,6 +29,7 @@ from app.otp.store import ChallengeStore
 GENERIC_SEND_MESSAGE = "If this email is registered, a verification code has been sent."
 _MIN_PASSWORD_LENGTH = 8
 _MIN_NAME_LENGTH = 2
+_MAX_COMPANY_NAME_LENGTH = 200
 _ACCEPTED_PURPOSES = {"SIGNUP_EMAIL_VERIFY": Purpose.SIGNUP_EMAIL_VERIFY, "PASSWORD_RESET": Purpose.PASSWORD_RESET}
 # The only two values a signup applicant may request -- never trusted as
 # an actual role grant (see FirebaseAccountOps.create_user_profile),
@@ -205,6 +206,11 @@ class SignupCompleteHandler:
             if not isinstance(company_name, str) or not company_name.strip():
                 return JSONResponse(
                     {"error": "Please provide the company or agency you work for."}, status_code=400
+                )
+            if len(company_name.strip()) > _MAX_COMPANY_NAME_LENGTH:
+                return JSONResponse(
+                    {"error": f"Company name must be at most {_MAX_COMPANY_NAME_LENGTH} characters."},
+                    status_code=400,
                 )
             company_id = _slugify_company(company_name)
 

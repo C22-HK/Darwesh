@@ -619,6 +619,36 @@ def test_signup_complete_as_agent_without_company_name_rejected():
     assert ops.created == []  # never even reaches account creation
 
 
+def test_signup_complete_as_agent_with_oversized_company_name_rejected():
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "requestedRole": "agent",
+            "companyName": "x" * 201,
+        },
+    )
+
+    assert resp.status_code == 400
+    assert ops.created == []
+    assert ops.companies_ensured == []
+
+
 def test_signup_complete_rejects_invalid_requested_role():
     # A client asking for "admin" (or anything other than the two real
     # options) is rejected outright, never silently downgraded to
@@ -759,6 +789,39 @@ def test_signup_complete_rejects_duplicate_phone():
 
     assert resp.status_code == 409
     assert "phone" in resp.json()["error"]
+
+
+def test_signup_complete_rejects_duplicate_email_for_agent_signup_too():
+    # Duplicate-account protection is the same create_account() call
+    # regardless of requestedRole -- confirmed directly rather than
+    # assumed from the customer-path test above.
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps(existing_emails={EMAIL_A})
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "requestedRole": "agent",
+            "companyName": "Darwesh Group",
+        },
+    )
+
+    assert resp.status_code == 409
+    assert "email" in resp.json()["error"]
+    assert ops.companies_ensured == []  # never reaches the company step either
 
 
 def test_signup_complete_verify_token_is_single_use():
