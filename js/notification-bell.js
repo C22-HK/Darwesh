@@ -9,9 +9,9 @@
 // least one of the user's own submissions has moved past "pending" —
 // never a fake unread count, since there's no read/unread tracking.
 // ---------------------------------------------------------------------
-import { auth, db } from './firebase-init.js';
+import { auth, db, getDocs } from './firebase-init.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-import { collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { collection, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 

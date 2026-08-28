@@ -8,9 +8,17 @@
 // scripts import it. That's what makes this the single correct place
 // to wire up App Check, rather than repeating it per page.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken as getAppCheckToken } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import {
+  getFirestore,
+  getDocs as _getDocs,
+  getDoc as _getDoc,
+  addDoc as _addDoc,
+  setDoc as _setDoc,
+  updateDoc as _updateDoc,
+  deleteDoc as _deleteDoc
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
 export const firebaseConfig = {
@@ -51,8 +59,9 @@ const app = initializeApp(firebaseConfig);
 // App Check metrics for that session. This is exactly why enforcement
 // shouldn't be turned on until those metrics show real traffic getting
 // valid tokens -- see docs/APP_CHECK.md.
+let appCheckInstance = null;
 try {
-  initializeAppCheck(app, {
+  appCheckInstance = initializeAppCheck(app, {
     provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_ENTERPRISE_SITE_KEY),
     isTokenAutoRefreshEnabled: true
   });
@@ -60,6 +69,74 @@ try {
   console.error('[firebase-init] App Check failed to initialize -- continuing without it', err);
 }
 
+// Closes the race between App Check and the very first Firestore
+// request: initializeAppCheck() above returns immediately, but actually
+// obtaining a token means reCAPTCHA Enterprise injecting and loading ITS
+// OWN script and completing a real round trip -- easily slower than a
+// page's first Firestore read, which several pages/widgets
+// (js/city-nav.js, js/notification-bell.js, buy.html/map.html/index.html
+// loading `listings` right away) fire immediately on load. Measured on
+// the live site: Storage/Auth (whose calls happen after a deliberate
+// user action, well after this settles) sit at 100% verified, while
+// Firestore sat at 1-5% verified -- direct evidence of this exact race,
+// not a hypothetical. getAppCheckToken() is the official App Check API
+// for "wait until a valid token is actually available" (Firebase Auth/
+// Storage's own SDKs already handle this internally for their calls,
+// which is exactly why they don't need this).
+//
+// This does not add a new security boundary by itself -- App Check
+// enforcement is still off for every service (Console: App Check ->
+// Firestore/Storage/Authentication all "Monitoring") -- it only makes
+// the *metrics* honest by giving every Firestore call a real chance to
+// carry a token before it's sent, which is what the phased rollout in
+// docs/APP_CHECK.md is waiting on before enforcement can safely turn on.
+//
+// The 5s race against getAppCheckToken() is a bounded circuit breaker
+// against a hard-hung external dependency (e.g. an ad-blocker silently
+// swallowing the reCAPTCHA request with neither success nor error) --
+// not a blanket "wait a bit and hope" delay. It only ever fires once per
+// page load (this module's top-level code runs exactly once, ES modules
+// being cached/de-duped by the browser), and normal reCAPTCHA Enterprise
+// round trips complete in a small fraction of that.
+const APP_CHECK_TOKEN_TIMEOUT_MS = 5000;
+
+export const appCheckReady = appCheckInstance
+  ? Promise.race([
+      getAppCheckToken(appCheckInstance).then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), APP_CHECK_TOKEN_TIMEOUT_MS))
+    ])
+      .then((gotToken) => {
+        if (!gotToken) {
+          // Logged, not swallowed -- this is exactly the "unverified"
+          // outcome the App Check metrics are meant to surface, so it
+          // must show up somewhere a developer can actually see it, not
+          // just quietly disappear into a proceeding request.
+          console.error('[firebase-init] App Check token not obtained within ' + APP_CHECK_TOKEN_TIMEOUT_MS + 'ms -- proceeding without one for this session');
+        }
+      })
+      .catch((err) => {
+        console.error('[firebase-init] App Check getToken() failed -- proceeding without one for this session', err);
+      })
+  : Promise.resolve();
+
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// Gated wrappers around every Firestore call that actually issues a
+// network request. collection()/doc()/query()/where()/orderBy()/
+// serverTimestamp() etc. are deliberately NOT wrapped here -- they're
+// synchronous and purely local (building a reference/query object),
+// never touch the network on their own, and gating them would add
+// nothing. Every page imports getDocs/getDoc/addDoc/setDoc/updateDoc/
+// deleteDoc from HERE instead of directly from the firebase-firestore.js
+// CDN module, so the gate lives in exactly one place -- impossible to
+// accidentally miss a call site the way manually inserting
+// `await appCheckReady` before each of the ~20+ individual call sites
+// across this codebase would risk.
+export async function getDocs(...args) { await appCheckReady; return _getDocs(...args); }
+export async function getDoc(...args) { await appCheckReady; return _getDoc(...args); }
+export async function addDoc(...args) { await appCheckReady; return _addDoc(...args); }
+export async function setDoc(...args) { await appCheckReady; return _setDoc(...args); }
+export async function updateDoc(...args) { await appCheckReady; return _updateDoc(...args); }
+export async function deleteDoc(...args) { await appCheckReady; return _deleteDoc(...args); }

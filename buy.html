@@ -250,11 +250,11 @@ let listingsLoaded = false;
 // ---------------------------------------------------------------------
 async function loadListings() {
   try {
-    const [{ db }, storeMod] = await Promise.all([
+    const [{ db, getDocs }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, getDocs } = storeMod;
+    const { collection } = storeMod;
     const snap = await getDocs(collection(db, 'listings'));
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
@@ -296,13 +296,13 @@ function showToast(msg, icon) {
 }
 
 async function initFavorites() {
-  const [{ auth, db }, authMod, storeMod] = await Promise.all([
+  const [{ auth, db, getDocs, addDoc, setDoc, deleteDoc }, authMod, storeMod] = await Promise.all([
     import('./js/firebase-init.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
   ]);
   favAuth = auth; favDb = db;
-  favFns = { ...authMod, ...storeMod };
+  favFns = { ...authMod, ...storeMod, getDocs, addDoc, setDoc, deleteDoc };
   favFns.onAuthStateChanged(auth, async (user) => {
     if (user) {
       const snap = await favFns.getDocs(favFns.collection(db, 'users', user.uid, 'favorites'));

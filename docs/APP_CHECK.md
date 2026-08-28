@@ -44,6 +44,62 @@ delicate flow (an admin creating a user without losing their own
 session) while enforcement isn't even on yet. Small, scoped, and worth
 testing on its own when that day comes.
 
+Note on the race-condition fix below: since `setDoc` (like every other
+Firestore network call) is now a gated wrapper from `firebase-init.js`,
+the secondary app's `setDoc` call also waits on the *primary* app's App
+Check token before proceeding. That wait is harmless (it's typically
+already resolved by the time an admin fills out the Add Agent form) but
+doesn't actually help the secondary app's own App Check status either
+way — it has no token attached regardless, gated or not. Worth knowing,
+not worth engineering around before enforcement is even being considered
+for that flow.
+
+## Race condition fix — first Firestore read on every page now waits for a real token
+
+**Root cause, confirmed from live Console metrics** (see status log
+below): Storage and Authentication calls happen after a deliberate user
+action (viewing a photo, signing in) — well after reCAPTHA Enterprise's
+own script has had time to load and produce a token, so both sat at
+100% verified. Firestore gets hit *immediately* on page load on several
+pages (`buy.html`/`map.html`/`index.html` fetch `listings` right away;
+`js/city-nav.js`/`js/notification-bell.js`/`js/nav-auth.js` do too, on
+nearly every page) — these early reads were racing ahead of the token,
+landing at 1-5% verified.
+
+**Fix**: `js/firebase-init.js` now also exports gated wrappers —
+`getDocs`, `getDoc`, `addDoc`, `setDoc`, `updateDoc`, `deleteDoc` — each
+of which `await`s a new `appCheckReady` promise (built from the official
+App Check `getToken()` API, raced against a 5s circuit-breaker in case
+reCAPTCHA never resolves or rejects at all) before calling the real
+Firestore function. `collection`/`doc`/`query`/`where`/`orderBy`/
+`serverTimestamp` stay imported directly from the CDN as before — they're
+synchronous and local, never touch the network, gating them would do
+nothing.
+
+Every page and shared script that reaches Firestore (18 total: 16
+`.html` pages, `js/city-nav.js`, `js/notification-bell.js`,
+`js/nav-auth.js`) now imports those six functions from
+`js/firebase-init.js` instead of the `firebase-firestore.js` CDN module
+directly — one choke point, rather than manually inserting
+`await appCheckReady` before ~25+ individual call sites scattered across
+those files, which would have been much easier to accidentally miss one
+of. Storage and Authentication calls were left completely untouched
+(different import source, never routed through the gate) — they didn't
+have this problem to begin with.
+
+Verified with Playwright using a deliberately delayed (300ms) token mock
+across every page + a signed-in `admin.html` (dashboard, Listings,
+Network/org-chart tabs) and `sell.html`: every observed Firestore call —
+tens of them on `admin.html`'s dashboard alone — landed strictly after
+the token resolved, never before. Also verified both failure modes: a
+quick `getToken()` rejection and a `getToken()` that never resolves at
+all (worst case) — in both, Firestore still proceeds (the 5s
+circuit-breaker firing in the second case), the failure is logged with a
+clear, non-sensitive message, and the page keeps working. Confirmed by
+grep that no Storage/Auth function is imported from `firebase-init.js`
+anywhere — their behavior is unchanged by construction, not just by
+inference.
+
 ## Debug tokens (local/dev testing)
 
 Not needed right now — enforcement is off, so an unverified/missing

@@ -10,8 +10,8 @@
 // instead of a dead end. Counts include every listing regardless of
 // dealType, matching what that map view actually shows.
 // ---------------------------------------------------------------------
-import { db } from './firebase-init.js';
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { db, getDocs } from './firebase-init.js';
+import { collection } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 const KNOWN_CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
 
