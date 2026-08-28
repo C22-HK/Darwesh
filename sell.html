@@ -931,7 +931,7 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
   }
   resultEl.textContent = tr('sell.valuationLoading', 'Estimating...');
   try {
-    await submissionAuthReady;
+    await getSubmissionAuthReady();
     const snap = await submitFns.getDocs(submitFns.collection(submitDb, 'listings'));
     const comparable = [];
     snap.forEach(d => {
@@ -1144,7 +1144,7 @@ function ensurePhotoUploadStarted(file) {
   state.promise = (async () => {
     const t0 = performance.now();
     try {
-      await submissionAuthReady;
+      await getSubmissionAuthReady();
       const compressed = await compressImage(file);
       if (!sellPhotoToken) sellPhotoToken = crypto.randomUUID();
       const safeName = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' +
@@ -1364,7 +1364,7 @@ function startVerificationUpload(blob) {
   const t0 = performance.now();
   verificationUploadPromise = (async () => {
     try {
-      await submissionAuthReady;
+      await getSubmissionAuthReady();
       const token = crypto.randomUUID();
       const path = `sell-verification/${token}/selfie.jpg`;
       const fileRef = storageFns.ref(submitStorage, path);
@@ -1552,17 +1552,66 @@ if (localStorage.getItem(DRAFT_KEY)) {
    submission is saved with uid: null and is only visible to staff.
    ========================================================================== */
 let submitAuth = null, submitDb = null, submitFns = null, submitStorage = null, storageFns = null;
-const submissionAuthReady = (async function initSubmissionAuth() {
+
+let submissionAuthAttempt = 0;
+
+async function initSubmissionAuth() {
+  // A module URL that has ever failed to fetch is cached as a permanent
+  // failure by the BROWSER'S OWN ES module registry, not just something
+  // this file's own promise caches -- confirmed directly: re-importing
+  // the exact same URL after the network recovers still throws the same
+  // cached rejection with no new network request even attempted; only a
+  // literally different URL (a cache-busting query param) makes the
+  // browser try again. So a retryable getSubmissionAuthReady() alone
+  // isn't enough -- every retry needs fresh URLs for the imports that
+  // could plausibly have failed, or it just replays the same dead
+  // import every time.
+  //
+  // ./js/firebase-init.js is NEVER cache-busted, even on retry: unlike
+  // the three CDN modules below (stateless -- just re-exported SDK
+  // functions, safe to load twice under different URLs), firebase-init.js
+  // calls initializeApp() at its own top level. Re-importing it under a
+  // new URL would re-run that and throw Firebase's own
+  // "app named '[DEFAULT]' already exists" error, since a failed import
+  // (this one or any of ITS OWN transitive imports) means that call
+  // never ran the first time -- but a *successful* one only ever runs
+  // once, and must stay that way.
+  const bust = submissionAuthAttempt > 0 ? '?retry=' + submissionAuthAttempt : '';
+  submissionAuthAttempt++;
   const [{ auth, db, storage, addDoc, updateDoc, getDocs }, authMod, storeMod, storageMod] = await Promise.all([
     import('./js/firebase-init.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js')
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js' + bust),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js' + bust),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js' + bust)
   ]);
   submitAuth = auth; submitDb = db; submitStorage = storage;
   submitFns = { ...authMod, ...storeMod, addDoc, updateDoc, getDocs };
   storageFns = storageMod;
-})();
+}
+
+// A retryable getter, not a one-shot module-level promise. The original
+// bug this fixes: on a flaky connection (far more common on mobile —
+// exactly the "some browsers/devices" pattern reported), one of these
+// four dynamic imports can fail while the page is loading, minutes
+// before the user ever reaches Step 7. A plain `const ... = (async
+// function(){...})()` caches that REJECTION forever -- every later
+// `await` on it (including the final Submit handler, previously
+// unguarded -- see below) throws the same cached error every time,
+// permanently, even after clicking Submit again, even on a good
+// connection minutes later. Retrying only works if a fresh attempt is
+// actually made (see initSubmissionAuth's cache-busting above too --
+// a fresh promise alone isn't enough if it just re-requests the exact
+// same doomed URL).
+let submissionAuthPromise = null;
+function getSubmissionAuthReady() {
+  if (!submissionAuthPromise) {
+    submissionAuthPromise = initSubmissionAuth().catch((err) => {
+      submissionAuthPromise = null; // let the next caller retry from scratch
+      throw err;
+    });
+  }
+  return submissionAuthPromise;
+}
 
 // Uploads whatever photos are currently selected to
 // sell-submissions/{token}/{n}-{fileName} and returns the download URLs
@@ -1646,7 +1695,32 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   submitBtnLabel.textContent = tr('sell.submittingListing', 'Submitting your listing...');
 
   const tSubmitStart = performance.now();
-  await submissionAuthReady;
+  // Previously unguarded -- unlike every other call site of this same
+  // readiness check (valuation estimate, property photo upload,
+  // verification photo upload), this one had no try/catch around it. If
+  // the SDK modules failed to load (a flaky connection during page
+  // load, minutes before Step 7 -- more common on mobile, matching
+  // reports of this failing "on some browsers/devices" but not others),
+  // this threw here, uncaught, and execution just stopped: the button
+  // stayed disabled forever showing "Submitting your listing...",
+  // submissionInFlight stayed true forever blocking any retry, and the
+  // user never saw an error. getSubmissionAuthReady() (see its own
+  // comment above) also makes retrying actually mean something now --
+  // a plain re-await of the old one-shot promise would have thrown the
+  // exact same cached rejection forever, even after clicking Submit
+  // again.
+  try {
+    await getSubmissionAuthReady();
+  } catch (err) {
+    console.error('Could not prepare submission:', err);
+    errEl.textContent = ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.') + ' (' + err.message + ')';
+    errEl.classList.remove('hidden');
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    submitBtn.disabled = false;
+    submitBtnLabel.textContent = originalLabel;
+    submissionInFlight = false;
+    return;
+  }
   console.log('[sell][perf] Firebase SDK ready at +' + Math.round(performance.now() - tSubmitStart) + 'ms');
 
   const photoStatus = getCurrentPhotoUploadStatus();
