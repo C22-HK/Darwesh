@@ -379,7 +379,14 @@
 
     const grid = document.getElementById('agentListingsGrid');
     const listingsEmpty = document.getElementById('agentListingsEmpty');
-    const q = query(collection(db, 'listings'), where('agentId', '==', profile.assignedAgentId));
+    // AUTHZ-01: agentId alone isn't enough to satisfy firestore.rules for a
+    // non-owner, non-admin viewer (a customer here) -- also constrain to
+    // the agent's public/active listings, matching what this viewer could
+    // legitimately see anyway.
+    const q = query(collection(db, 'listings'),
+      where('agentId', '==', profile.assignedAgentId),
+      where('private', '==', false),
+      where('status', '==', 'active'));
     const snap = await getDocs(q);
     if (snap.empty) { listingsEmpty.classList.remove('hidden'); return; }
     listingsEmpty.classList.add('hidden');

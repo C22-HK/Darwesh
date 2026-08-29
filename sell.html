@@ -932,11 +932,13 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
   resultEl.textContent = tr('sell.valuationLoading', 'Estimating...');
   try {
     await getSubmissionAuthReady();
-    const snap = await submitFns.getDocs(submitFns.collection(submitDb, 'listings'));
+    const valuationQuery = submitFns.query(submitFns.collection(submitDb, 'listings'),
+      submitFns.where('private', '==', false), submitFns.where('status', '==', 'active'));
+    const snap = await submitFns.getDocs(valuationQuery);
     const comparable = [];
     snap.forEach(d => {
       const l = d.data();
-      if (l.status === 'active' && l.city === city && Number(l.price) > 0 && Number(l.size) > 0) {
+      if (l.city === city && Number(l.price) > 0 && Number(l.size) > 0) {
         comparable.push(Number(l.price) / Number(l.size));
       }
     });

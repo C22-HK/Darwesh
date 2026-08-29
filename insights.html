@@ -386,7 +386,7 @@
 <script src="./js/i18n.js"></script>
 <script type="module">
 import { db, getDocs } from './js/firebase-init.js';
-import { collection } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { collection, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
 // ---------------------------------------------------------------------
 // Real data — computed live from the "listings" collection (the same
@@ -404,10 +404,10 @@ async function loadRealMarketData() {
   const byCity = {};
   let total = 0, verified = 0;
   try {
-    const snap = await getDocs(collection(db, 'listings'));
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const snap = await getDocs(q);
     snap.forEach(d => {
       const l = d.data();
-      if (l.status === 'closed') return;
       total++;
       if (l.verified) verified++;
       const city = l.city || 'Other';

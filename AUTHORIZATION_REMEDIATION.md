@@ -6,8 +6,14 @@ was explicitly **not** started — this document covers remediation only.
 
 All changes were validated against the Firebase emulator suite (Firestore
 + Storage) before being committed. No production Firestore data was read,
-written, or modified during this work. Production `firestore.rules` was
-**not** deployed by this session — see **Deployment** at the bottom.
+written, or modified during this work.
+
+**Update**: `firestore.rules` has since been published to the live
+`darwesh-group` Firebase project (by the user, via the Firebase Console —
+this session has no deploy credentials). Production verification of
+AUTHZ-01 was performed after that publish — see **Production
+verification** at the bottom, which replaces the earlier "not yet run"
+note.
 
 ---
 
@@ -113,6 +119,27 @@ readable by the public or other agents) rather than leak — see
   by an equality `where()` clause and so won't appear in the team view
   unless it's also the viewer's own — a legacy-data display gap, not a
   security concern.
+- **Found after the initial commit, while confirming "does any other
+  frontend query need updating" post-deployment**: four more unfiltered
+  `listings` fetches existed outside the original edit scope —
+  `services.html` and `mam-ai.html` (both public pages, same
+  `where('private','==',false), where('status','==','active'))` fix as
+  `buy.html`/`index.html`), `sell.html`'s MAM AI Valuation feature
+  (comparable-listings average, same fix), and `account.html`'s "My
+  Assigned Agent" listings grid, which queried only
+  `where('agentId','==', assignedAgentId)` — not enough on its own to
+  satisfy either rule branch for a customer viewing their agent's
+  listings, so this query would have been **rejected outright** in
+  production (not merely returning stale data) until fixed; it now also
+  constrains `private==false`/`status=='active'`, narrowing correctly to
+  the agent's public active listings. `admin.html`'s several unfiltered
+  `listings` fetches were checked and confirmed to still work correctly
+  — `isAdmin()` doesn't depend on `resource.data`, so an authenticated
+  admin's unfiltered query is provably safe regardless of contents;
+  verified empirically against the emulator (admin unfiltered query
+  returned all 3 seeded listings, private/closed included), and
+  `admin.html` itself gates every page load on `profile.role === 'admin'`
+  before any of these calls can run.
 
 ### Tests added (`stage3_authz_test.mjs`, Part 6)
 `P6-1`–`P6-3` (get on private/closed/draft, anonymous → DENIED),
@@ -411,43 +438,50 @@ tests, 135 backend tests, 0 failures.**
 
 ## Deployment
 
-**Not performed by this session.** This is a sandboxed environment with
-no Firebase CLI credentials and no `gcloud`/service-account access to
-the real `darwesh-group` Firebase project — deploying automatically
-would require uncertainty about which credentials/permissions are
-actually available, which your own instructions said to avoid. Manual
-steps:
+**Performed by the user**, via the Firebase Console (this session has no
+Firebase CLI/`gcloud`/service-account credentials and cannot deploy
+directly). `storage.rules` was **not** changed this pass — no Storage
+deployment was needed or performed.
 
-1. Open the [Firebase Console](https://console.firebase.google.com/) →
-   project **darwesh-group** → **Firestore Database** → **Rules**.
-2. Replace the current contents with the full, current contents of this
-   repo's `firestore.rules` (all four fixes are in this single file —
-   one deploy covers AUTHZ-01 through AUTHZ-04 together).
-3. Click **Publish**.
+## Production verification (read-only, anonymous, safe — performed)
 
-`storage.rules` was **not** changed this pass — no Storage deployment is
-needed for this remediation.
+Run after the user confirmed the publish was complete. No write, no auth
+token, no sensitive collection touched; all three checks are the exact
+methods specified for this validation.
 
-### Post-deployment verification (read-only, anonymous, safe)
+**1. Unfiltered anonymous collection query** —
+`GET https://firestore.googleapis.com/v1/projects/darwesh-group/databases/(default)/documents/listings`
+→ **`403 PERMISSION_DENIED`** (`"Missing or insufficient permissions."`).
+The entire query is now rejected outright, not silently filtered —
+matches the intended list-query-provability behavior exactly.
 
-After publishing, this is the same anonymous-GET method used in Stage 3
-to prove AUTHZ-01, re-run to confirm the fix (no write, no auth token,
-no sensitive collection touched):
+**2. Direct `get()` on the specific listing previously confirmed
+`private:true`** (id `bguFdoO8NpbT4C0tK73k`, live in production) —
+`GET .../listings/bguFdoO8NpbT4C0tK73k` → **`403 PERMISSION_DENIED`**.
+The same document that was freely anonymously readable before deployment
+is now denied.
 
-```bash
-curl -s "https://firestore.googleapis.com/v1/projects/darwesh-group/databases/(default)/documents/listings"
-```
+**3. Correctly-filtered public query** (`private == false AND status ==
+"active"`, via `:runQuery` with a `StructuredQuery` — read-only, no data
+modified) → **`200 OK`, 5 documents returned**, all with
+`private:false`/`status:"active"`; `bguFdoO8NpbT4C0tK73k` is **not**
+among them. This is the same 5 public listings that were already visible
+before deployment (production has 6 listings total: 5 public + the 1
+private one) — legitimate public browsing is fully intact.
 
-**Expected result after deployment**: the response should now show
-**fewer** documents than before (or the same 5 that were already
-public), and specifically must **not** include the one previously
-confirmed `private: True` document. A `200` response containing only
-public/active listings is the pass condition; if the same private
-document still comes back, the rules publish did not take effect (check
-the Firebase Console's Rules tab for a publish error) or the wrong
-project was targeted.
+**Verdict: AUTHZ-01 is FIXED in production.** Both the collection-query
+leak and the direct-get leak are closed, and legitimate public listing
+reads are unaffected — all three of this validation's pass conditions
+are met.
 
-This session did not have production rules deployed while writing this
-document, so this specific verification step has **not yet been run**
-against production — it's provided as the exact command for you (or a
-follow-up turn, once you confirm deployment happened) to run.
+### Frontend queries that needed updating for the stricter rules
+Already fixed in this same commit, discovered via a full repo sweep
+prompted by this question (see the AUTHZ-01 "Frontend changes" section
+above for the complete list and reasoning): `map.html`, `buy.html`,
+`index.html`, `services.html`, `mam-ai.html`, `sell.html` (valuation
+feature), `account.html`, and `agent-dashboard.html`'s two team-scoped
+queries. `admin.html`'s several unfiltered `listings` fetches were
+checked and confirmed to need no change (admin's unfiltered query is
+provably safe under the rule, verified empirically against the
+emulator, and the whole page is gated on `role === 'admin'` before any
+of these can run). No further frontend query changes are needed.

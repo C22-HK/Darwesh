@@ -547,12 +547,13 @@ async function loadCityApartmentCounts() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection } = storeMod;
-    const snap = await getDocs(collection(db, 'listings'));
+    const { collection, query, where } = storeMod;
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const snap = await getDocs(q);
     const counts = {};
     snap.forEach(d => {
       const l = d.data();
-      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.status !== 'closed' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
+      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
     });
     cityApartmentCounts = counts;
   } catch (e) {
