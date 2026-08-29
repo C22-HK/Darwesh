@@ -34,22 +34,25 @@ explicitly reconcile with it.
 
 ## Findings
 
-> **REMEDIATION UPDATE**: INFRA-01 and INFRA-04 are **FIXED** (code
-> changed and validated; INFRA-01 additionally needs a Cloud Run
-> redeploy and a `firestore.rules` publish to take effect in
-> production — see **Deployment** in `INFRASTRUCTURE_REMEDIATION.md`).
-> INFRA-02 and INFRA-03 remain **NOT SAFELY IMPLEMENTABLE FROM THIS
-> SANDBOX** — the egress proxy that already blocked INFRA-10's
-> production header check also blocks every asset CDN
-> (`cdn.tailwindcss.com`, `gstatic.com`), so neither a real SRI hash nor
-> a verified Tailwind version pin could be produced without risking a
-> sitewide styling/script break on a wrong guess; exact steps to close
-> both yourself are in `INFRASTRUCTURE_REMEDIATION.md`. INFRA-05 through
-> INFRA-10 are unchanged. Full detail — files changed, tests, before/
-> after, remaining risk — is in **`INFRASTRUCTURE_REMEDIATION.md`**.
-> Each finding below now carries a **Remediation status** line; the
-> original finding text is left as written (the historical record of
-> what was found).
+> **REMEDIATION UPDATE (round 2)**: INFRA-01, INFRA-02, INFRA-03,
+> INFRA-04, and INFRA-09 are now **FIXED**. INFRA-05 and INFRA-10 are
+> **VERIFIED SAFE IN PRODUCTION** (confirmed by you directly — Secret
+> Manager-backed secrets, and the three security headers present on a
+> live `/api/v1/health` response — not retested by this session).
+> Round 1 found INFRA-02/INFRA-03 blocked by that session's sandbox
+> having no egress to any asset CDN; round 2's sandbox could reach
+> `registry.npmjs.org` (used to compute a real Leaflet SRI hash from the
+> authentic npm-published package) and `fonts.googleapis.com` (used to
+> confirm Google Fonts' SRI-incompatibility directly rather than by
+> inference), and self-hosted Tailwind entirely rather than pinning the
+> CDN — removing that dependency outright, the more thorough fix the
+> original finding already named. INFRA-06, INFRA-07, INFRA-08 remain
+> out of scope (unchanged, not requested in either round). Full detail —
+> files changed, tests, before/after, remaining risk, exact hash-
+> derivation method — is in **`INFRASTRUCTURE_REMEDIATION.md`**. Each
+> finding below now carries a **Remediation status** line; the original
+> finding text is left as written (the historical record of what was
+> found).
 
 ### INFRA-01 — Rate limiting is per-instance, in-memory, with no cross-instance coordination — now a live concern since the backend is confirmed deployed
 
@@ -62,7 +65,7 @@ explicitly reconcile with it.
 - **Root cause**: A deliberate, documented, single-instance-era trade-off that was never revisited once the backend actually reached production.
 - **Recommended remediation**: Not implemented this stage (analysis only). If pursued: either (a) cap Cloud Run `max-instances=1` for this service if its request volume tolerates that (simplest, matches the existing code's assumption exactly, but forfeits Cloud Run's own scaling/availability benefit), or (b) swap `RateLimiter`'s storage for Firestore/Redis-backed state (the code's own docstring already names this as the intended upgrade path). Whichever is chosen is a real architectural decision, not something to guess at here.
 - **Confidence**: High for the mechanism (read directly from source); the actual current Cloud Run `max-instances` setting is unknown from this session — genuinely unverified, not assumed either way.
-- **Remediation status**: **FIXED**, matching remediation option (b) above — a `FirestoreRateLimiter` now backs every auth-related limiter in production, selected via the exact same `cfg.is_production` pattern `app.otp.store.ChallengeStore` already used. Verified: 4 new wiring tests (`test_main_wiring.py`) proving production selects the Firestore-backed limiter with a distinct namespace per call site; a one-off script against a real Firestore emulator proved cross-instance sharing, per-`name` isolation, correct pruning, and safe fail-closed behavior under extreme contention (never exceeds the configured limit, never raises). **Not yet deployed to production** — needs a Cloud Run redeploy plus a `firestore.rules` publish (the new `rateLimits` deny-all block). Full detail in `INFRASTRUCTURE_REMEDIATION.md`.
+- **Remediation status**: **FIXED**, matching remediation option (b) above — a `FirestoreRateLimiter` now backs every auth-related limiter in production, selected via the exact same `cfg.is_production` pattern `app.otp.store.ChallengeStore` already used. Verified: 4 new wiring tests (`test_main_wiring.py`) proving production selects the Firestore-backed limiter with a distinct namespace per call site; a formal, committed, emulator-skippable regression file (`test_ratelimiter_firestore_emulator.py`) proved cross-instance sharing, per-`name` isolation, correct pruning, and safe fail-closed behavior under both realistic and extreme contention (never exceeds the configured limit, never raises). **Round 2**: re-reviewed against atomicity/failure-modes/clock-handling/cost-abuse/cleanup concerns; found and fixed one real gap — the transaction's exception handler only caught `Aborted`, not the full `GoogleAPIError` family, so a genuine Firestore outage (not just lost-transaction contention) could have escaped as an unhandled 500 instead of failing closed cleanly; now broadened. Cost-abuse risk (each `allow()` call is a billable Firestore transaction, including for denied requests) documented as an accepted, bounded tradeoff, not fixed. **Not yet deployed to production** — needs a Cloud Run redeploy plus a `firestore.rules` publish (the new `rateLimits` deny-all block). Full detail in `INFRASTRUCTURE_REMEDIATION.md`.
 
 ---
 
@@ -77,7 +80,8 @@ explicitly reconcile with it.
 - **Root cause**: SRI was never adopted; likely because the Firebase SDK's own CDN URLs are versioned per-release (making a hash pin low-maintenance) but Tailwind's is not (see INFRA-03), and SRI was probably never separately considered for either.
 - **Recommended remediation**: Not implemented this stage. If pursued: add `integrity="sha384-..."` + `crossorigin="anonymous"` to every CDN `<script>` tag, computed from each pinned version's actual served bytes. This is mechanical but touches all 21 HTML files and needs re-verification any time a CDN version is bumped — a real, if bounded, maintenance cost worth weighing against the risk it closes.
 - **Confidence**: High.
-- **Remediation status**: **NOT SAFELY IMPLEMENTABLE FROM THIS SANDBOX**. A correct `integrity` hash has to be computed from the real served bytes; this sandbox's egress proxy hard-blocks every CDN this site depends on (confirmed directly — `curl` to `cdn.tailwindcss.com` fails at the proxy's own CONNECT-tunnel stage, `403`, before ever reaching a real server), so no hash produced here could be trusted. A wrong or fabricated hash doesn't degrade gracefully — the browser silently refuses to execute the script at all, which for Firebase's SDK means auth/data breaking sitewide. Exact commands to compute and apply real hashes yourself are in `INFRASTRUCTURE_REMEDIATION.md`.
+- **Remediation status (round 1)**: NOT SAFELY IMPLEMENTABLE FROM THAT SANDBOX — no egress to any asset CDN at all.
+- **Remediation status (round 2)**: **FIXED, per-dependency**. Audited every external `<script>`/`<link>` across all 21 pages individually rather than applying SRI uniformly: **Leaflet** (pinned `1.9.4`, single-file, no dynamic imports) now carries real `integrity`/`crossorigin` on both its `.css` and `.js` tag on all 5 pages that load it — the hash was computed from the authentic `leaflet@1.9.4` package fetched via `registry.npmjs.org` (reachable this round; `unpkg.com` itself, where the tag points, is still blocked, same as round 1), method fully documented for reproducibility. **Tailwind** no longer needs SRI at all — it's self-hosted now (INFRA-03), removing the CDN dependency entirely rather than pinning+hashing it. **Firebase SDK** and **Google Fonts** are documented, justified exceptions, not silently skipped: Firebase loads via ES-module `import` statements inside local JS (SRI has no mechanism for that loading pattern without a larger Import-Maps restructuring); Google Fonts' CSS API deliberately returns different content per requesting User-Agent (confirmed directly — `fonts.googleapis.com` is reachable this round, unlike round 1), so a single computed hash would break the page for a real fraction of visitors, which is not a security improvement. Full per-dependency table, hash-derivation method, and residual-risk statement in `INFRASTRUCTURE_REMEDIATION.md`.
 
 ---
 
@@ -91,7 +95,8 @@ explicitly reconcile with it.
 - **Root cause**: The CDN `<script>` tag was set up during initial development and never revisited for pinning.
 - **Recommended remediation**: Not implemented this stage. If pursued: pin to a specific Tailwind CDN version (`cdn.tailwindcss.com/3.4.x` or similar, per Tailwind's own CDN versioning docs) at minimum; a bundled/built Tailwind (removing the CDN dependency entirely) would be the more thorough fix but is a real build-tooling change this static-site-with-no-build-step architecture has so far deliberately avoided (per `SECURITY_ARCHITECTURE.md`'s own stated design).
 - **Confidence**: High.
-- **Remediation status**: **NOT SAFELY IMPLEMENTABLE FROM THIS SANDBOX**. Same network block as INFRA-02 — `cdn.tailwindcss.com` is unreachable, so a pinned URL cannot be confirmed to actually resolve and serve working CSS (with this site's `forms`/`container-queries` plugins intact) before shipping it to all ~21 pages. If the pinned syntax or version is wrong, the CDN script 404s or fails to initialize and every page's styling breaks simultaneously — a materially worse outcome than staying unpinned a while longer. Exact verification steps to do this yourself are in `INFRASTRUCTURE_REMEDIATION.md`.
+- **Remediation status (round 1)**: NOT SAFELY IMPLEMENTABLE FROM THAT SANDBOX — `cdn.tailwindcss.com` itself was unreachable, so even a pinned URL couldn't be verified before shipping.
+- **Remediation status (round 2)**: **FIXED — more thoroughly than the original scope asked for**. Rather than pinning the CDN URL (still not independently verifiable this round either — `cdn.tailwindcss.com` remains blocked), Tailwind is now self-hosted entirely: built locally and offline from a pinned `tailwindcss@3.4.19` (installed via the always-reachable `registry.npmjs.org`, no asset-CDN access needed for this approach at all) using a `tailwind.config.js` that reproduces the exact custom theme every page's inline config previously carried (confirmed byte-identical across all 21 pages before consolidating), with the same `forms`/`container-queries` plugins the CDN query string requested. Output is a single committed, minified `css/tailwind.css` (~57KB) that all 21 pages now load via a plain `<link>` instead of the CDN `<script>` — the now-dead inline `tailwind.config` script block was removed from each page too. Verified: the build completes cleanly, contains real selectors for the custom theme and the forms plugin's reset styles, `node scripts/ci-checks.js` still passes, a repo-wide grep confirms zero remaining `cdn.tailwindcss.com` references anywhere, and 4 representative pages were rendered with a real headless browser and visually confirmed to match the original design (layout, colors, spacing, form-control styling all intact). Full detail, including the class-coverage risk audit performed before trusting the build, in `INFRASTRUCTURE_REMEDIATION.md`.
 
 ---
 
@@ -119,6 +124,7 @@ explicitly reconcile with it.
 - **Why it matters**: Plain env vars aren't a vulnerability by themselves (Cloud Run revision configs are only visible to project IAM members, not the public), but Secret Manager is the stronger, more auditable pattern (access logging, rotation without a redeploy, no accidental exposure via `gcloud run services describe` output pasted into a support ticket, chat log, or screenshot).
 - **Recommended action**: Not a code fix — verify directly: `gcloud run services describe darwesh-backend --region=me-central1 --format=json` and check whether the sensitive env vars appear as plain `env` entries or `secretKeyRef`-style entries. If plain, consider migrating to Secret Manager — low effort, meaningful hardening for a live service holding an OTP-signing secret and an email-provider API key.
 - **Confidence**: N/A — explicitly an open question, not a finding.
+- **Remediation status**: **VERIFIED SAFE IN PRODUCTION** — you confirmed directly that `OTP_HMAC_SECRET` and `RESEND_API_KEY` are injected via Secret Manager `secretKeyRef`, not plain environment variables, closing this open question in favor of the stronger, more auditable pattern. Not independently retested by this session, per instruction.
 
 ---
 
@@ -168,6 +174,7 @@ explicitly reconcile with it.
 - **Also confirmed safe**: triggers are `push`/`pull_request` to `main` only (not the higher-risk `pull_request_target`), and both jobs (`actions/checkout@v4`, `actions/setup-node@v4`, `actions/setup-python@v5`) are official, verified GitHub actions pinned to major-version tags — no arbitrary/unpinned third-party action usage.
 - **Recommended remediation**: Not implemented this stage. If pursued: add `permissions: contents: read` at the workflow level — standard least-privilege hygiene, zero functional risk to apply, but genuinely optional given no current abuse path exists.
 - **Confidence**: High.
+- **Remediation status**: **FIXED**. Added a top-level `permissions: contents: read` block to `.github/workflows/ci.yml` — exactly the recommendation above. YAML re-validated after the edit.
 
 ---
 
@@ -178,6 +185,7 @@ explicitly reconcile with it.
 - **What this means**: `_SecurityHeadersMiddleware`'s actual presence on live production responses (`X-Content-Type-Options`, `Referrer-Policy`, `Strict-Transport-Security`) is confirmed **in code** (INFRA-07/08 evidence) but not independently re-confirmed against a live response this session. The user's own health-check confirmation (`{"status":"ok"}`) proves the service responds; it doesn't by itself prove these specific headers are present on that response (they didn't check headers, only body).
 - **Recommended action**: If you want this independently confirmed, run `curl -sI https://api.darweshgroup.com/api/v1/health` yourself (read-only, safe) and check for the three headers named above — I can't do this from here.
 - **Confidence**: N/A — explicitly unverified, not claimed either way.
+- **Remediation status**: **VERIFIED SAFE IN PRODUCTION** — you confirmed directly that `GET /api/v1/health` returns 200 with `x-content-type-options: nosniff`, `referrer-policy: no-referrer`, and `strict-transport-security: max-age=63072000; includeSubDomains` present, matching `_SecurityHeadersMiddleware`'s code exactly. Not independently retested by this session, per instruction.
 
 ---
 
@@ -203,9 +211,9 @@ None.
 None.
 
 ### Confirmed Medium
-- **INFRA-01** — Rate limiting is per-instance/in-memory; effectiveness now depends on an unverified Cloud Run scaling setting. **FIXED** (code) — not yet deployed. See `INFRASTRUCTURE_REMEDIATION.md`.
-- **INFRA-02** — Zero SRI on any CDN script, 21/21 pages. **Not safely implementable from this sandbox** — blocked on egress-proxy access to any asset CDN. See `INFRASTRUCTURE_REMEDIATION.md`.
-- **INFRA-03** — Tailwind CDN entirely unpinned (no version). **Not safely implementable from this sandbox** — same block as INFRA-02. See `INFRASTRUCTURE_REMEDIATION.md`.
+- **INFRA-01** — Rate limiting is per-instance/in-memory; effectiveness now depends on an unverified Cloud Run scaling setting. **FIXED** (code, re-reviewed and hardened round 2) — not yet deployed. See `INFRASTRUCTURE_REMEDIATION.md`.
+- **INFRA-02** — Zero SRI on any CDN script, 21/21 pages. **FIXED, per-dependency** (SRI applied where safe — Leaflet; removed the dependency entirely where self-hosting was the better fix — Tailwind; documented justified exceptions where SRI doesn't apply — Firebase SDK, Google Fonts). See `INFRASTRUCTURE_REMEDIATION.md`.
+- **INFRA-03** — Tailwind CDN entirely unpinned (no version). **FIXED** — self-hosted, CDN dependency removed entirely (stronger than the originally-scoped "pin the version" fix). See `INFRASTRUCTURE_REMEDIATION.md`.
 
 ### Confirmed Low
 - **INFRA-04** — `backend/README.md` stale relative to actual production deployment state. **FIXED**. See `INFRASTRUCTURE_REMEDIATION.md`.
@@ -214,11 +222,11 @@ None.
 
 ### Hardening-only
 - **INFRA-06** — App Check integrated, enforcement off (known, staged, deliberate).
-- **INFRA-09** — CI workflow missing an explicit `permissions:` block (no current abuse path).
+- **INFRA-09** — CI workflow missing an explicit `permissions:` block (no current abuse path). **FIXED**. See `INFRASTRUCTURE_REMEDIATION.md`.
 
-### Not safely testable from this sandbox
-- **INFRA-05** — Cloud Run secrets-delivery mechanism (plain env var vs. Secret Manager) — genuinely unknown, needs a `gcloud`/Console check you can run.
-- **INFRA-10** — Live production response headers — proxy-blocked from here; a safe `curl -I` you can run yourself would close this.
+### Verified safe in production (confirmed by you directly)
+- **INFRA-05** — Cloud Run secrets-delivery mechanism: Secret Manager `secretKeyRef`, not plain env vars.
+- **INFRA-10** — Live production response headers: all three security headers confirmed present on `/api/v1/health`.
 
 ### Data-integrity risks
 INFRA-04, INFRA-08 (both documentation/comment staleness, not functional bugs).

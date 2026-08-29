@@ -144,6 +144,25 @@ class FirestoreRateLimiter:
     operation), silently letting an unbounded burst through on infra
     contention would defeat this component's entire purpose.
 
+    Failure modes beyond contention: any Firestore-side error (a
+    transient outage, a deadline exceeded, a network blip between this
+    instance and Firestore, a retry budget exhausted below the API-call
+    layer -- not just a lost transaction race) is caught via the broad
+    google.api_core.exceptions.GoogleAPIError base class (covers both
+    GoogleAPICallError, an actual error response, and RetryError, retries
+    exhausted before one was ever received -- two different exception
+    families under google-api-core, not just Aborted). A narrower catch
+    would let those escape this function uncaught, propagate out of the
+    awaiting HTTP handler,
+    and surface as an unhandled 500 instead of the same clean "denied,
+    logged" outcome contention already gets. Either way this endpoint
+    doesn't proceed to the real work (sending an email, resolving a
+    UID) on a failed check -- there is no path where a Firestore outage
+    here accidentally lets more requests through than intended, only a
+    path where it makes the endpoint unavailable rather than silently
+    over-permissive, which is the safer of the two failure directions
+    for a rate limiter to have.
+
     Storage hygiene: each document also carries an `updatedAt` field
     suitable for a native Firestore TTL policy (see
     app.otp.store.FirestoreChallengeStore's docstring for how to
@@ -183,7 +202,7 @@ class FirestoreRateLimiter:
 
             try:
                 return _txn(transaction)
-            except (google_api_exceptions.Aborted, ValueError) as exc:
+            except (google_api_exceptions.GoogleAPIError, ValueError) as exc:
                 self._logger.error(
                     "rate limiter: transaction failed, failing closed",
                     extra={"error": str(exc), "limiter": self._name},
