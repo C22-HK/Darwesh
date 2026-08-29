@@ -32,6 +32,12 @@ class Config:
     # registers that route when every one of them is actually set, rather
     # than registering a route that would silently misbehave.
     firebase_service_account_json: str = ""  # full JSON key contents, not a file path -- see .env.example
+    # Only used when firebase_service_account_json is empty -- i.e. in
+    # production on Cloud Run, authenticating via Application Default
+    # Credentials instead of a downloaded key (see
+    # app.auth.firebase_credentials). Not a secret -- this project's own
+    # Firebase project id is already public in js/firebase-init.js.
+    firebase_project_id: str = ""
     reset_password_continue_url: str = ""  # e.g. https://www.darweshgroup.com/reset-password.html
     resend_api_key: str = ""
     reset_email_from: str = ""  # e.g. "Darwesh Group <no-reply@darweshgroup.com>"
@@ -72,6 +78,7 @@ def load() -> Config:
         env=os.environ.get("APP_ENV", "development"),
         allowed_origins=_split_non_empty(os.environ.get("ALLOWED_ORIGINS", "")),
         firebase_service_account_json=os.environ.get("FIREBASE_SERVICE_ACCOUNT_JSON", ""),
+        firebase_project_id=os.environ.get("FIREBASE_PROJECT_ID", ""),
         reset_password_continue_url=os.environ.get("RESET_PASSWORD_CONTINUE_URL", ""),
         resend_api_key=os.environ.get("RESEND_API_KEY", ""),
         reset_email_from=os.environ.get("RESET_EMAIL_FROM", ""),

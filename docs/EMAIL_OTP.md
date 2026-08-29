@@ -126,6 +126,10 @@ email directly).
 - `backend/app/otp/email_sender.py` -- `MockEmailSender` (dev/test
   only) and `ResendOtpEmailSender` (real, mirrors
   `app/auth/resend_email.py`'s existing pattern).
+- `backend/app/auth/firebase_credentials.py` -- shared
+  `build_firebase_credentials`, used by both classes below to pick a
+  service-account key or Application Default Credentials -- see
+  "Firebase Admin authentication" below.
 - `backend/app/otp/firebase_admin_ops.py` -- renamed
   `FirebaseAccountOps` (was `FirebasePhoneAuthManager`); adds
   `resolve_uid_by_email`, `create_account`, `create_user_profile`,
@@ -145,7 +149,10 @@ email directly).
   actively used (E.164 normalization for the phone number captured at
   signup).
 - `backend/tests/test_otp.py`, `backend/tests/test_email_otp.py`,
-  `backend/tests/test_email_templates.py`.
+  `backend/tests/test_email_templates.py`,
+  `backend/tests/test_firebase_credentials.py`,
+  `backend/tests/test_main_wiring.py`,
+  `backend/tests/test_firebase_reset.py`.
 
 ## OTP security controls (implemented)
 
@@ -172,6 +179,62 @@ Same control set as the WhatsApp-OTP phase, reused via the shared
 | Reset/verify scoped to the right account | `resetToken`/`verifyToken` bound server-side to a specific uid (or, for signup, to no uid yet) at verify time; neither endpoint that consumes one accepts a phone/email/uid from the caller |
 | Session revocation after reset | `revoke_refresh_tokens(uid)` called immediately after `update_user` |
 | Never store plaintext passwords | Firebase Admin SDK owns password hashing/storage throughout; this backend never persists a password anywhere, in Firestore or otherwise |
+
+## Firebase Admin authentication
+
+Every Firebase Admin SDK client this backend constructs
+(`FirebaseAccountOps`, `FirebaseResetLinkGenerator`) goes through one
+shared helper, `app/auth/firebase_credentials.py`'s
+`build_firebase_credentials(service_account_json, project_id)`, which
+picks one of two authentication modes:
+
+- **A service-account JSON key** (`FIREBASE_SERVICE_ACCOUNT_JSON`) --
+  used for local development, and still fully supported if a
+  production environment ever needs it again. Nothing about this path
+  changed in this refactor.
+- **Application Default Credentials (ADC)**, used automatically in
+  production (`APP_ENV=production`) when `FIREBASE_SERVICE_ACCOUNT_JSON`
+  is *not* set. On Cloud Run this means the runtime service account
+  attached to the service (via its metadata server) -- no downloaded
+  key file is created, stored in Secret Manager, or handled by this
+  backend at all for that mode. `FIREBASE_PROJECT_ID` (plain, not
+  secret -- this project's id is already public in
+  `js/firebase-init.js`) must be set alongside it, since ADC doesn't
+  reliably expose a project id to the Admin SDK the way a key's own
+  `project_id` field does.
+
+**Fails fast, not silently**: `build_firebase_credentials` forces ADC
+resolution immediately (`cred.get_credential()`, which triggers
+`google.auth.default()` under the hood) rather than deferring it to
+the first real Firestore/Auth call -- an environment with no usable
+credential at all raises a clean `ValueError` at construction, caught
+by `app.main`'s existing "route doesn't exist if unconfigured" gate
+(`build_email_otp_handlers`/`build_auth_handler`), never an unhandled
+exception that would crash the whole app at import time. Verified
+directly: `tests/test_firebase_credentials.py` and the corresponding
+cases in `tests/test_main_wiring.py`/`tests/test_firebase_reset.py`
+exercise the real (non-mocked) `google-auth`/`firebase_admin`
+credential resolution in an environment with no ADC configured (this
+project's own CI/dev sandbox has none), confirming every failure mode
+degrades to a catchable `ValueError`, never a crash.
+
+**Minimum IAM roles for the Cloud Run runtime service account** (e.g.
+`darwesh-backend-run@darwesh-group.iam.gserviceaccount.com`) when using
+ADC -- determined from the actual Admin SDK calls this backend makes,
+not assumed:
+
+| Role | Why |
+|---|---|
+| `roles/datastore.user` | Firestore reads/writes -- `users/{uid}`, `companies/{id}` (`FirebaseAccountOps.create_user_profile`/`ensure_company`), and the OTP store's `otpChallenges`/`otpResetTokens` collections (`FirestoreChallengeStore`) |
+| `roles/firebaseauth.admin` | `create_user`, `get_user_by_email`, `get_user_by_phone_number`, `update_user`, `revoke_refresh_tokens`, `delete_user` (signup, password reset, and the orphan-account rollback) |
+| `roles/iam.serviceAccountTokenCreator`, **granted to the service account on itself** | `mint_custom_token` (`fb_auth.create_custom_token`). A service-account *key* signs a custom token locally with its own private key; ADC-based auth has no local private key to sign with, so the Admin SDK instead calls the IAM Credentials API to sign it remotely, impersonating the same identity -- which requires that identity to hold Token Creator on itself. **Easy to miss and, if missed, doesn't fail at deploy time or even at startup** -- it only fails the first time a real signup completes (`SignupCompleteHandler` already catches this and degrades to `{"message": "Account created. Please log in.", "requiresLogin": True}` rather than a 500, so it wouldn't be a hard outage, but every signup would silently lose the "signed in immediately" convenience until this role is granted). |
+
+`backend/scripts/find_orphaned_auth_accounts.py` is unaffected by any
+of this -- it's a manually-run operator tool, always authenticated with
+whatever `FIREBASE_SERVICE_ACCOUNT_JSON` (or the operator's own `gcloud`
+identity, if adapted later) the person running it provides; it never
+runs on Cloud Run and was intentionally left out of this refactor's
+scope.
 
 ## Shared production storage
 

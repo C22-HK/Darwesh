@@ -25,7 +25,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from app.config import Config
-from app.main import build_email_otp_handlers
+from app.main import build_auth_handler, build_email_otp_handlers
 from app.otp.store import FirestoreChallengeStore, InMemoryChallengeStore
 
 
@@ -115,9 +115,70 @@ def test_development_selects_in_memory_challenge_store_even_with_a_real_looking_
     assert isinstance(send_handler.service.store, InMemoryChallengeStore)
 
 
-def test_production_missing_firebase_credential_registers_no_routes_at_all():
+def test_production_with_no_json_key_and_no_firebase_project_id_registers_no_routes_at_all():
+    # No JSON key AND no FIREBASE_PROJECT_ID -- build_firebase_credentials
+    # refuses before even attempting Application Default Credentials
+    # (there'd be no project to scope them to). Caught cleanly, routes
+    # simply don't register -- same "route doesn't exist, not exists-
+    # and-fails" contract as every other misconfiguration this backend
+    # handles.
     cfg = _config(env="production", firebase_service_account_json="", resend_api_key="re_fake_key")
 
     handlers = build_email_otp_handlers(cfg)
 
     assert handlers == (None, None, None, None)
+
+
+def test_production_with_adc_configured_but_no_real_adc_available_never_crashes_startup():
+    # The critical regression case for the ADC switch: production, no
+    # JSON key, a real FIREBASE_PROJECT_ID set (exactly the intended
+    # Cloud Run configuration) -- but this test environment (like any
+    # environment without a real GCP identity attached) has no actual
+    # Application Default Credentials to find. This must degrade to a
+    # clean, logged "not configured" outcome -- never an unhandled
+    # exception that would crash the whole app at import time (app.main
+    # constructs the ASGI app at module load, via
+    # app = create_configured_app()).
+    cfg = _config(
+        env="production",
+        firebase_service_account_json="",
+        firebase_project_id="darwesh-group",
+        resend_api_key="re_fake_key",
+        reset_email_from="Darwesh Group <no-reply@x.com>",
+    )
+
+    handlers = build_email_otp_handlers(cfg)  # must not raise
+
+    assert handlers == (None, None, None, None)
+
+
+def test_password_reset_endpoint_production_with_adc_configured_but_unavailable_never_crashes_startup():
+    # Same critical regression case as above, for the other Firebase-
+    # Admin-authenticating wiring function -- build_auth_handler backs
+    # the legacy link-based /api/v1/auth/forgot-password endpoint, and
+    # went through the exact same JSON-key -> ADC-capable refactor.
+    cfg = _config(
+        env="production",
+        firebase_service_account_json="",
+        firebase_project_id="darwesh-group",
+        resend_api_key="re_fake_key",
+        reset_password_continue_url="https://www.darweshgroup.com/reset-password.html",
+    )
+
+    handler = build_auth_handler(cfg)  # must not raise
+
+    assert handler is None
+
+
+def test_password_reset_endpoint_still_works_with_a_service_account_key():
+    # Regression check: the still-supported key-based path is unchanged.
+    cfg = _config(
+        env="production",
+        resend_api_key="re_fake_key",
+        reset_email_from="Darwesh Group <no-reply@x.com>",
+        reset_password_continue_url="https://www.darweshgroup.com/reset-password.html",
+    )
+
+    handler = build_auth_handler(cfg)
+
+    assert handler is not None

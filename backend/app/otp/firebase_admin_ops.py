@@ -10,13 +10,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from typing import Protocol
 
 import firebase_admin
 from firebase_admin import auth as fb_auth
-from firebase_admin import credentials
 from firebase_admin import firestore as fb_firestore
+
+from app.auth.firebase_credentials import build_firebase_credentials
 
 
 class UidResolver(Protocol):
@@ -56,22 +56,19 @@ class AccountAlreadyExists(Exception):
 
 class FirebaseAccountOps:
     """Real implementation of UidResolver (via the two adapters below),
-    PasswordResetExecutor, and signup account creation -- backed by a
-    real Firebase service account."""
+    PasswordResetExecutor, and signup account creation -- backed by
+    either a real Firebase service-account key or, in production,
+    Application Default Credentials (see
+    app.auth.firebase_credentials.build_firebase_credentials)."""
 
-    def __init__(self, service_account_json: str) -> None:
+    def __init__(self, service_account_json: str = "", project_id: str = "") -> None:
         """Same fail-fast philosophy as FirebaseResetLinkGenerator: refuses
         to construct rather than silently becoming a no-op that can't
-        actually resolve accounts or reset passwords."""
-        if not service_account_json:
-            raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON is not set")
-        try:
-            parsed = json.loads(service_account_json)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON: {exc}") from exc
-
-        cred = credentials.Certificate(parsed)
-        self._app = firebase_admin.initialize_app(cred, name=f"darwesh-otp-{id(self)}")
+        actually resolve accounts or reset passwords. `project_id` is
+        only needed (and only used) when service_account_json is empty
+        -- see build_firebase_credentials."""
+        cred, options = build_firebase_credentials(service_account_json, project_id)
+        self._app = firebase_admin.initialize_app(cred, options=options, name=f"darwesh-otp-{id(self)}")
         self._db = fb_firestore.client(self._app)
 
     @property

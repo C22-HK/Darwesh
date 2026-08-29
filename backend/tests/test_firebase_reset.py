@@ -1,6 +1,8 @@
 import pytest
 
-from app.auth.firebase_reset import extract_oob_code
+from app.auth.firebase_reset import FirebaseResetLinkGenerator, extract_oob_code
+
+from .test_main_wiring import _fake_service_account_json
 
 
 def test_extract_oob_code_parses_real_firebase_link_format():
@@ -28,3 +30,28 @@ def test_extract_oob_code_missing_code_returns_error():
 def test_extract_oob_code_malformed_url_returns_error():
     with pytest.raises(ValueError):
         extract_oob_code("://not a url")
+
+
+def test_constructs_successfully_with_a_service_account_key():
+    # Regression check: the ADC-aware refactor must not change the
+    # existing, still-supported service-account-key path at all.
+    generator = FirebaseResetLinkGenerator(_fake_service_account_json(), "https://www.darweshgroup.com/reset")
+    assert generator is not None
+
+
+def test_missing_continue_url_raises_before_touching_credentials_at_all():
+    with pytest.raises(ValueError, match="RESET_PASSWORD_CONTINUE_URL"):
+        FirebaseResetLinkGenerator(_fake_service_account_json(), "")
+
+
+def test_no_key_and_no_project_id_raises_a_clean_value_error():
+    with pytest.raises(ValueError, match="FIREBASE_PROJECT_ID"):
+        FirebaseResetLinkGenerator("", "https://www.darweshgroup.com/reset")
+
+
+def test_no_key_with_project_id_but_no_real_adc_raises_a_clean_value_error():
+    # No Application Default Credentials exist in this test environment
+    # -- must degrade to a catchable ValueError, never an unhandled
+    # google.auth exception.
+    with pytest.raises(ValueError, match="Application Default Credentials"):
+        FirebaseResetLinkGenerator("", "https://www.darweshgroup.com/reset", "darwesh-group")

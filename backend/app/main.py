@@ -29,20 +29,34 @@ from app.server import create_app
 logger = logging.getLogger("darwesh")
 
 
+def _has_firebase_credential(cfg: Config) -> bool:
+    """True if there's something to even attempt authenticating
+    Firebase Admin with -- either a real service-account key, or (in
+    production only) Application Default Credentials, which Cloud Run
+    provides automatically via its attached runtime service account.
+    Development never attempts ADC on its own (a developer without a
+    key configured gets the same clean "not configured, skipping" it
+    always has, rather than a confusing local ADC lookup)."""
+    return bool(cfg.firebase_service_account_json) or cfg.is_production
+
+
 def build_auth_handler(cfg: Config) -> Handler | None:
     """Wires up the password-reset endpoint only when every required
     setting is present -- see app.server.create_app's docstring for why a
     missing config means "route doesn't exist" rather than "route exists
     and fails at request time."""
-    if not cfg.firebase_service_account_json or not cfg.resend_api_key:
+    if not _has_firebase_credential(cfg) or not cfg.resend_api_key:
         logger.info(
-            "password-reset endpoint not configured, skipping "
-            "(set FIREBASE_SERVICE_ACCOUNT_JSON and RESEND_API_KEY to enable it)"
+            "password-reset endpoint not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or "
+            "deploy with APP_ENV=production to use Application Default Credentials -- and RESEND_API_KEY "
+            "to enable it)"
         )
         return None
 
     try:
-        links = FirebaseResetLinkGenerator(cfg.firebase_service_account_json, cfg.reset_password_continue_url)
+        links = FirebaseResetLinkGenerator(
+            cfg.firebase_service_account_json, cfg.reset_password_continue_url, cfg.firebase_project_id
+        )
         emails = ResendEmailSender(cfg.resend_api_key, cfg.reset_email_from)
     except ValueError as exc:
         logger.error("password-reset endpoint misconfigured, skipping", extra={"error": str(exc)})
@@ -68,9 +82,10 @@ def build_email_otp_handlers(
     | tuple[None, None, None, None]
 ):
     """Wires up the email-OTP signup + password-recovery endpoints.
-    Requires FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET -- same
-    "route doesn't exist if unconfigured" rule as build_auth_handler
-    above.
+    Requires OTP_HMAC_SECRET plus a way to authenticate Firebase Admin
+    -- either FIREBASE_SERVICE_ACCOUNT_JSON, or (production only)
+    Application Default Credentials -- same "route doesn't exist if
+    unconfigured" rule as build_auth_handler above.
 
     Email delivery additionally needs RESEND_API_KEY and
     RESET_EMAIL_FROM to use the real Resend sender. Unlike the earlier
@@ -80,15 +95,16 @@ def build_email_otp_handlers(
     mock email delivery must never run in production. In development,
     missing them falls back to MockEmailSender (delivers nothing,
     records what it would have sent, used by tests)."""
-    if not cfg.firebase_service_account_json or not cfg.otp_hmac_secret:
+    if not _has_firebase_credential(cfg) or not cfg.otp_hmac_secret:
         logger.info(
-            "Email OTP endpoints not configured, skipping "
-            "(set FIREBASE_SERVICE_ACCOUNT_JSON and OTP_HMAC_SECRET to enable them)"
+            "Email OTP endpoints not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or "
+            "deploy with APP_ENV=production to use Application Default Credentials -- and "
+            "OTP_HMAC_SECRET to enable them)"
         )
         return None, None, None, None
 
     try:
-        accounts = FirebaseAccountOps(cfg.firebase_service_account_json)
+        accounts = FirebaseAccountOps(cfg.firebase_service_account_json, cfg.firebase_project_id)
     except ValueError as exc:
         logger.error("Email OTP endpoints misconfigured, skipping", extra={"error": str(exc)})
         return None, None, None, None

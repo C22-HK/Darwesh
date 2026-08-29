@@ -5,44 +5,42 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import firebase_admin
 from firebase_admin import auth as fb_auth
-from firebase_admin import credentials
 
+from app.auth.firebase_credentials import build_firebase_credentials
 from app.auth.reset import ErrUserNotFound
 
 
 class FirebaseResetLinkGenerator:
-    """Needs a real service account JSON to do anything -- see __init__."""
+    """Needs real Firebase Admin credentials to do anything -- see
+    __init__ -- either a service-account JSON key or, in production,
+    Application Default Credentials."""
 
-    def __init__(self, service_account_json: str, continue_url: str) -> None:
+    def __init__(self, service_account_json: str, continue_url: str, project_id: str = "") -> None:
         """Builds a real client from a service account JSON (the contents
         of the key file downloaded from Firebase Console -> Project
-        Settings -> Service Accounts -> Generate new private key). Raises
-        ValueError if the JSON is invalid -- this constructor does not
-        silently degrade to a no-op the way error-monitor.js's empty-DSN
-        check does, because "the backend claims to be ready but silently
-        can't actually reset anyone's password" is a much worse failure
-        mode than refusing to start."""
-        if not service_account_json:
-            raise ValueError("FIREBASE_SERVICE_ACCOUNT_JSON is not set")
+        Settings -> Service Accounts -> Generate new private key), or --
+        when service_account_json is empty -- from Application Default
+        Credentials (see app.auth.firebase_credentials), which is what
+        Cloud Run provides automatically via its attached runtime
+        service account, needing no downloaded key at all. Raises
+        ValueError if neither produces a usable credential -- this
+        constructor does not silently degrade to a no-op the way
+        error-monitor.js's empty-DSN check does, because "the backend
+        claims to be ready but silently can't actually reset anyone's
+        password" is a much worse failure mode than refusing to start."""
         if not continue_url:
             raise ValueError("RESET_PASSWORD_CONTINUE_URL is not set")
 
-        try:
-            parsed = json.loads(service_account_json)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON: {exc}") from exc
-
-        cred = credentials.Certificate(parsed)
+        cred, options = build_firebase_credentials(service_account_json, project_id)
         # A unique app name (rather than the '[DEFAULT]' app) avoids
         # colliding with any other firebase_admin app this process
         # initializes -- e.g. under pytest, where more than one Handler
         # gets built across test cases.
-        self._app = firebase_admin.initialize_app(cred, name=f"darwesh-reset-{id(self)}")
+        self._app = firebase_admin.initialize_app(cred, options=options, name=f"darwesh-reset-{id(self)}")
         self._continue_url = continue_url
 
     async def generate_reset_link(self, email: str) -> str:
