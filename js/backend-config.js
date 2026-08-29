@@ -16,7 +16,7 @@ const DEV_HOSTS = new Set(['localhost', '127.0.0.1']);
 
 // TODO: replace with the real deployed backend origin once
 // docs/BACKEND_MILESTONES.md milestone 2 (deployment) is done.
-const PRODUCTION_BACKEND_BASE_URL = 'https://api.darweshgroup.com';
+const PRODUCTION_BACKEND_BASE_URL = 'https://darwesh-backend-353477435585.me-central1.run.app';
 const DEV_BACKEND_BASE_URL = 'http://localhost:8080';
 
 export const BACKEND_BASE_URL = DEV_HOSTS.has(window.location.hostname)
