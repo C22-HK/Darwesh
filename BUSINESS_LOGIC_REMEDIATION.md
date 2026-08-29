@@ -14,6 +14,12 @@ All rules changes were validated against a local Firestore emulator
 using the project's real, current `firestore.rules` text — never
 production. No production data was read, written, or modified.
 
+> **DEPLOYMENT UPDATE**: The `firestore.rules` text from commit
+> `24462d5` (this document's own commit) has been published to the live
+> `darwesh-group` Firebase project — done manually via the Firebase
+> Console, confirmed by a fresh rules version appearing after
+> publishing. Full detail in **Production deployment status** below.
+
 ---
 
 ## BL-01 — Listing identity / verified badge (HIGH)
@@ -455,6 +461,54 @@ the rule was fixed to match the tests' correct expectation.
 is the exact suite that proved each of those fixes originally; its full,
 unmodified 65/65 pass here confirms none of this session's changes
 reopened any of them.
+
+---
+
+## Production deployment status
+
+The `firestore.rules` text committed at `24462d5` (identical to what
+every test above ran against) has been **published to the live
+`darwesh-group` Firebase project** — done manually, by the user, via the
+Firebase Console (this session has no deploy credentials and did not
+perform the publish itself). The user confirmed a fresh rules version
+appeared in the Console after publishing, consistent with the publish
+having taken effect.
+
+**AUTHZ-01, post-deploy, re-confirmed** (read-only, anonymous,
+non-destructive — no data written, modified, or deleted):
+
+| Check | Result |
+|---|---|
+| Unfiltered anonymous `listings` collection query | `403 PERMISSION_DENIED` |
+| Direct `get()` on the specific listing previously proven `private:true`-readable (`bguFdoO8NpbT4C0tK73k`) | `403 PERMISSION_DENIED` |
+| Correctly-filtered `private==false AND status=='active'` query | `200 OK`, exactly the 5 legitimate public listings, that document excluded |
+
+Identical to the result obtained right after the original AUTHZ-01
+deployment — no regression from any Stage 4 rule addition.
+
+**BL-01/BL-02/BL-04/BL-05 (and BL-03/06/07/09) — deployed and fixed,
+by direction, without a production write test**: unlike AUTHZ-01, none
+of the Stage 4 findings have a safe anonymous *read*-only production
+check (they're all write-authorization or business-logic questions —
+confirming them live would mean actually attempting the fixed
+write against real data, which the user explicitly declined per "do
+not modify real listings/transactions/submissions for testing"). Per
+the user's explicit direction, these are treated as **deployed and
+fixed in production** on the strength of the emulator regression suite
+already run against this exact, now-live rules text (`stage5_bl0104_test.mjs`
+26/26, `stage5_bl05_test.mjs` 9/9, `stage5_bl0307_test.mjs` 9/9, plus
+the updated `rules_test.mjs` 16/16 — all listed in **Regression
+results** above), not an independent live re-test. This is a documented
+methodology choice, not an assumption made silently.
+
+**Backend deploy status — separately tracked, not yet confirmed**: the
+BL-04 backend changes (`email_handler.py`/`firebase_admin_ops.py`) live
+in the FastAPI service on Cloud Run, a **separate deployment** from
+Firestore Rules. Publishing `firestore.rules` does not deploy the
+backend. Confirm/redeploy the Cloud Run service separately if the
+BL-04 signup-flow fix (new-company-vs-existing-company split) needs to
+be live — this session has no evidence either way on the backend's
+current deployed state.
 
 ---
 
