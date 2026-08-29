@@ -353,12 +353,13 @@ async function loadCityApartmentCounts() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection } = storeMod;
-    const snap = await getDocs(collection(db, 'listings'));
+    const { collection, query, where } = storeMod;
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const snap = await getDocs(q);
     const counts = {};
     snap.forEach(d => {
       const l = d.data();
-      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.status !== 'closed' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
+      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
     });
     cityApartmentCounts = counts;
   } catch (e) {
@@ -440,12 +441,12 @@ async function loadFeaturedListings() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection } = storeMod;
-    const snap = await getDocs(collection(db, 'listings'));
+    const { collection, query, where } = storeMod;
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
     featuredListings = docs
-      .filter(l => l.status !== 'closed')
       .sort((a, b) => (b.verified === a.verified ? 0 : (b.verified ? 1 : -1)) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
       .slice(0, 6);
   } catch (e) {

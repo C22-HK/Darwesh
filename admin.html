@@ -1926,7 +1926,13 @@ function renderVerificationPhotoArea(s) {
   const area = document.getElementById('requestDetailVerificationPhotoArea');
   if (verificationPhotoBlobUrl) { URL.revokeObjectURL(verificationPhotoBlobUrl); verificationPhotoBlobUrl = null; }
 
-  if (!s.verificationPhotoPath) {
+  // AUTHZ-02 fix: the photo's Storage path is no longer trusted from a
+  // plain field on the submission doc (verificationPhotoPath -- that was
+  // exactly the field an unrelated party could overwrite). It now lives
+  // in submissions/{id}/verification/{photoUploadToken}, readable here
+  // only because this page runs as an admin (firestore.rules restricts
+  // reads on that subcollection to isAdmin()).
+  if (!s.photoUploadToken) {
     area.innerHTML = `<p class="font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noVerificationPhoto', 'No verification photo on file.')}</p>`;
     return;
   }
@@ -1939,7 +1945,12 @@ function renderVerificationPhotoArea(s) {
     btn.disabled = true;
     btn.querySelector('span:last-child').textContent = trAdmin('admin.loading', 'Loading...');
     try {
-      const bytes = await getBytes(storageRef(storage, s.verificationPhotoPath));
+      const capSnap = await getDoc(doc(db, 'submissions', s.id, 'verification', s.photoUploadToken));
+      if (!capSnap.exists()) {
+        area.innerHTML = `<p class="font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noVerificationPhoto', 'No verification photo on file.')}</p>`;
+        return;
+      }
+      const bytes = await getBytes(storageRef(storage, capSnap.data().path));
       const blob = new Blob([bytes], { type: 'image/jpeg' });
       verificationPhotoBlobUrl = URL.createObjectURL(blob);
       area.innerHTML = `

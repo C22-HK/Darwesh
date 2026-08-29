@@ -68,9 +68,23 @@ service cloud.firestore {
       // (role above is the only field that matters for privilege), but
       // its own value is still constrained here to the two real options
       // rather than left open to any string a client cares to write.
+      //
+      // CREATE_ALLOWED_FIELDS below is an explicit allowlist (not a
+      // denylist of just the dangerous ones) -- matches every field the
+      // two real create paths actually send: the backend's Admin-SDK
+      // signup flow (bypasses rules entirely, but this is the shape a
+      // direct client create must also match) and admin.html's Add
+      // Agent self-create step. An unlisted field (e.g. a client
+      // sending `isAdmin: true` alongside a legitimate-looking
+      // create) is rejected outright rather than silently accepted.
       allow create: if isOwner(uid) && request.resource.data.role == 'customer'
                     && (!('requestedRole' in request.resource.data)
-                        || request.resource.data.requestedRole in ['customer', 'agent']);
+                        || request.resource.data.requestedRole in ['customer', 'agent'])
+                    && request.resource.data.keys().hasOnly([
+                         'email', 'displayName', 'firstName', 'lastName', 'phone',
+                         'role', 'requestedRole', 'companyId',
+                         'phoneVerified', 'phoneVerifiedAt', 'emailVerified', 'createdAt'
+                       ]);
       // .get(field, null) rather than direct dot access for every locked
       // field below -- Firestore rules THROWS (and denies the whole
       // request) on a direct reference to a key that doesn't exist on
@@ -83,11 +97,21 @@ service cloud.firestore {
       // self-edit those accounts ever make (found and verified against
       // a real Firestore emulator, not assumed), regardless of which
       // field the edit actually touched.
+      //
+      // UPDATE_ALLOWED_FIELDS is an explicit allowlist, not a denylist
+      // of the four privileged fields -- account.html only ever needs
+      // to change displayName/photoURL, so anything else (including a
+      // field name this ruleset has never heard of, like `isAdmin` or
+      // `verified`) is rejected outright for a self-edit, closing the
+      // mass-assignment gap a pure denylist leaves open. isAdmin() below
+      // still bypasses this for the real administrative-update path.
       allow update: if (isOwner(uid)
                           && request.resource.data.role == resource.data.role
                           && request.resource.data.get('assignedAgentId', null) == resource.data.get('assignedAgentId', null)
                           && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
-                          && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null))
+                          && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['displayName', 'photoURL']))
                     || isAdmin();
       allow delete: if isAdmin();
 
@@ -101,19 +125,96 @@ service cloud.firestore {
     }
 
     // ---- Listings ----
-    // Publicly readable (Map/Buy show these to every visitor, logged in
-    // or not) — this platform doesn't yet separate public browsing by
-    // company, only the agent-facing Team Listings view does that. Only
-    // an agent can create a listing (assigned to themself and tagged
-    // with their own company), and only that same agent — or an admin —
-    // can edit/delete it.
+    // Publicly readable ONLY when actually meant to be public: `status`
+    // must be the one value that means "on the market" (`active` --
+    // the only two values this app's own code ever writes are `active`
+    // and `closed`, confirmed by grepping every listing-writing page;
+    // no `draft`/`pending` status exists in the real schema, so none is
+    // invented here -- an allowlist on `status` rather than a denylist
+    // on `closed` means any future non-public status added later is
+    // excluded by default, not by remembering to update this rule), and
+    // `private` must not be set. A listing failing either check is
+    // visible only to its own agent or an admin -- not to another,
+    // unrelated agent, and not merely by being signed in.
+    //
+    // IMPORTANT Firestore semantics: allow get and allow list use the
+    // SAME condition below on purpose. Because that condition reads
+    // resource.data (not just request.auth), Firestore requires every
+    // query against this collection to be structured so it can prove
+    // the condition holds for every document the query could possibly
+    // return -- an unconstrained getDocs(collection(db,'listings'))
+    // with no where() clause is rejected outright for a non-admin,
+    // non-listing-owner caller, not silently filtered. Public pages
+    // must query with where('private','==',false) and
+    // where('status','==','active') for their read to succeed; an
+    // agent's own "my listings" query (already where('agentId','==',
+    // <their own uid>)) or an admin's unfiltered read still work,
+    // since those satisfy the isListingOwnerOrAdmin() branch instead.
+    //
+    // Plain dot-access below (not .get(field, default)) is deliberate
+    // and load-bearing: empirically verified against the Firestore
+    // emulator that resource.data.get(field, default) defeats the
+    // query-provability analysis above -- a rule written that way still
+    // denies a direct get() correctly, but silently ALLOWS an
+    // unconstrained list() to return every document, including private
+    // ones, which is exactly the leak this rule exists to close. Plain
+    // access forces Firestore to require the matching where() clause.
+    // This does mean a listing document that somehow lacks `private` or
+    // `status` entirely would throw on access and read as denied (fails
+    // closed, not open) for anyone but its own agent/admin -- CREATE
+    // below now requires both fields for every new listing so this can
+    // only affect pre-existing legacy documents, if any; see
+    // AUTHORIZATION_REMEDIATION.md.
+    function isListingPubliclyVisible() {
+      return resource.data.private == false
+          && resource.data.status == 'active';
+    }
+    function isListingOwnerOrAdmin() {
+      return isAdmin() || (isAgent() && resource.data.agentId == request.auth.uid);
+    }
     match /listings/{listingId} {
-      allow read: if true;
-      allow create: if (isAgent()
+      allow get, list: if isListingPubliclyVisible() || isListingOwnerOrAdmin();
+      // CREATE_ALLOWED_FIELDS: an explicit allowlist of every field the
+      // real Add/Edit Listing form (agent-dashboard.html, admin.html)
+      // actually sends at creation -- notably excludes `verified`.
+      // `verified` is a reviewer/admin-only signal (see the update rule
+      // below); an agent's own create request is rejected outright if
+      // it tries to set verified:true on their own new listing, not
+      // merely ignored -- so a request attempting to self-certify fails
+      // loudly rather than silently creating an unverified listing.
+      allow create: if isAdmin()
+                    || (isAgent()
                           && request.resource.data.agentId == request.auth.uid
-                          && request.resource.data.companyId == myCompanyId())
-                    || isAdmin();
-      allow update, delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+                          && request.resource.data.companyId == myCompanyId()
+                          && request.resource.data.get('verified', false) == false
+                          && 'private' in request.resource.data
+                          && 'status' in request.resource.data
+                          && request.resource.data.keys().hasOnly([
+                               'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                               'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                               'agentId', 'agentName', 'companyId', 'status', 'createdAt'
+                             ]));
+      // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an
+      // agent may change any of the normal listing fields on their own
+      // listing (including agentId/agentName/companyId, since the
+      // outer resource.data.agentId==auth.uid check already means those
+      // can never actually change value through this branch -- see
+      // AUTHORIZATION_REMEDIATION.md for why locking them further here
+      // would risk breaking a legitimate edit if a stale client cache
+      // ever resent a differing value) -- but `verified` is required to
+      // stay exactly what it already was, so no agent-driven update can
+      // ever flip it, only isAdmin()'s unrestricted branch can.
+      allow update: if isAdmin()
+                    || (isAgent()
+                          && resource.data.agentId == request.auth.uid
+                          && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly([
+                                 'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                                 'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                                 'status', 'agentId', 'agentName', 'companyId', 'updatedAt'
+                               ]));
+      allow delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
     }
 
     // ---- Submissions (Sell form, viewing requests) ----
@@ -129,21 +230,57 @@ service cloud.firestore {
                     && (request.resource.data.uid == null
                         || (isSignedIn() && request.resource.data.uid == request.auth.uid));
       allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      // sell.html starts uploading photos (and the verification selfie) the
-      // moment they're added/captured, not when Submit is finally clicked --
-      // whatever hasn't finished by submit time keeps uploading in the
-      // background and patches this same doc afterward, so listing creation
-      // never blocks on Storage. That background patch runs as the same
-      // unauthenticated guest who created the submission (sell.html has no
-      // login requirement), so it can't be limited to isAdmin() the way
-      // other updates are -- narrowed instead to touching only the photo
-      // fields, and only while the submission is still pending (an admin
-      // has full update rights regardless, e.g. once they start reviewing).
+      // sell.html starts uploading photos the moment they're added, not
+      // when Submit is finally clicked -- whatever hasn't finished by
+      // submit time keeps uploading in the background and patches this
+      // same doc afterward, so listing creation never blocks on Storage.
+      // That background patch runs as the same unauthenticated guest who
+      // created the submission (sell.html has no login requirement), so
+      // it can't be limited to isAdmin() the way other updates are --
+      // narrowed instead to touching only the two property-photo fields,
+      // and only while the submission is still pending (an admin has
+      // full update rights regardless, e.g. once they start reviewing).
+      //
+      // verificationPhotoPath is deliberately NOT one of the guest-
+      // patchable fields here (unlike photoUrls/photoUploadToken) --
+      // this branch has no way to check WHO is calling it (guests have
+      // no uid to compare against), so allowing it here would let any
+      // unrelated, even unauthenticated, party overwrite which Storage
+      // object a DIFFERENT person's submission claims as its identity-
+      // verification photo, simply by knowing (or guessing) this
+      // document's id -- exactly the "security by obscurity based only
+      // on a Firestore document id" this was flagged for. The
+      // verification photo's path now lives only in the
+      // /verification/{token} subcollection below, gated by a real
+      // capability the caller must already hold, not by this id alone.
       allow update: if isAdmin()
                     || (resource.data.status == 'pending'
                         && request.resource.data.diff(resource.data).affectedKeys()
-                             .hasOnly(['photoUrls', 'photoUploadToken', 'verificationPhotoPath']));
+                             .hasOnly(['photoUrls', 'photoUploadToken']));
       allow delete: if isAdmin();
+
+      // Identity-verification photo metadata for this submission. The
+      // document id here MUST equal this submission's own
+      // photoUploadToken -- a value generated client-side
+      // (crypto.randomUUID(), 122 bits of entropy) at submission-
+      // creation time and never readable back from Firestore by anyone
+      // but the submission's own owner or an admin (see the parent
+      // `read` rule above -- and a guest's own submission, uid==null,
+      // isn't even readable by them). The only party who can ever
+      // construct a request that satisfies this match is therefore the
+      // same browser session that created the submission and already
+      // holds that token in memory -- a real, unguessable, server-
+      // verified capability, not the submission id itself, which can
+      // leak through many ordinary channels (a shared link, an admin
+      // screen, browser history) that were never meant to grant write
+      // access.
+      match /verification/{token} {
+        allow read: if isAdmin();
+        allow write: if token == get(/databases/$(database)/documents/submissions/$(submissionId)).data.get('photoUploadToken', null)
+                      && get(/databases/$(database)/documents/submissions/$(submissionId)).data.status == 'pending'
+                      && request.resource.data.keys().hasOnly(['path', 'setAt']);
+        allow delete: if isAdmin();
+      }
     }
 
     // ---- Agent financial ledger (accounting) ----

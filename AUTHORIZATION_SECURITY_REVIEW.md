@@ -289,6 +289,16 @@ with minimizing exposure of the same data this finding is about.
 
 ## Findings
 
+> **REMEDIATION UPDATE**: All four findings below (AUTHZ-01 through
+> AUTHZ-04) have been remediated in `firestore.rules` plus the frontend
+> files that queried/wrote the affected data. Full detail — files
+> changed, old vs. new behavior, tests added, exact test results,
+> deployment steps, and remaining risk per finding — is in
+> **`AUTHORIZATION_REMEDIATION.md`**. Each finding below now carries a
+> **Remediation status** line; the original finding text above each line
+> is left as-written (the historical record of what was found), not
+> edited to read as if already fixed.
+
 ### AUTHZ-01 — `private`/`closed`/`draft` listings are readable by anyone, confirmed on real production data
 
 - **Status**: CONFIRMED
@@ -306,6 +316,7 @@ with minimizing exposure of the same data this finding is about.
 - **Root cause**: The rule was written for "browsing is public" (correct for the main product) without a corresponding field-level carve-out for the `private`/`draft` states, which were apparently intended to be enforced by client-side filtering only.
 - **Recommended remediation**: Not implemented in this review-only stage. If pursued: change the read rule to `allow read: if resource.data.get('private', false) == false && resource.data.get('status', 'active') != 'draft' || isOwnerOrAdmin(...)` (exact shape needs care around the existing agent/admin dashboards that intentionally need to see private/draft listings) — this is a real rules-design change, not a one-line fix, and should be scoped as its own piece of remediation work given its blast radius (every listing-reading page).
 - **Confidence**: High (proven twice, independently, including on live data).
+- **Remediation status**: **FIXED**. `firestore.rules`' `listings/{listingId}` `get`/`list` rule now requires `resource.data.private == false && resource.data.status == 'active'` (or caller is the owning agent/admin) for BOTH direct `get()` and collection `list()` — per your explicit choice to deny both, not list/query alone. Verified: `P6-1`–`P6-11` in `stage3_authz_test.mjs` (anonymous `get()` on private/closed/draft → DENIED; unfiltered `list()` → DENIED outright, not filtered; a correctly-filtered `where('private','==',false),where('status','==','active')` query → ALLOWED and returns only the public listing; owner/admin → ALLOWED). See `AUTHORIZATION_REMEDIATION.md` for the frontend query updates this required (`map.html`, `buy.html`, `index.html`, `agent-dashboard.html`) and a load-bearing emulator-verified detail: `resource.data.get(field, default)` silently defeats Firestore's list-query provability check and must not be used in this rule — plain dot-access is required instead.
 
 ### AUTHZ-02 — Any pending submission's identity-verification photo path can be overwritten by an unauthenticated, unrelated party
 
@@ -324,6 +335,7 @@ with minimizing exposure of the same data this finding is about.
 - **Root cause**: The rule was written to answer "can the fields being changed only be these three photo-related ones" without also answering "is the caller the same party (or session) that created this document."
 - **Recommended remediation**: Not implemented this stage. If pursued: since `sell.html`'s guest flow has no stable identity to check against, the practical fix is likely a server-side (backend) token issued at submission-creation time and required for the background photo-patch, rather than a Firestore-rules-only fix (rules have no way to verify "this is the same browser session that created the doc" without such a token) — this needs its own design pass, flagged rather than improvised here.
 - **Confidence**: High.
+- **Remediation status**: **FIXED**. `verificationPhotoPath` was removed from `submissions/{id}`'s UPDATE_ALLOWED_FIELDS entirely (no longer a directly-patchable field for anyone). The verification photo's Storage path now lives in a new subcollection, `submissions/{id}/verification/{token}`, where the write rule requires the caller to supply the submission's own `photoUploadToken` value as the document ID itself (a path segment, which — unlike a plain field in a partial `updateDoc` — cannot be silently omitted to trivially "match"). Verified: `P7-3` (old identity-confusion path → DENIED) and `P9-1`–`P9-8` in `stage3_authz_test.mjs` (correct token → ALLOWED; wrong/unknown token, from either an anonymous or a different signed-in caller → DENIED; non-pending submission → DENIED even with the correct token; read restricted to admin; field injection blocked). `sell.html` and `admin.html` updated accordingly — see `AUTHORIZATION_REMEDIATION.md`.
 
 ### AUTHZ-03 — Any agent can self-certify their own listing as "Verified" with no independent review
 
@@ -342,6 +354,7 @@ with minimizing exposure of the same data this finding is about.
 - **Root cause**: The `verified` field was likely intended as an admin-only signal but was never restricted to admin writes at the rules layer, and the same form/checkbox was reused for both the agent's own editing UI and (presumably) an admin verification workflow.
 - **Recommended remediation**: Not implemented this stage. If pursued: either remove the `verified` checkbox from the agent-facing form (make it admin-only, editable only from `admin.html`), or add a rules restriction requiring `isAdmin()` specifically for changes to that one field.
 - **Confidence**: High.
+- **Remediation status**: **FIXED**. `firestore.rules`' `listings/{listingId}` update rule now requires `request.resource.data.get('verified', false) == resource.data.get('verified', false)` for the agent branch — any write that changes `verified` is rejected outright unless the caller is `isAdmin()`; the create rule likewise rejects an agent creating a listing with `verified:true`. `agent-dashboard.html`'s `fVerified` checkbox and its 3 JS references were removed (not merely hidden) since an agent can no longer legitimately set it at all. Verified: `P4-5` and `P10-1`–`P10-6` in `stage3_authz_test.mjs` (agent create/edit normal fields → ALLOWED; agent sets/changes `verified` → DENIED even re-sending its own current value as a *new* key; admin sets `verified:true` → ALLOWED).
 
 ### AUTHZ-04 — Firestore rules use a denylist, not an allowlist, for writable fields on `users`/`listings` (latent mass-assignment surface)
 
@@ -359,6 +372,7 @@ with minimizing exposure of the same data this finding is about.
 - **Root cause**: Denylist-style field locking instead of allowlist-style.
 - **Recommended remediation**: Not implemented this stage. If pursued: switch the `users`/`listings` update rules to an explicit `request.resource.data.diff(resource.data).affectedKeys().hasOnly([...])` allowlist (the same pattern already used correctly for the `submissions` guest-patch branch), rather than only locking specific dangerous fields by name.
 - **Confidence**: High for both the structural gap and the "not currently exploitable" judgment (both independently verified, not assumed).
+- **Remediation status**: **FIXED for `users`/`listings` Firestore rules** (the two resources this remediation pass was scoped to). Both now use explicit `request.resource.data.keys().hasOnly([...])` (create) / `.diff(resource.data).affectedKeys().hasOnly([...])` (update) allowlists — `users` update allows only `displayName`/`photoURL`; `listings` create/update allow only the real fields the app's own forms send, derived from grepping `agent-dashboard.html`/`admin.html`, explicitly excluding `verified` (AUTHZ-03). **NOT addressed**: Storage `listing-photos/*`'s write rule (any signed-in user, not role-gated) — out of scope for this pass (it's a Storage rule, not `users`/`listings` Firestore rules, and wasn't in the 4 prioritized findings); still open. Verified: `P4-2`/`P4-6` in `stage3_authz_test.mjs` (unknown-field injection on both resources → now DENIED).
 
 ---
 

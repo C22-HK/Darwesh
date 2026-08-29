@@ -561,9 +561,16 @@ let listingsLoaded = false;
 // ---------------------------------------------------------------------
 // Real listings, loaded live from Firestore's `listings` collection —
 // the same collection admin.html and agent-dashboard.html write to.
-// Publicly readable per firestore.rules (`allow read: if true`), no
-// auth required. A listing with no lat/lng can't be placed on this map
-// so it's left out here.
+// firestore.rules only allows an anonymous/public read when the query
+// itself is constrained to private==false AND status=='active' (a
+// listing-level get() or an unfiltered query is denied) -- so this is
+// the only listing set this page can ever fetch for a public visitor.
+// Private listings never reach this page's memory at all any more, so
+// isPrivateHidden()/revealListing() below naturally never trigger for
+// them; they're left in place only because an agent's OWN private
+// listings still round-trip through the same `card()`/marker code when
+// viewed from agent-dashboard.html's map. A listing with no lat/lng
+// can't be placed on this map so it's left out here.
 // ---------------------------------------------------------------------
 async function loadListings() {
   try {
@@ -571,11 +578,12 @@ async function loadListings() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection } = storeMod;
-    const snap = await getDocs(collection(db, 'listings'));
+    const { collection, query, where } = storeMod;
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-    LISTINGS = docs.filter(d => d.lat != null && d.lng != null && d.status !== 'closed').map(d => {
+    LISTINGS = docs.filter(d => d.lat != null && d.lng != null).map(d => {
       const price = Number(d.price) || 0;
       return {
         id: d.id,

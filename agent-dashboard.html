@@ -251,7 +251,10 @@
         </div>
 
         <div class="flex items-center gap-5 mb-5">
-          <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fVerified" type="checkbox" class="rounded"/><span data-i18n="common.verified">Verified</span></label>
+          <!-- Verified is reviewer/admin-only (AUTHZ-03) -- an agent can no
+               longer set it on their own listing, so there's no control for
+               it here; firestore.rules rejects any agent write that even
+               attempts to change this field. -->
           <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fPrivate" type="checkbox" class="rounded"/><span data-i18n="agentDash.privateHideLocation">Private (hide exact location)</span></label>
         </div>
 
@@ -463,13 +466,23 @@
     agentTeamMapMarkers.forEach(m => agentTeamMap.removeLayer(m));
     agentTeamMapMarkers = [];
 
-    const snap = await getDocs(collection(db, 'listings'));
+    // Same two-query split as loadTeamListings() (AUTHZ-01): a colleague's
+    // PRIVATE listing is only visible here if it's also the viewer's own
+    // (isListingOwnerOrAdmin) -- a teammate's private pin, unlike before,
+    // is no longer shown at its real location on this map.
+    const [publicTeamSnap, ownSnap] = await Promise.all([
+      getDocs(query(collection(db, 'listings'),
+        where('companyId', '==', currentCompanyId),
+        where('private', '==', false),
+        where('status', '==', 'active'))),
+      getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)))
+    ]);
+    const byId = new Map();
+    publicTeamSnap.forEach(d => byId.set(d.id, d.data()));
+    ownSnap.forEach(d => byId.set(d.id, d.data()));
     const listings = [];
-    snap.forEach(d => {
-      const l = d.data();
-      if ((!l.companyId || l.companyId === currentCompanyId) && l.lat != null && l.lng != null) {
-        listings.push({ id: d.id, ...l });
-      }
+    byId.forEach((l, id) => {
+      if (l.lat != null && l.lng != null) listings.push({ id, ...l });
     });
 
     listings.forEach(l => {
@@ -636,7 +649,6 @@
       sqft: Number(document.getElementById('fSqft').value) || 0,
       img: document.getElementById('fImg').value.trim(),
       amenities: document.getElementById('fAmenities').value.split(',').map(s => s.trim()).filter(Boolean),
-      verified: document.getElementById('fVerified').checked,
       private: document.getElementById('fPrivate').checked,
       agentId: currentUid,
       agentName: currentAgentName,
@@ -676,7 +688,6 @@
     document.getElementById('fImg').value = l.img || '';
     updateImgPreview();
     document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
-    document.getElementById('fVerified').checked = !!l.verified;
     document.getElementById('fPrivate').checked = !!l.private;
     setPin(l.lat, l.lng);
     agentPinMap.setView([l.lat, l.lng], 13);
@@ -763,16 +774,28 @@
   async function loadTeamListings() {
     const body = document.getElementById('teamListingsBody');
     const empty = document.getElementById('teamListingsEmpty');
-    const snap = await getDocs(collection(db, 'listings'));
-    // Scope to this agent's own company. Listings created before the
-    // company field existed have no companyId at all — treat those as
-    // belonging here too, rather than having them vanish from the team
-    // view just because they predate this change.
-    const rows = [];
-    snap.forEach(d => {
-      const l = d.data();
-      if (!l.companyId || l.companyId === currentCompanyId) rows.push(l);
-    });
+    // firestore.rules (AUTHZ-01) only lets a teammate see a colleague's
+    // listing when it's public+active (private==false, status=='active'),
+    // never their private/closed ones -- a single unfiltered fetch across
+    // the whole collection is denied outright now. So this is two queries,
+    // merged client-side: the company's public listings (everyone's, minus
+    // whichever of their own aren't public), plus the viewer's own
+    // listings regardless of visibility (covered by the owner branch of
+    // the same rule). Note: a listing predating the companyId field
+    // entirely can no longer be matched by an equality where() clause, so
+    // it won't appear here unless it's also the viewer's own -- a legacy
+    // data gap, not a security concern; see AUTHORIZATION_REMEDIATION.md.
+    const [publicTeamSnap, ownSnap] = await Promise.all([
+      getDocs(query(collection(db, 'listings'),
+        where('companyId', '==', currentCompanyId),
+        where('private', '==', false),
+        where('status', '==', 'active'))),
+      getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)))
+    ]);
+    const byId = new Map();
+    publicTeamSnap.forEach(d => byId.set(d.id, d.data()));
+    ownSnap.forEach(d => byId.set(d.id, d.data()));
+    const rows = [...byId.values()];
     document.getElementById('statTeamListings').textContent = rows.length + ' ' + (rows.length === 1 ? trDash('agentDash.teamListingSingular','team listing') : trDash('agentDash.teamListingPlural','team listings'));
     if (rows.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');

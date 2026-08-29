@@ -1769,11 +1769,33 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     // background patch below fills it in once it finishes. The verification
     // selfie uploads to a separate, admin-only-read Storage path (see
     // storage.rules) -- it never becomes part of photoUrls, so it can't
-    // end up on the public listing.
+    // end up on the public listing. Its path is attached separately below,
+    // via attachVerificationPhoto() (AUTHZ-02) -- not as a plain field on
+    // this document, which anyone who could reach this doc's ID could
+    // otherwise overwrite with an unrelated path.
     photoUrls: photoStatus.readyUrls, photoUploadToken: sellPhotoToken,
-    verificationPhotoPath,
     status: 'pending', createdAt: submitFns.serverTimestamp()
   };
+
+  // AUTHZ-02 fix: the verification photo's Storage path is written into
+  // submissions/{id}/verification/{token} (token == this submission's own
+  // photoUploadToken), never as a plain field on the submission doc
+  // itself. firestore.rules requires the caller to supply that exact
+  // token as the subcollection document's ID -- a partial update can
+  // omit a field and trivially "match" a stale value, but it can't omit
+  // a path segment, so this is airtight against the identity-confusion
+  // attack the plain-field version had (an unrelated party could not
+  // patch verificationPhotoPath without already knowing the real token).
+  async function attachVerificationPhoto(path) {
+    try {
+      await submitFns.setDoc(
+        submitFns.doc(submitDb, 'submissions', newDocRef.id, 'verification', sellPhotoToken),
+        { path, setAt: submitFns.serverTimestamp() }
+      );
+    } catch (err) {
+      console.error('[sell] could not attach verification photo path', err);
+    }
+  }
 
   let newDocRef;
   try {
@@ -1792,6 +1814,8 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   }
   console.log('[sell][perf] total time to success: ' + Math.round(performance.now() - tSubmitStart) + 'ms');
 
+  if (verificationPhotoPath) attachVerificationPhoto(verificationPhotoPath);
+
   localStorage.removeItem(DRAFT_KEY);
   document.getElementById('sellForm').classList.add('hidden');
   document.getElementById('confirmation').classList.remove('hidden');
@@ -1808,13 +1832,13 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
       try {
         await submitFns.updateDoc(submitFns.doc(submitDb, 'submissions', newDocRef.id), {
           photoUrls: getCurrentPhotoUploadStatus().readyUrls,
-          photoUploadToken: sellPhotoToken,
-          verificationPhotoPath
+          photoUploadToken: sellPhotoToken
         });
         console.log('[sell][perf] background photo patch applied after uploads settled');
       } catch (err) {
         console.error('[sell] background photo patch failed (listing was already submitted successfully without it)', err);
       }
+      if (verificationPhotoPath) await attachVerificationPhoto(verificationPhotoPath);
     });
   }
 });
