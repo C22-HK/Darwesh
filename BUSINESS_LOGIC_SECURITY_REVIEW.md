@@ -25,6 +25,16 @@ project's real, current `firestore.rules` — never production.
 
 ## Findings
 
+> **REMEDIATION UPDATE**: BL-01, BL-02, BL-03, BL-04, BL-05, and BL-08
+> are FIXED; BL-06 and BL-07 are PARTIALLY FIXED (each with an
+> explicitly documented, deliberately out-of-scope residual, not a
+> silent gap); BL-09 received a small proportionate data-quality
+> mitigation. Full detail — files changed, rule text, tests, before/
+> after behavior, and remaining risk per finding — is in
+> **`BUSINESS_LOGIC_REMEDIATION.md`**. Each finding below now carries a
+> **Remediation status** line; the original finding text is left as
+> written (the historical record of what was found).
+
 ### BL-01 — A listing's identity (agentId/agentName/companyId) can be silently reassigned after creation, and an admin's `verified` badge survives the swap
 
 - **Status**: CONFIRMED
@@ -61,6 +71,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: The update rule was written to answer "does the caller currently own this document" without also answering "does the write itself still describe a coherent, consented ownership state." The same "check the old value, never the new one" pattern that AUTHZ-03 already fixed specifically for `verified` was not generalized to the identity fields.
 - **Recommended remediation (not implemented this stage — Stage 4 is analysis-only per your instructions)**: Require `request.resource.data.agentId == resource.data.agentId` (and the same for `companyId`) on the agent branch of the update rule — i.e., an agent's own update path should never be able to change *who* owns the listing at all; only `isAdmin()` should be able to reassign ownership. `agentName` should likewise either be locked to match the agent's own `users/{uid}.displayName` at write time, or simply removed from the agent-writable set and always derived server-side/from the linked profile.
 - **Confidence**: High — reproduced twice, independently, including the combined verified-badge scenario.
+- **Remediation status**: **FIXED**. Agent-branch update rule now locks `agentId`/`companyId` to their pre-write value AND the caller's own identity/company, and `agentName` to its pre-write value; only `isAdmin()` can reassign any of the three. Verified: 11 new tests (`stage5_bl0104_test.mjs` R1–R11), including the exact combined verified-badge scenario. `agentName`-sync-on-profile-change and verified-reset-on-admin-reassignment are documented open product decisions, not silently resolved. Full detail in `BUSINESS_LOGIC_REMEDIATION.md`.
 
 ---
 
@@ -88,6 +99,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: `agentTransactions` never received the allowlist treatment AUTHZ-04 applied to `users`/`listings` — it has no `hasOnly()` at all, and the update branch has the same unvalidated-new-value gap as BL-01.
 - **Recommended remediation**: Add a `hasOnly(['type','category','amount','date','note'])`-style allowlist plus `amount is number && amount > 0` (or an explicit reasonable upper bound) to CREATE, and require `request.resource.data.agentId == resource.data.agentId` on UPDATE (never re-attributable).
 - **Confidence**: High.
+- **Remediation status**: **FIXED**. `agentTransactions` now has a full field allowlist plus type/positivity validation on `amount`, and UPDATE locks `agentId` to its pre-write value and the caller's own identity — matching the recommended remediation almost exactly. No arbitrary maximum was added (none exists in this app's own source, per your explicit instruction not to invent one). Verified: 10 new tests (`stage5_bl0104_test.mjs` R12–R21). Full detail in `BUSINESS_LOGIC_REMEDIATION.md`.
 
 ---
 
@@ -110,6 +122,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: AUTHZ-04's allowlist was derived from `account.html`'s actual save payload, which doesn't include `commissionRate` — a legitimate, separate write path (`agent-dashboard.html`'s Finances tab) was missed since it wasn't in scope for that remediation.
 - **Recommended remediation**: Add `commissionRate` to the `users` UPDATE_ALLOWED_FIELDS allowlist (with a sane bound, e.g. `0 <= commissionRate <= 100`) if the feature is meant to work; otherwise remove the dead "Save Rate" button.
 - **Confidence**: High.
+- **Remediation status**: **FIXED**. `commissionRate` added to the allowlist, bounded 0–100. Verified: 3 new tests (`stage5_bl0307_test.mjs` T1–T3).
 
 ---
 
@@ -140,6 +153,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: Company membership was designed as a convenience ("no manual Firestore edit needed") without a parallel identity-verification concept — the design assumes the admin-promotion step is where real diligence happens, but doesn't surface the information (is this a new or existing company? how many current members?) the admin would need to do that diligence well.
 - **Recommended remediation**: Not implemented this stage. If pursued: surface "joining existing company with N members" vs. "creating a new company" distinctly in the admin's promotion-review UI; consider requiring an existing company-admin/owner's approval (a concept that doesn't exist yet) before a new applicant's `companyId` takes effect, rather than trusting free-text at signup.
 - **Confidence**: High for the structural mechanism; Medium for real-world exploitability (depends entirely on admin diligence, which wasn't observable from code).
+- **Remediation status**: **FIXED**. Founding a brand-new company remains automatic (no existing relationship claimed); joining an EXISTING company's name now only records `requestedCompanyId`/`requestedCompanyName` (untrusted) — the trusted `companyId` stays unset until an admin's promotion action explicitly grants it, and that action now surfaces the requested company name rather than granting silently. The admin's promotion-review UI signal recommended above is now partially addressed (the requested company name is shown; a member-count/new-vs-existing indicator was not added — smallest-safe-workflow scope). Verified: 5 name-collision variants (backend, `test_email_otp.py`) proving normalization alone never grants trusted membership, plus 5 rules tests (`stage5_bl0104_test.mjs` R22–R26). Full detail in `BUSINESS_LOGIC_REMEDIATION.md`.
 
 ---
 
@@ -162,6 +176,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: The admin-review UI was built as a convenience prefill, not a verified promotion pipeline — no submission↔listing linkage or state tracking was ever added.
 - **Recommended remediation**: Not implemented this stage. If pursued: record `sourceSubmissionId` on the created listing and a corresponding `converted:true`/`convertedListingId` on the submission (checked before allowing a second conversion), and consider highlighting which fields the admin has *not* edited from the raw submission value as a review aid.
 - **Confidence**: High.
+- **Remediation status**: **FIXED**, matching the recommended remediation exactly: `sourceSubmissionId` recorded on the listing, `convertedListingId` recorded on the submission, both inside a real Firestore `runTransaction()` (true atomicity, not just a read-then-write) plus an independent `firestore.rules` guard. Numeric fields (price/beds/baths/sqft) now validated too. Verified: 9 new tests (`stage5_bl05_test.mjs` S1–S9), including a genuine concurrent-conversion race proving exactly one of two simultaneous attempts succeeds. Full detail in `BUSINESS_LOGIC_REMEDIATION.md`.
 
 ---
 
@@ -184,6 +199,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: The submission schema trusts the same client-side convenience copy the rest of the UI relies on, with no equivalent of AUTHZ-01's "prove the query" requirement applied to write-time content validation.
 - **Recommended remediation**: Not implemented this stage. If pursued: since `firestore.rules` cannot itself fetch-and-compare two documents' arbitrary string fields cheaply within the create rule for every write, consider deriving the display fields the admin sees from a server-side/Cloud-Function-verified re-fetch of `listings/{listingId}` rather than trusting the submission's own copies, or at minimum requiring `exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId))` in the create rule as a floor.
 - **Confidence**: High for the mechanism; the realistic impact is intentionally not inflated (no CWE for injection/auth here — this is a trust/data-quality gap).
+- **Remediation status**: **PARTIALLY FIXED** — implemented exactly the "floor" option named above: `firestore.rules` now requires `exists(listings/{listingId})` when a viewing submission names one, without exposing any listing data to the caller. Full field-by-field content cross-validation (address/price actually matching) was not implemented — documented as remaining risk, not silently dropped. Private/closed listings were NOT made newly readable by this change (verified the `exists()` check grants no read access). Verified: 3 new tests (`stage5_bl0307_test.mjs` T4–T6).
 
 ---
 
@@ -216,6 +232,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: `path` has no server-side way (within Firestore Rules alone) to prove it corresponds to a blob that was actually just uploaded through the real capture flow — this would require either a Storage-triggered Cloud Function or accepting it as an inherent limitation of a client-only capture UI.
 - **Recommended remediation**: Not implemented this stage (Stage 4 is analysis-only). If pursued: this is likely only closable with a small Storage-triggered Cloud Function that validates the referenced object was uploaded to the expected `sell-verification/{token}/` prefix, rather than a Firestore-Rules-only fix.
 - **Confidence**: High.
+- **Remediation status**: **PARTIALLY FIXED**. `path` is now constrained to `^sell-verification/[^/]+/selfie\.jpg$` — pointing at any object outside that one dedicated, admin-only-readable prefix (e.g. an agent's public photo) is closed. Full provenance proof (was this object genuinely just captured?) still requires the Storage-triggered Cloud Function named above — correctly not implemented, per your instruction to keep low-finding fixes small and well-understood rather than adding new infrastructure. Verified: 3 new tests (`stage5_bl0307_test.mjs` T7–T9).
 
 ---
 
@@ -236,6 +253,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: Missing standard "disable while submitting" UX pattern — present elsewhere in the app (e.g. `sell.html`'s submit button does disable) but missed here.
 - **Recommended remediation**: Not implemented this stage. `btn.disabled = true` before the write, re-enabled in a `finally`/on error, matching the pattern already used by `sell.html`'s own submit handler.
 - **Confidence**: High.
+- **Remediation status**: **FIXED**, exactly matching the recommended remediation — submit button disabled for the duration of the write, re-enabled in a `finally` block.
 
 ---
 
@@ -256,6 +274,7 @@ project's real, current `firestore.rules` — never production.
 - **Root cause**: No minimum-sample-size floor beyond 2, no outlier resistance, in a feature that's inherently vulnerable to low-inventory cities having few real comparables to dilute manipulation.
 - **Recommended remediation**: Not implemented this stage. If pursued: raise the minimum comparable count, use a median or trimmed mean instead of a plain average, and/or weight by recency, without needing any rules change (this is a pure client-side computation choice).
 - **Confidence**: High for the mechanism; Medium for real-world likelihood (requires a real agent account and deliberate intent, and only affects a soft estimate).
+- **Remediation status**: **FIXED (small, proportionate mitigation)**. Switched to median instead of a plain mean — one added `sort()`, no other complexity. Minimum comparable count (2) and the ±15% band were deliberately left unchanged (product decisions, not this fix's call). Still correctly classified as data-quality/model-quality, not a security vulnerability.
 
 ---
 

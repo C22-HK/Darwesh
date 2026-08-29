@@ -76,9 +76,19 @@ class FakeAccountOps:
     """Standing in for FirebaseAccountOps's account-creation side, used
     by SignupCompleteHandler."""
 
-    def __init__(self, existing_emails: set[str] | None = None, existing_phones: set[str] | None = None):
+    def __init__(
+        self,
+        existing_emails: set[str] | None = None,
+        existing_phones: set[str] | None = None,
+        existing_companies: set[str] | None = None,
+    ):
         self.existing_emails = existing_emails or set()
         self.existing_phones = existing_phones or set()
+        # BL-04: companies that already exist BEFORE this signup runs --
+        # lets a test prove the "typing an existing company's name never
+        # auto-grants trusted membership" invariant without a real
+        # Firestore emulator.
+        self.existing_companies = existing_companies or set()
         self.created: list[dict] = []
         self.profiles_written: list[dict] = []
         self.companies_ensured: list[tuple[str, str]] = []
@@ -118,6 +128,8 @@ class FakeAccountOps:
         phone_e164: str,
         requested_role: str = "customer",
         company_id: str | None = None,
+        requested_company_id: str | None = None,
+        requested_company_name: str | None = None,
     ) -> None:
         if self.fail_profile_write:
             raise RuntimeError("firestore down")
@@ -129,11 +141,17 @@ class FakeAccountOps:
                 "phone_e164": phone_e164,
                 "requested_role": requested_role,
                 "company_id": company_id,
+                "requested_company_id": requested_company_id,
+                "requested_company_name": requested_company_name,
             }
         )
 
+    async def company_exists(self, company_id: str) -> bool:
+        return company_id in self.existing_companies
+
     async def ensure_company(self, company_id: str, company_name: str) -> None:
         self.companies_ensured.append((company_id, company_name))
+        self.existing_companies.add(company_id)
 
     async def delete_account(self, uid: str) -> None:
         # Real FirebaseAccountOps.delete_account is only ever called by
@@ -612,7 +630,53 @@ def test_signup_complete_as_agent_records_requested_role_and_creates_company():
     # firestore.rules: a client can never self-promote to agent/admin).
     assert ops.profiles_written[0]["requested_role"] == "agent"
     assert ops.profiles_written[0]["company_id"] == "darwesh-group"
+    assert ops.profiles_written[0]["requested_company_id"] is None
+    assert ops.profiles_written[0]["requested_company_name"] is None
     assert ops.companies_ensured == [("darwesh-group", "Darwesh Group")]
+
+
+@pytest.mark.parametrize(
+    "typed_name",
+    ["Darwesh Group", "darwesh group", "Darwesh-Group", "Darwesh_Group", "  Darwesh   Group  "],
+)
+def test_signup_complete_as_agent_with_existing_company_name_never_auto_grants_membership(typed_name):
+    # BL-04 fix: typing a name that normalizes to an ALREADY-EXISTING
+    # company's slug must never auto-assign that company's trusted
+    # companyId -- only a brand-new company name is safe to auto-trust.
+    # Every name variant below slugifies to the same "darwesh-group",
+    # proving collision-prone normalization alone can't grant membership.
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps(existing_companies={"darwesh-group"})
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "requestedRole": "agent",
+            "companyName": typed_name,
+        },
+    )
+
+    assert resp.status_code == 200
+    # The trusted companyId must stay unset -- this signup only RECORDED a
+    # request to join, never an actual grant of company-scoped access.
+    assert ops.profiles_written[0]["company_id"] is None
+    assert ops.profiles_written[0]["requested_company_id"] == "darwesh-group"
+    assert ops.profiles_written[0]["requested_company_name"] == typed_name.strip()
+    # The existing company doc is never touched (no write attempted).
+    assert ops.companies_ensured == []
 
 
 def test_signup_complete_as_agent_without_company_name_rejected():

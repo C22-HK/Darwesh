@@ -373,7 +373,7 @@
             </div>
             <div class="flex gap-2">
               <input id="finTxNote" class="admin-input flex-1" data-i18n-placeholder="agentDash.finTxNotePlaceholder" placeholder="Note (optional)"/>
-              <button type="submit" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex-none" data-i18n="common.add">Add</button>
+              <button type="submit" id="finTxSubmitBtn" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex-none" data-i18n="common.add">Add</button>
             </div>
           </form>
           <p id="finTxError" class="text-error text-[13px] mb-3 hidden"></p>
@@ -947,6 +947,13 @@
   document.getElementById('finTxForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('finTxError');
+    const submitBtn = document.getElementById('finTxSubmitBtn');
+    // BL-08 fix: this handler had no in-flight guard at all -- a rapid
+    // double-click (or a slow network prompting a second click) fired
+    // addDoc() twice, creating a duplicate ledger entry. Disabled for
+    // the duration of the write, same pattern sell.html's own submit
+    // button already uses.
+    if (submitBtn.disabled) return;
     const amount = Number(document.getElementById('finTxAmount').value);
     const date = document.getElementById('finTxDate').value;
     if (!amount || amount <= 0 || !date) {
@@ -964,6 +971,7 @@
       note: document.getElementById('finTxNote').value.trim(),
       createdAt: serverTimestamp()
     };
+    submitBtn.disabled = true;
     try {
       await addDoc(collection(db, 'agentTransactions'), data);
       document.getElementById('finTxForm').reset();
@@ -973,6 +981,8 @@
     } catch (err) {
       errEl.textContent = trDash('agentDash.finTxSaveFailed', 'Could not save this entry: ') + err.message;
       errEl.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
     }
   });
 

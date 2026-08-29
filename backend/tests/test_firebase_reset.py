@@ -10,9 +10,15 @@ def test_extract_oob_code_parses_real_firebase_link_format():
     # production) -- routes through the project's firebaseapp.com
     # authDomain first, which is what this whole extraction step exists
     # to avoid exposing to the visitor.
+    # apiKey here is a placeholder, not the real project key -- this test
+    # only exercises URL/query-string parsing (extract_oob_code), which
+    # doesn't read or care about the apiKey value at all; a real key was
+    # never needed here and duplicating it was flagged by GitHub secret
+    # scanning as an unnecessary hardcoded copy (see
+    # BUSINESS_LOGIC_REMEDIATION.md's credential-remediation section).
     raw_link = (
         "https://darwesh-group.firebaseapp.com/__/auth/action?"
-        "apiKey=AIzaSyBZQTkwRZNZL-HmNBx_i33QoSpSjIMin_8&mode=resetPassword&"
+        "apiKey=FAKE-TEST-API-KEY-NOT-A-REAL-CREDENTIAL&mode=resetPassword&"
         "oobCode=85icZixsIrOUaSTdEjxDStVT8cu5DrY6QogRfpAyV5UAAAGgPzO7rw&"
         "continueUrl=https://www.darweshgroup.com/reset-password.html&lang=en"
     )

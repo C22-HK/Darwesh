@@ -264,15 +264,32 @@ class SignupCompleteHandler:
         # THIS request created, never any other) rather than silently
         # leaving a half-provisioned account behind.
         try:
+            # BL-04 fix (BUSINESS_LOGIC_REMEDIATION.md): typing a name that
+            # happens to match an EXISTING company is not proof of real
+            # membership in it -- only a brand-new company name (nothing
+            # else could be claiming it) is safe to auto-assign as this
+            # signup's trusted companyId. An existing-name match is
+            # recorded as a request only; an admin must explicitly grant
+            # the real companyId later (see admin.html's promotion flow).
+            trusted_company_id = None
+            requested_company_id = None
+            requested_company_name = None
             if company_id:
-                await self.accounts.ensure_company(company_id, company_name.strip())
+                if await self.accounts.company_exists(company_id):
+                    requested_company_id = company_id
+                    requested_company_name = company_name.strip()
+                else:
+                    await self.accounts.ensure_company(company_id, company_name.strip())
+                    trusted_company_id = company_id
             await self.accounts.create_user_profile(
                 uid,
                 display_name=full_name.strip(),
                 email=email,
                 phone_e164=phone_e164,
                 requested_role=requested_role,
-                company_id=company_id,
+                company_id=trusted_company_id,
+                requested_company_id=requested_company_id,
+                requested_company_name=requested_company_name,
             )
         except Exception as exc:
             self.logger.error(

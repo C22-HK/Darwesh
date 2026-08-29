@@ -633,6 +633,11 @@
         <form id="listingForm" class="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 h-fit">
           <p class="font-headline-md text-[17px] text-primary mb-4" id="formTitle" data-i18n="agentDash.addListing">Add a Listing</p>
           <input type="hidden" id="editingId" value=""/>
+          <!-- BL-05 fix: tracks which submission (if any) this form was
+               prefilled from, so onListingFormSubmit can link the new
+               listing back to it and guard against converting the same
+               submission twice. -->
+          <input type="hidden" id="sourceSubmissionId" value=""/>
 
           <div class="mb-3">
             <label class="admin-label" for="fTitle" data-i18n="agentDash.titleLabel">Title</label>
@@ -971,7 +976,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth, deleteUser } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  doc, collection, serverTimestamp, getFirestore
+  doc, collection, serverTimestamp, getFirestore, runTransaction
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
@@ -1186,8 +1191,14 @@ async function renderUsers() {
     const role = u.role || 'customer';
     const ROLE_LABEL = ROLE_LABEL_FN();
     const wantsAgent = u.requestedRole === 'agent' && role !== 'agent' && role !== 'admin';
+    // BL-04 fix: requestedCompanyId/requestedCompanyName is the UNTRUSTED
+    // claim recorded when this applicant typed a name matching an
+    // EXISTING company at signup -- companyId itself stays unset until
+    // an admin explicitly approves the join (see onRoleChange below), so
+    // this badge is the only place that claim is visible before an admin
+    // acts on it.
     const agentRequestBadge = wantsAgent
-      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}</span>`
+      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}${u.requestedCompanyName ? ' · ' + escapeAdmin(u.requestedCompanyName) : ''}</span>`
       : '';
     tr.innerHTML = `
       <td>
@@ -1215,20 +1226,35 @@ async function renderUsers() {
         if (role === r) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', () => onRoleChange(u.uid, u.displayName || u.email, select));
+      select.addEventListener('change', () => onRoleChange(u, select));
       roleCell.appendChild(select);
     }
     body.appendChild(tr);
   });
 }
 
-async function onRoleChange(uid, name, selectEl) {
+async function onRoleChange(u, selectEl) {
+  const uid = u.uid;
+  const name = u.displayName || u.email;
   const newRole = selectEl.value;
   const roleLabel = ROLE_LABEL_FN()[newRole];
-  const ok = confirm(`Change ${name}'s role to "${roleLabel}"?` + (newRole === 'admin' ? ' This grants full admin access.' : ''));
+  // BL-04 fix: promoting to 'agent' is also the moment a pending
+  // requestedCompanyId (an unverified claim from signup -- see the
+  // badge above) becomes real, trusted company-scoped access. That
+  // grant must be a visible, deliberate part of THIS action, not
+  // something that already silently happened at signup -- so it's
+  // confirmed and applied here, explicitly, rather than assumed to
+  // already be in place on the profile.
+  const grantingCompany = newRole === 'agent' && !u.companyId && u.requestedCompanyId;
+  const confirmMsg = grantingCompany
+    ? `Change ${name}'s role to "${roleLabel}" and grant access to "${u.requestedCompanyName || u.requestedCompanyId}"? This gives them that company's team-scoped listing access.`
+    : `Change ${name}'s role to "${roleLabel}"?` + (newRole === 'admin' ? ' This grants full admin access.' : '');
+  const ok = confirm(confirmMsg);
   if (!ok) { renderUsers(); return; }
   try {
-    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    const update = { role: newRole };
+    if (grantingCompany) update.companyId = u.requestedCompanyId;
+    await updateDoc(doc(db, 'users', uid), update);
     renderUsers();
   } catch (err) {
     alert('Could not update role: ' + err.message);
@@ -1354,6 +1380,7 @@ function setAdminPin(lat, lng) {
 function resetListingForm() {
   document.getElementById('listingForm').reset();
   document.getElementById('editingId').value = '';
+  document.getElementById('sourceSubmissionId').value = '';
   document.getElementById('formTitle').textContent = trAdmin('agentDash.addListing','Add a Listing');
   document.getElementById('formSubmitBtn').textContent = trAdmin('agentDash.addListing','Add Listing');
   document.getElementById('formCancelBtn').classList.add('hidden');
@@ -1571,8 +1598,16 @@ async function onListingFormSubmit(e) {
   const enteredPrice = Number(document.getElementById('fPrice').value);
   const priceCurrency = document.getElementById('fPriceCurrency').value;
   const price = priceCurrency === 'IQD' ? Math.round(enteredPrice / 1310) : enteredPrice;
+  const beds = Number(document.getElementById('fBeds').value) || 0;
+  const baths = Number(document.getElementById('fBaths').value) || 0;
+  const sqft = Number(document.getElementById('fSqft').value) || 0;
 
-  if (!title || !address || !price || pinLat === null || pinLng === null) {
+  // BL-05 fix: `!price` alone lets a NEGATIVE price through (a negative
+  // number is truthy in JS) -- this form is also where a submission's
+  // (attacker-controllable, per firestore.rules) numeric fields land
+  // once prefilled, so beds/baths/sqft/price are all now checked for
+  // sign here too, not just presence.
+  if (!title || !address || !(price > 0) || beds < 0 || baths < 0 || sqft < 0 || pinLat === null || pinLng === null) {
     errEl.textContent = trAdmin('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
     errEl.classList.remove('hidden');
     return;
@@ -1580,16 +1615,14 @@ async function onListingFormSubmit(e) {
   errEl.classList.add('hidden');
 
   const editingId = document.getElementById('editingId').value;
+  const sourceSubmissionId = document.getElementById('sourceSubmissionId').value;
   const data = {
     title, address,
     city: document.getElementById('fCity').value,
     lat: pinLat, lng: pinLng,
     dealType: document.getElementById('fDealType').value,
     propertyType: document.getElementById('fPropertyType').value,
-    price,
-    beds: Number(document.getElementById('fBeds').value) || 0,
-    baths: Number(document.getElementById('fBaths').value) || 0,
-    sqft: Number(document.getElementById('fSqft').value) || 0,
+    price, beds, baths, sqft,
     img: document.getElementById('fImg').value.trim(),
     amenities: document.getElementById('fAmenities').value.split(',').map(s => s.trim()).filter(Boolean),
     verified: document.getElementById('fVerified').checked,
@@ -1606,7 +1639,34 @@ async function onListingFormSubmit(e) {
       data.companyId = null;
       data.status = 'active';
       data.createdAt = serverTimestamp();
-      await addDoc(collection(db, 'listings'), data);
+      if (sourceSubmissionId) {
+        // BL-05 fix: one submission must become at most one listing.
+        // A plain read-then-write here would still race under two
+        // concurrent conversions of the same submission (both could
+        // pass the "not yet converted" check before either writes) --
+        // a real Firestore transaction closes that gap: whichever
+        // commits first wins, the other's transaction function re-runs
+        // against the now-updated submission and correctly fails the
+        // check on retry. firestore.rules independently re-enforces the
+        // same "not already converted" invariant on the listings create
+        // itself, so this can't be bypassed by a direct API call either.
+        data.sourceSubmissionId = sourceSubmissionId;
+        const newListingRef = doc(collection(db, 'listings'));
+        const submissionRef = doc(db, 'submissions', sourceSubmissionId);
+        await runTransaction(db, async (tx) => {
+          const subSnap = await tx.get(submissionRef);
+          if (!subSnap.exists() || subSnap.data().type !== 'sell') {
+            throw new Error('This submission no longer exists or is not a sell submission.');
+          }
+          if (subSnap.data().convertedListingId) {
+            throw new Error('This submission has already been converted to a listing.');
+          }
+          tx.set(newListingRef, data);
+          tx.update(submissionRef, { convertedListingId: newListingRef.id });
+        });
+      } else {
+        await addDoc(collection(db, 'listings'), data);
+      }
     }
     resetListingForm();
     renderListingsTable();
@@ -2128,6 +2188,22 @@ async function geocodeAddress(query) {
 function createListingFromSubmission(id) {
   const s = allSubmissionsCache.find(x => x.id === id);
   if (!s || s.type !== 'sell') return;
+  // BL-05 fix: validate expected type/state before prefilling at all --
+  // a submission already converted (has convertedListingId) isn't a
+  // fresh conversion candidate; status itself is deliberately NOT
+  // restricted to 'pending' here since this app has no established
+  // workflow requirement that a submission must still be pending to be
+  // converted (an admin may legitimately mark one 'in-progress' while
+  // reviewing, then convert it) -- inventing that restriction isn't
+  // this fix's call to make. The real, unbypassable guard against
+  // double-conversion either way is the transaction + firestore.rules
+  // check in onListingFormSubmit below; this is just an early, honest
+  // UI exit so an admin doesn't fill out a form that's guaranteed to be
+  // rejected.
+  if (s.convertedListingId) {
+    alert(trAdmin('admin.submissionAlreadyConverted', 'This submission has already been converted to a listing.'));
+    return;
+  }
 
   closeRequestDetail();
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
@@ -2136,6 +2212,7 @@ function createListingFromSubmission(id) {
   document.getElementById('tab-listings').classList.add('active');
 
   resetListingForm();
+  document.getElementById('sourceSubmissionId').value = id;
   document.getElementById('fTitle').value = s.title || '';
   if (s.city) document.getElementById('fCity').value = s.city;
   if (s.listingType) document.getElementById('fDealType').value = s.listingType;
@@ -3150,9 +3227,20 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     // so it's created that way under the new account's own session
     // (secondaryDb) and immediately promoted to 'agent' from the admin's
     // own session (db), which IS allowed to change anyone's role.
+    //
+    // companyId is deliberately left OUT of this self-create (BL-04 fix,
+    // BUSINESS_LOGIC_REMEDIATION.md): the company doc was just resolved/
+    // created above by THIS admin's own trusted session, so it already
+    // exists by the time this write runs -- and firestore.rules' create
+    // rule for users/{uid} now refuses to let ANY self-create (this one
+    // included, since the rule can't distinguish "orchestrated by an
+    // admin" from an ordinary signup at this exact request) claim an
+    // already-existing company's id directly. companyId is set instead
+    // by the very next line, from the admin's own already-authorized
+    // session, which is unaffected by that restriction.
     await setDoc(doc(secondaryDb, 'users', cred.user.uid), {
       email, displayName, firstName, lastName, phone,
-      role: 'customer', companyId, createdAt: serverTimestamp()
+      role: 'customer', createdAt: serverTimestamp()
     });
     secondaryUserDocCreated = true;
     await updateDoc(doc(db, 'users', cred.user.uid), { role: 'agent', companyId });

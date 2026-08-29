@@ -157,6 +157,8 @@ class FirebaseAccountOps:
         phone_e164: str,
         requested_role: str = "customer",
         company_id: str | None = None,
+        requested_company_id: str | None = None,
+        requested_company_name: str | None = None,
     ) -> None:
         """Writes users/{uid} via the Admin SDK -- bypasses firestore.rules
         entirely (as any Admin SDK write does), which is expected and
@@ -170,7 +172,20 @@ class FirebaseAccountOps:
         (firestore.rules: a user can never self-grant 'agent'/'admin').
         `requestedRole` is only ever a recorded signal an admin reviews
         in the Users & Roles tab before manually promoting the account;
-        it is never trusted as an actual privilege grant."""
+        it is never trusted as an actual privilege grant.
+
+        `company_id` (BL-04 fix, BUSINESS_LOGIC_REMEDIATION.md) is now
+        the TRUSTED tenant boundary and is only ever set here when the
+        caller (email_handler.py) has already determined this signup is
+        founding a brand-new company -- i.e. no existing team/business
+        relationship is being claimed, so auto-assignment is safe, same
+        as before. `requested_company_id`/`requested_company_name` are
+        the UNTRUSTED equivalent, set instead whenever the applicant
+        typed a name matching an EXISTING company: merely typing a
+        matching name can never be trusted as proof of real membership,
+        so `company_id` stays null and an admin must explicitly approve
+        the join (setting the real companyId themselves) before this
+        account gets any company-scoped access at all."""
 
         def _write() -> None:
             self._db.collection("users").document(uid).set(
@@ -181,6 +196,8 @@ class FirebaseAccountOps:
                     "role": "customer",
                     "requestedRole": requested_role,
                     "companyId": company_id,
+                    "requestedCompanyId": requested_company_id,
+                    "requestedCompanyName": requested_company_name,
                     "phoneVerified": True,
                     "phoneVerifiedAt": fb_firestore.SERVER_TIMESTAMP,
                     "emailVerified": True,
@@ -190,15 +207,28 @@ class FirebaseAccountOps:
 
         await asyncio.to_thread(_write)
 
+    async def company_exists(self, company_id: str) -> bool:
+        """Read-only existence check (BL-04 fix) -- lets the caller decide
+        BEFORE writing anything whether this signup is founding a new
+        company (safe to auto-assign, see create_user_profile) or
+        claiming an existing one (must go through requestedCompanyId
+        instead, never auto-trusted)."""
+
+        def _read() -> bool:
+            return self._db.collection("companies").document(company_id).get().exists
+
+        return await asyncio.to_thread(_read)
+
     async def ensure_company(self, company_id: str, company_name: str) -> None:
-        """Creates companies/{company_id} the first time this name is
-        used at signup; a later signup with the same (slugified) name
-        just joins the existing one. Mirrors the create-if-not-exists
-        semantics firestore.rules already grants a signed-in client
-        (`allow create: if isSignedIn() && !exists(...)`) -- performed
-        here via the Admin SDK instead, since the applicant isn't signed
-        in yet at signup time (no Firebase user exists until
-        create_account succeeds)."""
+        """Creates companies/{company_id} -- only ever called (see
+        email_handler.py) once company_exists() has already confirmed no
+        company with this id exists yet, i.e. this signup is founding a
+        brand-new company, not joining an established one. Mirrors the
+        create-if-not-exists semantics firestore.rules already grants a
+        signed-in client (`allow create: if isSignedIn() &&
+        !exists(...)`) -- performed here via the Admin SDK instead,
+        since the applicant isn't signed in yet at signup time (no
+        Firebase user exists until create_account succeeds)."""
 
         def _write() -> None:
             ref = self._db.collection("companies").document(company_id)

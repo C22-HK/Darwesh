@@ -946,8 +946,14 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
       resultEl.textContent = tr('sell.valuationNoData', 'Not enough comparable listings yet for an estimate.');
       return;
     }
-    const avgPerSqm = comparable.reduce((a, b) => a + b, 0) / comparable.length;
-    const estimate = avgPerSqm * size;
+    // BL-09 (data-quality, not a security fix): a plain mean lets a
+    // single extreme-priced comparable dominate a low-inventory city's
+    // estimate. Median is far more resistant to that without adding any
+    // real complexity -- still just one array sort.
+    comparable.sort((a, b) => a - b);
+    const mid = Math.floor(comparable.length / 2);
+    const medianPerSqm = comparable.length % 2 === 0 ? (comparable[mid - 1] + comparable[mid]) / 2 : comparable[mid];
+    const estimate = medianPerSqm * size;
     const low = Math.round(estimate * 0.85);
     const high = Math.round(estimate * 1.15);
     resultEl.textContent = tr('sell.valuationResult', 'Estimated value: {low} – {high}')

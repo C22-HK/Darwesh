@@ -77,12 +77,31 @@ service cloud.firestore {
       // Agent self-create step. An unlisted field (e.g. a client
       // sending `isAdmin: true` alongside a legitimate-looking
       // create) is rejected outright rather than silently accepted.
+      //
+      // BL-04 fix (BUSINESS_LOGIC_REMEDIATION.md): a self-create can
+      // only set companyId directly when that company does NOT already
+      // exist -- i.e. this signup is founding a brand-new company, the
+      // one case where "typed this name first" is itself a meaningful
+      // claim. Claiming an EXISTING company's id at create time is
+      // rejected outright, for every caller, including admin.html's own
+      // Add Agent flow (which resolves the company from the admin's own
+      // trusted session first, then sets companyId in a SEPARATE update
+      // under that trusted session -- see admin.html's comment at the
+      // self-create call site). A signup that only wants to request
+      // joining an existing company records that as
+      // requestedCompanyId/requestedCompanyName instead (untrusted,
+      // informational, granted no access by this rule) -- an admin must
+      // explicitly set the real companyId later (admin.html's role-
+      // promotion flow) for that request to become real access.
       allow create: if isOwner(uid) && request.resource.data.role == 'customer'
                     && (!('requestedRole' in request.resource.data)
                         || request.resource.data.requestedRole in ['customer', 'agent'])
+                    && (!('companyId' in request.resource.data)
+                        || request.resource.data.companyId == null
+                        || !exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)))
                     && request.resource.data.keys().hasOnly([
                          'email', 'displayName', 'firstName', 'lastName', 'phone',
-                         'role', 'requestedRole', 'companyId',
+                         'role', 'requestedRole', 'companyId', 'requestedCompanyId', 'requestedCompanyName',
                          'phoneVerified', 'phoneVerifiedAt', 'emailVerified', 'createdAt'
                        ]);
       // .get(field, null) rather than direct dot access for every locked
@@ -105,13 +124,24 @@ service cloud.firestore {
       // `verified`) is rejected outright for a self-edit, closing the
       // mass-assignment gap a pure denylist leaves open. isAdmin() below
       // still bypasses this for the real administrative-update path.
+      // BL-03 fix (BUSINESS_LOGIC_REMEDIATION.md): commissionRate was
+      // never in this allowlist at all, so agent-dashboard.html's own
+      // "Save Rate" button silently failed for every real account --
+      // added here, bounded to a sane 0-100 percentage (no such bound
+      // existed anywhere before; this is the one place the field is
+      // ever meant to be set, so it's a reasonable, narrowly-scoped
+      // place to add it, not an invented business limit elsewhere).
       allow update: if (isOwner(uid)
                           && request.resource.data.role == resource.data.role
                           && request.resource.data.get('assignedAgentId', null) == resource.data.get('assignedAgentId', null)
                           && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
                           && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
+                          && (!('commissionRate' in request.resource.data)
+                              || ((request.resource.data.commissionRate is int || request.resource.data.commissionRate is float)
+                                  && request.resource.data.commissionRate >= 0
+                                  && request.resource.data.commissionRate <= 100))
                           && request.resource.data.diff(resource.data).affectedKeys()
-                               .hasOnly(['displayName', 'photoURL']))
+                               .hasOnly(['displayName', 'photoURL', 'commissionRate']))
                     || isAdmin();
       allow delete: if isAdmin();
 
@@ -172,6 +202,43 @@ service cloud.firestore {
     function isListingOwnerOrAdmin() {
       return isAdmin() || (isAgent() && resource.data.agentId == request.auth.uid);
     }
+    // BL-05 fix (BUSINESS_LOGIC_REMEDIATION.md): when admin.html converts
+    // a sell submission into a real listing, the new doc carries a
+    // sourceSubmissionId -- this re-enforces, at the rules layer, that
+    // the referenced submission is a real 'sell' submission not already
+    // converted, independent of admin.html's own client-side transaction
+    // guard (defense in depth: a direct API call, or a future bug in
+    // that transaction, still can't create two listings from the same
+    // submission). A create with no sourceSubmissionId at all (the
+    // ordinary "Add Listing" path) is unaffected.
+    function isValidSourceSubmissionOrNone() {
+      return !('sourceSubmissionId' in request.resource.data)
+          || (
+            get(/databases/$(database)/documents/submissions/$(request.resource.data.sourceSubmissionId)).data.type == 'sell'
+            && !('convertedListingId' in get(/databases/$(database)/documents/submissions/$(request.resource.data.sourceSubmissionId)).data)
+          );
+    }
+    // Part 13 / BL-05 numeric business-constraint fix: previously NONE
+    // of this was enforced anywhere but a client-side form check (not a
+    // security boundary) -- a negative/absurd price, or a negative
+    // beds/baths/sqft, was accepted at the rules layer without question,
+    // for both an agent's own listing and (more importantly) whatever a
+    // submission's attacker-controllable numeric fields carried once
+    // copied into admin.html's Add Listing form. `price` is required and
+    // must be a positive number; beds/baths/sqft, when present, must be
+    // non-negative numbers. No arbitrary maximum is imposed -- no such
+    // product requirement exists in this app's own source.
+    function hasSaneListingNumbers() {
+      return 'price' in request.resource.data
+          && (request.resource.data.price is int || request.resource.data.price is float)
+          && request.resource.data.price > 0
+          && (!('beds' in request.resource.data) || request.resource.data.beds is int || request.resource.data.beds is float)
+          && (!('beds' in request.resource.data) || request.resource.data.beds >= 0)
+          && (!('baths' in request.resource.data) || request.resource.data.baths is int || request.resource.data.baths is float)
+          && (!('baths' in request.resource.data) || request.resource.data.baths >= 0)
+          && (!('sqft' in request.resource.data) || request.resource.data.sqft is int || request.resource.data.sqft is float)
+          && (!('sqft' in request.resource.data) || request.resource.data.sqft >= 0);
+    }
     match /listings/{listingId} {
       allow get, list: if isListingPubliclyVisible() || isListingOwnerOrAdmin();
       // CREATE_ALLOWED_FIELDS: an explicit allowlist of every field the
@@ -182,37 +249,67 @@ service cloud.firestore {
       // it tries to set verified:true on their own new listing, not
       // merely ignored -- so a request attempting to self-certify fails
       // loudly rather than silently creating an unverified listing.
-      allow create: if isAdmin()
+      allow create: if (isAdmin() && isValidSourceSubmissionOrNone() && hasSaneListingNumbers())
                     || (isAgent()
                           && request.resource.data.agentId == request.auth.uid
                           && request.resource.data.companyId == myCompanyId()
                           && request.resource.data.get('verified', false) == false
                           && 'private' in request.resource.data
                           && 'status' in request.resource.data
+                          && hasSaneListingNumbers()
                           && request.resource.data.keys().hasOnly([
                                'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
                                'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
                                'agentId', 'agentName', 'companyId', 'status', 'createdAt'
                              ]));
-      // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an
-      // agent may change any of the normal listing fields on their own
-      // listing (including agentId/agentName/companyId, since the
-      // outer resource.data.agentId==auth.uid check already means those
-      // can never actually change value through this branch -- see
-      // AUTHORIZATION_REMEDIATION.md for why locking them further here
-      // would risk breaking a legitimate edit if a stale client cache
-      // ever resent a differing value) -- but `verified` is required to
-      // stay exactly what it already was, so no agent-driven update can
-      // ever flip it, only isAdmin()'s unrestricted branch can.
+      // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an agent
+      // may change any of the normal listing fields on their own
+      // listing, but NOT who it's attributed to (BL-01 fix,
+      // BUSINESS_LOGIC_REMEDIATION.md). The original version of this
+      // rule only checked resource.data.agentId==auth.uid -- who owns
+      // it RIGHT NOW -- and never validated what the write itself
+      // claimed about ownership afterward, so an agent could silently
+      // reassign agentId/companyId to any value (including a real
+      // colleague's uid, a different real company, or a fabricated
+      // identity) in a normal edit, and an already admin-verified
+      // listing's `verified:true` would survive that swap untouched.
+      // agentId and companyId are now locked to their existing stored
+      // value AND independently re-confirmed against the caller's own
+      // identity -- an agent's edit can never move a listing to another
+      // agent or company, full stop; only isAdmin() can reassign either.
+      // agentName is locked the same way (immutable through this
+      // branch) rather than re-derived live from the agent's profile --
+      // the simpler, more robust choice given this rules file has no
+      // way to safely replicate the frontend's own
+      // "displayName || email" fallback logic; see
+      // BUSINESS_LOGIC_REMEDIATION.md for why this is flagged as an
+      // open product decision (keeping a listing's displayed agent name
+      // in sync with later profile-name changes) rather than guessed at
+      // here. Uses .get('agentName', null) rather than direct access on
+      // both sides -- unlike agentId/companyId (which the create rule's
+      // own equality checks already force to always be present, since a
+      // direct comparison there throws on a missing field too),
+      // agentName was never a required-at-create field, so a real or
+      // test-fixture document lacking it entirely is expected and must
+      // not permanently lock that listing out of every future edit.
+      // `verified` still must stay exactly what it already was on
+      // this branch, unaffected by (and no longer exploitable via) the
+      // identity lock above.
       allow update: if isAdmin()
                     || (isAgent()
+                          && hasSaneListingNumbers()
                           && resource.data.agentId == request.auth.uid
+                          && request.resource.data.agentId == resource.data.agentId
+                          && request.resource.data.agentId == request.auth.uid
+                          && request.resource.data.get('agentName', null) == resource.data.get('agentName', null)
+                          && request.resource.data.companyId == resource.data.companyId
+                          && request.resource.data.companyId == myCompanyId()
                           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly([
                                  'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
                                  'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
-                                 'status', 'agentId', 'agentName', 'companyId', 'updatedAt'
+                                 'status', 'updatedAt'
                                ]));
       allow delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
     }
@@ -225,10 +322,29 @@ service cloud.firestore {
     // the full collection (Customer Services tab in admin.html) or change
     // a submission's status.
     match /submissions/{submissionId} {
+      // BL-06 fix (BUSINESS_LOGIC_REMEDIATION.md): a 'viewing' submission
+      // that names a listingId must reference a REAL listings document --
+      // previously nothing checked this at all, so a direct API call
+      // could forge a viewing request for a nonexistent property. This
+      // get()/exists() call is server-side only and is NOT subject to
+      // the listings collection's own read rule (a rules-internal
+      // exists() check never exposes document data to the caller), so
+      // this cannot be used to newly discover whether a private/closed
+      // listing exists -- the caller already supplied the exact id
+      // themselves, and existence alone (true either way for any real
+      // listing regardless of private/status) isn't new information.
+      // Full field-by-field cross-validation (does the submitted
+      // address/price actually match that listing?) is NOT implemented
+      // here -- documented as a remaining risk, not a silent gap; see
+      // BUSINESS_LOGIC_REMEDIATION.md.
       allow create: if request.resource.data.status == 'pending'
                     && request.resource.data.type in ['sell', 'viewing']
                     && (request.resource.data.uid == null
-                        || (isSignedIn() && request.resource.data.uid == request.auth.uid));
+                        || (isSignedIn() && request.resource.data.uid == request.auth.uid))
+                    && (request.resource.data.type != 'viewing'
+                        || !('listingId' in request.resource.data)
+                        || request.resource.data.listingId == null
+                        || exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId)));
       allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       // sell.html starts uploading photos the moment they're added, not
       // when Submit is finally clicked -- whatever hasn't finished by
@@ -276,9 +392,25 @@ service cloud.firestore {
       // access.
       match /verification/{token} {
         allow read: if isAdmin();
+        // BL-07 fix (BUSINESS_LOGIC_REMEDIATION.md): `path` was
+        // previously any string at all, even for the legitimate
+        // token-holder -- letting a submitter point their OWN
+        // verification record at an unrelated, already-public Storage
+        // object (e.g. a real agent's public profile photo) instead of
+        // a genuine selfie, defeating manual fraud review without
+        // needing anyone else's credentials. Now constrained to the
+        // actual shape sell.html's own upload flow produces
+        // (sell-verification/{some token}/selfie.jpg) -- this can't
+        // fully prove the referenced object is freshly-captured (that
+        // needs a Storage-triggered Cloud Function, out of scope for a
+        // rules-only fix, documented as remaining risk), but it does
+        // close off pointing at any object outside this one dedicated,
+        // admin-only-readable prefix.
         allow write: if token == get(/databases/$(database)/documents/submissions/$(submissionId)).data.get('photoUploadToken', null)
                       && get(/databases/$(database)/documents/submissions/$(submissionId)).data.status == 'pending'
-                      && request.resource.data.keys().hasOnly(['path', 'setAt']);
+                      && request.resource.data.keys().hasOnly(['path', 'setAt'])
+                      && request.resource.data.path is string
+                      && request.resource.data.path.matches('^sell-verification/[^/]+/selfie[.]jpg$');
         allow delete: if isAdmin();
       }
     }
@@ -290,10 +422,43 @@ service cloud.firestore {
     // closed listings instead. Strictly owner-only: no agent can read or
     // write another agent's numbers; only an admin can read across all of
     // them.
+    //
+    // ALLOWED_FIELDS + basic type/positivity validation (BL-02 fix,
+    // BUSINESS_LOGIC_REMEDIATION.md). The original rule had none of
+    // this at all -- no field allowlist, and neither create nor update
+    // checked amount's type or sign, so a negative, zero, or absurd
+    // (e.g. 1e300) amount was accepted, and update didn't even
+    // re-check agentId post-write, letting an agent silently reassign
+    // their own transaction to another agent's account. `type` is
+    // locked to the two real values this app ever writes (income/
+    // expense) since that field directly decides which total a record
+    // is summed into on the dashboard; `category` and `date` are
+    // validated as non-empty/present but not further enum-restricted --
+    // no product-defined maximum `amount` exists anywhere in this
+    // app's own source, so none is invented here either, matching the
+    // same "don't invent a business limit" reasoning.
+    function isValidAgentTransaction() {
+      return request.resource.data.type in ['income', 'expense']
+          && request.resource.data.category is string
+          && request.resource.data.category.size() > 0
+          && (request.resource.data.amount is int || request.resource.data.amount is float)
+          && request.resource.data.amount > 0
+          && request.resource.data.date is string
+          && request.resource.data.date.size() > 0
+          && request.resource.data.keys().hasOnly(['agentId', 'type', 'category', 'amount', 'date', 'note', 'createdAt']);
+    }
     match /agentTransactions/{transactionId} {
       allow read: if isOwner(resource.data.agentId) || isAdmin();
-      allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.agentId) || isAdmin();
+      allow create: if isAdmin()
+                    || (isAgent()
+                          && request.resource.data.agentId == request.auth.uid
+                          && isValidAgentTransaction());
+      allow update: if isAdmin()
+                    || (isOwner(resource.data.agentId)
+                          && request.resource.data.agentId == resource.data.agentId
+                          && request.resource.data.agentId == request.auth.uid
+                          && isValidAgentTransaction());
+      allow delete: if isOwner(resource.data.agentId) || isAdmin();
     }
 
     // ---- Email OTP storage (backend-only) ----
