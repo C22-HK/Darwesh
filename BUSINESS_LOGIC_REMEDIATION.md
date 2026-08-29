@@ -501,14 +501,29 @@ the updated `rules_test.mjs` 16/16 — all listed in **Regression
 results** above), not an independent live re-test. This is a documented
 methodology choice, not an assumption made silently.
 
-**Backend deploy status — separately tracked, not yet confirmed**: the
-BL-04 backend changes (`email_handler.py`/`firebase_admin_ops.py`) live
-in the FastAPI service on Cloud Run, a **separate deployment** from
-Firestore Rules. Publishing `firestore.rules` does not deploy the
-backend. Confirm/redeploy the Cloud Run service separately if the
-BL-04 signup-flow fix (new-company-vs-existing-company split) needs to
-be live — this session has no evidence either way on the backend's
-current deployed state.
+**Backend deploy status — deployed and health-verified**: the BL-04
+backend changes (`email_handler.py`/`firebase_admin_ops.py`) live in the
+FastAPI service on Cloud Run, a **separate deployment** from Firestore
+Rules — publishing `firestore.rules` does not by itself deploy the
+backend. The user has confirmed this separate deployment happened:
+
+| Detail | Value |
+|---|---|
+| Cloud Run service | `darwesh-backend` |
+| Revision | `darwesh-backend-00002-sdc` |
+| Region | `me-central1` |
+| Traffic | 100% on this revision |
+| Health check | `GET /api/v1/health` → `{"status":"ok", ...}` |
+
+The health check confirms the service is up and this revision is the
+one actually serving traffic; it's a generic liveness endpoint, not a
+functional exercise of the BL-04 signup-flow code path specifically —
+the revision serving 100% of traffic is what ties the *deployed* code to
+this commit's changes, the same way the emulator suite ties the
+*correctness* of those changes to the identical source text. Both the
+Firestore Rules half (`firestore.rules`, commit `24462d5`) and the
+backend half (`darwesh-backend-00002-sdc`) of BL-04 are now confirmed
+live in production.
 
 ---
 
