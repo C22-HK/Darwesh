@@ -16,7 +16,7 @@ import uvicorn
 
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
-from app.auth.reset import Handler, RateLimiter
+from app.auth.reset import FirestoreRateLimiter, Handler, InMemoryRateLimiter
 from app.config import Config, load
 from app.otp.email_handler import EmailOtpSendHandler, EmailOtpVerifyHandler, SignupCompleteHandler
 from app.otp.email_sender import MockEmailSender, ResendOtpEmailSender
@@ -63,14 +63,29 @@ def build_auth_handler(cfg: Config) -> Handler | None:
         return None
 
     logger.info("password-reset endpoint enabled")
+    # 5 requests per 15 minutes per IP -- generous enough for a real
+    # user who mistypes their email or re-checks their inbox, tight
+    # enough to make scripted abuse expensive. Revisit if real usage
+    # patterns say otherwise.
+    #
+    # Firestore-backed in production -- Cloud Run (and most real hosts)
+    # scale to more than one instance, and an in-memory limiter's
+    # effective limit would then silently multiply by however many
+    # instances happen to be running (INFRA-01,
+    # INFRASTRUCTURE_REMEDIATION.md). links already holds a Firestore
+    # client (see FirebaseResetLinkGenerator.firestore_client), so this
+    # reuses it rather than opening a second one.
+    limiter = (
+        FirestoreRateLimiter(
+            links.firestore_client, name="forgot_password_ip", limit=5, window_seconds=15 * 60, logger=logger
+        )
+        if cfg.is_production
+        else InMemoryRateLimiter(limit=5, window_seconds=15 * 60)
+    )
     return Handler(
         links=links,
         emails=emails,
-        # 5 requests per 15 minutes per IP -- generous enough for a real
-        # user who mistypes their email or re-checks their inbox, tight
-        # enough to make scripted abuse expensive. Revisit if real usage
-        # patterns say otherwise.
-        limiter=RateLimiter(limit=5, window_seconds=15 * 60),
+        limiter=limiter,
         logger=logger,
     )
 
@@ -153,10 +168,32 @@ def build_email_otp_handlers(
     # single code. Signup completion gets its own limiter too --
     # account creation is its own abuse surface, independent of how many
     # codes were sent/verified.
-    send_email_limiter = RateLimiter(limit=5, window_seconds=15 * 60)
-    send_ip_limiter = RateLimiter(limit=15, window_seconds=15 * 60)
-    verify_ip_limiter = RateLimiter(limit=30, window_seconds=15 * 60)
-    complete_ip_limiter = RateLimiter(limit=10, window_seconds=15 * 60)
+    #
+    # Firestore-backed in production, same reasoning (and the same
+    # shared client, accounts.firestore_client) as `store` just above --
+    # see build_auth_handler's limiter comment and INFRA-01
+    # (INFRASTRUCTURE_REMEDIATION.md). Each gets its own `name` so their
+    # counters never collide with each other even though several key on
+    # the same value (the caller's IP).
+    if cfg.is_production:
+        db = accounts.firestore_client
+        send_email_limiter = FirestoreRateLimiter(
+            db, name="email_otp_send_email", limit=5, window_seconds=15 * 60, logger=logger
+        )
+        send_ip_limiter = FirestoreRateLimiter(
+            db, name="email_otp_send_ip", limit=15, window_seconds=15 * 60, logger=logger
+        )
+        verify_ip_limiter = FirestoreRateLimiter(
+            db, name="email_otp_verify_ip", limit=30, window_seconds=15 * 60, logger=logger
+        )
+        complete_ip_limiter = FirestoreRateLimiter(
+            db, name="email_otp_complete_ip", limit=10, window_seconds=15 * 60, logger=logger
+        )
+    else:
+        send_email_limiter = InMemoryRateLimiter(limit=5, window_seconds=15 * 60)
+        send_ip_limiter = InMemoryRateLimiter(limit=15, window_seconds=15 * 60)
+        verify_ip_limiter = InMemoryRateLimiter(limit=30, window_seconds=15 * 60)
+        complete_ip_limiter = InMemoryRateLimiter(limit=10, window_seconds=15 * 60)
 
     return (
         EmailOtpSendHandler(

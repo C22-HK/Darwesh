@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.auth.reset import RateLimiter
+from app.auth.reset import InMemoryRateLimiter, RateLimiter
 from app.otp.handler import (
     GENERIC_SEND_MESSAGE,
     OtpSendHandler,
@@ -327,12 +327,12 @@ def make_client(
     logger = make_test_logger()
     send_handler = OtpSendHandler(
         service=service,
-        ip_limiter=send_ip_limiter or RateLimiter(1000, 60),
-        phone_limiter=send_phone_limiter or RateLimiter(1000, 60),
+        ip_limiter=send_ip_limiter or InMemoryRateLimiter(1000, 60),
+        phone_limiter=send_phone_limiter or InMemoryRateLimiter(1000, 60),
         logger=logger,
     )
     verify_handler = OtpVerifyHandler(
-        service=service, ip_limiter=verify_ip_limiter or RateLimiter(1000, 60), logger=logger
+        service=service, ip_limiter=verify_ip_limiter or InMemoryRateLimiter(1000, 60), logger=logger
     )
     confirm_handler = PasswordResetConfirmHandler(
         store=store, firebase=firebase_executor or FakeFirebaseExecutor(), logger=logger
@@ -391,7 +391,10 @@ def test_http_send_rejects_malformed_phone():
 def test_http_send_rate_limits_by_ip_and_by_phone_independently():
     service, store = make_service(uids=FakeUidResolver({PHONE_A: "uid-a", PHONE_B: "uid-b"}))
     client = make_client(
-        service, store, send_phone_limiter=RateLimiter(1, 60), send_ip_limiter=RateLimiter(1000, 60)
+        service,
+        store,
+        send_phone_limiter=InMemoryRateLimiter(1, 60),
+        send_ip_limiter=InMemoryRateLimiter(1000, 60),
     )
 
     first = client.post("/api/v1/auth/otp/send", json={"phoneNumber": PHONE_A, "purpose": "PASSWORD_RESET"})

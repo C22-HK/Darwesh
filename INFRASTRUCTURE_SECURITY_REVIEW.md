@@ -34,6 +34,23 @@ explicitly reconcile with it.
 
 ## Findings
 
+> **REMEDIATION UPDATE**: INFRA-01 and INFRA-04 are **FIXED** (code
+> changed and validated; INFRA-01 additionally needs a Cloud Run
+> redeploy and a `firestore.rules` publish to take effect in
+> production — see **Deployment** in `INFRASTRUCTURE_REMEDIATION.md`).
+> INFRA-02 and INFRA-03 remain **NOT SAFELY IMPLEMENTABLE FROM THIS
+> SANDBOX** — the egress proxy that already blocked INFRA-10's
+> production header check also blocks every asset CDN
+> (`cdn.tailwindcss.com`, `gstatic.com`), so neither a real SRI hash nor
+> a verified Tailwind version pin could be produced without risking a
+> sitewide styling/script break on a wrong guess; exact steps to close
+> both yourself are in `INFRASTRUCTURE_REMEDIATION.md`. INFRA-05 through
+> INFRA-10 are unchanged. Full detail — files changed, tests, before/
+> after, remaining risk — is in **`INFRASTRUCTURE_REMEDIATION.md`**.
+> Each finding below now carries a **Remediation status** line; the
+> original finding text is left as written (the historical record of
+> what was found).
+
 ### INFRA-01 — Rate limiting is per-instance, in-memory, with no cross-instance coordination — now a live concern since the backend is confirmed deployed
 
 - **Status**: CONFIRMED
@@ -45,6 +62,7 @@ explicitly reconcile with it.
 - **Root cause**: A deliberate, documented, single-instance-era trade-off that was never revisited once the backend actually reached production.
 - **Recommended remediation**: Not implemented this stage (analysis only). If pursued: either (a) cap Cloud Run `max-instances=1` for this service if its request volume tolerates that (simplest, matches the existing code's assumption exactly, but forfeits Cloud Run's own scaling/availability benefit), or (b) swap `RateLimiter`'s storage for Firestore/Redis-backed state (the code's own docstring already names this as the intended upgrade path). Whichever is chosen is a real architectural decision, not something to guess at here.
 - **Confidence**: High for the mechanism (read directly from source); the actual current Cloud Run `max-instances` setting is unknown from this session — genuinely unverified, not assumed either way.
+- **Remediation status**: **FIXED**, matching remediation option (b) above — a `FirestoreRateLimiter` now backs every auth-related limiter in production, selected via the exact same `cfg.is_production` pattern `app.otp.store.ChallengeStore` already used. Verified: 4 new wiring tests (`test_main_wiring.py`) proving production selects the Firestore-backed limiter with a distinct namespace per call site; a one-off script against a real Firestore emulator proved cross-instance sharing, per-`name` isolation, correct pruning, and safe fail-closed behavior under extreme contention (never exceeds the configured limit, never raises). **Not yet deployed to production** — needs a Cloud Run redeploy plus a `firestore.rules` publish (the new `rateLimits` deny-all block). Full detail in `INFRASTRUCTURE_REMEDIATION.md`.
 
 ---
 
@@ -59,6 +77,7 @@ explicitly reconcile with it.
 - **Root cause**: SRI was never adopted; likely because the Firebase SDK's own CDN URLs are versioned per-release (making a hash pin low-maintenance) but Tailwind's is not (see INFRA-03), and SRI was probably never separately considered for either.
 - **Recommended remediation**: Not implemented this stage. If pursued: add `integrity="sha384-..."` + `crossorigin="anonymous"` to every CDN `<script>` tag, computed from each pinned version's actual served bytes. This is mechanical but touches all 21 HTML files and needs re-verification any time a CDN version is bumped — a real, if bounded, maintenance cost worth weighing against the risk it closes.
 - **Confidence**: High.
+- **Remediation status**: **NOT SAFELY IMPLEMENTABLE FROM THIS SANDBOX**. A correct `integrity` hash has to be computed from the real served bytes; this sandbox's egress proxy hard-blocks every CDN this site depends on (confirmed directly — `curl` to `cdn.tailwindcss.com` fails at the proxy's own CONNECT-tunnel stage, `403`, before ever reaching a real server), so no hash produced here could be trusted. A wrong or fabricated hash doesn't degrade gracefully — the browser silently refuses to execute the script at all, which for Firebase's SDK means auth/data breaking sitewide. Exact commands to compute and apply real hashes yourself are in `INFRASTRUCTURE_REMEDIATION.md`.
 
 ---
 
@@ -72,6 +91,7 @@ explicitly reconcile with it.
 - **Root cause**: The CDN `<script>` tag was set up during initial development and never revisited for pinning.
 - **Recommended remediation**: Not implemented this stage. If pursued: pin to a specific Tailwind CDN version (`cdn.tailwindcss.com/3.4.x` or similar, per Tailwind's own CDN versioning docs) at minimum; a bundled/built Tailwind (removing the CDN dependency entirely) would be the more thorough fix but is a real build-tooling change this static-site-with-no-build-step architecture has so far deliberately avoided (per `SECURITY_ARCHITECTURE.md`'s own stated design).
 - **Confidence**: High.
+- **Remediation status**: **NOT SAFELY IMPLEMENTABLE FROM THIS SANDBOX**. Same network block as INFRA-02 — `cdn.tailwindcss.com` is unreachable, so a pinned URL cannot be confirmed to actually resolve and serve working CSS (with this site's `forms`/`container-queries` plugins intact) before shipping it to all ~21 pages. If the pinned syntax or version is wrong, the CDN script 404s or fails to initialize and every page's styling breaks simultaneously — a materially worse outcome than staying unpinned a while longer. Exact verification steps to do this yourself are in `INFRASTRUCTURE_REMEDIATION.md`.
 
 ---
 
@@ -85,6 +105,7 @@ explicitly reconcile with it.
 - **Root cause**: The README was written before the first production deployment and never updated afterward.
 - **Recommended remediation**: Not implemented this stage (would be a documentation edit, not infrastructure config — flagged here since it surfaced directly from this stage's own investigation, actual fix deferred to a remediation pass if you want it).
 - **Confidence**: High.
+- **Remediation status**: **FIXED**. `backend/README.md` now states plainly that the service is deployed and live on Cloud Run, that a merged change here doesn't take effect until redeployed, and documents the real deployment command plus how to check whether secrets are plain env vars or Secret Manager-backed (INFRA-05). Documentation-only — no deployment step needed.
 
 ---
 
@@ -182,12 +203,12 @@ None.
 None.
 
 ### Confirmed Medium
-- **INFRA-01** — Rate limiting is per-instance/in-memory; effectiveness now depends on an unverified Cloud Run scaling setting.
-- **INFRA-02** — Zero SRI on any CDN script, 21/21 pages.
-- **INFRA-03** — Tailwind CDN entirely unpinned (no version).
+- **INFRA-01** — Rate limiting is per-instance/in-memory; effectiveness now depends on an unverified Cloud Run scaling setting. **FIXED** (code) — not yet deployed. See `INFRASTRUCTURE_REMEDIATION.md`.
+- **INFRA-02** — Zero SRI on any CDN script, 21/21 pages. **Not safely implementable from this sandbox** — blocked on egress-proxy access to any asset CDN. See `INFRASTRUCTURE_REMEDIATION.md`.
+- **INFRA-03** — Tailwind CDN entirely unpinned (no version). **Not safely implementable from this sandbox** — same block as INFRA-02. See `INFRASTRUCTURE_REMEDIATION.md`.
 
 ### Confirmed Low
-- **INFRA-04** — `backend/README.md` stale relative to actual production deployment state.
+- **INFRA-04** — `backend/README.md` stale relative to actual production deployment state. **FIXED**. See `INFRASTRUCTURE_REMEDIATION.md`.
 - **INFRA-07** — No security headers possible on GitHub Pages frontend (bounded, restated).
 - **INFRA-08** — HSTS preload reasoning in code comment is now stale.
 

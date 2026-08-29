@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.auth.reset import GENERIC_RESPONSE_MESSAGE, ErrUserNotFound, Handler, RateLimiter
+from app.auth.reset import GENERIC_RESPONSE_MESSAGE, ErrUserNotFound, Handler, InMemoryRateLimiter, RateLimiter
 
 
 def make_test_logger() -> logging.Logger:
@@ -44,7 +44,7 @@ def new_test_client(links, emails, limiter: RateLimiter | None = None) -> TestCl
     handler = Handler(
         links=links,
         emails=emails,
-        limiter=limiter or RateLimiter(1000, 60),  # effectively unlimited unless a test says otherwise
+        limiter=limiter or InMemoryRateLimiter(1000, 60),  # effectively unlimited unless a test says otherwise
         logger=make_test_logger(),
     )
     app = FastAPI()
@@ -115,7 +115,7 @@ def test_forgot_password_generator_failure_still_returns_generic_success_message
 def test_forgot_password_rate_limit_blocks_burst():
     links = FakeLinks(links_by_email={"real@example.com": "https://example.com/reset"})
     emails = FakeEmails()
-    client = new_test_client(links, emails, limiter=RateLimiter(2, 60))
+    client = new_test_client(links, emails, limiter=InMemoryRateLimiter(2, 60))
 
     first = client.post("/api/v1/auth/forgot-password", json={"email": "real@example.com"})
     second = client.post("/api/v1/auth/forgot-password", json={"email": "real@example.com"})
@@ -127,18 +127,18 @@ def test_forgot_password_rate_limit_blocks_burst():
     assert len(emails.sent) == 2
 
 
-def test_rate_limiter_allows_again_after_window_expires():
+async def test_rate_limiter_allows_again_after_window_expires():
     import time
 
-    rl = RateLimiter(1, 0.03)
-    assert rl.allow("1.2.3.4") is True
-    assert rl.allow("1.2.3.4") is False
+    rl = InMemoryRateLimiter(1, 0.03)
+    assert await rl.allow("1.2.3.4") is True
+    assert await rl.allow("1.2.3.4") is False
     time.sleep(0.04)
-    assert rl.allow("1.2.3.4") is True
+    assert await rl.allow("1.2.3.4") is True
 
 
-def test_rate_limiter_tracks_keys_independently():
-    rl = RateLimiter(1, 60)
-    assert rl.allow("1.1.1.1") is True
-    assert rl.allow("2.2.2.2") is True
-    assert rl.allow("1.1.1.1") is False
+async def test_rate_limiter_tracks_keys_independently():
+    rl = InMemoryRateLimiter(1, 60)
+    assert await rl.allow("1.1.1.1") is True
+    assert await rl.allow("2.2.2.2") is True
+    assert await rl.allow("1.1.1.1") is False

@@ -9,7 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.auth.reset import RateLimiter
+from app.auth.reset import InMemoryRateLimiter, RateLimiter
 from app.otp.email_address import InvalidEmailAddress, normalize_email
 from app.otp.email_handler import (
     GENERIC_SEND_MESSAGE,
@@ -340,11 +340,11 @@ async def test_attempt_limit_works():
     assert final_token is None
 
 
-def test_rate_limiting_works():
-    limiter = RateLimiter(1, 60)
-    assert limiter.allow(EMAIL_A) is True
-    assert limiter.allow(EMAIL_A) is False
-    assert limiter.allow(EMAIL_B) is True  # tracked independently
+async def test_rate_limiting_works():
+    limiter = InMemoryRateLimiter(1, 60)
+    assert await limiter.allow(EMAIL_A) is True
+    assert await limiter.allow(EMAIL_A) is False
+    assert await limiter.allow(EMAIL_B) is True  # tracked independently
 
 
 async def test_signup_otp_cannot_authorize_password_reset():
@@ -450,17 +450,17 @@ def make_app(
     logger = make_test_logger()
     send_handler = EmailOtpSendHandler(
         service=service,
-        ip_limiter=send_ip_limiter or RateLimiter(1000, 60),
-        email_limiter=send_email_limiter or RateLimiter(1000, 60),
+        ip_limiter=send_ip_limiter or InMemoryRateLimiter(1000, 60),
+        email_limiter=send_email_limiter or InMemoryRateLimiter(1000, 60),
         logger=logger,
     )
     verify_handler = EmailOtpVerifyHandler(
-        service=service, ip_limiter=verify_ip_limiter or RateLimiter(1000, 60), logger=logger
+        service=service, ip_limiter=verify_ip_limiter or InMemoryRateLimiter(1000, 60), logger=logger
     )
     complete_handler = SignupCompleteHandler(
         store=store,
         accounts=account_ops or FakeAccountOps(),
-        ip_limiter=complete_ip_limiter or RateLimiter(1000, 60),
+        ip_limiter=complete_ip_limiter or InMemoryRateLimiter(1000, 60),
         logger=logger,
     )
     confirm_handler = PasswordResetConfirmHandler(
@@ -523,7 +523,10 @@ def test_http_send_rejects_missing_purpose():
 def test_http_send_rate_limits_by_email_and_by_ip_independently():
     service, store = make_service()
     client = make_client(
-        service, store, send_email_limiter=RateLimiter(1, 60), send_ip_limiter=RateLimiter(1000, 60)
+        service,
+        store,
+        send_email_limiter=InMemoryRateLimiter(1, 60),
+        send_ip_limiter=InMemoryRateLimiter(1000, 60),
     )
 
     first = client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})

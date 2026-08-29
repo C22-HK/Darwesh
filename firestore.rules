@@ -477,5 +477,14 @@ service cloud.firestore {
     match /otpResetTokens/{token} {
       allow read, write: if false;
     }
+
+    // ---- Rate limiter storage (backend-only) ----
+    // Written and read exclusively by the backend's Firebase Admin SDK
+    // credential (see backend/app/auth/reset.py's FirestoreRateLimiter),
+    // which bypasses these rules entirely, same reasoning as the two
+    // OTP collections above. INFRA-01 fix (INFRASTRUCTURE_REMEDIATION.md).
+    match /rateLimits/{key} {
+      allow read, write: if false;
+    }
   }
 }

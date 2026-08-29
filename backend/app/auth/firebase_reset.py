@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import firebase_admin
 from firebase_admin import auth as fb_auth
+from firebase_admin import firestore as fb_firestore
 
 from app.auth.firebase_credentials import build_firebase_credentials
 from app.auth.reset import ErrUserNotFound
@@ -42,6 +43,16 @@ class FirebaseResetLinkGenerator:
         # gets built across test cases.
         self._app = firebase_admin.initialize_app(cred, options=options, name=f"darwesh-reset-{id(self)}")
         self._continue_url = continue_url
+        self._db = fb_firestore.client(self._app)
+
+    @property
+    def firestore_client(self) -> fb_firestore.Client:
+        """Exposes the same Firestore client this instance already
+        holds, so app.auth.reset.FirestoreRateLimiter can reuse it in
+        production instead of opening a second one (see
+        app.main.build_auth_handler) -- same pattern as
+        app.otp.firebase_admin_ops.FirebaseAccountOps.firestore_client."""
+        return self._db
 
     async def generate_reset_link(self, email: str) -> str:
         # generate_password_reset_link is a blocking network call; run it

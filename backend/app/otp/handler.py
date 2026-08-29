@@ -79,11 +79,11 @@ class OtpSendHandler:
         # messages cost real money) and this is exactly the endpoint an
         # attacker would hammer to enumerate phones or exhaust a quota.
         client_ip = request.client.host if request.client else "unknown"
-        if not self.ip_limiter.allow(client_ip):
+        if not await self.ip_limiter.allow(client_ip):
             return JSONResponse(
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )
-        if not self.phone_limiter.allow(phone):
+        if not await self.phone_limiter.allow(phone):
             return JSONResponse(
                 {"error": "Too many requests for this phone number. Please wait a while and try again."},
                 status_code=429,
@@ -126,7 +126,7 @@ class OtpVerifyHandler:
             return JSONResponse({"error": "Please provide the verification code."}, status_code=400)
 
         client_ip = request.client.host if request.client else "unknown"
-        if not self.ip_limiter.allow(client_ip):
+        if not await self.ip_limiter.allow(client_ip):
             return JSONResponse(
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )

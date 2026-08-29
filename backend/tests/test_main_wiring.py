@@ -24,6 +24,7 @@ import json
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from app.auth.reset import FirestoreRateLimiter, InMemoryRateLimiter
 from app.config import Config
 from app.main import build_auth_handler, build_email_otp_handlers
 from app.otp.store import FirestoreChallengeStore, InMemoryChallengeStore
@@ -98,6 +99,45 @@ def test_production_with_real_email_provider_selects_firestore_challenge_store()
     assert verify_handler.service.store is send_handler.service.store
     assert complete_handler.store is send_handler.service.store
     assert confirm_handler.store is send_handler.service.store
+
+
+def test_production_with_real_email_provider_selects_firestore_rate_limiters():
+    # INFRA-01 (INFRASTRUCTURE_REMEDIATION.md): production must use the
+    # Firestore-backed rate limiter, never the in-memory one -- same
+    # multi-instance reasoning as the challenge store above.
+    cfg = _config(
+        env="production", resend_api_key="re_fake_key", reset_email_from="Darwesh Group <no-reply@x.com>"
+    )
+
+    send_handler, verify_handler, complete_handler, _confirm_handler = build_email_otp_handlers(cfg)
+
+    assert send_handler is not None
+    assert isinstance(send_handler.ip_limiter, FirestoreRateLimiter)
+    assert isinstance(send_handler.email_limiter, FirestoreRateLimiter)
+    assert isinstance(verify_handler.ip_limiter, FirestoreRateLimiter)
+    assert isinstance(complete_handler.ip_limiter, FirestoreRateLimiter)
+    # Each limiter must be independently namespaced, even though several
+    # key on the same value (the caller's IP) -- otherwise send/verify/
+    # complete would silently share one counter.
+    names = {
+        send_handler.ip_limiter._name,
+        send_handler.email_limiter._name,
+        verify_handler.ip_limiter._name,
+        complete_handler.ip_limiter._name,
+    }
+    assert len(names) == 4
+
+
+def test_development_selects_in_memory_rate_limiters_even_with_a_real_looking_provider():
+    cfg = _config(
+        env="development", resend_api_key="re_fake_key", reset_email_from="Darwesh Group <no-reply@x.com>"
+    )
+
+    send_handler, *_ = build_email_otp_handlers(cfg)
+
+    assert send_handler is not None
+    assert isinstance(send_handler.ip_limiter, InMemoryRateLimiter)
+    assert isinstance(send_handler.email_limiter, InMemoryRateLimiter)
 
 
 def test_development_selects_in_memory_challenge_store_even_with_a_real_looking_provider():
@@ -182,3 +222,34 @@ def test_password_reset_endpoint_still_works_with_a_service_account_key():
     handler = build_auth_handler(cfg)
 
     assert handler is not None
+
+
+def test_password_reset_endpoint_production_selects_firestore_rate_limiter():
+    # INFRA-01 (INFRASTRUCTURE_REMEDIATION.md): same multi-instance
+    # reasoning as build_email_otp_handlers's limiters above -- this
+    # endpoint's own limiter must also be Firestore-backed in production.
+    cfg = _config(
+        env="production",
+        resend_api_key="re_fake_key",
+        reset_email_from="Darwesh Group <no-reply@x.com>",
+        reset_password_continue_url="https://www.darweshgroup.com/reset-password.html",
+    )
+
+    handler = build_auth_handler(cfg)
+
+    assert handler is not None
+    assert isinstance(handler.limiter, FirestoreRateLimiter)
+
+
+def test_password_reset_endpoint_development_selects_in_memory_rate_limiter():
+    cfg = _config(
+        env="development",
+        resend_api_key="re_fake_key",
+        reset_email_from="Darwesh Group <no-reply@x.com>",
+        reset_password_continue_url="https://www.darweshgroup.com/reset-password.html",
+    )
+
+    handler = build_auth_handler(cfg)
+
+    assert handler is not None
+    assert isinstance(handler.limiter, InMemoryRateLimiter)

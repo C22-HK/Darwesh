@@ -7,6 +7,7 @@
 # credentials for either external service.
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -17,6 +18,8 @@ from typing import Protocol
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from firebase_admin import firestore as fb_firestore
+from google.api_core import exceptions as google_api_exceptions
 
 
 class ErrUserNotFound(Exception):
@@ -55,16 +58,35 @@ GENERIC_RESPONSE_MESSAGE = (
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-class RateLimiter:
-    """Simple in-memory fixed-window limiter, keyed by client IP.
-    Deliberately not backed by Redis: at this project's current traffic
-    (see docs/ARCHITECTURE_AUDIT.md), a single instance's own memory is
-    sufficient, and adding Redis before there's a real multi-instance
-    deployment to coordinate would be exactly the kind of unjustified
-    complexity this project has been avoiding all along. If traffic ever
-    grows enough to run multiple instances, this is the component to
-    swap for a Redis-backed one -- kept small and self-contained
-    specifically so that swap is easy later."""
+class RateLimiter(Protocol):
+    """Rate limiter interface, keyed by an arbitrary string (client IP,
+    email address -- whatever the caller wants to bound). Two
+    implementations, same shape as app.otp.store.ChallengeStore:
+
+    - InMemoryRateLimiter: process-local, used in development and by
+      the test suite. Correct only for a single backend instance.
+    - FirestoreRateLimiter: shared across every instance via Firestore,
+      used in production (see app.main.build_auth_handler and
+      app.main.build_email_otp_handlers). A real deployment (Cloud Run
+      included) can and does run more than one instance -- an
+      in-memory limiter's effective limit then silently multiplies by
+      however many instances happen to be running, which defeats the
+      whole point of a rate limit. See INFRASTRUCTURE_SECURITY_REVIEW.md
+      / INFRASTRUCTURE_REMEDIATION.md's INFRA-01.
+
+    async even for the in-memory case, for the same reason
+    app.otp.store.ChallengeStore is: a caller can't know at compile
+    time which implementation it's been handed, and the Firestore-
+    backed one is fundamentally async (its Admin SDK client is
+    blocking, wrapped in asyncio.to_thread)."""
+
+    async def allow(self, key: str) -> bool: ...
+
+
+class InMemoryRateLimiter:
+    """Simple in-memory fixed-window limiter, keyed by an arbitrary
+    string. Correct only for a single backend instance/worker -- see
+    FirestoreRateLimiter below, used instead in production."""
 
     def __init__(self, limit: int, window_seconds: float) -> None:
         self._lock = threading.Lock()
@@ -72,7 +94,7 @@ class RateLimiter:
         self._limit = limit
         self._window = window_seconds
 
-    def allow(self, key: str) -> bool:
+    async def allow(self, key: str) -> bool:
         """Reports whether a new request from this key should proceed.
         Also opportunistically prunes old entries for this key so the
         dict doesn't grow unbounded over the life of the process."""
@@ -88,6 +110,87 @@ class RateLimiter:
             kept.append(now)
             self._requests[key] = kept
             return True
+
+
+_RATE_LIMITS_COLLECTION = "rateLimits"
+
+
+class FirestoreRateLimiter:
+    """Shared fixed-window limiter backed by Firestore, via the Admin
+    SDK (never the client SDK -- see firestore.rules' deny-all block
+    for the rateLimits collection this writes to, same reasoning as
+    app.otp.store.FirestoreChallengeStore's). Correct across any number
+    of backend instances/workers, unlike InMemoryRateLimiter.
+
+    `name` namespaces this limiter's keys from every other
+    FirestoreRateLimiter sharing the same collection -- e.g. the
+    email-OTP send endpoint's IP limiter and its verify endpoint's IP
+    limiter both key on the caller's IP address, but must never share a
+    counter with each other. Pass a short, stable, unique string per
+    call site.
+
+    Uses wall-clock time (time.time()), not time.monotonic() --
+    monotonic time has no defined relationship across separate
+    processes/instances, only within one.
+
+    Concurrency: the read-check-append-write is a single Firestore
+    transaction, the same pattern as
+    app.otp.store.FirestoreChallengeStore.record_failed_attempt, so two
+    concurrent requests for the same key on different instances can
+    never both slip past a limit that's already at capacity. On
+    transaction-retry-budget exhaustion under extreme contention this
+    fails CLOSED (denies the request) rather than open -- unlike
+    ChallengeStore's failure mode (which safely denies just one
+    operation), silently letting an unbounded burst through on infra
+    contention would defeat this component's entire purpose.
+
+    Storage hygiene: each document also carries an `updatedAt` field
+    suitable for a native Firestore TTL policy (see
+    app.otp.store.FirestoreChallengeStore's docstring for how to
+    configure one) -- correctness never depends on Firestore actually
+    expiring these documents, since the read-side pruning below already
+    ignores stale timestamps regardless."""
+
+    def __init__(
+        self, db, name: str, limit: int, window_seconds: float, logger: logging.Logger | None = None
+    ) -> None:
+        self._db = db
+        self._name = name
+        self._limit = limit
+        self._window = window_seconds
+        self._logger = logger or logging.getLogger("darwesh.ratelimit.firestore")
+
+    async def allow(self, key: str) -> bool:
+        def _op() -> bool:
+            ref = self._db.collection(_RATE_LIMITS_COLLECTION).document(f"{self._name}__{key}")
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn):
+                snap = ref.get(transaction=txn)
+                now = time.time()
+                cutoff = now - self._window
+                existing = snap.to_dict().get("timestamps", []) if snap.exists else []
+                kept = [t for t in existing if t > cutoff]
+
+                if len(kept) >= self._limit:
+                    txn.set(ref, {"timestamps": kept, "updatedAt": now})
+                    return False
+
+                kept.append(now)
+                txn.set(ref, {"timestamps": kept, "updatedAt": now})
+                return True
+
+            try:
+                return _txn(transaction)
+            except (google_api_exceptions.Aborted, ValueError) as exc:
+                self._logger.error(
+                    "rate limiter: transaction failed, failing closed",
+                    extra={"error": str(exc), "limiter": self._name},
+                )
+                return False
+
+        return await asyncio.to_thread(_op)
 
 
 @dataclass
@@ -123,7 +226,7 @@ class Handler:
         # attacker enumerating emails or just abusing a free "send me
         # mail" button.
         client_ip = request.client.host if request.client else "unknown"
-        if not self.limiter.allow(client_ip):
+        if not await self.limiter.allow(client_ip):
             return JSONResponse(
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )

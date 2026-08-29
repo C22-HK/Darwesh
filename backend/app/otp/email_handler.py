@@ -87,11 +87,11 @@ class EmailOtpSendHandler:
         # endpoint an attacker would hammer to enumerate accounts or
         # exhaust a quota.
         client_ip = request.client.host if request.client else "unknown"
-        if not self.ip_limiter.allow(client_ip):
+        if not await self.ip_limiter.allow(client_ip):
             return JSONResponse(
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )
-        if not self.email_limiter.allow(email):
+        if not await self.email_limiter.allow(email):
             return JSONResponse(
                 {"error": "Too many requests for this email address. Please wait a while and try again."},
                 status_code=429,
@@ -134,7 +134,7 @@ class EmailOtpVerifyHandler:
             return JSONResponse({"error": "Please provide the verification code."}, status_code=400)
 
         client_ip = request.client.host if request.client else "unknown"
-        if not self.ip_limiter.allow(client_ip):
+        if not await self.ip_limiter.allow(client_ip):
             return JSONResponse(
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )
@@ -174,7 +174,7 @@ class SignupCompleteHandler:
             return JSONResponse({"error": "Please provide a valid request body."}, status_code=400)
 
         client_ip = request.client.host if request.client else "unknown"
-        if not self.ip_limiter.allow(client_ip):
+        if not await self.ip_limiter.allow(client_ip):
             return JSONResponse(
                 {"error": "Too many requests. Please wait a while and try again."}, status_code=429
             )
