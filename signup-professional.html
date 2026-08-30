@@ -11,56 +11,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
   body { min-height: 100dvh; }
-  .auth-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 11px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; transition: border-color .15s ease, box-shadow .15s ease; }
-  .auth-input:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: #775a19; }
-  .auth-input[aria-invalid="true"] { border-color: #ba1a1a; }
-  .auth-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
-  .auth-card { background: #ffffff; border: 1px solid #e0e3e8; border-radius: 20px; padding: clamp(20px, 4vw, 32px); box-shadow: 0 4px 24px rgba(4,22,39,0.06); }
-  .auth-input-wrap { position: relative; }
-  .auth-input-wrap .auth-input { padding-inline-start: 40px; }
-  .auth-input-wrap .auth-input-icon { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); font-size: 19px; color: #9aa1ab; pointer-events: none; }
-  .auth-input-wrap .auth-input.has-toggle { padding-inline-end: 40px; }
-  .auth-toggle-visibility { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: #9aa1ab; display: flex; align-items: center; justify-content: center; min-width:32px; min-height:32px; }
-  .auth-toggle-visibility:hover { background: #f1f4f9; color: #44474c; }
-  .auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; }
-  @keyframes auth-spin { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .auth-spinner { animation-duration: 1.4s; } }
-  .field-err { color: #ba1a1a; font-size: 12px; margin-top: 4px; display: none; }
-  .field-err.show { display: block; }
 
-  /* Step indicator -- logical properties throughout for RTL safety */
-  .pro-steps { display: flex; align-items: center; justify-content: center; gap: 4px; margin-block-end: 28px; overflow-x: auto; padding-block: 4px; }
-  .pro-step-dot { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; background: var(--ps-color-surface-container); color: var(--ps-color-on-surface-variant); flex: none; transition: background-color .2s ease, color .2s ease; }
-  .pro-step-dot.done { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); }
-  .pro-step-dot.current { background: var(--ps-color-primary); color: var(--ps-color-on-primary); box-shadow: 0 0 0 3px var(--ps-color-secondary-container); }
-  .pro-step-line { width: clamp(12px, 3vw, 28px); height: 2px; background: var(--ps-color-outline-variant); flex: none; }
-  .pro-step-line.done { background: var(--ps-color-secondary); }
-
-  /* Type-picker cards */
-  .type-card { border: 1.5px solid var(--ps-color-outline-variant); border-radius: 14px; padding: 14px; text-align: start; background: var(--ps-color-surface-container-lowest); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .1s ease; display: flex; align-items: center; gap: 10px; min-height: 56px; }
-  .type-card:hover { border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-card); }
-  .type-card[aria-pressed="true"] { border-color: var(--ps-color-secondary); background: var(--ps-color-secondary-container); box-shadow: var(--ps-shadow-card); }
-  .type-card:active { transform: scale(0.98); }
-  .type-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
-  @media (prefers-reduced-motion: reduce) { .type-card { transition: none; } .type-card:active { transform: none; } }
+  /* Everything else shared with signup.html (.auth-input, .auth-card,
+     .pro-step-dot, .type-card, .media-tile, .otp-digit, etc.) now lives
+     in css/profile-tokens.css -- kept here only what's specific to this
+     page's Step 3/4 dynamic markup. */
 
   /* Tag input (specialties / service areas) */
-  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; border: 1px solid #c4c6cd; border-radius: 8px; padding: 8px 10px; }
+  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; border: 1px solid var(--ps-color-outline-variant); border-radius: 10px; padding: 8px 10px; background: var(--ps-color-surface-container-lowest); }
   .tag-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--ps-color-surface-container); border-radius: 999px; padding-block: 3px; padding-inline: 10px 6px; font-size: 12.5px; }
   .tag-chip button { background: none; border: none; cursor: pointer; color: var(--ps-color-on-surface-variant); display: flex; padding: 2px; min-width: 20px; min-height: 20px; align-items: center; justify-content: center; }
-  .tag-input-field { border: none; outline: none; flex: 1; min-width: 100px; font-family: 'Inter', sans-serif; font-size: 14px; padding: 4px; }
-
-  /* Media upload tile */
-  .media-tile { width: 100%; max-width: 220px; aspect-ratio: 1; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; background: var(--ps-color-surface-container-low); overflow: hidden; position: relative; }
-  .media-tile img { width: 100%; height: 100%; object-fit: cover; }
-  .media-tile:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
-
-  /* OTP */
-  .otp-digits { display: flex; gap: 8px; justify-content: center; direction: ltr; }
-  .otp-digit { width: 44px; height: 52px; text-align: center; font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 600; border: 1px solid #c4c6cd; border-radius: 10px; background: #ffffff; color: #181c20; }
-  .otp-digit:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: #775a19; }
-  .otp-digit[aria-invalid="true"] { border-color: #ba1a1a; }
-  @media (max-width: 380px) { .otp-digit { width: 38px; height: 46px; font-size: 19px; } }
+  .tag-input-field { border: none; outline: none; flex: 1; min-width: 100px; font-family: 'Inter', sans-serif; font-size: 14px; padding: 4px; background: transparent; }
 
   .pro-view[hidden] { display: none; }
   .checkbox-row { display: flex; align-items: center; gap: 8px; padding-block: 6px; }
@@ -69,23 +30,63 @@
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased">
 
-<header class="flex items-center justify-between h-16 border-b border-outline-variant bg-surface-bright px-4">
-  <div class="w-10"></div>
-  <a href="index.html" class="font-headline-md text-headline-md font-bold text-primary">Darwesh Group</a>
-  <div class="relative w-10 flex justify-end">
-    <button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant" type="button">
-      <span class="material-symbols-outlined text-[20px]">language</span>
-    </button>
-    <div class="lang-menu hidden absolute end-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-      <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-      <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-      <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+<div class="auth-split">
+
+  <!-- Left / visual side -- desktop only (1024px+). Static context list;
+       not synced live to the current step (kept intentionally simple --
+       see completion report), but the composition and trust badges are
+       real, rendered content, not a placeholder image. -->
+  <div class="auth-visual" aria-hidden="true">
+    <div class="auth-visual-glow"></div>
+    <div class="auth-visual-inner">
+      <div class="auth-visual-wordmark">
+        <span class="material-symbols-outlined" style="font-size:18px;">apartment</span>
+        Darwesh Group
+      </div>
+      <p class="auth-visual-title" data-i18n="auth.visual.proHeadline">Grow your business on Darwesh Group</p>
+      <p class="auth-visual-subtitle" data-i18n="auth.visual.proSubtitle">Join the offices, engineers, cleaning teams, and developers already reaching customers across Kurdistan.</p>
+
+      <ol class="auth-visual-steps">
+        <li class="auth-visual-step"><span class="auth-visual-step-num">1</span><span data-i18n="auth.visual.proStep1">Tell us about you and choose your profile type</span></li>
+        <li class="auth-visual-step"><span class="auth-visual-step-num">2</span><span data-i18n="auth.visual.proStep2">Add your business or professional details</span></li>
+        <li class="auth-visual-step"><span class="auth-visual-step-num">3</span><span data-i18n="auth.visual.proStep3">Verify your email to activate your profile</span></li>
+      </ol>
+
+      <div class="auth-trust-row mt-8">
+        <span class="auth-trust-badge"><span class="material-symbols-outlined">verified_user</span><span data-i18n="auth.visual.trustSecure">Secure</span></span>
+        <span class="auth-trust-badge"><span class="material-symbols-outlined">workspace_premium</span><span data-i18n="auth.visual.trustProfessional">Trusted Agents</span></span>
+      </div>
     </div>
   </div>
-</header>
 
-<main class="ps-shell py-10">
-  <div class="mx-auto w-full" style="max-width: 640px;">
+  <!-- Right / form side -->
+  <div class="auth-form-side">
+    <div class="auth-form-side-inner" style="max-width: 620px;">
+
+      <header class="flex items-center justify-between mb-5 lg:hidden">
+        <div class="w-10"></div>
+        <a href="index.html" class="font-headline-md text-headline-md font-bold text-primary">Darwesh Group</a>
+        <div class="relative w-10 flex justify-end">
+          <button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant" type="button">
+            <span class="material-symbols-outlined text-[20px]">language</span>
+          </button>
+          <div class="lang-menu hidden absolute end-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+            <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+            <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+            <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+          </div>
+        </div>
+      </header>
+      <div class="relative hidden lg:flex justify-end mb-4">
+        <button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant" type="button">
+          <span class="material-symbols-outlined text-[20px]">language</span>
+        </button>
+        <div class="lang-menu hidden absolute end-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+          <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+          <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+          <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+        </div>
+      </div>
 
     <div class="text-center mb-6">
       <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.pro.pageTitle">Professional &amp; Business Sign Up</p>
@@ -147,7 +148,7 @@
             </div>
             <p class="field-err" id="s1ConfirmPasswordErr" role="alert"></p>
           </div>
-          <button id="s1ContinueBtn" class="ps-btn w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
+          <button id="s1ContinueBtn" class="ps-btn auth-btn-primary" type="submit">
             <span id="s1ContinueLabel" data-i18n="auth.pro.continueBtn">Continue</span>
           </button>
         </form>
@@ -169,8 +170,8 @@
         <p class="field-err" id="s2TypeErr" role="alert"></p>
 
         <div class="flex gap-2 mt-6">
-          <button id="s2BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
-          <button id="s2ContinueBtn" type="button" class="ps-btn flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.continueBtn">Continue</button>
+          <button id="s2BackBtn" type="button" class="ps-btn auth-btn-secondary" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s2ContinueBtn" type="button" class="ps-btn auth-btn-primary" style="flex:1;" data-i18n="auth.pro.continueBtn">Continue</button>
         </div>
       </div>
     </section>
@@ -181,8 +182,8 @@
         <h2 id="step3Heading" class="font-headline-md text-[18px] text-primary mb-5" data-i18n="auth.pro.step3Title">Business Details</h2>
         <form id="step3Form" class="space-y-4" novalidate></form>
         <div class="flex gap-2 mt-6">
-          <button id="s3BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
-          <button id="s3ContinueBtn" type="button" class="ps-btn flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.continueBtn">Continue</button>
+          <button id="s3BackBtn" type="button" class="ps-btn auth-btn-secondary" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s3ContinueBtn" type="button" class="ps-btn auth-btn-primary" style="flex:1;" data-i18n="auth.pro.continueBtn">Continue</button>
         </div>
       </div>
     </section>
@@ -193,19 +194,20 @@
         <h2 id="step4Heading" class="font-headline-md text-[18px] text-primary mb-1" data-i18n="auth.pro.step4Title">Media</h2>
         <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="auth.pro.step4Subtitle">Add a logo or portfolio photo. You can always update this later.</p>
 
-        <label class="auth-label" data-i18n="auth.pro.logo">Logo / Photo</label>
+        <label class="auth-label" data-i18n="auth.pro.logoOptional">Logo / Photo (Optional)</label>
         <label id="mediaTile" class="media-tile" tabindex="0" role="button" aria-label="Upload image">
           <span class="material-symbols-outlined text-[32px] text-on-surface-variant" aria-hidden="true" id="mediaTileIcon">add_photo_alternate</span>
-          <span class="font-label-caps text-label-caps text-on-surface-variant" id="mediaTileLabel" data-i18n="auth.pro.uploadImage">Upload image</span>
+          <span class="font-label-caps text-label-caps text-on-surface-variant text-center px-2" id="mediaTileLabel" data-i18n="auth.pro.uploadImage">Upload image</span>
           <img id="mediaPreviewImg" class="hidden" alt=""/>
           <input type="file" id="mediaFileInput" accept="image/*" class="hidden"/>
         </label>
+        <p class="font-body-md text-[11px] text-on-surface-variant mt-2" data-i18n="auth.pro.mediaDragHint">Click, or drag and drop an image here.</p>
         <button id="mediaRemoveBtn" type="button" class="hidden mt-2 font-label-caps text-label-caps text-error" data-i18n="auth.pro.removeImage">Remove</button>
         <p class="font-body-md text-[12px] text-on-surface-variant mt-3" id="mediaLaterNote" data-i18n="auth.pro.mediaLaterNote">You can add this from your profile page once it's ready.</p>
 
         <div class="flex gap-2 mt-6">
-          <button id="s4BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
-          <button id="s4ContinueBtn" type="button" class="ps-btn flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.continueBtn">Continue</button>
+          <button id="s4BackBtn" type="button" class="ps-btn auth-btn-secondary" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s4ContinueBtn" type="button" class="ps-btn auth-btn-primary" style="flex:1;" data-i18n="auth.pro.continueBtn">Continue</button>
         </div>
       </div>
     </section>
@@ -220,8 +222,8 @@
 
         <p id="s5Error" class="hidden text-error text-[13px] mt-4" role="alert"></p>
         <div class="flex gap-2 mt-6">
-          <button id="s5BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
-          <button id="s5SendCodeBtn" type="button" class="ps-btn flex-1 bg-secondary text-on-secondary py-3 rounded-lg font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors flex items-center justify-center">
+          <button id="s5BackBtn" type="button" class="ps-btn auth-btn-secondary" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s5SendCodeBtn" type="button" class="ps-btn auth-btn-primary" style="flex:1; background:var(--ps-color-secondary); border-color:var(--ps-color-secondary); color:var(--ps-color-on-secondary);">
             <span class="auth-spinner hidden" id="s5SendCodeSpinner"></span>
             <span id="s5SendCodeLabel" data-i18n="auth.pro.sendCodeBtn">Send Verification Code</span>
           </button>
@@ -232,6 +234,7 @@
     <!-- ============ Step 6: Email Verification ============ -->
     <section id="viewStep6" class="pro-view" hidden aria-labelledby="step6Heading">
       <div class="text-center mb-6">
+        <div class="auth-security-badge"><span class="material-symbols-outlined" style="font-size:26px;">mark_email_read</span></div>
         <p id="step6Heading" class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.pro.verifyTitle">Verify your email</p>
         <p class="font-body-md text-[13px] text-on-surface-variant">
           <span data-i18n="auth.pro.verifySubtitle">We sent a verification code to</span>
@@ -250,15 +253,15 @@
         </div>
         <p id="otpError" class="hidden text-error text-[13px] text-center mb-3" role="alert" aria-live="assertive"></p>
         <p id="otpSuccess" class="hidden text-[13px] text-center mb-3" role="status" style="color:#006300;"></p>
-        <button id="otpVerifyBtn" class="ps-btn w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="button">
+        <button id="otpVerifyBtn" class="ps-btn auth-btn-primary" type="button">
           <span class="auth-spinner hidden" id="otpVerifySpinner"></span>
           <span id="otpVerifyBtnLabel" data-i18n="auth.pro.verifyBtn">Verify Email</span>
         </button>
         <div class="flex items-center justify-center gap-4 mt-4 flex-wrap">
-          <button id="otpResendBtn" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors disabled:text-on-surface-variant disabled:cursor-not-allowed" type="button" disabled>
+          <button id="otpResendBtn" class="auth-btn-ghost text-secondary" type="button" disabled>
             <span id="otpResendLabel"></span>
           </button>
-          <button id="otpChangeEmailBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" type="button" data-i18n="auth.pro.changeEmailBtn">Change Email</button>
+          <button id="otpChangeEmailBtn" class="auth-btn-ghost" type="button" data-i18n="auth.pro.changeEmailBtn">Change Email</button>
         </div>
       </div>
       <button id="otpBackBtn" type="button" class="block text-center w-full mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="auth.pro.backBtn">Back</button>
@@ -272,19 +275,22 @@
 
     <!-- ============ Success ============ -->
     <section id="viewSuccess" class="pro-view text-center py-8" hidden aria-labelledby="successHeading">
-      <div class="mx-auto mb-5 flex items-center justify-center" style="width:72px;height:72px;border-radius:999px;background:var(--ps-color-tertiary-container);">
-        <span class="material-symbols-outlined text-[40px]" style="color:var(--ps-color-on-tertiary-container);" aria-hidden="true">check_circle</span>
-      </div>
-      <p id="successHeading" class="font-headline-md text-[24px] text-primary mb-2" data-i18n="auth.pro.successTitle">Your profile is ready</p>
-      <p id="successSubtitle" class="font-body-md text-[14px] text-on-surface-variant max-w-sm mx-auto mb-6" data-i18n="auth.pro.successSubtitle">Your professional account has been created successfully.</p>
-      <div class="flex flex-col items-center gap-3">
-        <a id="goToProfileBtn" href="account.html" class="ps-btn inline-block bg-primary text-on-primary px-8 py-3 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.goToProfile">Go to Profile</a>
-        <button id="retryProfileSetupBtn" type="button" class="hidden ps-btn font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" data-i18n="auth.pro.retryProfileSetup">Retry Profile Setup</button>
+      <div class="auth-card" style="max-width:420px; margin-inline:auto;">
+        <div class="mx-auto mb-5 flex items-center justify-center" style="width:72px;height:72px;border-radius:999px;background:var(--ps-color-tertiary-container); box-shadow:var(--ps-shadow-3d-2); overflow:hidden;">
+          <span class="material-symbols-outlined text-[40px]" style="color:var(--ps-color-on-tertiary-container);" aria-hidden="true">check_circle</span>
+        </div>
+        <p id="successHeading" class="font-headline-md text-[24px] text-primary mb-2" data-i18n="auth.pro.successTitle">Your profile is ready</p>
+        <p id="successSubtitle" class="font-body-md text-[14px] text-on-surface-variant max-w-sm mx-auto mb-6" data-i18n="auth.pro.successSubtitle">Your professional account has been created successfully.</p>
+        <div class="flex flex-col items-center gap-3">
+          <a id="goToProfileBtn" href="account.html" class="ps-btn auth-btn-primary" style="width:auto; padding-inline:32px; border-radius:999px;" data-i18n="auth.pro.goToProfile">Go to Profile</a>
+          <button id="retryProfileSetupBtn" type="button" class="hidden auth-btn-ghost text-secondary" data-i18n="auth.pro.retryProfileSetup">Retry Profile Setup</button>
+        </div>
       </div>
     </section>
 
+    </div>
   </div>
-</main>
+</div>
 
 <script src="./js/i18n.js"></script>
 <script type="module">
@@ -313,22 +319,30 @@
   // directly from firestore.rules' own create-allowlist for that
   // collection -- nothing here is invented.
   const TYPE_CATALOG = {
-    professional_engineer: { category: 'professional', labelKey: 'auth.pro.typeEngineer', fallback: 'Engineer', icon: 'engineering', kind: 'serviceProvider', serviceType: 'engineer' },
-    professional_designer: { category: 'professional', labelKey: 'auth.pro.typeDesigner', fallback: 'Designer', icon: 'palette', kind: 'serviceProvider', serviceType: 'designer' },
-    professional_lawyer: { category: 'professional', labelKey: 'auth.pro.typeLawyer', fallback: 'Lawyer', icon: 'gavel', kind: 'serviceProvider', serviceType: 'lawyer' },
-    professional_landscaping: { category: 'professional', labelKey: 'auth.pro.typeLandscaping', fallback: 'Landscaping', icon: 'yard', kind: 'serviceProvider', serviceType: 'landscaping' },
-    cleaning_individual: { category: 'professional', labelKey: 'auth.pro.typeCleaningIndividual', fallback: 'Cleaning (Individual)', icon: 'cleaning_services', kind: 'serviceProvider', serviceType: 'cleaning', providerType: 'individual' },
-    cleaning_team_or_company_owner: { category: 'professional', labelKey: 'auth.pro.typeCleaningTeam', fallback: 'Cleaning (Team / Company)', icon: 'groups', kind: 'serviceProvider', serviceType: 'cleaning', providerType: null },
-    office_owner: { category: 'realestate', labelKey: 'auth.pro.typeOfficeOwner', fallback: 'Real Estate Office', icon: 'apartment', kind: 'company' },
-    org_owner_residential_community: { category: 'business', labelKey: 'auth.pro.typeResidentialCommunity', fallback: 'Residential Community', icon: 'holiday_village', kind: 'organization', orgType: 'residential_community' },
-    org_owner_developer: { category: 'business', labelKey: 'auth.pro.typeDeveloper', fallback: 'Developer / Apartment Project', icon: 'domain', kind: 'organization', orgType: 'developer_project' },
-    org_owner_finance_provider: { category: 'business', labelKey: 'auth.pro.typeFinanceProvider', fallback: 'Installment / Finance Provider', icon: 'account_balance', kind: 'organization', orgType: 'finance_provider' },
-    org_owner_furniture_store: { category: 'business', labelKey: 'auth.pro.typeFurnitureStore', fallback: 'Home Goods / Furniture Seller', icon: 'chair', kind: 'organization', orgType: 'furniture_store' }
+    professional_engineer: { category: 'professional', labelKey: 'auth.pro.typeEngineer', fallback: 'Engineer', descKey: 'auth.pro.typeEngineerDesc', descFallback: 'Structural, civil, or MEP engineering services.', icon: 'engineering', kind: 'serviceProvider', serviceType: 'engineer' },
+    professional_designer: { category: 'professional', labelKey: 'auth.pro.typeDesigner', fallback: 'Designer', descKey: 'auth.pro.typeDesignerDesc', descFallback: 'Interior or architectural design services.', icon: 'palette', kind: 'serviceProvider', serviceType: 'designer' },
+    professional_lawyer: { category: 'professional', labelKey: 'auth.pro.typeLawyer', fallback: 'Lawyer', descKey: 'auth.pro.typeLawyerDesc', descFallback: 'Real estate and property legal services.', icon: 'gavel', kind: 'serviceProvider', serviceType: 'lawyer' },
+    professional_landscaping: { category: 'professional', labelKey: 'auth.pro.typeLandscaping', fallback: 'Landscaping', descKey: 'auth.pro.typeLandscapingDesc', descFallback: 'Garden, yard, and outdoor space design.', icon: 'yard', kind: 'serviceProvider', serviceType: 'landscaping' },
+    cleaning_individual: { category: 'professional', labelKey: 'auth.pro.typeCleaningIndividual', fallback: 'Cleaning (Individual)', descKey: 'auth.pro.typeCleaningIndividualDesc', descFallback: 'You clean homes or offices on your own.', icon: 'cleaning_services', kind: 'serviceProvider', serviceType: 'cleaning', providerType: 'individual' },
+    cleaning_team_or_company_owner: { category: 'professional', labelKey: 'auth.pro.typeCleaningTeam', fallback: 'Cleaning (Team / Company)', descKey: 'auth.pro.typeCleaningTeamDesc', descFallback: 'You run a cleaning team or registered company.', icon: 'groups', kind: 'serviceProvider', serviceType: 'cleaning', providerType: null },
+    office_owner: { category: 'realestate', labelKey: 'auth.pro.typeOfficeOwner', fallback: 'Real Estate Office', descKey: 'auth.pro.typeOfficeOwnerDesc', descFallback: 'List properties and manage agents under your office.', icon: 'apartment', kind: 'company' },
+    org_owner_residential_community: { category: 'business', labelKey: 'auth.pro.typeResidentialCommunity', fallback: 'Residential Community', descKey: 'auth.pro.typeResidentialCommunityDesc', descFallback: 'Showcase a gated community or residential complex.', icon: 'holiday_village', kind: 'organization', orgType: 'residential_community' },
+    org_owner_developer: { category: 'business', labelKey: 'auth.pro.typeDeveloper', fallback: 'Developer / Apartment Project', descKey: 'auth.pro.typeDeveloperDesc', descFallback: 'Promote an apartment or development project.', icon: 'domain', kind: 'organization', orgType: 'developer_project' },
+    org_owner_finance_provider: { category: 'business', labelKey: 'auth.pro.typeFinanceProvider', fallback: 'Installment / Finance Provider', descKey: 'auth.pro.typeFinanceProviderDesc', descFallback: 'Offer installment or financing plans to buyers.', icon: 'account_balance', kind: 'organization', orgType: 'finance_provider' },
+    org_owner_furniture_store: { category: 'business', labelKey: 'auth.pro.typeFurnitureStore', fallback: 'Home Goods / Furniture Seller', descKey: 'auth.pro.typeFurnitureStoreDesc', descFallback: 'Sell furniture or home goods to customers.', icon: 'chair', kind: 'organization', orgType: 'furniture_store' }
   };
   const CATEGORY_ORDER = [
     { key: 'professional', labelKey: 'auth.pro.categoryProfessional', fallback: 'Professional / Service' },
     { key: 'realestate', labelKey: 'auth.pro.categoryRealEstate', fallback: 'Real Estate' },
     { key: 'business', labelKey: 'auth.pro.categoryBusiness', fallback: 'Business / Organization' }
+  ];
+  const STEP_NAMES = [
+    { key: 'auth.pro.stepNameAccount', fallback: 'Account' },
+    { key: 'auth.pro.stepNameType', fallback: 'Type' },
+    { key: 'auth.pro.stepNameDetails', fallback: 'Details' },
+    { key: 'auth.pro.stepNameMedia', fallback: 'Media' },
+    { key: 'auth.pro.stepNameReview', fallback: 'Review' },
+    { key: 'auth.pro.stepNameVerify', fallback: 'Verify' }
   ];
   const CLEANING_SERVICES = [
     'house_cleaning', 'apartment_cleaning', 'office_cleaning', 'deep_cleaning',
@@ -366,10 +380,17 @@
     const nav = el('proSteps');
     nav.innerHTML = '';
     for (let i = 1; i <= STEP_COUNT; i++) {
+      const unit = document.createElement('span');
+      unit.className = 'pro-step-unit';
       const dot = document.createElement('span');
       dot.className = 'pro-step-dot' + (i < state.step ? ' done' : i === state.step ? ' current' : '');
       dot.textContent = i < state.step ? '✓' : String(i);
-      nav.appendChild(dot);
+      unit.appendChild(dot);
+      const name = document.createElement('span');
+      name.className = 'pro-step-name';
+      name.textContent = tr(STEP_NAMES[i - 1].key, STEP_NAMES[i - 1].fallback);
+      unit.appendChild(name);
+      nav.appendChild(unit);
       if (i < STEP_COUNT) {
         const line = document.createElement('span');
         line.className = 'pro-step-line' + (i < state.step ? ' done' : '');
@@ -377,7 +398,7 @@
       }
     }
     const announce = el('proStepAnnounce');
-    announce.textContent = `${tr('auth.pro.stepLabel', 'Step')} ${state.step} ${tr('auth.pro.of', 'of')} ${STEP_COUNT}`;
+    announce.textContent = `${tr('auth.pro.stepLabel', 'Step')} ${state.step} ${tr('auth.pro.of', 'of')} ${STEP_COUNT}: ${tr(STEP_NAMES[state.step - 1].key, STEP_NAMES[state.step - 1].fallback)}`;
   }
 
   function goToStep(n) {
@@ -477,6 +498,11 @@
     }
   });
 
+  // Step 1 is shown by default via markup (not via goToStep()), so the
+  // stepper needs its own initial render -- otherwise it stayed empty
+  // until the user reached Step 2 for the first time.
+  renderStepIndicator();
+
   // ---------------------------------------------------------------------
   // Step 2: Choose Profile Type
   // ---------------------------------------------------------------------
@@ -490,7 +516,7 @@
       container.appendChild(heading);
 
       const grid = document.createElement('div');
-      grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-2.5';
+      grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-3';
       Object.entries(TYPE_CATALOG).filter(([, t]) => t.category === cat.key).forEach(([key, t]) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -498,8 +524,12 @@
         btn.setAttribute('aria-pressed', state.accountType === key ? 'true' : 'false');
         btn.dataset.type = key;
         btn.innerHTML = `
-          <span class="material-symbols-outlined text-[22px] text-primary" aria-hidden="true">${t.icon}</span>
-          <span class="font-body-md text-[13.5px] text-on-surface font-medium">${tr(t.labelKey, t.fallback)}</span>
+          <span class="type-card-icon" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:20px;">${t.icon}</span></span>
+          <span class="type-card-body">
+            <span class="type-card-title">${tr(t.labelKey, t.fallback)}</span>
+            <span class="type-card-desc">${tr(t.descKey, t.descFallback)}</span>
+          </span>
+          <span class="type-card-check" aria-hidden="true"><span class="material-symbols-outlined" style="font-size:13px;">check</span></span>
         `;
         btn.addEventListener('click', () => selectType(key));
         grid.appendChild(btn);
@@ -610,6 +640,25 @@
     return wrap;
   }
 
+  // Groups Step 3's fields into premium, titled sections (Basic
+  // Information / Location / Contact / Professional Details / Services)
+  // instead of one long flat form -- purely a visual/DOM-nesting change:
+  // every field id/name below is unchanged, so validateStep3() (which
+  // reads them by id regardless of ancestry) needs no changes.
+  function fieldGroup({ titleKey, titleFallback, icon, cols2 }, children) {
+    const group = document.createElement('div');
+    group.className = 'ps-field-group';
+    const title = document.createElement('p');
+    title.className = 'ps-field-group-title';
+    title.innerHTML = `<span class="material-symbols-outlined" aria-hidden="true">${icon}</span><span>${tr(titleKey, titleFallback)}</span>`;
+    group.appendChild(title);
+    const grid = document.createElement('div');
+    grid.className = 'ps-field-group-grid' + (cols2 ? ' cols-2' : '');
+    children.forEach((c) => grid.appendChild(c));
+    group.appendChild(grid);
+    return group;
+  }
+
   function renderStep3Fields() {
     const form = el('step3Form');
     form.innerHTML = '';
@@ -618,47 +667,59 @@
     // sends the user back here) instead of presenting blank fields again.
     const d = state.details || {};
 
-    // Name -- every kind needs one, field name differs by collection but
-    // the UI label stays the same. Required everywhere.
-    form.appendChild(fieldBlock({
+    // ---- Basic Information -----------------------------------------
+    const nameField = fieldBlock({
       id: 'd_name',
       labelKey: t.kind === 'company' ? 'office.name' : 'auth.pro.businessName',
       labelFallback: t.kind === 'company' ? 'Office name' : 'Business / Profile Name',
       required: true,
       value: d.name
-    }));
+    });
+    nameField.classList.add('span-2');
+    const descField = fieldBlock({ id: 'd_description', labelKey: 'auth.pro.description', labelFallback: 'Description', rows: 3, value: d.description });
+    descField.classList.add('span-2');
+    form.appendChild(fieldGroup({ titleKey: 'auth.pro.groupBasicInfo', titleFallback: 'Basic Information', icon: 'badge' }, [nameField, descField]));
 
-    form.appendChild(fieldBlock({
-      id: 'd_description', labelKey: 'auth.pro.description', labelFallback: 'Description', rows: 3, value: d.description
-    }));
-    form.appendChild(fieldBlock({ id: 'd_city', labelKey: 'auth.pro.city', labelFallback: 'City', value: d.city }));
-    form.appendChild(fieldBlock({ id: 'd_district', labelKey: 'auth.pro.district', labelFallback: 'District', value: d.district }));
-
+    // ---- Location -----------------------------------------------------
+    const locationChildren = [
+      fieldBlock({ id: 'd_city', labelKey: 'auth.pro.city', labelFallback: 'City', value: d.city }),
+      fieldBlock({ id: 'd_district', labelKey: 'auth.pro.district', labelFallback: 'District', value: d.district })
+    ];
     if (t.kind === 'company') {
-      form.appendChild(fieldBlock({ id: 'd_address', labelKey: 'auth.pro.address', labelFallback: 'Address', value: d.address }));
-      form.appendChild(fieldBlock({ id: 'd_phone', labelKey: 'auth.pro.contactPhone', labelFallback: 'Contact Phone', type: 'tel', value: d.contactInfo?.phone }));
-      form.appendChild(fieldBlock({ id: 'd_email', labelKey: 'auth.pro.contactEmail', labelFallback: 'Contact Email', type: 'email', value: d.contactInfo?.email }));
-      form.appendChild(fieldBlock({ id: 'd_whatsapp', labelKey: 'auth.pro.contactWhatsapp', labelFallback: 'WhatsApp', type: 'tel', value: d.contactInfo?.whatsapp }));
-    } else if (t.kind === 'organization') {
-      form.appendChild(fieldBlock({ id: 'd_phone', labelKey: 'auth.pro.contactPhone', labelFallback: 'Contact Phone', type: 'tel', value: d.contactInfo?.phone }));
-      form.appendChild(fieldBlock({ id: 'd_email', labelKey: 'auth.pro.contactEmail', labelFallback: 'Contact Email', type: 'email', value: d.contactInfo?.email }));
-      form.appendChild(fieldBlock({ id: 'd_whatsapp', labelKey: 'auth.pro.contactWhatsapp', labelFallback: 'WhatsApp', type: 'tel', value: d.contactInfo?.whatsapp }));
+      const addressField = fieldBlock({ id: 'd_address', labelKey: 'auth.pro.address', labelFallback: 'Address', value: d.address });
+      addressField.classList.add('span-2');
+      locationChildren.push(addressField);
+    }
+    form.appendChild(fieldGroup({ titleKey: 'auth.pro.groupLocation', titleFallback: 'Location', icon: 'location_on', cols2: true }, locationChildren));
+
+    // ---- Contact (company / organization only) -------------------------
+    if (t.kind === 'company' || t.kind === 'organization') {
+      form.appendChild(fieldGroup({ titleKey: 'auth.pro.groupContact', titleFallback: 'Contact', icon: 'call', cols2: true }, [
+        fieldBlock({ id: 'd_phone', labelKey: 'auth.pro.contactPhone', labelFallback: 'Contact Phone', type: 'tel', value: d.contactInfo?.phone }),
+        fieldBlock({ id: 'd_email', labelKey: 'auth.pro.contactEmail', labelFallback: 'Contact Email', type: 'email', value: d.contactInfo?.email }),
+        fieldBlock({ id: 'd_whatsapp', labelKey: 'auth.pro.contactWhatsapp', labelFallback: 'WhatsApp', type: 'tel', value: d.contactInfo?.whatsapp })
+      ]));
     } else if (t.kind === 'serviceProvider') {
-      form.appendChild(fieldBlock({ id: 'd_experienceYears', labelKey: 'auth.pro.experienceYears', labelFallback: 'Years of Experience', type: 'number', value: d.experienceYears }));
+      // ---- Professional Details --------------------------------------
+      const expField = fieldBlock({ id: 'd_experienceYears', labelKey: 'auth.pro.experienceYears', labelFallback: 'Years of Experience', type: 'number', value: d.experienceYears });
       const specialties = tagInputBlock({ id: 'd_specialties', labelKey: 'auth.pro.specialties', labelFallback: 'Specialties', hintKey: 'auth.pro.specialtiesHint', hintFallback: 'Type a specialty and press Enter to add it.', initialTags: d.specialties });
-      form.appendChild(specialties);
+      specialties.classList.add('span-2');
       form._specialtiesBlock = specialties;
       const serviceAreas = tagInputBlock({ id: 'd_serviceAreas', labelKey: 'auth.pro.serviceAreas', labelFallback: 'Service Areas', hintKey: 'auth.pro.serviceAreasHint', hintFallback: 'Type an area and press Enter to add it.', initialTags: d.serviceAreas });
-      form.appendChild(serviceAreas);
+      serviceAreas.classList.add('span-2');
       form._serviceAreasBlock = serviceAreas;
+      form.appendChild(fieldGroup({ titleKey: 'auth.pro.groupProfessionalDetails', titleFallback: 'Professional Details', icon: 'work', cols2: true }, [expField, specialties, serviceAreas]));
 
       if (t.serviceType === 'cleaning') {
+        // ---- Services (cleaning only) ---------------------------------
+        const servicesChildren = [];
         if (t.providerType === null) {
           // cleaning_team_or_company_owner: ask team vs. company, plus a
           // team-size field, matching firestore.rules' providerType
           // in ['team','company'] allowance for this one type.
           const restoredShape = d.providerType === 'company' ? 'company' : 'team';
           const shapeWrap = document.createElement('div');
+          shapeWrap.classList.add('span-2');
           const shapeLabel = document.createElement('p');
           shapeLabel.className = 'auth-label';
           shapeLabel.textContent = tr('auth.pro.providerShape', 'Are you a team or a registered company?');
@@ -670,7 +731,7 @@
             <button type="button" id="shapeCompanyBtn" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps transition-all">${tr('auth.pro.providerShapeCompany', 'Company')}</button>
           `;
           shapeWrap.appendChild(pillWrap);
-          form.appendChild(shapeWrap);
+          servicesChildren.push(shapeWrap);
           form._providerShape = restoredShape;
           const teamBtn = pillWrap.querySelector('#shapeTeamBtn');
           const companyBtn = pillWrap.querySelector('#shapeCompanyBtn');
@@ -685,22 +746,27 @@
           teamBtn.addEventListener('click', () => { form._providerShape = 'team'; setShapeActive('team'); });
           companyBtn.addEventListener('click', () => { form._providerShape = 'company'; setShapeActive('company'); });
           setShapeActive(restoredShape);
-          form.appendChild(fieldBlock({ id: 'd_teamSize', labelKey: 'auth.pro.teamSize', labelFallback: 'Team Size', type: 'number', value: d.teamSize }));
+          servicesChildren.push(fieldBlock({ id: 'd_teamSize', labelKey: 'auth.pro.teamSize', labelFallback: 'Team Size', type: 'number', value: d.teamSize }));
         }
         const svcWrap = document.createElement('div');
+        svcWrap.classList.add('span-2');
         const svcLabel = document.createElement('p');
         svcLabel.className = 'auth-label';
         svcLabel.textContent = tr('auth.pro.servicesOffered', 'Services Offered') + ` (${tr('auth.pro.optional', 'Optional')})`;
         svcWrap.appendChild(svcLabel);
+        const svcGrid = document.createElement('div');
+        svcGrid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-x-4';
         const restoredServices = Array.isArray(d.servicesOffered) ? d.servicesOffered : [];
         CLEANING_SERVICES.forEach((svc) => {
           const row = document.createElement('label');
           row.className = 'checkbox-row';
           const checkedAttr = restoredServices.includes(svc) ? ' checked' : '';
           row.innerHTML = `<input type="checkbox" value="${svc}" data-cleaning-svc${checkedAttr}/> <span class="font-body-md text-[13.5px]">${tr('auth.pro.svc.' + svc, CLEANING_SERVICE_LABELS[svc])}</span>`;
-          svcWrap.appendChild(row);
+          svcGrid.appendChild(row);
         });
-        form.appendChild(svcWrap);
+        svcWrap.appendChild(svcGrid);
+        servicesChildren.push(svcWrap);
+        form.appendChild(fieldGroup({ titleKey: 'auth.pro.groupServices', titleFallback: 'Services', icon: 'design_services', cols2: true }, servicesChildren));
       }
     }
   }
@@ -774,11 +840,13 @@
       note.classList.add('hidden');
     }
   }
-  el('mediaTile').addEventListener('click', () => el('mediaFileInput').click());
-  el('mediaTile').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el('mediaFileInput').click(); } });
-  el('mediaFileInput').addEventListener('change', function () {
-    const file = this.files[0];
-    if (!file) return;
+  // Single entry point for staging a media file, used by both the
+  // click-to-upload input and drag/drop -- same state.mediaFile
+  // assignment either way, no Storage/security logic involved (the real
+  // upload happens later, only for accountTypes with an audited path --
+  // see ensureEntityCreated()).
+  function handleMediaFile(file) {
+    if (!file || !file.type || !file.type.startsWith('image/')) return;
     state.mediaFile = file;
     const url = URL.createObjectURL(file);
     el('mediaPreviewImg').src = url;
@@ -786,6 +854,21 @@
     el('mediaTileIcon').classList.add('hidden');
     el('mediaTileLabel').classList.add('hidden');
     el('mediaRemoveBtn').classList.remove('hidden');
+  }
+  el('mediaTile').addEventListener('click', () => el('mediaFileInput').click());
+  el('mediaTile').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el('mediaFileInput').click(); } });
+  el('mediaFileInput').addEventListener('change', function () { handleMediaFile(this.files[0]); });
+  // Premium drag/drop -- purely an additional entry point into the same
+  // handleMediaFile() path above; no new Storage/network surface.
+  ['dragenter', 'dragover'].forEach((evt) => {
+    el('mediaTile').addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); el('mediaTile').classList.add('drag-over'); });
+  });
+  ['dragleave', 'drop'].forEach((evt) => {
+    el('mediaTile').addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); el('mediaTile').classList.remove('drag-over'); });
+  });
+  el('mediaTile').addEventListener('drop', (e) => {
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file) handleMediaFile(file);
   });
   el('mediaRemoveBtn').addEventListener('click', () => {
     state.mediaFile = null;
@@ -808,14 +891,14 @@
       <span class="font-body-md text-[13px] text-on-surface text-end">${value}</span>
     </div>`;
   }
-  function reviewSection(titleKey, titleFallback, rowsHtml, editStep) {
+  function reviewSection(titleKey, titleFallback, icon, rowsHtml, editStep) {
     if (!rowsHtml) return '';
-    return `<div>
-      <div class="flex items-center justify-between mb-2">
-        <p class="font-label-caps text-label-caps text-secondary">${tr(titleKey, titleFallback)}</p>
-        <button type="button" class="review-edit font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-step="${editStep}">${tr('auth.pro.editBtn', 'Edit')}</button>
+    return `<div class="review-dossier-card">
+      <div class="review-dossier-head">
+        <p class="review-dossier-title"><span class="material-symbols-outlined" aria-hidden="true">${icon}</span><span>${tr(titleKey, titleFallback)}</span></p>
+        <button type="button" class="review-edit auth-btn-ghost" data-step="${editStep}">${tr('auth.pro.editBtn', 'Edit')}</button>
       </div>
-      <div class="ps-card p-3">${rowsHtml}</div>
+      ${rowsHtml}
     </div>`;
   }
 
@@ -832,9 +915,6 @@
       + reviewRow(tr('auth.pro.city', 'City'), d.city)
       + reviewRow(tr('auth.pro.district', 'District'), d.district)
       + reviewRow(tr('auth.pro.address', 'Address'), d.address)
-      + reviewRow(tr('auth.pro.contactPhone', 'Contact Phone'), d.contactInfo?.phone)
-      + reviewRow(tr('auth.pro.contactEmail', 'Contact Email'), d.contactInfo?.email)
-      + reviewRow(tr('auth.pro.contactWhatsapp', 'WhatsApp'), d.contactInfo?.whatsapp)
       + reviewRow(tr('auth.pro.experienceYears', 'Years of Experience'), d.experienceYears)
       + reviewRow(tr('auth.pro.specialties', 'Specialties'), (d.specialties || []).join(', '))
       + reviewRow(tr('auth.pro.serviceAreas', 'Service Areas'), (d.serviceAreas || []).join(', '));
@@ -845,11 +925,19 @@
     if (Array.isArray(d.servicesOffered) && d.servicesOffered.length) {
       detailRows += reviewRow(tr('auth.pro.servicesOffered', 'Services Offered'), d.servicesOffered.map((svc) => tr('auth.pro.svc.' + svc, svc)).join(', '));
     }
+    const contactRows = reviewRow(tr('auth.pro.contactPhone', 'Contact Phone'), d.contactInfo?.phone)
+      + reviewRow(tr('auth.pro.contactEmail', 'Contact Email'), d.contactInfo?.email)
+      + reviewRow(tr('auth.pro.contactWhatsapp', 'WhatsApp'), d.contactInfo?.whatsapp);
+    const mediaRows = state.mediaFile
+      ? `<div class="flex items-center gap-3 py-1.5"><img src="${el('mediaPreviewImg').src}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover;"/><span class="font-body-md text-[13px] text-on-surface">${state.mediaFile.name}</span></div>`
+      : `<p class="font-body-md text-[12.5px] text-on-surface-variant py-1">${tr('auth.pro.noImageSelected', 'No image selected.')}</p>`;
 
     el('reviewContent').innerHTML =
-      reviewSection('auth.pro.reviewAccountSection', 'Account', acctRows, 1)
-      + reviewSection('auth.pro.reviewTypeSection', 'Profile Type', typeRows, 2)
-      + reviewSection('auth.pro.reviewDetailsSection', 'Details', detailRows, 3);
+      reviewSection('auth.pro.reviewAccountSection', 'Account', 'badge', acctRows, 1)
+      + reviewSection('auth.pro.reviewTypeSection', 'Profile Type', 'category', typeRows, 2)
+      + reviewSection('auth.pro.reviewDetailsSection', 'Details', 'description', detailRows, 3)
+      + reviewSection('auth.pro.reviewContactSection', 'Contact', 'call', contactRows, 3)
+      + reviewSection('auth.pro.reviewMediaSection', 'Media', 'image', mediaRows, 4);
 
     document.querySelectorAll('.review-edit').forEach((btn) => {
       btn.addEventListener('click', () => {
