@@ -24,15 +24,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 
 from firebase_admin import firestore as fb_firestore
 
-from app.access.audit import AuditEntry, write_audit
+from app.access.audit import AuditEntry, write_audit, write_denied_audit
 from app.access.constants import (
+    INVITATION_EXPIRY_DAYS,
     MEMBER_ROLE_EMPLOYEE,
     MEMBER_STATUS_ACTIVE,
+    MEMBER_STATUS_INVITED,
     MEMBER_STATUS_PENDING,
     ORGANIZATION_TYPES,
+    PROTECTED_PERMISSIONS,
 )
 from app.access.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.access.permission_resolver import validate_permission_write
@@ -40,6 +44,19 @@ from app.access.permission_resolver import validate_permission_write
 _MAX_NAME_LENGTH = 200
 _MAX_TEXT_FIELD_LENGTH = 2000
 _ORG_TEXT_FIELDS = ("description", "logoUrl", "coverImageUrl", "city", "district")
+
+
+def _is_expired(expires_at: object) -> bool:
+    """`expires_at` comes back from the Admin SDK as a timezone-aware
+    `datetime` (Firestore Timestamp fields decode that way) -- this
+    tolerates any other shape (a naive datetime, an unexpected type)
+    by failing safe: anything it can't confidently parse as still-valid
+    is treated as expired, never as still-acceptable, matching this
+    whole architecture's fail-closed convention."""
+    if not isinstance(expires_at, datetime):
+        return True
+    now = datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.now(UTC).replace(tzinfo=None)
+    return now > expires_at
 
 
 def _clean_text(value: object, *, field: str, max_length: int, required: bool = False) -> str | None:
@@ -61,6 +78,38 @@ class OrganizationOps:
     def __init__(self, db, logger: logging.Logger | None = None) -> None:
         self._db = db
         self._logger = logger or logging.getLogger("darwesh.access.organizations")
+
+    def _log_denied(
+        self,
+        *,
+        actor_uid: str,
+        action: str,
+        target_type: str,
+        target_id: str,
+        target_organization_id: str | None,
+        reason_code: str,
+    ) -> None:
+        """Phase 2.1: best-effort, non-transactional -- see audit.py's
+        write_denied_audit docstring. Called only from the specific,
+        security-relevant denial branches documented at each call site
+        below (an unauthorized membership/permission/ownership action,
+        or a protected-permission escalation attempt) -- never for a
+        NotFoundError/ConflictError, which are routine, not security
+        events."""
+        write_denied_audit(
+            self._db,
+            AuditEntry(
+                actor_uid=actor_uid,
+                actor_role="user",
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                target_organization_id=target_organization_id,
+                result="denied",
+                reason_code=reason_code,
+            ),
+            logger=self._logger,
+        )
 
     # ---- creation -----------------------------------------------------
 
@@ -177,13 +226,16 @@ class OrganizationOps:
     async def invite_member(
         self, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool
     ) -> None:
-        """The organization owner (or an admin) adds a specific, already-
-        known uid directly as an ACTIVE employee -- the invitation IS the
-        approval (no separate accept step this phase; see the Phase 2
-        completion report's "deferred" section for a two-sided invite-
-        then-accept flow). Requires the target to be a real, existing
-        user profile -- never creates a membership record for a uid this
-        backend can't confirm is a real account."""
+        """Phase 2.1: the organization owner (or an admin) invites a
+        specific, already-known uid -- this creates a PENDING-for-the-
+        target 'invited' record, NOT immediate membership (the earlier
+        Phase 2 behavior). Only the invited uid itself can activate it,
+        via accept_invitation() below; the owner/admin may revoke_invitation()
+        instead. Requires the target to be a real, existing user profile
+        -- never creates a membership record for a uid this backend
+        can't confirm is a real account. Never activates from a
+        matching company/office name or any signal but the target's own
+        explicit accept."""
         if target_uid == caller_uid:
             raise ValidationError("cannot invite yourself")
         org_ref = self._db.collection("organizations").document(org_id)
@@ -208,14 +260,16 @@ class OrganizationOps:
                 member_snap = member_ref.get(transaction=txn)
                 if member_snap.exists:
                     raise ConflictError("a membership record already exists for this user in this organization")
+                expires_at = datetime.now(UTC) + timedelta(days=INVITATION_EXPIRY_DAYS)
                 txn.set(
                     member_ref,
                     {
                         "role": MEMBER_ROLE_EMPLOYEE,
-                        "status": MEMBER_STATUS_ACTIVE,
+                        "status": MEMBER_STATUS_INVITED,
                         "permissions": {},
-                        "addedAt": fb_firestore.SERVER_TIMESTAMP,
-                        "addedBy": caller_uid,
+                        "invitedAt": fb_firestore.SERVER_TIMESTAMP,
+                        "invitedBy": caller_uid,
+                        "expiresAt": expires_at,
                     },
                 )
                 write_audit(
@@ -228,11 +282,157 @@ class OrganizationOps:
                         target_type="membership",
                         target_id=target_uid,
                         target_organization_id=org_id,
+                        new_value=MEMBER_STATUS_INVITED,
+                    ),
+                )
+
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="member_invite_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
+
+        await asyncio.to_thread(_op)
+
+    async def accept_invitation(self, *, org_id: str, caller_uid: str) -> None:
+        """The invited target -- and ONLY the invited target -- accepts.
+        There is no target_uid parameter: this always operates on
+        members/{caller_uid} for this org, so a caller can structurally
+        never accept anyone else's invitation (there is no path to name
+        a different uid). Race-safe against a concurrent revoke_invitation
+        via Firestore's transaction semantics (see this module's header)
+        -- whichever transaction commits first wins; the loser re-reads
+        the now-changed/deleted doc and its own precondition check fails
+        cleanly, never double-activating or reviving a revoked invite."""
+        org_ref = self._db.collection("organizations").document(org_id)
+        member_ref = org_ref.collection("members").document(caller_uid)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                member_snap = member_ref.get(transaction=txn)
+                if not member_snap.exists or member_snap.get("status") != MEMBER_STATUS_INVITED:
+                    raise NotFoundError("no pending invitation exists for you in this organization")
+                expires_at = member_snap.get("expiresAt")
+                if expires_at is not None and _is_expired(expires_at):
+                    raise ConflictError("this invitation has expired -- ask the organization owner to reinvite you")
+                txn.update(
+                    member_ref,
+                    {"status": MEMBER_STATUS_ACTIVE, "acceptedAt": fb_firestore.SERVER_TIMESTAMP},
+                )
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="user",
+                        action="invitation_accepted",
+                        target_type="membership",
+                        target_id=caller_uid,
+                        target_organization_id=org_id,
+                        previous_value=MEMBER_STATUS_INVITED,
                         new_value=MEMBER_STATUS_ACTIVE,
                     ),
                 )
 
             _txn(transaction)
+
+        await asyncio.to_thread(_op)
+
+    async def decline_invitation(self, *, org_id: str, caller_uid: str) -> None:
+        """The invited target declines -- same self-uid-only shape as
+        accept_invitation(). Deletes the record outright (no tombstone),
+        matching reject_membership's precedent."""
+        org_ref = self._db.collection("organizations").document(org_id)
+        member_ref = org_ref.collection("members").document(caller_uid)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                member_snap = member_ref.get(transaction=txn)
+                if not member_snap.exists or member_snap.get("status") != MEMBER_STATUS_INVITED:
+                    raise NotFoundError("no pending invitation exists for you in this organization")
+                txn.delete(member_ref)
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="user",
+                        action="invitation_declined",
+                        target_type="membership",
+                        target_id=caller_uid,
+                        target_organization_id=org_id,
+                        previous_value=MEMBER_STATUS_INVITED,
+                        new_value=None,
+                    ),
+                )
+
+            _txn(transaction)
+
+        await asyncio.to_thread(_op)
+
+    async def revoke_invitation(
+        self, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool
+    ) -> None:
+        """Owner/admin cancels a not-yet-accepted invitation. Race-safe
+        against a concurrent accept_invitation() the same way -- see
+        accept_invitation's docstring."""
+        org_ref = self._db.collection("organizations").document(org_id)
+        member_ref = org_ref.collection("members").document(target_uid)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                org_snap = org_ref.get(transaction=txn)
+                if not org_snap.exists:
+                    raise NotFoundError(f"organization '{org_id}' does not exist")
+                if not caller_is_admin and org_snap.get("ownerId") != caller_uid:
+                    raise ForbiddenError("only the organization's owner or an admin may revoke an invitation")
+                member_snap = member_ref.get(transaction=txn)
+                if not member_snap.exists or member_snap.get("status") != MEMBER_STATUS_INVITED:
+                    raise NotFoundError("no pending invitation exists for this user in this organization")
+                txn.delete(member_ref)
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="admin" if caller_is_admin else "owner",
+                        action="invitation_revoked",
+                        target_type="membership",
+                        target_id=target_uid,
+                        target_organization_id=org_id,
+                        previous_value=MEMBER_STATUS_INVITED,
+                        new_value=None,
+                    ),
+                )
+
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="invitation_revocation_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
 
         await asyncio.to_thread(_op)
 
@@ -278,7 +478,18 @@ class OrganizationOps:
                     ),
                 )
 
-            _txn(transaction)
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="membership_approval_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
 
         await asyncio.to_thread(_op)
 
@@ -322,7 +533,18 @@ class OrganizationOps:
                     ),
                 )
 
-            _txn(transaction)
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="membership_rejection_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
 
         await asyncio.to_thread(_op)
 
@@ -362,7 +584,18 @@ class OrganizationOps:
                     ),
                 )
 
-            _txn(transaction)
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="member_removal_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
 
         await asyncio.to_thread(_op)
 
@@ -385,6 +618,15 @@ class OrganizationOps:
         path at all this phase -- see permission_ops.py)."""
         validation_error = validate_permission_write(permissions)
         if validation_error:
+            if isinstance(permissions, dict) and any(k in PROTECTED_PERMISSIONS for k in permissions):
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="member_permissions_change_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="protected_permission_escalation_attempt",
+                )
             raise ValidationError(validation_error)
 
         org_ref = self._db.collection("organizations").document(org_id)
@@ -421,7 +663,18 @@ class OrganizationOps:
                     ),
                 )
 
-            _txn(transaction)
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="member_permissions_change_denied",
+                    target_type="membership",
+                    target_id=target_uid,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
 
         await asyncio.to_thread(_op)
 
@@ -496,6 +749,36 @@ class OrganizationOps:
                     ),
                 )
 
-            _txn(transaction)
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="ownership_transfer_denied",
+                    target_type="organization",
+                    target_id=org_id,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_owner_or_admin",
+                )
+                raise exc
+            except ValidationError as exc:
+                # Specifically the "target isn't an active member" case
+                # -- an unauthorized-target ownership transfer attempt,
+                # not routine input validation, so it's worth the same
+                # security-monitoring visibility as the ForbiddenError
+                # branch above (both are "unauthorized ownership
+                # transfer" per this phase's spec). The earlier "cannot
+                # transfer ownership to yourself" ValidationError (raised
+                # before _op/_txn even runs) is NOT logged here -- that's
+                # an ordinary client-input guard, not a security event.
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="ownership_transfer_denied",
+                    target_type="organization",
+                    target_id=org_id,
+                    target_organization_id=org_id,
+                    reason_code="ownership_transfer_target_not_eligible",
+                )
+                raise exc
 
         await asyncio.to_thread(_op)

@@ -155,7 +155,61 @@ class OrganizationHandler:
         except Exception as exc:  # noqa: BLE001
             self.logger.error("member invite failed", extra={"error": str(exc)})
             return JSONResponse({"error": "Could not invite this member right now."}, status_code=500)
-        return JSONResponse({"status": "active"}, status_code=201)
+        return JSONResponse({"status": "invited"}, status_code=201)
+
+    async def accept_invitation(self, request: Request) -> JSONResponse:
+        """Always operates on the CALLER's own uid within this org --
+        there is no target_uid in this route at all, so a caller can
+        structurally never accept anyone else's invitation."""
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        org_id = request.path_params.get("org_id")
+        try:
+            await self.ops.accept_invitation(org_id=org_id, caller_uid=caller.uid)
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("invitation accept failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not accept this invitation right now."}, status_code=500)
+        return JSONResponse({"status": "active"}, status_code=200)
+
+    async def decline_invitation(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        org_id = request.path_params.get("org_id")
+        try:
+            await self.ops.decline_invitation(org_id=org_id, caller_uid=caller.uid)
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("invitation decline failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not decline this invitation right now."}, status_code=500)
+        return JSONResponse({"status": "declined"}, status_code=200)
+
+    async def revoke_invitation(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        org_id = request.path_params.get("org_id")
+        target_uid = request.path_params.get("target_uid")
+        try:
+            await self.ops.revoke_invitation(
+                org_id=org_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("invitation revoke failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not revoke this invitation right now."}, status_code=500)
+        return JSONResponse({"status": "revoked"}, status_code=200)
 
     async def approve_membership(self, request: Request) -> JSONResponse:
         caller = await self.auth.authenticate(request)
@@ -334,11 +388,25 @@ class PermissionAdminHandler:
         return JSONResponse({"status": "updated"}, status_code=200)
 
     async def get_my_permissions(self, request: Request) -> JSONResponse:
+        """GET /api/v1/access/me/permissions[?organizationId=<id>].
+        Phase 2.1 API contract: `globalPermissions` (accountType-level,
+        org-independent) is always returned. `organization` is null
+        unless `organizationId` is given; when given, it is ALWAYS
+        present in the response (never silently omitted) and states the
+        caller's real, server-validated relationship to that ONE org --
+        see PermissionOps.get_effective_permissions's docstring for the
+        full membershipStatus semantics and why a non-member's
+        `effectivePermissions` for that org is always empty. The query
+        param is read here and only here -- never trusted for a write,
+        never combined with more than one org per call, so there is no
+        path for an org-scoped result to leak into a different org's
+        context."""
         caller = await self.auth.authenticate(request)
         if caller is None:
             return _UNAUTHENTICATED
         if not await self.read_limiter.allow(caller.uid):
             return _RATE_LIMITED
+        organization_id = request.query_params.get("organizationId") or None
         try:
             # Always the CALLER's own uid -- there is no "look up
             # anyone else's permissions" path here (see
@@ -347,7 +415,7 @@ class PermissionAdminHandler:
             # rolePermissionDefaults/permissionOverrides directly via the
             # Firestore client SDK, already permitted for isAdmin() by
             # firestore.rules (Phase 1).
-            result = await self.ops.get_effective_permissions(uid=caller.uid)
+            result = await self.ops.get_effective_permissions(uid=caller.uid, organization_id=organization_id)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("effective permissions read failed", extra={"error": str(exc)})
             return JSONResponse({"error": "Could not read your permissions right now."}, status_code=500)

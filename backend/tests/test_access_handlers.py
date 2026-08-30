@@ -58,6 +58,15 @@ class FakeOrganizationOps:
     async def invite_member(self, **kwargs):
         self._record("invite_member", **kwargs)
 
+    async def accept_invitation(self, **kwargs):
+        self._record("accept_invitation", **kwargs)
+
+    async def decline_invitation(self, **kwargs):
+        self._record("decline_invitation", **kwargs)
+
+    async def revoke_invitation(self, **kwargs):
+        self._record("revoke_invitation", **kwargs)
+
     async def approve_membership(self, **kwargs):
         self._record("approve_membership", **kwargs)
 
@@ -93,7 +102,11 @@ class FakePermissionOps:
         self._record("set_user_overrides", **kwargs)
 
     async def get_effective_permissions(self, **kwargs):
-        return self._record("get_effective_permissions", **kwargs) or {"uid": kwargs.get("uid"), "permissions": {}}
+        return self._record("get_effective_permissions", **kwargs) or {
+            "uid": kwargs.get("uid"),
+            "globalPermissions": {},
+            "organization": None,
+        }
 
 
 ALICE = CallerContext(uid="alice", email="alice@example.com", role="agent", is_admin=False)
@@ -214,6 +227,49 @@ def test_invite_member_passes_authenticated_uid_and_admin_flag_never_from_body()
     assert call["caller_is_admin"] is True
     assert call["target_uid"] == "target-uid"
     assert call["org_id"] == "org1"
+
+
+def test_invite_member_returns_invited_status_not_active():
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ADMIN, org_ops=org_ops)
+    resp = client.post("/api/v1/access/organizations/org1/members/target-uid/invite", json={})
+    assert resp.json()["status"] == "invited"
+
+
+def test_accept_invitation_uses_only_the_authenticated_callers_own_uid():
+    # No target_uid in the route at all -- proves a caller can never
+    # name someone else's invitation to accept.
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post(
+        "/api/v1/access/organizations/org1/invitations/accept",
+        json={"target_uid": "someone-else"},  # must be ignored -- no such param on this route
+    )
+    assert resp.status_code == 200
+    call = org_ops.calls[0][1]
+    assert call["caller_uid"] == "alice"
+    assert "target_uid" not in call
+
+
+def test_decline_invitation_uses_only_the_authenticated_callers_own_uid():
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post("/api/v1/access/organizations/org1/invitations/decline", json={})
+    assert resp.status_code == 200
+    assert org_ops.calls[0][1]["caller_uid"] == "alice"
+
+
+def test_revoke_invitation_passes_authenticated_uid_and_admin_flag():
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ADMIN, org_ops=org_ops)
+    resp = client.post(
+        "/api/v1/access/organizations/org1/members/target-uid/revoke-invitation", json={}
+    )
+    assert resp.status_code == 200
+    call = org_ops.calls[0][1]
+    assert call["caller_uid"] == "admin-uid"
+    assert call["caller_is_admin"] is True
+    assert call["target_uid"] == "target-uid"
 
 
 def test_approve_membership_maps_forbidden_error_to_403_generic_message():
@@ -352,7 +408,28 @@ def test_get_my_permissions_always_uses_the_authenticated_uid():
 
 def test_get_my_permissions_returns_the_resolved_body():
     perm_ops = FakePermissionOps()
-    perm_ops.next_result = {"uid": "alice", "accountType": "office_employee", "permissions": {"edit_office_listing": True}}
+    perm_ops.next_result = {
+        "uid": "alice",
+        "accountType": "office_employee",
+        "globalPermissions": {"edit_office_listing": True},
+        "organization": None,
+    }
     client, _org_ops, _perm_ops = make_client(caller=ALICE, perm_ops=perm_ops)
     resp = client.get("/api/v1/access/me/permissions")
-    assert resp.json()["permissions"] == {"edit_office_listing": True}
+    assert resp.json()["globalPermissions"] == {"edit_office_listing": True}
+    assert resp.json()["organization"] is None
+
+
+def test_get_my_permissions_forwards_organization_id_query_param():
+    perm_ops = FakePermissionOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, perm_ops=perm_ops)
+    resp = client.get("/api/v1/access/me/permissions?organizationId=org1")
+    assert resp.status_code == 200
+    assert perm_ops.calls[0][1]["organization_id"] == "org1"
+
+
+def test_get_my_permissions_without_query_param_passes_none():
+    perm_ops = FakePermissionOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, perm_ops=perm_ops)
+    client.get("/api/v1/access/me/permissions")
+    assert perm_ops.calls[0][1]["organization_id"] is None

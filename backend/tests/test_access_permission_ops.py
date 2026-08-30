@@ -161,7 +161,7 @@ async def test_set_user_overrides_for_nonexistent_user_not_found(ops):
 
 async def test_get_effective_permissions_for_nonexistent_user_fails_closed(ops):
     result = await ops.get_effective_permissions(uid=_uid("ghost"))
-    assert result["permissions"] == {}
+    assert result["globalPermissions"] == {}
     assert result["accountType"] is None
 
 
@@ -169,7 +169,7 @@ async def test_get_effective_permissions_with_no_account_type_fails_closed(db, o
     uid = _uid("no-account-type")
     db.collection("users").document(uid).set({"role": "customer"})
     result = await ops.get_effective_permissions(uid=uid)
-    assert result["permissions"] == {}
+    assert result["globalPermissions"] == {}
 
 
 async def test_get_effective_permissions_resolves_defaults_plus_overrides(db, ops):
@@ -188,7 +188,7 @@ async def test_get_effective_permissions_resolves_defaults_plus_overrides(db, op
     result = await ops.get_effective_permissions(uid=uid)
 
     assert result["accountType"] == account_type
-    assert result["permissions"] == {"edit_office_listing": True, "manage_office_employees": True}
+    assert result["globalPermissions"] == {"edit_office_listing": True, "manage_office_employees": True}
 
 
 async def test_get_effective_permissions_never_resolves_a_protected_key(db, ops):
@@ -206,4 +206,195 @@ async def test_get_effective_permissions_never_resolves_a_protected_key(db, ops)
 
     result = await ops.get_effective_permissions(uid=uid)
 
-    assert result["permissions"] == {}
+    assert result["globalPermissions"] == {}
+
+
+# ---- get_effective_permissions with organization_id (Phase 2.1) ---------
+
+
+async def test_org_context_none_when_no_organization_id_given(db, ops):
+    uid = _uid("user")
+    db.collection("users").document(uid).set({"role": "customer"})
+    result = await ops.get_effective_permissions(uid=uid)
+    assert result["organization"] is None
+
+
+async def test_org_context_owner_gets_global_permissions_as_effective(db, ops):
+    account_type = _account_type("org_owner_furniture_store")
+    uid = _uid("owner")
+    org_id = _uid("org")
+    await ops.set_role_defaults(
+        account_type=account_type, permissions={"create_product": True}, caller_uid=_uid("admin"), caller_is_admin=True
+    )
+    db.collection("users").document(uid).set({"role": "customer", "accountType": account_type})
+    db.collection("organizations").document(org_id).set({"ownerId": uid, "type": "furniture_store", "name": "Store"})
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
+
+    assert result["organization"]["membershipStatus"] == "owner"
+    assert result["organization"]["effectivePermissions"] == {"create_product": True}
+
+
+async def test_org_context_active_member_gets_union_of_global_and_org_scoped(db, ops):
+    uid = _uid("employee")
+    org_id = _uid("org")
+    owner = _uid("owner")
+    db.collection("users").document(uid).set({"role": "customer"})  # no accountType at all
+    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).collection("members").document(uid).set(
+        {"role": "employee", "status": "active", "permissions": {"create_product": True}}
+    )
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
+
+    assert result["organization"]["membershipStatus"] == "active"
+    assert result["organization"]["organizationPermissions"] == {"create_product": True}
+    assert result["organization"]["effectivePermissions"] == {"create_product": True}
+
+
+async def test_org_context_pending_membership_grants_nothing(db, ops):
+    uid = _uid("applicant")
+    org_id = _uid("org")
+    owner = _uid("owner")
+    db.collection("users").document(uid).set({"role": "customer"})
+    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).collection("members").document(uid).set(
+        {"role": "employee", "status": "pending", "permissions": {"create_product": True}}
+    )
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
+
+    assert result["organization"]["membershipStatus"] == "pending"
+    assert result["organization"]["effectivePermissions"] == {}
+
+
+async def test_org_context_invited_membership_grants_nothing(db, ops):
+    uid = _uid("invitee")
+    org_id = _uid("org")
+    owner = _uid("owner")
+    db.collection("users").document(uid).set({"role": "customer"})
+    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).collection("members").document(uid).set(
+        {"role": "employee", "status": "invited", "permissions": {"create_product": True}}
+    )
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
+
+    assert result["organization"]["membershipStatus"] == "invited"
+    assert result["organization"]["effectivePermissions"] == {}
+
+
+async def test_org_context_removed_membership_no_doc_grants_nothing(db, ops):
+    uid = _uid("removed")
+    org_id = _uid("org")
+    owner = _uid("owner")
+    db.collection("users").document(uid).set({"role": "customer"})
+    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    # no member doc at all -- removal deletes it outright (organization_ops.py)
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
+
+    assert result["organization"]["membershipStatus"] == "none"
+    assert result["organization"]["effectivePermissions"] == {}
+
+
+async def test_org_context_nonexistent_org_is_none_not_an_error(db, ops):
+    uid = _uid("user")
+    db.collection("users").document(uid).set({"role": "customer"})
+    result = await ops.get_effective_permissions(uid=uid, organization_id="does-not-exist-" + uuid.uuid4().hex)
+    assert result["organization"]["membershipStatus"] == "none"
+    assert result["organization"]["effectivePermissions"] == {}
+
+
+async def test_org_a_membership_does_not_leak_into_org_b_context(db, ops):
+    uid = _uid("employee")
+    org_a = _uid("org-a")
+    org_b = _uid("org-b")
+    owner_a = _uid("owner-a")
+    owner_b = _uid("owner-b")
+    db.collection("users").document(uid).set({"role": "customer"})
+    db.collection("organizations").document(org_a).set({"ownerId": owner_a, "type": "furniture_store", "name": "A"})
+    db.collection("organizations").document(org_b).set({"ownerId": owner_b, "type": "furniture_store", "name": "B"})
+    db.collection("organizations").document(org_a).collection("members").document(uid).set(
+        {"role": "employee", "status": "active", "permissions": {"create_product": True}}
+    )
+    # uid has no membership record in org_b at all
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_b)
+
+    assert result["organization"]["membershipStatus"] == "none"
+    assert result["organization"]["effectivePermissions"] == {}
+
+
+async def test_org_context_never_resolves_a_protected_key_even_if_force_seeded(db, ops):
+    uid = _uid("employee")
+    org_id = _uid("org")
+    owner = _uid("owner")
+    db.collection("users").document(uid).set({"role": "customer"})
+    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).collection("members").document(uid).set(
+        {"role": "employee", "status": "active", "permissions": {"admin_access": True, "create_product": True}}
+    )
+
+    result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
+
+    assert result["organization"]["effectivePermissions"] == {"create_product": True}
+    assert "admin_access" not in result["organization"]["effectivePermissions"]
+
+
+# ---- denied-attempt audit visibility (Phase 2.1) -------------------------
+
+
+def _audit_entries(db, *, target_id: str) -> list[dict]:
+    return [d.to_dict() for d in db.collection("accessAuditLog").where("targetId", "==", target_id).stream()]
+
+
+async def test_set_role_defaults_by_non_admin_writes_denied_audit_entry(db, ops):
+    account_type = _account_type("office_employee")
+    caller = _uid("not-admin")
+    with pytest.raises(ForbiddenError):
+        await ops.set_role_defaults(
+            account_type=account_type, permissions={"create_listing": True}, caller_uid=caller, caller_is_admin=False
+        )
+    entries = [e for e in _audit_entries(db, target_id=account_type) if e["adminUid"] == caller]
+    assert len(entries) == 1
+    assert entries[0]["result"] == "denied"
+    assert entries[0]["reasonCode"] == "forbidden_not_admin"
+
+
+async def test_set_role_defaults_protected_key_writes_denied_audit_entry(db, ops):
+    account_type = _account_type("office_owner")
+    admin = _uid("admin")
+    with pytest.raises(ValidationError):
+        await ops.set_role_defaults(
+            account_type=account_type, permissions={"manage_platform_security": True}, caller_uid=admin, caller_is_admin=True
+        )
+    entries = [e for e in _audit_entries(db, target_id=account_type) if e["adminUid"] == admin]
+    denied = [e for e in entries if e["reasonCode"] == "protected_permission_escalation_attempt"]
+    assert len(denied) == 1
+
+
+async def test_set_user_overrides_by_non_admin_writes_denied_audit_entry(db, ops):
+    target = _uid("target")
+    caller = _uid("not-admin")
+    db.collection("users").document(target).set({"role": "customer"})
+    with pytest.raises(ForbiddenError):
+        await ops.set_user_overrides(
+            target_uid=target, permissions={"create_listing": True}, caller_uid=caller, caller_is_admin=False
+        )
+    entries = [e for e in _audit_entries(db, target_id=target) if e["adminUid"] == caller]
+    assert len(entries) == 1
+    assert entries[0]["result"] == "denied"
+
+
+async def test_denied_permission_audit_entries_never_contain_secrets(db, ops):
+    account_type = _account_type("office_owner")
+    caller = _uid("not-admin")
+    with pytest.raises(ForbiddenError):
+        await ops.set_role_defaults(
+            account_type=account_type, permissions={}, caller_uid=caller, caller_is_admin=False
+        )
+    entries = [e for e in _audit_entries(db, target_id=account_type) if e["adminUid"] == caller]
+    blob = repr(entries)
+    for forbidden_word in ("Authorization", "Bearer ", "idToken", "password", "otp", "OTP"):
+        assert forbidden_word not in blob

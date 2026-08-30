@@ -95,6 +95,21 @@ def create_app(
             methods=["POST"],
         )
         app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/invitations/accept",
+            organization_handler.accept_invitation,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/invitations/decline",
+            organization_handler.decline_invitation,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/members/{target_uid}/revoke-invitation",
+            organization_handler.revoke_invitation,
+            methods=["POST"],
+        )
+        app.add_api_route(
             "/api/v1/access/organizations/{org_id}/members/{target_uid}/approve",
             organization_handler.approve_membership,
             methods=["POST"],

@@ -115,11 +115,54 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId
         : null;
     }
+    // Phase 2.1 fix: this previously only checked exists() -- a PENDING
+    // self-request or an INVITED-but-not-yet-accepted record satisfied
+    // isOrgMember() the same as a real, active member, letting a mere
+    // applicant pass the org-membership gate on `products` before ever
+    // being approved. Now requires status=='active' explicitly (the
+    // owner, checked first via orgOwnerId(), has no member doc at all
+    // and is unaffected by this).
     function isOrgMember(orgId) {
       return isSignedIn() && (
         orgOwnerId(orgId) == request.auth.uid
-        || exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+        || (
+          exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+          && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'pending') == 'active'
+        )
       );
+    }
+    // Phase 2.1: an ACTIVE member's own org-scoped permission grants
+    // (organizations/{orgId}/members/{uid}.permissions, writable only by
+    // the trusted backend -- see the members match block below). {} for
+    // anyone not an active member, by construction (never pending,
+    // invited, rejected, or removed -- a removed/rejected record doesn't
+    // exist at all, per organization_ops.py's delete-on-reject/-remove
+    // design, so exists() alone already excludes those two states; the
+    // explicit status=='active' check here excludes 'pending'/'invited').
+    function orgMemberPermissions(orgId) {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+          && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'pending') == 'active'
+        ? get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('permissions', {})
+        : {};
+    }
+    // Phase 2.1: org-scoped permission check -- ADDITIVE union of the
+    // caller's global hasPermission(key) (their own accountType
+    // defaults/overrides, unscoped) with this SPECIFIC org's own grant
+    // to them, if any. An org-scoped grant can only ever ADD a
+    // capability beyond the caller's global defaults for actions taken
+    // inside that one org -- it can never revoke a globally-granted
+    // permission, and (like hasPermission()) a protected key can never
+    // resolve true through this path either, regardless of source. This
+    // is what makes organization_ops.update_member_permissions'
+    // (Phase 2) org-scoped grants actually consulted at write time,
+    // reconciled with the same union model
+    // app.access.permission_resolver.resolve_organization_permissions
+    // mirrors on the backend's /me/permissions read side.
+    function hasOrgPermission(orgId, key) {
+      return isSignedIn()
+          && !isProtectedPermissionKey(key)
+          && (hasPermission(key) || orgMemberPermissions(orgId).get(key, false) == true);
     }
     function providerOwnerId(providerId) {
       return exists(/databases/$(database)/documents/serviceProviders/$(providerId))
@@ -771,15 +814,25 @@ service cloud.firestore {
       // "Products must belong to the correct seller/organization. Do not
       // allow one store to modify another store's products" -- sellerId
       // is locked on update (BL-01 agentId-lock pattern) and every
-      // write requires current membership in that SPECIFIC org (checked
-      // against the actual request/resource sellerId, never trusted
-      // from elsewhere), gated further by the create_product/
-      // edit_own_product permission so mere org membership isn't itself
-      // sufficient without the matching capability.
+      // write requires current ACTIVE membership in that SPECIFIC org
+      // (isOrgMember, checked against the actual request/resource
+      // sellerId, never trusted from elsewhere), gated further by the
+      // create_product/edit_own_product permission -- Phase 2.1: now
+      // checked via hasOrgPermission() rather than the bare global
+      // hasPermission(), so a store owner's org-scoped grant to a
+      // specific employee (organizations/{orgId}/members/{uid}.permissions,
+      // Phase 2's update_member_permissions) is actually honored here,
+      // not just recorded and ignored. hasOrgPermission() still falls
+      // back to the caller's global accountType-level grant too (a
+      // union, per this module's header) -- an org owner whose OWN
+      // accountType defaults already include create_product/
+      // edit_own_product (the expected seeding for an
+      // org_owner_furniture_store accountType) needs no separate
+      // per-org grant for their own store.
       allow read: if true;
       allow create: if isAdmin()
                     || (isOrgMember(request.resource.data.sellerId)
-                        && hasPermission('create_product')
+                        && hasOrgPermission(request.resource.data.sellerId, 'create_product')
                         && get(/databases/$(database)/documents/organizations/$(request.resource.data.sellerId)).data.type == 'furniture_store'
                         && request.resource.data.name is string
                         && request.resource.data.name.size() > 0
@@ -794,7 +847,7 @@ service cloud.firestore {
       allow update: if isAdmin()
                     || (request.resource.data.sellerId == resource.data.sellerId
                         && isOrgMember(resource.data.sellerId)
-                        && hasPermission('edit_own_product')
+                        && hasOrgPermission(resource.data.sellerId, 'edit_own_product')
                         && request.resource.data.status in ['available', 'out_of_stock', 'hidden', 'sold_out']
                         && (request.resource.data.price is int || request.resource.data.price is float)
                         && request.resource.data.price >= 0
@@ -804,7 +857,7 @@ service cloud.firestore {
                                'discountPrice', 'images', 'status', 'condition', 'dimensions',
                                'material', 'color', 'deliveryAvailable', 'updatedAt'
                              ]));
-      allow delete: if isAdmin() || (isOrgMember(resource.data.sellerId) && hasPermission('edit_own_product'));
+      allow delete: if isAdmin() || (isOrgMember(resource.data.sellerId) && hasOrgPermission(resource.data.sellerId, 'edit_own_product'));
     }
 
     // ---- Admin Access & Permissions ----

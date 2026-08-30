@@ -7,6 +7,7 @@ from __future__ import annotations
 from app.access.permission_resolver import (
     has_permission,
     resolve_effective_permissions,
+    resolve_organization_permissions,
     validate_permission_write,
 )
 
@@ -128,3 +129,41 @@ def test_validate_permission_write_rejects_unknown_keys():
 def test_validate_permission_write_rejects_non_bool_values():
     error = validate_permission_write({"create_listing": "yes"})
     assert error is not None
+
+
+# ---- resolve_organization_permissions (Phase 2.1) --------------------
+
+
+def test_resolve_organization_permissions_is_a_union_with_global():
+    result = resolve_organization_permissions(
+        global_permissions={"create_listing": True},
+        org_member_permissions={"create_product": True},
+    )
+    assert result == {"create_listing": True, "create_product": True}
+
+
+def test_resolve_organization_permissions_never_revokes_a_global_grant():
+    result = resolve_organization_permissions(
+        global_permissions={"create_listing": True},
+        org_member_permissions={},
+    )
+    assert result == {"create_listing": True}
+
+
+def test_resolve_organization_permissions_with_no_org_grant_returns_global_unchanged():
+    result = resolve_organization_permissions(global_permissions={"create_listing": True}, org_member_permissions=None)
+    assert result == {"create_listing": True}
+
+
+def test_resolve_organization_permissions_excludes_protected_keys():
+    result = resolve_organization_permissions(
+        global_permissions={},
+        org_member_permissions={"admin_access": True, "create_product": True},
+    )
+    assert result == {"create_product": True}
+    assert "admin_access" not in result
+
+
+def test_resolve_organization_permissions_malformed_org_map_is_ignored_not_fatal():
+    result = resolve_organization_permissions(global_permissions={"create_listing": True}, org_member_permissions="not-a-dict")
+    assert result == {"create_listing": True}

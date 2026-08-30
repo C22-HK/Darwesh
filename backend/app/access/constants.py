@@ -63,12 +63,29 @@ def is_valid_public_account_type(value: object) -> bool:
 
 
 # Protected permissions (verbatim list from the approved architecture,
-# mirrors firestore.rules' isProtectedPermissionKey() exactly). No
-# endpoint in this package ever grants one of these through the generic
-# role-defaults/user-overrides mechanism -- see permission_ops.py's
-# module docstring for why, and PHASE2_REPORT in the commit message /
-# completion report for the explicit decision not to build a "grant a
-# protected permission" endpoint this phase.
+# mirrors firestore.rules' isProtectedPermissionKey() exactly).
+#
+# SECURITY INVARIANT (Phase 2, RE-CONFIRMED Phase 2.1 -- not revisited,
+# not softened): every key in this set is NEVER delegable through any of
+# rolePermissionDefaults, users/{uid}.permissionOverrides, or an
+# organization member's own `permissions` map (organizations/{orgId}/
+# members/{uid}.permissions) -- validate_permission_write() (used by
+# every write path onto all three: permission_ops.set_role_defaults,
+# permission_ops.set_user_overrides, organization_ops.update_member_permissions)
+# rejects any of these keys outright, for every caller including an
+# admin. resolve_effective_permissions()/resolve_organization_permissions()
+# additionally strip them out even on the READ side, and
+# firestore.rules' hasPermission()/hasOrgPermission() refuse them a
+# third, independent time at the rules layer -- so a bug in any ONE of
+# these three layers still can't alone grant one. Admin/system
+# authorization for a protected action continues to rely exclusively on
+# the caller's real `role=='admin'` (isAdmin() in rules,
+# CallerContext.is_admin in this backend) -- never on a permission flag.
+# No endpoint in this package grants one of these through ANY mechanism,
+# generic or dedicated -- see permission_ops.py's module docstring for
+# why a "grant a protected permission" endpoint was deliberately not
+# built (no rule currently consumes such a grant), and the Phase 2.1
+# completion report's final review for when that might change.
 PROTECTED_PERMISSIONS: frozenset[str] = frozenset(
     {
         "admin_access",
@@ -177,7 +194,25 @@ CLEANING_SERVICE_CATEGORIES: frozenset[str] = frozenset(
 # writes. 'pending' = a self-requested join awaiting the org owner's (or
 # an admin's) decision -- never itself a grant of access (mirrors the
 # requestedRole/requestedCompanyId non-authoritative-signal pattern
-# already established for signup). 'active' = real, approved membership.
+# already established for signup). 'invited' (Phase 2.1) = the owner/
+# admin sent an invitation the TARGET has not yet accepted -- also never
+# a grant of access; symmetric with 'pending' but the direction of
+# initiative is reversed (owner-initiated vs. self-initiated). 'active'
+# = real, approved/accepted membership -- the only status that ever
+# contributes to isOrgMember()/hasOrgPermission() (firestore.rules) or
+# resolve_organization_permissions() (this backend). A rejected/
+# declined/revoked/removed record is DELETED outright, not tombstoned
+# with a fourth status value -- see organization_ops.py.
 MEMBER_STATUS_PENDING = "pending"
+MEMBER_STATUS_INVITED = "invited"
 MEMBER_STATUS_ACTIVE = "active"
 MEMBER_ROLE_EMPLOYEE = "employee"
+
+# How long an owner/admin-issued invitation stays acceptable before it
+# must be reissued. Not enforced by a background sweep this phase (no
+# cron/scheduled-function infrastructure exists yet) -- checked lazily,
+# at accept time only: an expired invitation simply can never be
+# accepted (organization_ops.accept_invitation), and stays visible to
+# the owner/admin to revoke or the target to notice, until one of them
+# acts. See the Phase 2.1 completion report's "deferred" section.
+INVITATION_EXPIRY_DAYS = 14

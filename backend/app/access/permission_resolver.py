@@ -66,6 +66,43 @@ def resolve_effective_permissions(
     return resolved
 
 
+def resolve_organization_permissions(
+    *,
+    global_permissions: dict[str, bool],
+    org_member_permissions: dict | None,
+) -> dict[str, bool]:
+    """Phase 2.1: mirrors firestore.rules' hasOrgPermission()/
+    orgMemberPermissions() exactly -- the ADDITIVE union of the caller's
+    global effective permissions (already resolved via
+    resolve_effective_permissions above) with a SPECIFIC organization's
+    own grant to them. An org-scoped grant can only ever ADD a
+    capability beyond the caller's global defaults for that one org --
+    it never revokes a globally-granted permission, and a protected key
+    is excluded unconditionally regardless of source, exactly like every
+    other resolution function in this module.
+
+    `org_member_permissions` must already be the CALLER's own, ACTIVE
+    membership record's `permissions` map for this ONE organization --
+    the caller (permission_ops.get_effective_permissions) is responsible
+    for having validated the membership is active (or that the caller is
+    the org's owner, whose access derives from ownerId directly and
+    never calls this function at all -- see that module) before ever
+    passing a non-empty map here. This function does not itself check
+    membership status, org existence, or which org is being asked about
+    -- it only combines two already-resolved permission maps, so it can
+    never be the source of a cross-org leak: the caller decides, once,
+    which single org's `permissions` map gets passed in for this one
+    resolution."""
+    org_perms = org_member_permissions if isinstance(org_member_permissions, dict) else {}
+    combined = dict(global_permissions)
+    for key, value in org_perms.items():
+        if key in PROTECTED_PERMISSIONS:
+            continue
+        if value is True:
+            combined[key] = True
+    return combined
+
+
 def has_permission(key: str, *, effective_permissions: dict[str, bool]) -> bool:
     """Single-key convenience check, mirroring firestore.rules'
     hasPermission(key). A protected key is refused unconditionally, even
