@@ -130,6 +130,7 @@ class FakeAccountOps:
         company_id: str | None = None,
         requested_company_id: str | None = None,
         requested_company_name: str | None = None,
+        account_type: str | None = None,
     ) -> None:
         if self.fail_profile_write:
             raise RuntimeError("firestore down")
@@ -143,6 +144,7 @@ class FakeAccountOps:
                 "company_id": company_id,
                 "requested_company_id": requested_company_id,
                 "requested_company_name": requested_company_name,
+                "account_type": account_type,
             }
         )
 

@@ -24,6 +24,8 @@ def create_app(
     email_otp_verify_handler: object | None = None,
     signup_complete_handler: object | None = None,
     password_reset_confirm_handler: object | None = None,
+    organization_handler: object | None = None,
+    permission_admin_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -34,7 +36,11 @@ def create_app(
     password_reset_confirm handlers back the email-OTP signup and
     password-recovery flow -- both can be registered at once (the legacy
     link-based flow stays available as a fallback for any account) or
-    independently."""
+    independently. organization_handler/permission_admin_handler back the
+    Profile Architecture Phase 2 access-management endpoints (see
+    app.access.handlers) -- registered together (both come from
+    app.main.build_access_handlers, gated on the same Firebase Admin
+    credential check)."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -75,6 +81,55 @@ def create_app(
             "/api/v1/auth/password-reset/confirm",
             password_reset_confirm_handler.confirm,
             methods=["POST"],
+        )
+    if organization_handler is not None:
+        app.add_api_route("/api/v1/access/organizations", organization_handler.create, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/membership-requests",
+            organization_handler.request_membership,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/members/{target_uid}/invite",
+            organization_handler.invite_member,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/members/{target_uid}/approve",
+            organization_handler.approve_membership,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/members/{target_uid}/reject",
+            organization_handler.reject_membership,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/members/{target_uid}/remove",
+            organization_handler.remove_member,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/members/{target_uid}/permissions",
+            organization_handler.set_member_permissions,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/organizations/{org_id}/transfer-ownership",
+            organization_handler.transfer_ownership,
+            methods=["POST"],
+        )
+    if permission_admin_handler is not None:
+        app.add_api_route(
+            "/api/v1/access/role-defaults", permission_admin_handler.set_role_defaults, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/access/users/{target_uid}/permission-overrides",
+            permission_admin_handler.set_user_overrides,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/me/permissions", permission_admin_handler.get_my_permissions, methods=["GET"]
         )
 
     return app

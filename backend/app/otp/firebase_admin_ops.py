@@ -159,6 +159,7 @@ class FirebaseAccountOps:
         company_id: str | None = None,
         requested_company_id: str | None = None,
         requested_company_name: str | None = None,
+        account_type: str | None = None,
     ) -> None:
         """Writes users/{uid} via the Admin SDK -- bypasses firestore.rules
         entirely (as any Admin SDK write does), which is expected and
@@ -185,25 +186,43 @@ class FirebaseAccountOps:
         matching name can never be trusted as proof of real membership,
         so `company_id` stays null and an admin must explicitly approve
         the join (setting the real companyId themselves) before this
-        account gets any company-scoped access at all."""
+        account gets any company-scoped access at all.
+
+        `account_type` (Profile Architecture Phase 2): the caller
+        (email_handler.py) has already validated this against the exact
+        same canonical, non-'admin' allowlist firestore.rules'
+        isValidSelfAccountType() enforces (app.access.constants.
+        is_valid_public_account_type) before this is ever called -- this
+        method itself does not re-validate the value, same trust
+        boundary as requested_role above. Omitted entirely (not written
+        as a null field) when not provided, so an existing signup flow
+        that never sends accountType produces the EXACT same document
+        shape it always has -- no behavior change for the current
+        customer/agent signup paths. It is purely a UI-routing hint,
+        never itself checked by any authorization rule (see
+        firestore.rules' myAccountType()/hasPermission() and this
+        backend's app.access.permission_resolver, both of which fail
+        closed on a missing or unrecognized value rather than granting
+        anything from its mere presence)."""
 
         def _write() -> None:
-            self._db.collection("users").document(uid).set(
-                {
-                    "displayName": display_name,
-                    "email": email,
-                    "phone": phone_e164,
-                    "role": "customer",
-                    "requestedRole": requested_role,
-                    "companyId": company_id,
-                    "requestedCompanyId": requested_company_id,
-                    "requestedCompanyName": requested_company_name,
-                    "phoneVerified": True,
-                    "phoneVerifiedAt": fb_firestore.SERVER_TIMESTAMP,
-                    "emailVerified": True,
-                    "createdAt": fb_firestore.SERVER_TIMESTAMP,
-                }
-            )
+            data = {
+                "displayName": display_name,
+                "email": email,
+                "phone": phone_e164,
+                "role": "customer",
+                "requestedRole": requested_role,
+                "companyId": company_id,
+                "requestedCompanyId": requested_company_id,
+                "requestedCompanyName": requested_company_name,
+                "phoneVerified": True,
+                "phoneVerifiedAt": fb_firestore.SERVER_TIMESTAMP,
+                "emailVerified": True,
+                "createdAt": fb_firestore.SERVER_TIMESTAMP,
+            }
+            if account_type:
+                data["accountType"] = account_type
+            self._db.collection("users").document(uid).set(data)
 
         await asyncio.to_thread(_write)
 

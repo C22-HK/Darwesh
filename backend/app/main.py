@@ -14,6 +14,12 @@ import sys
 
 import uvicorn
 
+from app.access.auth_context import FirebaseIdTokenVerifier
+from app.access.caller_context import AuthGate
+from app.access.firebase_clients import AccessFirebaseClients
+from app.access.handlers import OrganizationHandler, PermissionAdminHandler
+from app.access.organization_ops import OrganizationOps
+from app.access.permission_ops import PermissionOps
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import FirestoreRateLimiter, Handler, InMemoryRateLimiter
@@ -205,6 +211,78 @@ def build_email_otp_handlers(
     )
 
 
+def build_access_handlers(cfg: Config) -> tuple[OrganizationHandler | None, PermissionAdminHandler | None]:
+    """Wires up the Profile Architecture Phase 2 access-management
+    endpoints (organization membership/ownership, role defaults, user
+    permission overrides, effective-permissions read). Requires only a
+    way to authenticate Firebase Admin -- same
+    FIREBASE_SERVICE_ACCOUNT_JSON-or-ADC gate as every other Firebase-
+    backed feature -- deliberately independent of OTP_HMAC_SECRET/
+    RESEND_API_KEY/RESET_EMAIL_FROM, since these endpoints act on an
+    already-signed-in user's Firebase ID token and send no email at all;
+    they must be available even when the email-OTP signup flow isn't."""
+    if not _has_firebase_credential(cfg):
+        logger.info(
+            "Access-management endpoints not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or "
+            "deploy with APP_ENV=production to use Application Default Credentials -- to enable them)"
+        )
+        return None, None
+
+    try:
+        clients = AccessFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id)
+    except ValueError as exc:
+        logger.error("Access-management endpoints misconfigured, skipping", extra={"error": str(exc)})
+        return None, None
+
+    db = clients.firestore_client
+    auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
+    org_ops = OrganizationOps(db, logger=logger)
+    perm_ops = PermissionOps(db, logger=logger)
+
+    # Firestore-backed in production (multi-instance Cloud Run, same
+    # INFRA-01 reasoning as every other rate limiter in this backend),
+    # in-memory in development/tests. Limits are deliberately generous
+    # for the read endpoint and tighter for the most sensitive mutation
+    # (ownership transfer) -- see handlers.py's OrganizationHandler
+    # docstring for why each action family gets its own independently-
+    # namespaced limiter rather than sharing one counter.
+    if cfg.is_production:
+        create_limiter = FirestoreRateLimiter(db, name="access_org_create", limit=5, window_seconds=60 * 60, logger=logger)
+        membership_limiter = FirestoreRateLimiter(
+            db, name="access_membership", limit=30, window_seconds=60 * 60, logger=logger
+        )
+        ownership_transfer_limiter = FirestoreRateLimiter(
+            db, name="access_ownership_transfer", limit=5, window_seconds=60 * 60, logger=logger
+        )
+        mutation_limiter = FirestoreRateLimiter(
+            db, name="access_permission_mutation", limit=60, window_seconds=60 * 60, logger=logger
+        )
+        read_limiter = FirestoreRateLimiter(
+            db, name="access_permission_read", limit=120, window_seconds=60 * 60, logger=logger
+        )
+    else:
+        create_limiter = InMemoryRateLimiter(limit=5, window_seconds=60 * 60)
+        membership_limiter = InMemoryRateLimiter(limit=30, window_seconds=60 * 60)
+        ownership_transfer_limiter = InMemoryRateLimiter(limit=5, window_seconds=60 * 60)
+        mutation_limiter = InMemoryRateLimiter(limit=60, window_seconds=60 * 60)
+        read_limiter = InMemoryRateLimiter(limit=120, window_seconds=60 * 60)
+
+    logger.info("Access-management endpoints enabled")
+    return (
+        OrganizationHandler(
+            ops=org_ops,
+            auth=auth_gate,
+            create_limiter=create_limiter,
+            membership_limiter=membership_limiter,
+            ownership_transfer_limiter=ownership_transfer_limiter,
+            logger=logger,
+        ),
+        PermissionAdminHandler(
+            ops=perm_ops, auth=auth_gate, mutation_limiter=mutation_limiter, read_limiter=read_limiter, logger=logger
+        ),
+    )
+
+
 def create_configured_app():
     cfg = load()
     logging.basicConfig(
@@ -216,6 +294,7 @@ def create_configured_app():
     email_otp_send_handler, email_otp_verify_handler, signup_complete_handler, password_reset_confirm_handler = (
         build_email_otp_handlers(cfg)
     )
+    organization_handler, permission_admin_handler = build_access_handlers(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -223,6 +302,8 @@ def create_configured_app():
         email_otp_verify_handler,
         signup_complete_handler,
         password_reset_confirm_handler,
+        organization_handler,
+        permission_admin_handler,
     )
 
 

@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from app.access.constants import is_valid_public_account_type
 from app.auth.reset import RateLimiter
 from app.otp.email_address import InvalidEmailAddress, normalize_email
 from app.otp.firebase_admin_ops import AccountAlreadyExists, FirebaseAccountOps
@@ -185,6 +186,7 @@ class SignupCompleteHandler:
         phone_raw = body.get("phoneNumber", "")
         requested_role = body.get("requestedRole", "customer")
         company_name = body.get("companyName", "")
+        account_type_raw = body.get("accountType")
 
         if not isinstance(token, str) or not token:
             return JSONResponse({"error": "Missing or invalid verification token."}, status_code=400)
@@ -212,6 +214,21 @@ class SignupCompleteHandler:
                     status_code=400,
                 )
             company_id = _slugify_company(company_name)
+        # accountType (Profile Architecture Phase 2): optional, and
+        # validated against the exact canonical allowlist firestore.rules'
+        # isValidSelfAccountType() enforces -- 'admin' and anything
+        # unrecognized are rejected outright, never silently coerced to a
+        # default (fail closed, matching this whole architecture's
+        # standing rule: an unrecognized value must never quietly become
+        # "customer" or anything else). Omitting the field entirely (the
+        # current, unmodified frontend's behavior) is unaffected -- no
+        # validation runs, no field is written, byte-identical to before
+        # this change.
+        account_type: str | None = None
+        if account_type_raw is not None:
+            if not is_valid_public_account_type(account_type_raw):
+                return JSONResponse({"error": "Invalid account type."}, status_code=400)
+            account_type = account_type_raw
 
         # try_consume_reset_token atomically checks-and-marks the token
         # consumed in one store operation -- two concurrent requests
@@ -290,6 +307,7 @@ class SignupCompleteHandler:
                 company_id=trusted_company_id,
                 requested_company_id=requested_company_id,
                 requested_company_name=requested_company_name,
+                account_type=account_type,
             )
         except Exception as exc:
             self.logger.error(
