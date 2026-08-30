@@ -321,6 +321,48 @@ class OrganizationHandler:
             return JSONResponse({"error": "Could not transfer ownership right now."}, status_code=500)
         return JSONResponse({"status": "transferred"}, status_code=200)
 
+    async def list_my_organizations(self, request: Request) -> JSONResponse:
+        """GET /api/v1/access/me/organizations. Reuses membership_limiter
+        -- this is a read, but still per-uid rate-limited like every
+        other endpoint here rather than left unbounded."""
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        try:
+            organizations = await self.ops.list_my_organizations(uid=caller.uid)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("list my organizations failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not list your organizations right now."}, status_code=500)
+        return JSONResponse({"organizations": organizations}, status_code=200)
+
+    async def set_active_organization(self, request: Request) -> JSONResponse:
+        """POST /api/v1/access/me/active-organization {"organizationId": "..."|null}.
+        Server independently revalidates real (owner or active-member)
+        access to the named org before writing anything -- see
+        OrganizationOps.set_active_organization's docstring for why this
+        never itself grants access and is not audit-logged."""
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        raw = body.get("organizationId")
+        if raw is not None and not isinstance(raw, str):
+            return JSONResponse({"error": "'organizationId' must be a string or null."}, status_code=400)
+        try:
+            await self.ops.set_active_organization(uid=caller.uid, organization_id=raw)
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("set active organization failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not set your active organization right now."}, status_code=500)
+        return JSONResponse({"activeOrganizationId": raw}, status_code=200)
+
 
 @dataclass
 class PermissionAdminHandler:

@@ -134,6 +134,14 @@ def create_app(
             organization_handler.transfer_ownership,
             methods=["POST"],
         )
+        app.add_api_route(
+            "/api/v1/access/me/organizations", organization_handler.list_my_organizations, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/access/me/active-organization",
+            organization_handler.set_active_organization,
+            methods=["POST"],
+        )
     if permission_admin_handler is not None:
         app.add_api_route(
             "/api/v1/access/role-defaults", permission_admin_handler.set_role_defaults, methods=["POST"]

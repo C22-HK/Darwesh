@@ -198,6 +198,15 @@ class OrganizationOps:
                 txn.set(
                     member_ref,
                     {
+                        # Phase 2.2: `uid` duplicates this doc's own id as
+                        # a real field -- Firestore collection-group
+                        # queries (list_my_organizations() below) can't
+                        # filter by "document id equals X" across
+                        # multiple orgs' members subcollections, only by
+                        # a field value, so this is what makes "every
+                        # organization I belong to, across all orgs"
+                        # queryable at all.
+                        "uid": caller_uid,
                         "role": MEMBER_ROLE_EMPLOYEE,
                         "status": MEMBER_STATUS_PENDING,
                         "permissions": {},
@@ -264,6 +273,7 @@ class OrganizationOps:
                 txn.set(
                     member_ref,
                     {
+                        "uid": target_uid,  # Phase 2.2: see request_membership's identical comment
                         "role": MEMBER_ROLE_EMPLOYEE,
                         "status": MEMBER_STATUS_INVITED,
                         "permissions": {},
@@ -780,5 +790,125 @@ class OrganizationOps:
                     reason_code="ownership_transfer_target_not_eligible",
                 )
                 raise exc
+
+        await asyncio.to_thread(_op)
+
+    # ---- multi-organization context (Phase 2.2) ------------------------
+
+    async def list_my_organizations(self, *, uid: str) -> list[dict]:
+        """GET /me/organizations. Returns every organization the caller
+        has a REAL, currently-relevant relationship to: owns, or holds
+        ANY membership record in (active/pending/invited -- the caller
+        needs to see a pending self-request or an incoming invitation
+        here too, that's the whole point of a "my organizations" list;
+        this is a READ, so exposing membershipStatus='pending'/'invited'
+        grants nothing, unlike the fail-closed rule for effective
+        PERMISSIONS in that state). Two independent lookups, never one
+        inferred from the other:
+          1. organizations where ownerId == uid (a direct, indexed,
+             already-public-read query -- no new index needed).
+          2. a collection-group query across every org's `members`
+             subcollection, filtered by the `uid` field (see
+             request_membership/invite_member's `"uid": ...` write) --
+             REQUIRES a Firestore collection-group index on
+             `members.uid` (see firestore.indexes.json) to succeed in
+             production; the local emulator does not enforce this the
+             same way, so a passing emulator test alone does not prove
+             the index exists where it will actually matter."""
+
+        def _read() -> list[dict]:
+            results: dict[str, dict] = {}
+
+            owned_query = self._db.collection("organizations").where("ownerId", "==", uid)
+            for org_snap in owned_query.stream():
+                org_data = org_snap.to_dict() or {}
+                results[org_snap.id] = {
+                    "organizationId": org_snap.id,
+                    "name": org_data.get("name"),
+                    "type": org_data.get("type"),
+                    "membershipStatus": "owner",
+                    "memberRole": None,
+                    "isOwner": True,
+                }
+
+            member_query = self._db.collection_group("members").where("uid", "==", uid)
+            for member_snap in member_query.stream():
+                org_ref = member_snap.reference.parent.parent
+                if org_ref is None or org_ref.id in results:
+                    continue  # already listed as owner, or a malformed path -- skip, never guess
+                member_data = member_snap.to_dict() or {}
+                status = member_data.get("status")
+                if status not in (MEMBER_STATUS_ACTIVE, MEMBER_STATUS_PENDING, MEMBER_STATUS_INVITED):
+                    continue  # an unrecognized/malformed status is never listed as real access
+                org_snap = org_ref.get()
+                if not org_snap.exists:
+                    continue  # dangling reference (org deleted) -- fail safe, omit rather than guess
+                org_data = org_snap.to_dict() or {}
+                results[org_ref.id] = {
+                    "organizationId": org_ref.id,
+                    "name": org_data.get("name"),
+                    "type": org_data.get("type"),
+                    "membershipStatus": status,
+                    "memberRole": member_data.get("role"),
+                    "isOwner": False,
+                }
+
+            return list(results.values())
+
+        return await asyncio.to_thread(_read)
+
+    async def set_active_organization(self, *, uid: str, organization_id: str | None) -> None:
+        """POST /me/active-organization. Writes users/{uid}.activeOrganizationId
+        -- ALWAYS after server-side revalidation that the caller currently
+        owns or is an ACTIVE member of `organization_id` (pending/invited
+        is not enough -- selecting an org you've only been invited to,
+        or merely requested, must not silently be treated as "current
+        org"). `organization_id=None` clears it (e.g. the user left/was
+        removed from their only organization).
+
+        This is a UX/navigation preference, not a permission grant --
+        matches this module's docstring convention, this method does
+        not write an accessAuditLog entry (success or denied): it
+        changes nothing about what the caller can DO, only which org
+        context the frontend defaults to next, so it carries none of
+        the audit obligations a real permission/ownership/membership
+        mutation does. Every real authorization check elsewhere
+        (isOrgMember(), hasOrgPermission(), PermissionOps.
+        get_effective_permissions) independently re-verifies membership
+        every time regardless of what this field currently says --
+        never trusts it, and never falls back to a DIFFERENT
+        organization if the stored value turns out to be stale (fails
+        closed to "no org context selected", not to "guess one")."""
+        if organization_id is None:
+            def _clear() -> None:
+                self._db.collection("users").document(uid).update({"activeOrganizationId": None})
+
+            await asyncio.to_thread(_clear)
+            return
+
+        org_ref = self._db.collection("organizations").document(organization_id)
+        member_ref = org_ref.collection("members").document(uid)
+        user_ref = self._db.collection("users").document(uid)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                org_snap = org_ref.get(transaction=txn)
+                if not org_snap.exists:
+                    raise NotFoundError(f"organization '{organization_id}' does not exist")
+                is_owner = org_snap.get("ownerId") == uid
+                if not is_owner:
+                    member_snap = member_ref.get(transaction=txn)
+                    if not member_snap.exists or member_snap.get("status") != MEMBER_STATUS_ACTIVE:
+                        raise ValidationError(
+                            "you do not currently have active access to this organization"
+                        )
+                if not user_ref.get(transaction=txn).exists:
+                    raise NotFoundError("no user profile exists for this account")
+                txn.update(user_ref, {"activeOrganizationId": organization_id})
+
+            _txn(transaction)
 
         await asyncio.to_thread(_op)

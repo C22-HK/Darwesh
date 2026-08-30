@@ -82,6 +82,12 @@ class FakeOrganizationOps:
     async def transfer_ownership(self, **kwargs):
         self._record("transfer_ownership", **kwargs)
 
+    async def list_my_organizations(self, **kwargs):
+        return self._record("list_my_organizations", **kwargs) or []
+
+    async def set_active_organization(self, **kwargs):
+        self._record("set_active_organization", **kwargs)
+
 
 class FakePermissionOps:
     def __init__(self):
@@ -355,6 +361,66 @@ def test_transfer_ownership_uses_its_own_stricter_rate_limiter():
 
     assert ok_resp.status_code == 201
     assert limited_resp.status_code == 429
+
+
+# ---- multi-organization context (Phase 2.2) --------------------------
+
+
+def test_list_my_organizations_returns_ops_result():
+    org_ops = FakeOrganizationOps()
+    org_ops.next_result = [
+        {"organizationId": "org1", "name": "Store", "type": "furniture_store", "membershipStatus": "owner", "memberRole": None, "isOwner": True}
+    ]
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.get("/api/v1/access/me/organizations")
+    assert resp.status_code == 200
+    assert resp.json()["organizations"][0]["organizationId"] == "org1"
+    assert org_ops.calls[0][1]["uid"] == "alice"
+
+
+def test_list_my_organizations_requires_auth():
+    client, _org_ops, _perm_ops = make_client(caller=None)
+    resp = client.get("/api/v1/access/me/organizations")
+    assert resp.status_code == 401
+
+
+def test_set_active_organization_passes_authenticated_uid_and_org_id():
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post("/api/v1/access/me/active-organization", json={"organizationId": "org1"})
+    assert resp.status_code == 200
+    assert org_ops.calls[0][1] == {"uid": "alice", "organization_id": "org1"}
+    assert resp.json()["activeOrganizationId"] == "org1"
+
+
+def test_set_active_organization_accepts_null_to_clear():
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post("/api/v1/access/me/active-organization", json={"organizationId": None})
+    assert resp.status_code == 200
+    assert org_ops.calls[0][1]["organization_id"] is None
+
+
+def test_set_active_organization_rejects_non_string_org_id():
+    org_ops = FakeOrganizationOps()
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post("/api/v1/access/me/active-organization", json={"organizationId": 12345})
+    assert resp.status_code == 400
+    assert org_ops.calls == []
+
+
+def test_set_active_organization_maps_validation_error_to_400():
+    org_ops = FakeOrganizationOps()
+    org_ops.next_error = ValidationError("you do not currently have active access to this organization")
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post("/api/v1/access/me/active-organization", json={"organizationId": "not-mine"})
+    assert resp.status_code == 400
+
+
+def test_set_active_organization_requires_auth():
+    client, _org_ops, _perm_ops = make_client(caller=None)
+    resp = client.post("/api/v1/access/me/active-organization", json={"organizationId": "org1"})
+    assert resp.status_code == 401
 
 
 # ---- permission admin: role defaults / user overrides / effective read --

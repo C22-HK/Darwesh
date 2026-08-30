@@ -533,7 +533,16 @@ describe('users/{uid} regression (create/update touched by this phase)', () => {
     await assertFails(setDoc(doc(db, 'users', CUSTOMER), { role: 'customer', accountType: 'admin', createdAt: 'x' }));
   });
 
-  it('a brand-new signup MAY NOT self-set organizationId at all', async () => {
+  it('a brand-new signup MAY NOT self-set activeOrganizationId at all', async () => {
+    // Phase 2.2: this field was renamed from `organizationId` (which
+    // had zero production writers anywhere in the repo, confirmed
+    // before renaming) -- same "not in the create allowlist at all"
+    // treatment either way.
+    const db = dbFor(testEnv, CUSTOMER);
+    await assertFails(setDoc(doc(db, 'users', CUSTOMER), { role: 'customer', activeOrganizationId: 'some-org', createdAt: 'x' }));
+  });
+
+  it('a brand-new signup MAY NOT self-set the legacy organizationId name either', async () => {
     const db = dbFor(testEnv, CUSTOMER);
     await assertFails(setDoc(doc(db, 'users', CUSTOMER), { role: 'customer', organizationId: 'some-org', createdAt: 'x' }));
   });

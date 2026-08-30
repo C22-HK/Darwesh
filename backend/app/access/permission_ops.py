@@ -216,7 +216,7 @@ class PermissionOps:
                     "uid": uid,
                     "role": None,
                     "accountType": None,
-                    "organizationId": None,
+                    "activeOrganizationId": None,
                     "globalPermissions": {},
                     "organization": None,
                 }
@@ -240,7 +240,13 @@ class PermissionOps:
                 "uid": uid,
                 "role": data.get("role"),
                 "accountType": account_type,
-                "organizationId": data.get("organizationId"),
+                # Phase 2.2: renamed from `organizationId` (dead field,
+                # zero production writers -- see firestore.rules' Phase
+                # 2.2 comment). `.get('organizationId')` fallback costs
+                # nothing and covers a document hand-edited under the
+                # old name; it is never treated as authoritative for
+                # anything beyond this purely informational echo.
+                "activeOrganizationId": data.get("activeOrganizationId", data.get("organizationId")),
                 "globalPermissions": global_permissions,
                 "organization": None,
             }

@@ -698,3 +698,263 @@ async def test_ordinary_not_found_does_not_create_audit_noise(db, ops):
 
     entries = [d.to_dict() for d in db.collection("accessAuditLog").stream()]
     assert not any(e.get("action") == "request_membership_denied" for e in entries)
+
+
+# ---- multi-organization context (Phase 2.2) --------------------------
+
+
+async def test_list_my_organizations_includes_owned_orgs(db, ops):
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="My Store")
+
+    result = await ops.list_my_organizations(uid=owner)
+
+    assert len(result) == 1
+    assert result[0]["organizationId"] == org_id
+    assert result[0]["membershipStatus"] == "owner"
+    assert result[0]["isOwner"] is True
+
+
+async def test_list_my_organizations_includes_active_pending_and_invited(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner_a = _uid("owner-a")
+    owner_b = _uid("owner-b")
+    owner_c = _uid("owner-c")
+    org_active = await ops.create_organization(caller_uid=owner_a, org_type="furniture_store", name="Active Co")
+    org_pending = await ops.create_organization(caller_uid=owner_b, org_type="furniture_store", name="Pending Co")
+    org_invited = await ops.create_organization(caller_uid=owner_c, org_type="furniture_store", name="Invited Co")
+    await _invite_and_accept(ops, org_id=org_active, target_uid=employee, caller_uid=owner_a)
+    await ops.request_membership(org_id=org_pending, caller_uid=employee)
+    await ops.invite_member(org_id=org_invited, target_uid=employee, caller_uid=owner_c, caller_is_admin=False)
+
+    result = await ops.list_my_organizations(uid=employee)
+
+    by_id = {r["organizationId"]: r for r in result}
+    assert len(result) == 3
+    assert by_id[org_active]["membershipStatus"] == "active"
+    assert by_id[org_pending]["membershipStatus"] == "pending"
+    assert by_id[org_invited]["membershipStatus"] == "invited"
+    assert all(r["isOwner"] is False for r in result)
+
+
+async def test_list_my_organizations_two_active_memberships_both_appear(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner_a = _uid("owner-a")
+    owner_b = _uid("owner-b")
+    org_a = await ops.create_organization(caller_uid=owner_a, org_type="furniture_store", name="Org A")
+    org_b = await ops.create_organization(caller_uid=owner_b, org_type="furniture_store", name="Org B")
+    await _invite_and_accept(ops, org_id=org_a, target_uid=employee, caller_uid=owner_a)
+    await _invite_and_accept(ops, org_id=org_b, target_uid=employee, caller_uid=owner_b)
+
+    result = await ops.list_my_organizations(uid=employee)
+
+    ids = {r["organizationId"] for r in result}
+    assert ids == {org_a, org_b}
+    assert all(r["membershipStatus"] == "active" for r in result)
+
+
+async def test_list_my_organizations_removed_membership_is_absent(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await _invite_and_accept(ops, org_id=org_id, target_uid=employee, caller_uid=owner)
+    await ops.remove_member(org_id=org_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
+
+    result = await ops.list_my_organizations(uid=employee)
+
+    assert result == []
+
+
+async def test_list_my_organizations_empty_for_a_user_with_no_relationships(ops):
+    result = await ops.list_my_organizations(uid=_uid("nobody"))
+    assert result == []
+
+
+# ---- active organization selection (Phase 2.2) ------------------------
+
+
+async def test_set_active_organization_by_owner_succeeds(db, ops):
+    owner = _uid("owner")
+    await _seed_user(db, owner)
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    await ops.set_active_organization(uid=owner, organization_id=org_id)
+
+    user = db.collection("users").document(owner).get()
+    assert user.get("activeOrganizationId") == org_id
+
+
+async def test_set_active_organization_by_active_member_succeeds(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await _invite_and_accept(ops, org_id=org_id, target_uid=employee, caller_uid=owner)
+
+    await ops.set_active_organization(uid=employee, organization_id=org_id)
+
+    user = db.collection("users").document(employee).get()
+    assert user.get("activeOrganizationId") == org_id
+
+
+async def test_set_active_organization_by_pending_applicant_rejected(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await ops.request_membership(org_id=org_id, caller_uid=employee)
+
+    with pytest.raises(ValidationError):
+        await ops.set_active_organization(uid=employee, organization_id=org_id)
+
+    user = db.collection("users").document(employee).get()
+    assert (user.to_dict() or {}).get("activeOrganizationId") is None
+
+
+async def test_set_active_organization_by_invited_not_yet_accepted_rejected(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await ops.invite_member(org_id=org_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
+
+    with pytest.raises(ValidationError):
+        await ops.set_active_organization(uid=employee, organization_id=org_id)
+
+
+async def test_set_active_organization_with_no_relationship_at_all_rejected(db, ops):
+    stranger = _uid("stranger")
+    await _seed_user(db, stranger)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    with pytest.raises(ValidationError):
+        await ops.set_active_organization(uid=stranger, organization_id=org_id)
+
+
+async def test_set_active_organization_nonexistent_org_not_found(ops):
+    with pytest.raises(NotFoundError):
+        await ops.set_active_organization(uid=_uid("someone"), organization_id="does-not-exist-" + uuid.uuid4().hex)
+
+
+async def test_set_active_organization_none_clears_it(db, ops):
+    owner = _uid("owner")
+    await _seed_user(db, owner)
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await ops.set_active_organization(uid=owner, organization_id=org_id)
+
+    await ops.set_active_organization(uid=owner, organization_id=None)
+
+    user = db.collection("users").document(owner).get()
+    assert user.get("activeOrganizationId") is None
+
+
+async def test_switching_active_organization_does_not_change_memberships(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner_a = _uid("owner-a")
+    owner_b = _uid("owner-b")
+    org_a = await ops.create_organization(caller_uid=owner_a, org_type="furniture_store", name="Org A")
+    org_b = await ops.create_organization(caller_uid=owner_b, org_type="furniture_store", name="Org B")
+    await _invite_and_accept(ops, org_id=org_a, target_uid=employee, caller_uid=owner_a)
+    await _invite_and_accept(ops, org_id=org_b, target_uid=employee, caller_uid=owner_b)
+
+    await ops.set_active_organization(uid=employee, organization_id=org_a)
+    await ops.set_active_organization(uid=employee, organization_id=org_b)
+
+    member_a = db.collection("organizations").document(org_a).collection("members").document(employee).get()
+    member_b = db.collection("organizations").document(org_b).collection("members").document(employee).get()
+    assert member_a.get("status") == "active"
+    assert member_b.get("status") == "active"
+    user = db.collection("users").document(employee).get()
+    assert user.get("activeOrganizationId") == org_b
+
+
+async def test_removed_organization_invalidates_it_as_a_future_active_selection(db, ops):
+    # Once removed, the org can no longer be (re-)selected as active --
+    # proves "if activeOrganizationId becomes invalid, fail safely"
+    # holds at the point of re-validation, not just at initial selection.
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await _invite_and_accept(ops, org_id=org_id, target_uid=employee, caller_uid=owner)
+    await ops.set_active_organization(uid=employee, organization_id=org_id)
+    await ops.remove_member(org_id=org_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
+
+    with pytest.raises(ValidationError):
+        await ops.set_active_organization(uid=employee, organization_id=org_id)
+
+
+async def test_set_active_organization_never_falls_back_to_a_different_org(db, ops):
+    # If the requested org is invalid, the write must be REJECTED, never
+    # silently redirected to some other org the user happens to belong to.
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner_a = _uid("owner-a")
+    owner_b = _uid("owner-b")
+    org_a = await ops.create_organization(caller_uid=owner_a, org_type="furniture_store", name="Org A")
+    org_b = await ops.create_organization(caller_uid=owner_b, org_type="furniture_store", name="Org B")
+    await _invite_and_accept(ops, org_id=org_a, target_uid=employee, caller_uid=owner_a)
+    # employee is NOT a member of org_b
+
+    with pytest.raises(ValidationError):
+        await ops.set_active_organization(uid=employee, organization_id=org_b)
+
+    user = db.collection("users").document(employee).get()
+    assert (user.to_dict() or {}).get("activeOrganizationId") is None  # not silently set to org_a either
+
+
+async def test_set_active_organization_is_not_audited(db, ops):
+    # Pure UX preference, not an access-control mutation -- see
+    # set_active_organization's docstring for why this is deliberate.
+    owner = _uid("owner")
+    await _seed_user(db, owner)
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    before = len(_audit_entries(db, target_organization_id=org_id))
+
+    await ops.set_active_organization(uid=owner, organization_id=org_id)
+
+    after = len(_audit_entries(db, target_organization_id=org_id))
+    assert after == before
+
+
+# ---- races (Phase 2.2) -------------------------------------------------
+
+
+async def test_set_active_org_race_with_concurrent_member_removal(db, ops):
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await _invite_and_accept(ops, org_id=org_id, target_uid=employee, caller_uid=owner)
+
+    import asyncio
+
+    results = await asyncio.gather(
+        ops.set_active_organization(uid=employee, organization_id=org_id),
+        ops.remove_member(org_id=org_id, target_uid=employee, caller_uid=owner, caller_is_admin=False),
+        return_exceptions=True,
+    )
+
+    # remove_member must always succeed (it has no competing precondition
+    # on the SAME document remove_member itself writes); set_active_organization
+    # either wins cleanly (member was still active when it read) or loses
+    # cleanly (ValidationError) -- never a silent inconsistency, and
+    # membership is authoritative either way.
+    member = db.collection("organizations").document(org_id).collection("members").document(employee).get()
+    assert not member.exists  # remove_member's own effect always lands
+    set_active_result = results[0]
+    if isinstance(set_active_result, BaseException):
+        assert isinstance(set_active_result, ValidationError)
+    else:
+        # set_active_organization won the race and read the member as
+        # still active BEFORE remove_member's transaction committed --
+        # a legitimate, non-corrupt outcome (activeOrganizationId is
+        # advisory only; the membership doc itself is still correctly
+        # gone either way, proven above).
+        user = db.collection("users").document(employee).get()
+        assert user.get("activeOrganizationId") == org_id

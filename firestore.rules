@@ -34,7 +34,7 @@ service cloud.firestore {
         : null;
     }
 
-    // ---- Profile Architecture: accountType / organizationId / permissions ----
+    // ---- Profile Architecture: accountType / activeOrganizationId / permissions ----
     // Phase 1 (data model + rules only) additions. `role` above is
     // UNCHANGED and remains the sole source of truth for isAgent()/
     // isAdmin() -- everything below is a second, additive layer that
@@ -47,11 +47,24 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', null)
         : null;
     }
-    function myOrganizationId() {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('organizationId', null)
-        : null;
-    }
+    // Phase 2.2: `myOrganizationId()` (Phase 1) was dead code -- grepped
+    // the whole repo, confirmed it was never called by any rule, never
+    // written by any frontend/backend code path, and never held real
+    // data (zero production writers of users/{uid}.organizationId
+    // existed). Removed rather than kept under a new name: a rules
+    // helper reading this field would invite exactly the mistake this
+    // phase exists to prevent -- a resolved-permissions-style lookup
+    // that looks authoritative but isn't. The field itself is kept
+    // (renamed to `activeOrganizationId` in the users/{uid} rule below)
+    // as a pure UX/navigation pointer -- "which org am I currently
+    // working in" -- resolved and validated server-side per request by
+    // app.access.permission_ops/organization_ops (GET /me/organizations,
+    // POST /me/active-organization), never by a rules function, and
+    // NEVER checked by any authorization rule in this file. Organization
+    // membership/ownership authorization continues to come exclusively
+    // from organizations/{orgId}/members/{uid} (isOrgMember(),
+    // hasOrgPermission()) and organizations/{orgId}.ownerId (orgOwnerId())
+    // above -- unchanged.
     // accountType is self-settable ONLY to one of these descriptive,
     // non-authoritative values at signup (write-once, then admin/backend
     // only -- see the users/{uid} rule below). 'admin' is deliberately
@@ -234,12 +247,17 @@ service cloud.firestore {
       // at signup -- purely a UI-routing hint, never itself checked by
       // any authorization rule (hasPermission()/myPermissions() ignore it
       // unless a matching rolePermissionDefaults doc exists, and that
-      // collection is backend-only-writable, see below). organizationId
-      // and permissionOverrides are deliberately NOT in the create
-      // allowlist at all -- a brand-new user can never self-claim
-      // membership in an existing organization or grant themselves any
-      // permission override at signup; both are admin/backend-assigned
-      // only, after the fact.
+      // collection is backend-only-writable, see below). activeOrganizationId
+      // (Phase 2.2 -- renamed from the never-written, never-read
+      // `organizationId`; see the removed myOrganizationId() comment
+      // above for why) and permissionOverrides are deliberately NOT in
+      // the create allowlist at all -- a brand-new user can never self-
+      // claim an active organization or grant themselves any permission
+      // override at signup; both are admin/backend-assigned only, after
+      // the fact (activeOrganizationId's real write path is the
+      // backend's POST /me/active-organization, which independently
+      // re-validates real membership every time -- see
+      // app.access.organization_ops.set_active_organization).
       allow create: if isOwner(uid) && request.resource.data.role == 'customer'
                     && (!('requestedRole' in request.resource.data)
                         || request.resource.data.requestedRole in ['customer', 'agent'])
@@ -289,10 +307,14 @@ service cloud.firestore {
       // the backend's Admin SDK credential (bypasses these rules
       // entirely, same as create_user_profile/ensure_company today) may
       // ever change it -- see §2.6 of the architecture plan. accountType
-      // and organizationId stay in the isAdmin()-bypassable branch below
-      // (same admin-direct-write precedent as role/companyId today) --
-      // they are UI-routing/membership-pointer fields, not themselves a
-      // permission grant (myPermissions() never trusts them alone).
+      // and activeOrganizationId stay in the isAdmin()-bypassable branch
+      // below (same admin-direct-write precedent as role/companyId
+      // today) -- they are UI-routing/navigation-pointer fields, never
+      // themselves a permission or membership grant (myPermissions()/
+      // isOrgMember()/hasOrgPermission() never read or trust either one
+      // -- organization authorization comes exclusively from
+      // organizations/{orgId}/members/{uid} and .ownerId, unaffected by
+      // whatever this field currently says).
       allow update: if request.resource.data.get('permissionOverrides', {}) == resource.data.get('permissionOverrides', {})
                     && (
                          (isOwner(uid)
@@ -301,7 +323,7 @@ service cloud.firestore {
                            && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
                            && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
                            && request.resource.data.get('accountType', null) == resource.data.get('accountType', null)
-                           && request.resource.data.get('organizationId', null) == resource.data.get('organizationId', null)
+                           && request.resource.data.get('activeOrganizationId', null) == resource.data.get('activeOrganizationId', null)
                            && (!('commissionRate' in request.resource.data)
                                || ((request.resource.data.commissionRate is int || request.resource.data.commissionRate is float)
                                    && request.resource.data.commissionRate >= 0
