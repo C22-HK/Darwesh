@@ -53,8 +53,8 @@ if (failures === 0) ok(`inline script syntax valid across ${htmlFiles.length} pa
 // --- 2 & 3. i18n coverage -------------------------------------------
 const i18nPath = path.join(ROOT, 'js/i18n.js');
 const i18nSrc = fs.readFileSync(i18nPath, 'utf8');
-const kuMatch = i18nSrc.match(/ku:\s*\{([\s\S]*?)\n {2}\},\n {2}ar:/);
-const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\n {2}\}\s*\};/);
+const kuMatch = i18nSrc.match(/ku:\s*\{([\s\S]*?)\r?\n {2}\},\r?\n {2}ar:/);
+const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\r?\n {2}\}\s*\};/);
 if (!kuMatch || !arMatch) {
   fail('js/i18n.js: could not locate ku/ar dictionary blocks (structure changed?)');
 } else {
