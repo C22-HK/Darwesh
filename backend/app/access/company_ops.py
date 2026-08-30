@@ -60,6 +60,21 @@ def _is_expired(expires_at: object) -> bool:
     return now > expires_at
 
 
+def _owner_id(company_snap) -> str | None:
+    """`DocumentSnapshot.get(field)` (google-cloud-firestore's Python
+    client) raises KeyError for a MISSING field -- it only returns None
+    if the whole document doesn't exist, unlike a dict's .get(). That
+    never mattered for organizations (ownerId is required at creation
+    there), but companies.ownerId is deliberately OPTIONAL (legacy
+    ownerless docs from admin.html's existing "Add Agent" flow, and any
+    pre-Phase-3 test data) -- calling .get("ownerId") directly here would
+    throw for every one of those, before the caller_is_admin check even
+    runs, turning "an ownerless company can only be managed by an admin"
+    into "an ownerless company can't be managed by ANYONE, including an
+    admin." Route every ownerId read through this helper instead."""
+    return (company_snap.to_dict() or {}).get("ownerId")
+
+
 def _clean_text(value: object, *, field: str, max_length: int, required: bool = False) -> str | None:
     if value is None:
         if required:
@@ -180,7 +195,7 @@ class CompanyOps:
                 company_snap = company_ref.get(transaction=txn)
                 if not company_snap.exists:
                     raise NotFoundError(f"company '{company_id}' does not exist")
-                if company_snap.get("ownerId") == caller_uid:
+                if _owner_id(company_snap) == caller_uid:
                     raise ValidationError("the office's owner cannot request membership in their own office")
                 employee_snap = employee_ref.get(transaction=txn)
                 if employee_snap.exists:
@@ -229,7 +244,7 @@ class CompanyOps:
                 company_snap = company_ref.get(transaction=txn)
                 if not company_snap.exists:
                     raise NotFoundError(f"company '{company_id}' does not exist")
-                owner_id = company_snap.get("ownerId")
+                owner_id = _owner_id(company_snap)
                 if not caller_is_admin and (owner_id is None or owner_id != caller_uid):
                     raise ForbiddenError("only the office's owner or an admin may invite an employee")
                 if target_uid == owner_id:
@@ -362,7 +377,7 @@ class CompanyOps:
                 company_snap = company_ref.get(transaction=txn)
                 if not company_snap.exists:
                     raise NotFoundError(f"company '{company_id}' does not exist")
-                owner_id = company_snap.get("ownerId")
+                owner_id = _owner_id(company_snap)
                 if not caller_is_admin and (owner_id is None or owner_id != caller_uid):
                     raise ForbiddenError("only the office's owner or an admin may revoke an invitation")
                 employee_snap = employee_ref.get(transaction=txn)
@@ -412,7 +427,7 @@ class CompanyOps:
                 company_snap = company_ref.get(transaction=txn)
                 if not company_snap.exists:
                     raise NotFoundError(f"company '{company_id}' does not exist")
-                owner_id = company_snap.get("ownerId")
+                owner_id = _owner_id(company_snap)
                 if not caller_is_admin and (owner_id is None or owner_id != caller_uid):
                     raise ForbiddenError("only the office's owner or an admin may approve membership")
                 employee_snap = employee_ref.get(transaction=txn)
@@ -469,7 +484,7 @@ class CompanyOps:
                 company_snap = company_ref.get(transaction=txn)
                 if not company_snap.exists:
                     raise NotFoundError(f"company '{company_id}' does not exist")
-                owner_id = company_snap.get("ownerId")
+                owner_id = _owner_id(company_snap)
                 if not caller_is_admin and (owner_id is None or owner_id != caller_uid):
                     raise ForbiddenError("only the office's owner or an admin may reject membership")
                 employee_snap = employee_ref.get(transaction=txn)
@@ -519,7 +534,7 @@ class CompanyOps:
                 company_snap = company_ref.get(transaction=txn)
                 if not company_snap.exists:
                     raise NotFoundError(f"company '{company_id}' does not exist")
-                owner_id = company_snap.get("ownerId")
+                owner_id = _owner_id(company_snap)
                 if not caller_is_admin and (owner_id is None or owner_id != caller_uid):
                     raise ForbiddenError("only the office's owner or an admin may remove an employee")
                 employee_snap = employee_ref.get(transaction=txn)

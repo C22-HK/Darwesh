@@ -265,6 +265,92 @@ async def test_remove_employee_by_admin_works_even_without_ownerid_match(db, ops
     assert not record.exists
 
 
+# ---- legacy ownerless companies (no ownerId field at all) ------------------
+#
+# These exist for real: admin.html's existing "Add Agent" flow creates a
+# company doc with no ownerId (see firestore.rules' Phase 3 comment), and
+# any pre-Phase-3 test/demo data was created the same way. Every
+# membership method must handle "ownerId field is entirely absent" --
+# not merely "ownerId is null" -- since the Firestore Python client's
+# DocumentSnapshot.get() raises KeyError for a genuinely missing field
+# (only google.cloud.firestore_v1.base_document.DocumentSnapshot.get,
+# confirmed against the installed SDK source). This is exactly the
+# scenario the user's "old test companies without ownerId must fail
+# safely, and can still be managed by a trusted admin flow" requirement
+# describes -- these tests are the direct verification of that.
+
+
+def _seed_legacy_company(db, *, name: str = "Legacy Office") -> str:
+    """A company doc with NO ownerId field at all, written directly
+    (bypassing CompanyOps.create_company, which always sets ownerId) --
+    the same shape admin.html's live "Add Agent" flow and any pre-
+    Phase-3 test data produce."""
+    ref = db.collection("companies").document()
+    ref.set({"name": name, "createdAt": time.time()})
+    return ref.id
+
+
+async def test_admin_can_invite_an_employee_to_a_legacy_ownerless_company(db, ops):
+    company_id = _seed_legacy_company(db)
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+
+    await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+
+    record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
+    assert record.get("status") == "invited"
+
+
+async def test_admin_can_approve_membership_at_a_legacy_ownerless_company(db, ops):
+    company_id = _seed_legacy_company(db)
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    await ops.request_membership(company_id=company_id, caller_uid=employee)
+
+    await ops.approve_membership(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+
+    record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
+    assert record.get("status") == "active"
+
+
+async def test_admin_can_remove_an_employee_from_a_legacy_ownerless_company(db, ops):
+    company_id = _seed_legacy_company(db)
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+    await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+    await ops.accept_invitation(company_id=company_id, caller_uid=employee)
+
+    await ops.remove_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+
+    record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
+    assert not record.exists
+
+
+async def test_non_admin_stranger_is_forbidden_not_crashed_on_a_legacy_ownerless_company(db, ops):
+    # The load-bearing "fails safely, cannot be claimed by an arbitrary
+    # user" proof: a legacy company with no ownerId must raise
+    # ForbiddenError (a clean, expected denial) for a random signed-in
+    # caller -- never an unhandled exception, and never a silent grant.
+    company_id = _seed_legacy_company(db)
+    employee = _uid("employee")
+    stranger = _uid("stranger")
+    await _seed_user(db, employee)
+
+    with pytest.raises(ForbiddenError):
+        await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False)
+
+
+async def test_request_membership_at_a_legacy_ownerless_company_does_not_crash(db, ops):
+    company_id = _seed_legacy_company(db)
+    employee = _uid("employee")
+    await _seed_user(db, employee)
+
+    await ops.request_membership(company_id=company_id, caller_uid=employee)
+
+    record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
+    assert record.get("status") == "pending"
+
+
 # ---- list_my_companies -----------------------------------------------------
 
 
