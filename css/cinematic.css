@@ -117,7 +117,132 @@
 .cine-scope .hover\:bg-surface-container:hover { background-color: var(--ps-color-surface-container); }
 .cine-scope .hover\:bg-surface-container-high:hover { background-color: var(--ps-color-surface-container-high); }
 .cine-scope .hover\:text-primary:hover { color: var(--cine-gold-2); }
-.cine-scope .lang-menu { background-color: var(--ps-color-surface-container-lowest); border-color: var(--ps-color-outline-variant); border-radius: var(--radius-sm); }
+/* =========================================================================
+ * Language selector -- premium flag-based control. Behavior (open/close,
+ * keyboard nav, aria-expanded/aria-current, setLanguage()/localStorage
+ * persistence) lives entirely in js/i18n.js's generic .lang-toggle-btn /
+ * .lang-menu / .lang-option wiring, shared by every page on the site;
+ * this stylesheet only ever loads on index.html/login.html/signup.html/
+ * signup-professional.html, so every rule below -- scoped or not -- is
+ * naturally confined to those four pages.
+ *
+ * Split in two: STRUCTURE (layout, flag sizing, the html[lang=...]-driven
+ * flag/checkmark swap -- no extra JS needed, document.documentElement.lang
+ * is already kept in sync by the untouched applyTranslations()) is
+ * unscoped so index.html's header -- which intentionally keeps its
+ * original light theme, never opted into .cine-scope -- still gets a
+ * correctly laid-out flag selector using ITS OWN existing color classes.
+ * COLOR/border/shadow/motion (the actual "premium" look) stays scoped to
+ * .cine-scope, i.e. only login/signup/signup-professional and (once the
+ * intro is dismissed) index.html's post-intro state.
+ * ========================================================================= */
+
+.lang-select { position: relative; }
+
+.lang-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.lang-current { display: none; align-items: center; gap: 7px; }
+html[lang="en"] .lang-current[data-flag-for="en"],
+html[lang="ku"] .lang-current[data-flag-for="ku"],
+html[lang="ar"] .lang-current[data-flag-for="ar"] { display: inline-flex; }
+
+.lang-flag {
+  display: block;
+  width: 20px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.lang-menu { padding: 6px; min-width: 170px; }
+
+.lang-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  text-align: start;
+  border: 1px solid transparent;
+}
+
+.lang-option-check {
+  margin-inline-start: auto;
+  font-size: 16px;
+  color: currentColor;
+  opacity: 0;
+  flex: none;
+}
+html[lang="en"] .lang-option[data-lang="en"] .lang-option-check,
+html[lang="ku"] .lang-option[data-lang="ku"] .lang-option-check,
+html[lang="ar"] .lang-option[data-lang="ar"] .lang-option-check { opacity: 1; }
+
+/* ---- Premium color/motion (cine-scope pages only) ----------------------- */
+
+.cine-scope .lang-toggle-btn {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ps-color-outline-variant);
+  background: var(--ps-color-surface-container-lowest);
+  color: var(--ps-color-on-surface);
+}
+.cine-scope .lang-toggle-btn:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container); }
+.cine-scope .lang-toggle-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .lang-toggle-btn[aria-expanded="true"] { border-color: var(--ps-color-secondary); }
+
+.cine-scope .lang-flag { border: 1px solid rgba(242, 238, 229, 0.14); border-radius: var(--radius-xs); }
+
+.cine-scope .lang-menu {
+  background-color: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--ps-shadow-3d-2);
+  /* Reinterpret the shared .hidden toggle (set by js/i18n.js's generic
+   * wiring, identical everywhere) as an opacity/visibility transition on
+   * these pages only -- calm fade + translateY, never a hard display:none
+   * cut, without touching the shared open/close JS logic. */
+  transition: opacity var(--motion-standard, 220ms) var(--ease-premium, ease), transform var(--motion-standard, 220ms) var(--ease-premium, ease), visibility var(--motion-standard, 220ms);
+  transform: translateY(-4px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.cine-scope .lang-menu:not(.hidden) {
+  transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .lang-menu { transition: opacity var(--motion-fast, 100ms) linear; transform: none; }
+}
+
+.cine-scope .lang-option {
+  border-radius: var(--radius-xs);
+  color: var(--ps-color-on-surface);
+  transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), border-color var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .lang-option:hover { background: var(--ps-color-surface-container); }
+.cine-scope .lang-option:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+html[lang="en"] .cine-scope .lang-option[data-lang="en"],
+html[lang="ku"] .cine-scope .lang-option[data-lang="ku"],
+html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
+  color: var(--ps-color-secondary);
+  border-color: rgba(184, 154, 99, 0.35);
+  background: rgba(184, 154, 99, 0.07);
+  font-weight: 700;
+}
+.cine-scope .lang-option-check { color: var(--ps-color-secondary); }
 
 /* The header wordmark/logo stays legible against the dark header --
  * gold reads as the premium brand mark here instead of navy. */

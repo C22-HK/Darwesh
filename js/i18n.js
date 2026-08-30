@@ -2326,6 +2326,15 @@ function applyTranslations(lang) {
 
   document.querySelectorAll('.lang-option').forEach(opt => {
     const active = opt.dataset.lang === lang;
+    // aria-current is the correct a11y signal for "current item in a set"
+    // on a role=menuitem (aria-selected isn't valid there) -- added for
+    // every language option site-wide, harmless where nothing reads it.
+    opt.setAttribute('aria-current', active ? 'true' : 'false');
+    // Elements opting into the premium flag-based selector (data-lsel)
+    // own their own selected-state color via CSS (html[lang=...]
+    // selectors in cinematic.css); every other, pre-existing .lang-option
+    // keeps its original inline-style-driven look, unchanged.
+    if (opt.hasAttribute('data-lsel')) return;
     opt.style.color = active ? '#775a19' : '';
     opt.style.fontWeight = active ? '700' : '';
   });
@@ -2335,6 +2344,7 @@ window.setLanguage = function (lang) {
   localStorage.setItem(I18N_KEY, lang);
   applyTranslations(lang);
   document.querySelectorAll('.lang-menu').forEach(m => m.classList.add('hidden'));
+  document.querySelectorAll('.lang-toggle-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
   document.dispatchEvent(new CustomEvent('darwesh:langchange', { detail: { lang } }));
 };
 
@@ -2356,15 +2366,61 @@ window.cityLabel = function (englishName) {
 document.addEventListener('DOMContentLoaded', () => {
   applyTranslations(getLang());
 
+  // Generic language-toggle wiring: applies to every .lang-toggle-btn /
+  // .lang-menu pair on any page (open/close, ARIA state, keyboard nav).
+  // Adding role/aria attributes here -- rather than hand-editing every
+  // page's markup -- keeps this a single implementation shared site-wide.
   document.querySelectorAll('.lang-toggle-btn').forEach(btn => {
+    const menu = btn.parentElement.querySelector('.lang-menu');
+    if (!menu) return;
+    btn.setAttribute('aria-haspopup', 'menu');
+    btn.setAttribute('aria-expanded', 'false');
+    menu.setAttribute('role', 'menu');
+    menu.querySelectorAll('.lang-option').forEach(opt => opt.setAttribute('role', 'menuitem'));
+
+    const closeMenu = (focusTrigger) => {
+      menu.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+      if (focusTrigger) btn.focus();
+    };
+    const openMenu = () => {
+      document.querySelectorAll('.lang-menu').forEach(m => { if (m !== menu) m.classList.add('hidden'); });
+      document.querySelectorAll('.lang-toggle-btn').forEach(b => { if (b !== btn) b.setAttribute('aria-expanded', 'false'); });
+      menu.classList.remove('hidden');
+      btn.setAttribute('aria-expanded', 'true');
+      const options = Array.from(menu.querySelectorAll('.lang-option'));
+      const current = options.find(o => o.getAttribute('aria-current') === 'true');
+      (current || options[0] || btn).focus();
+    };
+
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const menu = btn.parentElement.querySelector('.lang-menu');
-      document.querySelectorAll('.lang-menu').forEach(m => { if (m !== menu) m.classList.add('hidden'); });
-      if (menu) menu.classList.toggle('hidden');
+      if (menu.classList.contains('hidden')) openMenu(); else closeMenu(false);
+    });
+
+    menu.addEventListener('keydown', (e) => {
+      const options = Array.from(menu.querySelectorAll('.lang-option'));
+      const i = options.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); closeMenu(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); options[(i + 1 + options.length) % options.length]?.focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); options[(i - 1 + options.length) % options.length]?.focus(); }
+      else if (e.key === 'Home') { e.preventDefault(); options[0]?.focus(); }
+      else if (e.key === 'End') { e.preventDefault(); options[options.length - 1]?.focus(); }
+    });
+    menu.addEventListener('focusout', () => {
+      requestAnimationFrame(() => {
+        if (!menu.contains(document.activeElement) && document.activeElement !== btn) closeMenu(false);
+      });
     });
   });
   document.addEventListener('click', () => {
     document.querySelectorAll('.lang-menu').forEach(m => m.classList.add('hidden'));
+    document.querySelectorAll('.lang-toggle-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.lang-menu:not(.hidden)').forEach(m => m.classList.add('hidden'));
+      document.querySelectorAll('.lang-toggle-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+    }
   });
 });
