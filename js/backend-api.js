@@ -117,14 +117,15 @@ export function verifyEmailOtp(email, purpose, code) {
   return postJson('/api/v1/auth/email-otp/verify', { email, purpose, code });
 }
 
-export function completeSignup({ verifyToken, fullName, phoneNumber, password, requestedRole, companyName }) {
+export function completeSignup({ verifyToken, fullName, phoneNumber, password, requestedRole, companyName, accountType }) {
   return postJson('/api/v1/auth/signup/complete', {
     verifyToken,
     fullName,
     phoneNumber,
     password,
     requestedRole,
-    companyName
+    companyName,
+    accountType
   });
 }
 
@@ -135,11 +136,8 @@ export function confirmPasswordReset({ resetToken, newPassword }) {
 // ---- Phase 3: real estate office (companies) employee membership --------
 //
 // These need the caller's Firebase ID token, unlike everything above
-// (pre-authentication OTP/signup/reset flows) -- see
-// js/profile-shell.js's authedRequest, which every function below
-// delegates to. Kept in this module (rather than only in profile-shell.js)
-// so any future page can import just the company-specific calls it needs
-// without pulling in the tab/state-rendering helpers too.
+// (pre-authentication OTP/signup/reset flows) -- see authedRequest()
+// below, which every function past this point delegates to.
 export function listMyCompanies(user) {
   return authedRequest(user, 'GET', '/api/v1/access/me/companies');
 }
@@ -210,5 +208,24 @@ export function acceptCompanyInvitation(user, companyId) {
 export function declineCompanyInvitation(user, companyId) {
   return authedRequest(user, 'POST', `/api/v1/access/companies/${encodeURIComponent(companyId)}/invitations/decline`, {
     body: {}
+  });
+}
+
+// ---- Phase 2: organizations (residential community / developer /
+// finance provider / furniture store) -------------------------------------
+//
+// Existing endpoints (OrganizationHandler, built in an earlier phase) --
+// no frontend page called any of these until the professional signup
+// wizard. Only the two calls that wizard needs are wrapped here; the
+// rest of OrganizationHandler's surface (membership/invite/ownership
+// transfer) is unrelated to signup and stays unwrapped until a page
+// actually needs it.
+export function listMyOrganizations(user) {
+  return authedRequest(user, 'GET', '/api/v1/access/me/organizations');
+}
+
+export function createOrganization(user, { type, name, description, city, district }) {
+  return authedRequest(user, 'POST', '/api/v1/access/organizations', {
+    body: { type, name, description, city, district }
   });
 }

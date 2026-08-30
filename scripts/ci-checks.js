@@ -70,7 +70,7 @@ if (!kuMatch || !arMatch) {
   // Keys built by string concatenation at runtime (e.g. 'mamai.type_' + x)
   // can't be statically resolved -- allowlist known dynamic-key prefixes
   // rather than false-failing on them.
-  const DYNAMIC_PREFIXES = ['mamai.type_'];
+  const DYNAMIC_PREFIXES = ['mamai.type_', 'auth.pro.svc.'];
   let missingAny = false;
   htmlFiles.forEach(f => {
     const html = fs.readFileSync(path.join(ROOT, f), 'utf8');

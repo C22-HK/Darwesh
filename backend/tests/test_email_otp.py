@@ -640,6 +640,135 @@ def test_signup_complete_as_agent_records_requested_role_and_creates_company():
     assert ops.companies_ensured == [("darwesh-group", "Darwesh Group")]
 
 
+def test_signup_complete_accepts_a_valid_professional_account_type():
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "accountType": "professional_engineer",
+        },
+    )
+
+    assert resp.status_code == 200
+    # role stays "customer" regardless of accountType -- accountType is a
+    # UI-routing hint recorded on the profile, never a role/permission
+    # grant (matches firestore.rules' isValidSelfAccountType() precedent).
+    assert ops.profiles_written[0]["account_type"] == "professional_engineer"
+    assert ops.profiles_written[0]["requested_role"] == "customer"
+
+
+@pytest.mark.parametrize(
+    "bad_account_type",
+    ["not_a_real_type", "office_employee_typo", "", "ADMIN", 123],
+)
+def test_signup_complete_rejects_an_unrecognized_account_type(bad_account_type):
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "accountType": bad_account_type,
+        },
+    )
+
+    assert resp.status_code == 400
+    # Rejected before ever reaching Firebase -- no account, no profile.
+    assert ops.created == []
+    assert ops.profiles_written == []
+
+
+def test_signup_complete_rejects_self_selected_admin_account_type():
+    # The one value that IS a real, storable accountType (an admin's own
+    # profile may legitimately carry it) but must never be reachable via
+    # public self-signup -- is_valid_public_account_type() deliberately
+    # excludes it (app/access/constants.py).
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "accountType": "admin",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert ops.created == []
+
+
+def test_signup_complete_omitting_account_type_writes_no_account_type_field():
+    # Backward compatibility: a caller that never sends accountType at
+    # all (the pre-Phase-2 frontend shape) must produce the exact same
+    # profile document shape as before -- no accountType key written,
+    # not even null.
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert ops.profiles_written[0]["account_type"] is None
+
+
 @pytest.mark.parametrize(
     "typed_name",
     ["Darwesh Group", "darwesh group", "Darwesh-Group", "Darwesh_Group", "  Darwesh   Group  "],

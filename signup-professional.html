@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Darwesh Group - Professional Sign Up</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+  .auth-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 11px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; transition: border-color .15s ease, box-shadow .15s ease; }
+  .auth-input:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: #775a19; }
+  .auth-input[aria-invalid="true"] { border-color: #ba1a1a; }
+  .auth-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
+  .auth-card { background: #ffffff; border: 1px solid #e0e3e8; border-radius: 20px; padding: clamp(20px, 4vw, 32px); box-shadow: 0 4px 24px rgba(4,22,39,0.06); }
+  .auth-input-wrap { position: relative; }
+  .auth-input-wrap .auth-input { padding-inline-start: 40px; }
+  .auth-input-wrap .auth-input-icon { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); font-size: 19px; color: #9aa1ab; pointer-events: none; }
+  .auth-input-wrap .auth-input.has-toggle { padding-inline-end: 40px; }
+  .auth-toggle-visibility { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: #9aa1ab; display: flex; align-items: center; justify-content: center; min-width:32px; min-height:32px; }
+  .auth-toggle-visibility:hover { background: #f1f4f9; color: #44474c; }
+  .auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; }
+  @keyframes auth-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .auth-spinner { animation-duration: 1.4s; } }
+  .field-err { color: #ba1a1a; font-size: 12px; margin-top: 4px; display: none; }
+  .field-err.show { display: block; }
+
+  /* Step indicator -- logical properties throughout for RTL safety */
+  .pro-steps { display: flex; align-items: center; justify-content: center; gap: 4px; margin-block-end: 28px; overflow-x: auto; padding-block: 4px; }
+  .pro-step-dot { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; font-family: 'IBM Plex Sans', sans-serif; background: var(--ps-color-surface-container); color: var(--ps-color-on-surface-variant); flex: none; transition: background-color .2s ease, color .2s ease; }
+  .pro-step-dot.done { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); }
+  .pro-step-dot.current { background: var(--ps-color-primary); color: var(--ps-color-on-primary); box-shadow: 0 0 0 3px var(--ps-color-secondary-container); }
+  .pro-step-line { width: clamp(12px, 3vw, 28px); height: 2px; background: var(--ps-color-outline-variant); flex: none; }
+  .pro-step-line.done { background: var(--ps-color-secondary); }
+
+  /* Type-picker cards */
+  .type-card { border: 1.5px solid var(--ps-color-outline-variant); border-radius: 14px; padding: 14px; text-align: start; background: var(--ps-color-surface-container-lowest); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .1s ease; display: flex; align-items: center; gap: 10px; min-height: 56px; }
+  .type-card:hover { border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-card); }
+  .type-card[aria-pressed="true"] { border-color: var(--ps-color-secondary); background: var(--ps-color-secondary-container); box-shadow: var(--ps-shadow-card); }
+  .type-card:active { transform: scale(0.98); }
+  .type-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+  @media (prefers-reduced-motion: reduce) { .type-card { transition: none; } .type-card:active { transform: none; } }
+
+  /* Tag input (specialties / service areas) */
+  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; border: 1px solid #c4c6cd; border-radius: 8px; padding: 8px 10px; }
+  .tag-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--ps-color-surface-container); border-radius: 999px; padding-block: 3px; padding-inline: 10px 6px; font-size: 12.5px; }
+  .tag-chip button { background: none; border: none; cursor: pointer; color: var(--ps-color-on-surface-variant); display: flex; padding: 2px; min-width: 20px; min-height: 20px; align-items: center; justify-content: center; }
+  .tag-input-field { border: none; outline: none; flex: 1; min-width: 100px; font-family: 'Inter', sans-serif; font-size: 14px; padding: 4px; }
+
+  /* Media upload tile */
+  .media-tile { width: 100%; max-width: 220px; aspect-ratio: 1; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; background: var(--ps-color-surface-container-low); overflow: hidden; position: relative; }
+  .media-tile img { width: 100%; height: 100%; object-fit: cover; }
+  .media-tile:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+  /* OTP */
+  .otp-digits { display: flex; gap: 8px; justify-content: center; direction: ltr; }
+  .otp-digit { width: 44px; height: 52px; text-align: center; font-family: 'Inter', sans-serif; font-size: 22px; font-weight: 600; border: 1px solid #c4c6cd; border-radius: 10px; background: #ffffff; color: #181c20; }
+  .otp-digit:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: #775a19; }
+  .otp-digit[aria-invalid="true"] { border-color: #ba1a1a; }
+  @media (max-width: 380px) { .otp-digit { width: 38px; height: 46px; font-size: 19px; } }
+
+  .pro-view[hidden] { display: none; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; padding-block: 6px; }
+  .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--ps-color-secondary); flex: none; }
+</style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased">
+
+<header class="flex items-center justify-between h-16 border-b border-outline-variant bg-surface-bright px-4">
+  <div class="w-10"></div>
+  <a href="index.html" class="font-headline-md text-headline-md font-bold text-primary">Darwesh Group</a>
+  <div class="relative w-10 flex justify-end">
+    <button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant" type="button">
+      <span class="material-symbols-outlined text-[20px]">language</span>
+    </button>
+    <div class="lang-menu hidden absolute end-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+      <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+      <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+      <button class="lang-option w-full text-start px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+    </div>
+  </div>
+</header>
+
+<main class="ps-shell py-10">
+  <div class="mx-auto w-full" style="max-width: 640px;">
+
+    <div class="text-center mb-6">
+      <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.pro.pageTitle">Professional &amp; Business Sign Up</p>
+      <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.pro.pageSubtitle">Set up your professional or business profile on Darwesh Group.</p>
+    </div>
+
+    <nav class="pro-steps" id="proSteps" aria-hidden="true"></nav>
+    <p id="proStepAnnounce" class="sr-only" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);"></p>
+
+    <!-- ============ Step 1: Account Information ============ -->
+    <section id="viewStep1" class="pro-view" aria-labelledby="step1Heading">
+      <div class="auth-card">
+        <h2 id="step1Heading" class="font-headline-md text-[18px] text-primary mb-5" data-i18n="auth.pro.step1Title">Account Information</h2>
+        <form id="step1Form" class="space-y-4" novalidate>
+          <div>
+            <label class="auth-label" for="s1FullName" data-i18n="auth.fullName">Full Name</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon" aria-hidden="true">person</span>
+              <input id="s1FullName" class="auth-input" required type="text" autocomplete="name" aria-describedby="s1FullNameErr"/>
+            </div>
+            <p class="field-err" id="s1FullNameErr" role="alert"></p>
+          </div>
+          <div>
+            <label class="auth-label" for="s1Phone" data-i18n="sell.phoneNumber">Phone Number</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon" aria-hidden="true">call</span>
+              <input id="s1Phone" class="auth-input" required type="tel" inputmode="tel" placeholder="0750 000 0000" autocomplete="tel" aria-describedby="s1PhoneErr"/>
+            </div>
+            <p class="field-err" id="s1PhoneErr" role="alert"></p>
+          </div>
+          <div>
+            <label class="auth-label" for="s1Email" data-i18n="auth.email">Email</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon" aria-hidden="true">mail</span>
+              <input id="s1Email" class="auth-input" required type="email" inputmode="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="s1EmailErr"/>
+            </div>
+            <p class="field-err" id="s1EmailErr" role="alert"></p>
+          </div>
+          <div>
+            <label class="auth-label" for="s1Password" data-i18n="auth.password">Password</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon" aria-hidden="true">lock</span>
+              <input id="s1Password" class="auth-input has-toggle" required minlength="8" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="s1PasswordErr"/>
+              <button type="button" class="auth-toggle-visibility" id="toggleS1Password" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
+                <span class="material-symbols-outlined" id="toggleS1PasswordIcon" style="font-size:19px;">visibility</span>
+              </button>
+            </div>
+            <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="auth.minChars8">At least 8 characters.</p>
+            <p class="field-err" id="s1PasswordErr" role="alert"></p>
+          </div>
+          <div>
+            <label class="auth-label" for="s1ConfirmPassword" data-i18n="auth.confirmPassword">Confirm Password</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon" aria-hidden="true">lock</span>
+              <input id="s1ConfirmPassword" class="auth-input has-toggle" required minlength="8" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="s1ConfirmPasswordErr"/>
+              <button type="button" class="auth-toggle-visibility" id="toggleS1ConfirmPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
+                <span class="material-symbols-outlined" id="toggleS1ConfirmPasswordIcon" style="font-size:19px;">visibility</span>
+              </button>
+            </div>
+            <p class="field-err" id="s1ConfirmPasswordErr" role="alert"></p>
+          </div>
+          <button id="s1ContinueBtn" class="ps-btn w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
+            <span id="s1ContinueLabel" data-i18n="auth.pro.continueBtn">Continue</span>
+          </button>
+        </form>
+      </div>
+      <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
+        <span data-i18n="auth.pro.wantSimpleSignup">Signing up as a regular customer?</span>
+        <a href="signup.html" class="text-secondary font-medium hover:underline" data-i18n="auth.pro.simpleSignupLink">Use the simple sign-up</a>
+      </p>
+      <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="nav.backToSite">Back to site</a>
+    </section>
+
+    <!-- ============ Step 2: Choose Profile Type ============ -->
+    <section id="viewStep2" class="pro-view" hidden aria-labelledby="step2Heading">
+      <div class="auth-card">
+        <h2 id="step2Heading" class="font-headline-md text-[18px] text-primary mb-1" data-i18n="auth.pro.step2Title">Choose Your Profile Type</h2>
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="auth.pro.step2Subtitle">Select the category that best describes your business or profession.</p>
+
+        <div id="typeCategories"></div>
+        <p class="field-err" id="s2TypeErr" role="alert"></p>
+
+        <div class="flex gap-2 mt-6">
+          <button id="s2BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s2ContinueBtn" type="button" class="ps-btn flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.continueBtn">Continue</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Step 3: Business Details ============ -->
+    <section id="viewStep3" class="pro-view" hidden aria-labelledby="step3Heading">
+      <div class="auth-card">
+        <h2 id="step3Heading" class="font-headline-md text-[18px] text-primary mb-5" data-i18n="auth.pro.step3Title">Business Details</h2>
+        <form id="step3Form" class="space-y-4" novalidate></form>
+        <div class="flex gap-2 mt-6">
+          <button id="s3BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s3ContinueBtn" type="button" class="ps-btn flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.continueBtn">Continue</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Step 4: Media ============ -->
+    <section id="viewStep4" class="pro-view" hidden aria-labelledby="step4Heading">
+      <div class="auth-card">
+        <h2 id="step4Heading" class="font-headline-md text-[18px] text-primary mb-1" data-i18n="auth.pro.step4Title">Media</h2>
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="auth.pro.step4Subtitle">Add a logo or portfolio photo. You can always update this later.</p>
+
+        <label class="auth-label" data-i18n="auth.pro.logo">Logo / Photo</label>
+        <label id="mediaTile" class="media-tile" tabindex="0" role="button" aria-label="Upload image">
+          <span class="material-symbols-outlined text-[32px] text-on-surface-variant" aria-hidden="true" id="mediaTileIcon">add_photo_alternate</span>
+          <span class="font-label-caps text-label-caps text-on-surface-variant" id="mediaTileLabel" data-i18n="auth.pro.uploadImage">Upload image</span>
+          <img id="mediaPreviewImg" class="hidden" alt=""/>
+          <input type="file" id="mediaFileInput" accept="image/*" class="hidden"/>
+        </label>
+        <button id="mediaRemoveBtn" type="button" class="hidden mt-2 font-label-caps text-label-caps text-error" data-i18n="auth.pro.removeImage">Remove</button>
+        <p class="font-body-md text-[12px] text-on-surface-variant mt-3" id="mediaLaterNote" data-i18n="auth.pro.mediaLaterNote">You can add this from your profile page once it's ready.</p>
+
+        <div class="flex gap-2 mt-6">
+          <button id="s4BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s4ContinueBtn" type="button" class="ps-btn flex-1 bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.continueBtn">Continue</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Step 5: Review ============ -->
+    <section id="viewStep5" class="pro-view" hidden aria-labelledby="step5Heading">
+      <div class="auth-card">
+        <h2 id="step5Heading" class="font-headline-md text-[18px] text-primary mb-1" data-i18n="auth.pro.step5Title">Review Your Information</h2>
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="auth.pro.step5Subtitle">Please confirm everything looks right before we verify your email.</p>
+
+        <div id="reviewContent" class="space-y-5"></div>
+
+        <p id="s5Error" class="hidden text-error text-[13px] mt-4" role="alert"></p>
+        <div class="flex gap-2 mt-6">
+          <button id="s5BackBtn" type="button" class="ps-btn flex-none border border-outline-variant rounded-full px-5 py-2.5 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="auth.pro.backBtn">Back</button>
+          <button id="s5SendCodeBtn" type="button" class="ps-btn flex-1 bg-secondary text-on-secondary py-3 rounded-lg font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors flex items-center justify-center">
+            <span class="auth-spinner hidden" id="s5SendCodeSpinner"></span>
+            <span id="s5SendCodeLabel" data-i18n="auth.pro.sendCodeBtn">Send Verification Code</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Step 6: Email Verification ============ -->
+    <section id="viewStep6" class="pro-view" hidden aria-labelledby="step6Heading">
+      <div class="text-center mb-6">
+        <p id="step6Heading" class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.pro.verifyTitle">Verify your email</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant">
+          <span data-i18n="auth.pro.verifySubtitle">We sent a verification code to</span>
+          <span id="otpMaskedEmail" class="font-medium text-on-surface" style="direction:ltr; display:inline-block;"></span>
+        </p>
+      </div>
+      <div class="auth-card">
+        <label class="auth-label text-center block" for="otpDigit0" data-i18n="auth.otp.codeLabel">Verification code</label>
+        <div class="otp-digits mb-4" id="otpDigitsContainer" role="group" aria-label="Verification code">
+          <input class="otp-digit" id="otpDigit0" data-otp-index="0" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Digit 1"/>
+          <input class="otp-digit" id="otpDigit1" data-otp-index="1" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 2"/>
+          <input class="otp-digit" id="otpDigit2" data-otp-index="2" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 3"/>
+          <input class="otp-digit" id="otpDigit3" data-otp-index="3" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 4"/>
+          <input class="otp-digit" id="otpDigit4" data-otp-index="4" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 5"/>
+          <input class="otp-digit" id="otpDigit5" data-otp-index="5" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 6"/>
+        </div>
+        <p id="otpError" class="hidden text-error text-[13px] text-center mb-3" role="alert" aria-live="assertive"></p>
+        <p id="otpSuccess" class="hidden text-[13px] text-center mb-3" role="status" style="color:#006300;"></p>
+        <button id="otpVerifyBtn" class="ps-btn w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="button">
+          <span class="auth-spinner hidden" id="otpVerifySpinner"></span>
+          <span id="otpVerifyBtnLabel" data-i18n="auth.pro.verifyBtn">Verify Email</span>
+        </button>
+        <div class="flex items-center justify-center gap-4 mt-4 flex-wrap">
+          <button id="otpResendBtn" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors disabled:text-on-surface-variant disabled:cursor-not-allowed" type="button" disabled>
+            <span id="otpResendLabel"></span>
+          </button>
+          <button id="otpChangeEmailBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" type="button" data-i18n="auth.pro.changeEmailBtn">Change Email</button>
+        </div>
+      </div>
+      <button id="otpBackBtn" type="button" class="block text-center w-full mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="auth.pro.backBtn">Back</button>
+    </section>
+
+    <!-- ============ Finalizing ============ -->
+    <section id="viewFinalizing" class="pro-view text-center py-12" hidden aria-live="polite">
+      <span class="auth-spinner" style="border-top-color:#041627; border-color:rgba(4,22,39,0.15); width:28px; height:28px;"></span>
+      <p class="font-body-md text-body-md text-on-surface-variant mt-4" id="finalizingLabel"></p>
+    </section>
+
+    <!-- ============ Success ============ -->
+    <section id="viewSuccess" class="pro-view text-center py-8" hidden aria-labelledby="successHeading">
+      <div class="mx-auto mb-5 flex items-center justify-center" style="width:72px;height:72px;border-radius:999px;background:var(--ps-color-tertiary-container);">
+        <span class="material-symbols-outlined text-[40px]" style="color:var(--ps-color-on-tertiary-container);" aria-hidden="true">check_circle</span>
+      </div>
+      <p id="successHeading" class="font-headline-md text-[24px] text-primary mb-2" data-i18n="auth.pro.successTitle">Your profile is ready</p>
+      <p id="successSubtitle" class="font-body-md text-[14px] text-on-surface-variant max-w-sm mx-auto mb-6" data-i18n="auth.pro.successSubtitle">Your professional account has been created successfully.</p>
+      <div class="flex flex-col items-center gap-3">
+        <a id="goToProfileBtn" href="account.html" class="ps-btn inline-block bg-primary text-on-primary px-8 py-3 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="auth.pro.goToProfile">Go to Profile</a>
+        <button id="retryProfileSetupBtn" type="button" class="hidden ps-btn font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" data-i18n="auth.pro.retryProfileSetup">Retry Profile Setup</button>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script src="./js/i18n.js"></script>
+<script type="module">
+  import { auth, db, storage, getDoc, updateDoc, addDoc, setDoc, getDocs } from './js/firebase-init.js';
+  import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc as fsDoc, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import {
+    sendEmailOtp, verifyEmailOtp, completeSignup, BackendUnavailableError, BackendResponseError,
+    listMyCompanies, createCompany, listMyOrganizations, createOrganization
+  } from './js/backend-api.js';
+  import { wireOtpInputs, maskEmail } from './js/otp-ui.js';
+  import { withBusyButton, withUploadTimeout } from './js/profile-shell.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  // ---------------------------------------------------------------------
+  // Profile type catalog -- every entry here is a REAL, schema-backed
+  // accountType from app.access.constants.SELF_ACCOUNT_TYPES. Deliberately
+  // excludes 'admin' (never selectable), 'individual_customer' (that's
+  // signup.html, not this wizard), 'real_estate_agent' (independent agent
+  // -- already covered by signup.html's existing Agent toggle, founds no
+  // entity), and 'office_employee' (never self-founds anything -- joins
+  // an existing office via the owner's invite flow, see
+  // app.access.company_ops). Every field listed per type is copied
+  // directly from firestore.rules' own create-allowlist for that
+  // collection -- nothing here is invented.
+  const TYPE_CATALOG = {
+    professional_engineer: { category: 'professional', labelKey: 'auth.pro.typeEngineer', fallback: 'Engineer', icon: 'engineering', kind: 'serviceProvider', serviceType: 'engineer' },
+    professional_designer: { category: 'professional', labelKey: 'auth.pro.typeDesigner', fallback: 'Designer', icon: 'palette', kind: 'serviceProvider', serviceType: 'designer' },
+    professional_lawyer: { category: 'professional', labelKey: 'auth.pro.typeLawyer', fallback: 'Lawyer', icon: 'gavel', kind: 'serviceProvider', serviceType: 'lawyer' },
+    professional_landscaping: { category: 'professional', labelKey: 'auth.pro.typeLandscaping', fallback: 'Landscaping', icon: 'yard', kind: 'serviceProvider', serviceType: 'landscaping' },
+    cleaning_individual: { category: 'professional', labelKey: 'auth.pro.typeCleaningIndividual', fallback: 'Cleaning (Individual)', icon: 'cleaning_services', kind: 'serviceProvider', serviceType: 'cleaning', providerType: 'individual' },
+    cleaning_team_or_company_owner: { category: 'professional', labelKey: 'auth.pro.typeCleaningTeam', fallback: 'Cleaning (Team / Company)', icon: 'groups', kind: 'serviceProvider', serviceType: 'cleaning', providerType: null },
+    office_owner: { category: 'realestate', labelKey: 'auth.pro.typeOfficeOwner', fallback: 'Real Estate Office', icon: 'apartment', kind: 'company' },
+    org_owner_residential_community: { category: 'business', labelKey: 'auth.pro.typeResidentialCommunity', fallback: 'Residential Community', icon: 'holiday_village', kind: 'organization', orgType: 'residential_community' },
+    org_owner_developer: { category: 'business', labelKey: 'auth.pro.typeDeveloper', fallback: 'Developer / Apartment Project', icon: 'domain', kind: 'organization', orgType: 'developer_project' },
+    org_owner_finance_provider: { category: 'business', labelKey: 'auth.pro.typeFinanceProvider', fallback: 'Installment / Finance Provider', icon: 'account_balance', kind: 'organization', orgType: 'finance_provider' },
+    org_owner_furniture_store: { category: 'business', labelKey: 'auth.pro.typeFurnitureStore', fallback: 'Home Goods / Furniture Seller', icon: 'chair', kind: 'organization', orgType: 'furniture_store' }
+  };
+  const CATEGORY_ORDER = [
+    { key: 'professional', labelKey: 'auth.pro.categoryProfessional', fallback: 'Professional / Service' },
+    { key: 'realestate', labelKey: 'auth.pro.categoryRealEstate', fallback: 'Real Estate' },
+    { key: 'business', labelKey: 'auth.pro.categoryBusiness', fallback: 'Business / Organization' }
+  ];
+  const CLEANING_SERVICES = [
+    'house_cleaning', 'apartment_cleaning', 'office_cleaning', 'deep_cleaning',
+    'move_in_cleaning', 'move_out_cleaning', 'post_construction_cleaning',
+    'post_renovation_cleaning', 'commercial_cleaning'
+  ];
+  const CLEANING_SERVICE_LABELS = {
+    house_cleaning: 'House Cleaning', apartment_cleaning: 'Apartment Cleaning', office_cleaning: 'Office Cleaning',
+    deep_cleaning: 'Deep Cleaning', move_in_cleaning: 'Move-in Cleaning', move_out_cleaning: 'Move-out Cleaning',
+    post_construction_cleaning: 'Post-construction Cleaning', post_renovation_cleaning: 'Post-renovation Cleaning',
+    commercial_cleaning: 'Commercial Cleaning'
+  };
+
+  // ---------------------------------------------------------------------
+  // Wizard state -- password lives ONLY here (in-memory, this tab, this
+  // page load), never in localStorage/sessionStorage/a URL, cleared the
+  // moment it's sent over HTTPS inside completeSignup(). Never logged.
+  // ---------------------------------------------------------------------
+  const state = {
+    step: 1,
+    account: { fullName: '', phone: '', email: '', password: '' },
+    accountType: null,
+    details: {},
+    mediaFile: null,
+    verifyToken: null,
+    realAccountType: null,
+    uid: null
+  };
+
+  const STEP_COUNT = 6;
+  const el = (id) => document.getElementById(id);
+  const views = { 1: 'viewStep1', 2: 'viewStep2', 3: 'viewStep3', 4: 'viewStep4', 5: 'viewStep5', 6: 'viewStep6' };
+
+  function renderStepIndicator() {
+    const nav = el('proSteps');
+    nav.innerHTML = '';
+    for (let i = 1; i <= STEP_COUNT; i++) {
+      const dot = document.createElement('span');
+      dot.className = 'pro-step-dot' + (i < state.step ? ' done' : i === state.step ? ' current' : '');
+      dot.textContent = i < state.step ? '✓' : String(i);
+      nav.appendChild(dot);
+      if (i < STEP_COUNT) {
+        const line = document.createElement('span');
+        line.className = 'pro-step-line' + (i < state.step ? ' done' : '');
+        nav.appendChild(line);
+      }
+    }
+    const announce = el('proStepAnnounce');
+    announce.textContent = `${tr('auth.pro.stepLabel', 'Step')} ${state.step} ${tr('auth.pro.of', 'of')} ${STEP_COUNT}`;
+  }
+
+  function goToStep(n) {
+    state.step = n;
+    Object.entries(views).forEach(([num, id]) => { el(id).hidden = Number(num) !== n; });
+    renderStepIndicator();
+    const heading = document.querySelector(`#${views[n]} h2, #${views[n]} p.font-headline-md`);
+    if (heading) heading.setAttribute('tabindex', '-1');
+    if (heading) heading.focus({ preventScroll: false });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function showFinalizing(labelKey, fallback) {
+    Object.values(views).forEach((id) => { el(id).hidden = true; });
+    el('viewFinalizing').hidden = false;
+    el('finalizingLabel').textContent = tr(labelKey, fallback);
+  }
+
+  function describeBackendError(err) {
+    if (err instanceof BackendUnavailableError) return tr('auth.pro.errNetwork', "Couldn't reach the server. Please check your connection and try again.");
+    if (err instanceof BackendResponseError) return err.message;
+    return tr('auth.otp.errGeneric', 'Something went wrong. Please try again.');
+  }
+
+  // ---------------------------------------------------------------------
+  // Step 1: Account Information
+  // ---------------------------------------------------------------------
+  function wirePasswordToggle(inputId, btnId, iconId) {
+    const input = el(inputId);
+    const btn = el(btnId);
+    const icon = el(iconId);
+    btn.addEventListener('click', () => {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      icon.textContent = showing ? 'visibility' : 'visibility_off';
+    });
+  }
+  wirePasswordToggle('s1Password', 'toggleS1Password', 'toggleS1PasswordIcon');
+  wirePasswordToggle('s1ConfirmPassword', 'toggleS1ConfirmPassword', 'toggleS1ConfirmPasswordIcon');
+
+  function setFieldError(inputId, errId, message) {
+    const input = el(inputId);
+    const errEl = el(errId);
+    if (message) {
+      input.setAttribute('aria-invalid', 'true');
+      errEl.textContent = message;
+      errEl.classList.add('show');
+    } else {
+      input.removeAttribute('aria-invalid');
+      errEl.textContent = '';
+      errEl.classList.remove('show');
+    }
+  }
+
+  const PHONE_RE = /^[0-9+()\s-]{7,20}$/;
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  function validateStep1() {
+    let ok = true;
+    const fullName = el('s1FullName').value.trim();
+    const phone = el('s1Phone').value.trim();
+    const email = el('s1Email').value.trim();
+    const password = el('s1Password').value;
+    const confirmPassword = el('s1ConfirmPassword').value;
+
+    setFieldError('s1FullName', 's1FullNameErr', fullName.length >= 2 ? '' : tr('auth.pro.errFullName', 'Please enter your full name.'));
+    if (fullName.length < 2) ok = false;
+    setFieldError('s1Phone', 's1PhoneErr', PHONE_RE.test(phone) ? '' : tr('auth.pro.errPhone', "That phone number doesn't look right."));
+    if (!PHONE_RE.test(phone)) ok = false;
+    setFieldError('s1Email', 's1EmailErr', EMAIL_RE.test(email) ? '' : tr('auth.pro.errEmail', "That email address doesn't look right."));
+    if (!EMAIL_RE.test(email)) ok = false;
+    setFieldError('s1Password', 's1PasswordErr', password.length >= 8 ? '' : tr('auth.pro.errPassword', 'Password must be at least 8 characters.'));
+    if (password.length < 8) ok = false;
+    setFieldError('s1ConfirmPassword', 's1ConfirmPasswordErr', password === confirmPassword && confirmPassword ? '' : tr('auth.pro.errConfirmPassword', "Passwords don't match."));
+    if (password !== confirmPassword || !confirmPassword) ok = false;
+
+    if (ok) {
+      state.account = { fullName, phone, email: email.toLowerCase(), password };
+    }
+    return ok;
+  }
+
+  // Live-clear a field's error once the user starts fixing it -- avoids
+  // nagging with a stale error while they're mid-correction.
+  ['s1FullName', 's1Phone', 's1Email', 's1Password', 's1ConfirmPassword'].forEach((id) => {
+    el(id).addEventListener('input', () => el(id).removeAttribute('aria-invalid'));
+  });
+
+  el('step1Form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (validateStep1()) {
+      renderTypeCategories();
+      goToStep(2);
+    } else {
+      const firstInvalid = document.querySelector('#step1Form [aria-invalid="true"]');
+      if (firstInvalid) firstInvalid.focus();
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // Step 2: Choose Profile Type
+  // ---------------------------------------------------------------------
+  function renderTypeCategories() {
+    const container = el('typeCategories');
+    container.innerHTML = '';
+    CATEGORY_ORDER.forEach((cat) => {
+      const heading = document.createElement('p');
+      heading.className = 'font-label-caps text-label-caps text-secondary mt-4 mb-2 first:mt-0';
+      heading.textContent = tr(cat.labelKey, cat.fallback);
+      container.appendChild(heading);
+
+      const grid = document.createElement('div');
+      grid.className = 'grid grid-cols-1 sm:grid-cols-2 gap-2.5';
+      Object.entries(TYPE_CATALOG).filter(([, t]) => t.category === cat.key).forEach(([key, t]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'type-card';
+        btn.setAttribute('aria-pressed', state.accountType === key ? 'true' : 'false');
+        btn.dataset.type = key;
+        btn.innerHTML = `
+          <span class="material-symbols-outlined text-[22px] text-primary" aria-hidden="true">${t.icon}</span>
+          <span class="font-body-md text-[13.5px] text-on-surface font-medium">${tr(t.labelKey, t.fallback)}</span>
+        `;
+        btn.addEventListener('click', () => selectType(key));
+        grid.appendChild(btn);
+      });
+      container.appendChild(grid);
+    });
+  }
+
+  function selectType(key) {
+    state.accountType = key;
+    state.details = {};
+    document.querySelectorAll('.type-card').forEach((c) => c.setAttribute('aria-pressed', c.dataset.type === key ? 'true' : 'false'));
+    el('s2TypeErr').classList.remove('show');
+  }
+
+  el('s2BackBtn').addEventListener('click', () => goToStep(1));
+  el('s2ContinueBtn').addEventListener('click', () => {
+    if (!state.accountType) {
+      el('s2TypeErr').textContent = tr('auth.pro.errSelectType', 'Please choose a profile type to continue.');
+      el('s2TypeErr').classList.add('show');
+      return;
+    }
+    renderStep3Fields();
+    goToStep(3);
+  });
+
+  // ---------------------------------------------------------------------
+  // Step 3: Business Details -- rendered dynamically per accountType,
+  // using ONLY fields firestore.rules already allowlists for that
+  // type's collection (see TYPE_CATALOG comment above). Nothing here
+  // ever renders a verified/ownerId/permissions/role field -- those are
+  // never client-settable at any point in this flow.
+  // ---------------------------------------------------------------------
+  function fieldBlock({ id, labelKey, labelFallback, type = 'text', required = false, hintKey, hintFallback, rows, value }) {
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'auth-label';
+    label.htmlFor = id;
+    label.textContent = tr(labelKey, labelFallback) + (required ? '' : ` (${tr('auth.pro.optional', 'Optional')})`);
+    wrap.appendChild(label);
+    const input = rows ? document.createElement('textarea') : document.createElement('input');
+    input.id = id;
+    input.className = 'auth-input';
+    if (rows) input.rows = rows;
+    else input.type = type;
+    if (required) input.required = true;
+    if (value !== undefined && value !== null && value !== '') input.value = value;
+    wrap.appendChild(input);
+    if (hintKey) {
+      const hint = document.createElement('p');
+      hint.className = 'font-body-md text-[11.5px] text-on-surface-variant mt-1';
+      hint.textContent = tr(hintKey, hintFallback);
+      wrap.appendChild(hint);
+    }
+    const err = document.createElement('p');
+    err.className = 'field-err';
+    err.id = id + 'Err';
+    err.setAttribute('role', 'alert');
+    wrap.appendChild(err);
+    return wrap;
+  }
+
+  function tagInputBlock({ id, labelKey, labelFallback, hintKey, hintFallback, initialTags }) {
+    const wrap = document.createElement('div');
+    const label = document.createElement('label');
+    label.className = 'auth-label';
+    label.htmlFor = id;
+    label.textContent = tr(labelKey, labelFallback) + ` (${tr('auth.pro.optional', 'Optional')})`;
+    wrap.appendChild(label);
+    const box = document.createElement('div');
+    box.className = 'tag-input-wrap';
+    box.id = id + 'Box';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = id;
+    input.className = 'tag-input-field';
+    box.appendChild(input);
+    wrap.appendChild(box);
+    const hint = document.createElement('p');
+    hint.className = 'font-body-md text-[11.5px] text-on-surface-variant mt-1';
+    hint.textContent = tr(hintKey, hintFallback);
+    wrap.appendChild(hint);
+
+    const tags = Array.isArray(initialTags) ? [...initialTags] : [];
+    function renderTags() {
+      box.querySelectorAll('.tag-chip').forEach((c) => c.remove());
+      tags.forEach((t, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.innerHTML = `<span></span><button type="button" aria-label="Remove">&times;</button>`;
+        chip.querySelector('span').textContent = t;
+        chip.querySelector('button').addEventListener('click', () => { tags.splice(i, 1); renderTags(); });
+        box.insertBefore(chip, input);
+      });
+    }
+    function addTag() {
+      const v = input.value.trim();
+      if (v && !tags.includes(v)) { tags.push(v); renderTags(); }
+      input.value = '';
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); }
+      else if (e.key === 'Backspace' && !input.value && tags.length) { tags.pop(); renderTags(); }
+    });
+    input.addEventListener('blur', addTag);
+    wrap._getTags = () => tags;
+    if (tags.length) renderTags();
+    return wrap;
+  }
+
+  function renderStep3Fields() {
+    const form = el('step3Form');
+    form.innerHTML = '';
+    const t = TYPE_CATALOG[state.accountType];
+    // Restore previously-entered values (e.g. after Review's "Edit" link
+    // sends the user back here) instead of presenting blank fields again.
+    const d = state.details || {};
+
+    // Name -- every kind needs one, field name differs by collection but
+    // the UI label stays the same. Required everywhere.
+    form.appendChild(fieldBlock({
+      id: 'd_name',
+      labelKey: t.kind === 'company' ? 'office.name' : 'auth.pro.businessName',
+      labelFallback: t.kind === 'company' ? 'Office name' : 'Business / Profile Name',
+      required: true,
+      value: d.name
+    }));
+
+    form.appendChild(fieldBlock({
+      id: 'd_description', labelKey: 'auth.pro.description', labelFallback: 'Description', rows: 3, value: d.description
+    }));
+    form.appendChild(fieldBlock({ id: 'd_city', labelKey: 'auth.pro.city', labelFallback: 'City', value: d.city }));
+    form.appendChild(fieldBlock({ id: 'd_district', labelKey: 'auth.pro.district', labelFallback: 'District', value: d.district }));
+
+    if (t.kind === 'company') {
+      form.appendChild(fieldBlock({ id: 'd_address', labelKey: 'auth.pro.address', labelFallback: 'Address', value: d.address }));
+      form.appendChild(fieldBlock({ id: 'd_phone', labelKey: 'auth.pro.contactPhone', labelFallback: 'Contact Phone', type: 'tel', value: d.contactInfo?.phone }));
+      form.appendChild(fieldBlock({ id: 'd_email', labelKey: 'auth.pro.contactEmail', labelFallback: 'Contact Email', type: 'email', value: d.contactInfo?.email }));
+      form.appendChild(fieldBlock({ id: 'd_whatsapp', labelKey: 'auth.pro.contactWhatsapp', labelFallback: 'WhatsApp', type: 'tel', value: d.contactInfo?.whatsapp }));
+    } else if (t.kind === 'organization') {
+      form.appendChild(fieldBlock({ id: 'd_phone', labelKey: 'auth.pro.contactPhone', labelFallback: 'Contact Phone', type: 'tel', value: d.contactInfo?.phone }));
+      form.appendChild(fieldBlock({ id: 'd_email', labelKey: 'auth.pro.contactEmail', labelFallback: 'Contact Email', type: 'email', value: d.contactInfo?.email }));
+      form.appendChild(fieldBlock({ id: 'd_whatsapp', labelKey: 'auth.pro.contactWhatsapp', labelFallback: 'WhatsApp', type: 'tel', value: d.contactInfo?.whatsapp }));
+    } else if (t.kind === 'serviceProvider') {
+      form.appendChild(fieldBlock({ id: 'd_experienceYears', labelKey: 'auth.pro.experienceYears', labelFallback: 'Years of Experience', type: 'number', value: d.experienceYears }));
+      const specialties = tagInputBlock({ id: 'd_specialties', labelKey: 'auth.pro.specialties', labelFallback: 'Specialties', hintKey: 'auth.pro.specialtiesHint', hintFallback: 'Type a specialty and press Enter to add it.', initialTags: d.specialties });
+      form.appendChild(specialties);
+      form._specialtiesBlock = specialties;
+      const serviceAreas = tagInputBlock({ id: 'd_serviceAreas', labelKey: 'auth.pro.serviceAreas', labelFallback: 'Service Areas', hintKey: 'auth.pro.serviceAreasHint', hintFallback: 'Type an area and press Enter to add it.', initialTags: d.serviceAreas });
+      form.appendChild(serviceAreas);
+      form._serviceAreasBlock = serviceAreas;
+
+      if (t.serviceType === 'cleaning') {
+        if (t.providerType === null) {
+          // cleaning_team_or_company_owner: ask team vs. company, plus a
+          // team-size field, matching firestore.rules' providerType
+          // in ['team','company'] allowance for this one type.
+          const restoredShape = d.providerType === 'company' ? 'company' : 'team';
+          const shapeWrap = document.createElement('div');
+          const shapeLabel = document.createElement('p');
+          shapeLabel.className = 'auth-label';
+          shapeLabel.textContent = tr('auth.pro.providerShape', 'Are you a team or a registered company?');
+          shapeWrap.appendChild(shapeLabel);
+          const pillWrap = document.createElement('div');
+          pillWrap.className = 'inline-flex items-center bg-surface-container rounded-full p-1 w-full';
+          pillWrap.innerHTML = `
+            <button type="button" id="shapeTeamBtn" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps transition-all">${tr('auth.pro.providerShapeTeam', 'Team')}</button>
+            <button type="button" id="shapeCompanyBtn" class="flex-1 px-4 py-2 rounded-full font-label-caps text-label-caps transition-all">${tr('auth.pro.providerShapeCompany', 'Company')}</button>
+          `;
+          shapeWrap.appendChild(pillWrap);
+          form.appendChild(shapeWrap);
+          form._providerShape = restoredShape;
+          const teamBtn = pillWrap.querySelector('#shapeTeamBtn');
+          const companyBtn = pillWrap.querySelector('#shapeCompanyBtn');
+          function setShapeActive(shape) {
+            const activeBtn = shape === 'company' ? companyBtn : teamBtn;
+            const inactiveBtn = shape === 'company' ? teamBtn : companyBtn;
+            activeBtn.classList.add('bg-primary', 'text-on-primary');
+            activeBtn.classList.remove('text-on-surface-variant');
+            inactiveBtn.classList.remove('bg-primary', 'text-on-primary');
+            inactiveBtn.classList.add('text-on-surface-variant');
+          }
+          teamBtn.addEventListener('click', () => { form._providerShape = 'team'; setShapeActive('team'); });
+          companyBtn.addEventListener('click', () => { form._providerShape = 'company'; setShapeActive('company'); });
+          setShapeActive(restoredShape);
+          form.appendChild(fieldBlock({ id: 'd_teamSize', labelKey: 'auth.pro.teamSize', labelFallback: 'Team Size', type: 'number', value: d.teamSize }));
+        }
+        const svcWrap = document.createElement('div');
+        const svcLabel = document.createElement('p');
+        svcLabel.className = 'auth-label';
+        svcLabel.textContent = tr('auth.pro.servicesOffered', 'Services Offered') + ` (${tr('auth.pro.optional', 'Optional')})`;
+        svcWrap.appendChild(svcLabel);
+        const restoredServices = Array.isArray(d.servicesOffered) ? d.servicesOffered : [];
+        CLEANING_SERVICES.forEach((svc) => {
+          const row = document.createElement('label');
+          row.className = 'checkbox-row';
+          const checkedAttr = restoredServices.includes(svc) ? ' checked' : '';
+          row.innerHTML = `<input type="checkbox" value="${svc}" data-cleaning-svc${checkedAttr}/> <span class="font-body-md text-[13.5px]">${tr('auth.pro.svc.' + svc, CLEANING_SERVICE_LABELS[svc])}</span>`;
+          svcWrap.appendChild(row);
+        });
+        form.appendChild(svcWrap);
+      }
+    }
+  }
+
+  function validateStep3() {
+    const nameInput = el('d_name');
+    const name = nameInput.value.trim();
+    if (!name) {
+      setFieldError('d_name', 'd_nameErr', tr('auth.pro.errBusinessName', 'Please enter a name.'));
+      nameInput.focus();
+      return false;
+    }
+    setFieldError('d_name', 'd_nameErr', '');
+
+    const t = TYPE_CATALOG[state.accountType];
+    const details = { name, description: el('d_description')?.value.trim() || '', city: el('d_city')?.value.trim() || '', district: el('d_district')?.value.trim() || '' };
+
+    if (t.kind === 'company') {
+      details.address = el('d_address')?.value.trim() || '';
+      details.contactInfo = {};
+      if (el('d_phone')?.value.trim()) details.contactInfo.phone = el('d_phone').value.trim();
+      if (el('d_email')?.value.trim()) details.contactInfo.email = el('d_email').value.trim();
+      if (el('d_whatsapp')?.value.trim()) details.contactInfo.whatsapp = el('d_whatsapp').value.trim();
+    } else if (t.kind === 'organization') {
+      details.contactInfo = {};
+      if (el('d_phone')?.value.trim()) details.contactInfo.phone = el('d_phone').value.trim();
+      if (el('d_email')?.value.trim()) details.contactInfo.email = el('d_email').value.trim();
+      if (el('d_whatsapp')?.value.trim()) details.contactInfo.whatsapp = el('d_whatsapp').value.trim();
+    } else if (t.kind === 'serviceProvider') {
+      const form = el('step3Form');
+      details.experienceYears = el('d_experienceYears')?.value ? Number(el('d_experienceYears').value) : null;
+      details.specialties = form._specialtiesBlock ? form._specialtiesBlock._getTags() : [];
+      details.serviceAreas = form._serviceAreasBlock ? form._serviceAreasBlock._getTags() : [];
+      if (t.serviceType === 'cleaning') {
+        details.servicesOffered = [...document.querySelectorAll('[data-cleaning-svc]:checked')].map((c) => c.value);
+        if (t.providerType === null) {
+          details.providerType = form._providerShape || 'team';
+          details.teamSize = el('d_teamSize')?.value ? Number(el('d_teamSize').value) : null;
+        } else {
+          details.providerType = 'individual';
+        }
+      }
+    }
+    state.details = details;
+    return true;
+  }
+
+  el('s3BackBtn').addEventListener('click', () => goToStep(2));
+  el('s3ContinueBtn').addEventListener('click', () => {
+    if (validateStep3()) {
+      renderMediaStep();
+      goToStep(4);
+    }
+  });
+
+  // ---------------------------------------------------------------------
+  // Step 4: Media -- staged locally only (no network call here). Real
+  // upload happens after the entity doc exists (finalize step), and
+  // only for accountTypes with an existing, audited Storage path
+  // (currently: office_owner -> company-logos/{companyId}/...). Other
+  // types show a clear "add this later" note instead of silently
+  // inventing a new Storage path in this task -- see completion report.
+  // ---------------------------------------------------------------------
+  function renderMediaStep() {
+    const t = TYPE_CATALOG[state.accountType];
+    const note = el('mediaLaterNote');
+    if (t.kind !== 'company') {
+      note.classList.remove('hidden');
+      note.textContent = tr('auth.pro.mediaLaterNote', "You can add this from your profile page once it's ready.");
+    } else {
+      note.classList.add('hidden');
+    }
+  }
+  el('mediaTile').addEventListener('click', () => el('mediaFileInput').click());
+  el('mediaTile').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el('mediaFileInput').click(); } });
+  el('mediaFileInput').addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+    state.mediaFile = file;
+    const url = URL.createObjectURL(file);
+    el('mediaPreviewImg').src = url;
+    el('mediaPreviewImg').classList.remove('hidden');
+    el('mediaTileIcon').classList.add('hidden');
+    el('mediaTileLabel').classList.add('hidden');
+    el('mediaRemoveBtn').classList.remove('hidden');
+  });
+  el('mediaRemoveBtn').addEventListener('click', () => {
+    state.mediaFile = null;
+    el('mediaFileInput').value = '';
+    el('mediaPreviewImg').classList.add('hidden');
+    el('mediaTileIcon').classList.remove('hidden');
+    el('mediaTileLabel').classList.remove('hidden');
+    el('mediaRemoveBtn').classList.add('hidden');
+  });
+  el('s4BackBtn').addEventListener('click', () => goToStep(3));
+  el('s4ContinueBtn').addEventListener('click', () => { renderReview(); goToStep(5); });
+
+  // ---------------------------------------------------------------------
+  // Step 5: Review
+  // ---------------------------------------------------------------------
+  function reviewRow(label, value) {
+    if (!value) return '';
+    return `<div class="flex justify-between gap-3 py-1.5 border-b border-outline-variant last:border-0">
+      <span class="font-body-md text-[12.5px] text-on-surface-variant">${label}</span>
+      <span class="font-body-md text-[13px] text-on-surface text-end">${value}</span>
+    </div>`;
+  }
+  function reviewSection(titleKey, titleFallback, rowsHtml, editStep) {
+    if (!rowsHtml) return '';
+    return `<div>
+      <div class="flex items-center justify-between mb-2">
+        <p class="font-label-caps text-label-caps text-secondary">${tr(titleKey, titleFallback)}</p>
+        <button type="button" class="review-edit font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-step="${editStep}">${tr('auth.pro.editBtn', 'Edit')}</button>
+      </div>
+      <div class="ps-card p-3">${rowsHtml}</div>
+    </div>`;
+  }
+
+  function renderReview() {
+    const t = TYPE_CATALOG[state.accountType];
+    const acctRows = reviewRow(tr('auth.fullName', 'Full Name'), state.account.fullName)
+      + reviewRow(tr('sell.phoneNumber', 'Phone Number'), state.account.phone)
+      + reviewRow(tr('auth.email', 'Email'), state.account.email)
+      + reviewRow(tr('auth.password', 'Password'), tr('auth.pro.passwordHidden', '••••••••'));
+    const typeRows = reviewRow(tr('auth.pro.step2Title', 'Choose Your Profile Type'), tr(t.labelKey, t.fallback));
+    const d = state.details;
+    let detailRows = reviewRow(tr('auth.pro.businessName', 'Business / Profile Name'), d.name)
+      + reviewRow(tr('auth.pro.description', 'Description'), d.description)
+      + reviewRow(tr('auth.pro.city', 'City'), d.city)
+      + reviewRow(tr('auth.pro.district', 'District'), d.district)
+      + reviewRow(tr('auth.pro.address', 'Address'), d.address)
+      + reviewRow(tr('auth.pro.contactPhone', 'Contact Phone'), d.contactInfo?.phone)
+      + reviewRow(tr('auth.pro.contactEmail', 'Contact Email'), d.contactInfo?.email)
+      + reviewRow(tr('auth.pro.contactWhatsapp', 'WhatsApp'), d.contactInfo?.whatsapp)
+      + reviewRow(tr('auth.pro.experienceYears', 'Years of Experience'), d.experienceYears)
+      + reviewRow(tr('auth.pro.specialties', 'Specialties'), (d.specialties || []).join(', '))
+      + reviewRow(tr('auth.pro.serviceAreas', 'Service Areas'), (d.serviceAreas || []).join(', '));
+    if (d.providerType === 'team' || d.providerType === 'company') {
+      detailRows += reviewRow(tr('auth.pro.providerShape', 'Are you a team or a registered company?'), d.providerType === 'company' ? tr('auth.pro.providerShapeCompany', 'Company') : tr('auth.pro.providerShapeTeam', 'Team'));
+      detailRows += reviewRow(tr('auth.pro.teamSize', 'Team Size'), d.teamSize);
+    }
+    if (Array.isArray(d.servicesOffered) && d.servicesOffered.length) {
+      detailRows += reviewRow(tr('auth.pro.servicesOffered', 'Services Offered'), d.servicesOffered.map((svc) => tr('auth.pro.svc.' + svc, svc)).join(', '));
+    }
+
+    el('reviewContent').innerHTML =
+      reviewSection('auth.pro.reviewAccountSection', 'Account', acctRows, 1)
+      + reviewSection('auth.pro.reviewTypeSection', 'Profile Type', typeRows, 2)
+      + reviewSection('auth.pro.reviewDetailsSection', 'Details', detailRows, 3);
+
+    document.querySelectorAll('.review-edit').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const step = Number(btn.dataset.step);
+        if (step === 2) renderTypeCategories();
+        if (step === 3) renderStep3Fields();
+        goToStep(step);
+      });
+    });
+  }
+
+  el('s5BackBtn').addEventListener('click', () => goToStep(4));
+
+  // ---------------------------------------------------------------------
+  // Send Verification Code -- the account/profile is NOT created here.
+  // Only an OTP challenge is created server-side, bound to this email
+  // (SIGNUP_EMAIL_VERIFY, uid=null -- see app.otp.service.OtpService).
+  // ---------------------------------------------------------------------
+  el('s5SendCodeBtn').addEventListener('click', () => withBusyButton(el('s5SendCodeBtn'), async () => {
+    el('s5Error').classList.add('hidden');
+    el('s5SendCodeSpinner').classList.remove('hidden');
+    el('s5SendCodeLabel').textContent = tr('auth.signup.sendingCode', 'Sending code…');
+    try {
+      await sendEmailOtp(state.account.email, 'SIGNUP_EMAIL_VERIFY');
+      enterOtpStep();
+    } catch (err) {
+      console.error('[signup-pro] otp send failed', err.name, err.status || '');
+      el('s5Error').textContent = describeBackendError(err);
+      el('s5Error').classList.remove('hidden');
+    } finally {
+      el('s5SendCodeSpinner').classList.add('hidden');
+      el('s5SendCodeLabel').textContent = tr('auth.pro.sendCodeBtn', 'Send Verification Code');
+    }
+  }));
+
+  // ---------------------------------------------------------------------
+  // Step 6: OTP verification -- exact same accessible widget signup.html
+  // already uses (js/otp-ui.js): numeric-only, auto-advance, backspace
+  // nav, arrow-key nav, full-code paste.
+  // ---------------------------------------------------------------------
+  const otpInput = wireOtpInputs(el('otpDigitsContainer'), { onComplete: () => attemptVerify() });
+  document.querySelectorAll('[data-otp-index]').forEach((input, i) => {
+    input.setAttribute('aria-label', `${tr('auth.otp.ariaDigitLabel', 'Verification code digit')} ${i + 1}`);
+  });
+
+  const RESEND_COOLDOWN_SECONDS = 60;
+  let resendTimer = null;
+  let resendSecondsLeft = 0;
+  function startResendCooldown() {
+    resendSecondsLeft = RESEND_COOLDOWN_SECONDS;
+    el('otpResendBtn').disabled = true;
+    updateResendLabel();
+    clearInterval(resendTimer);
+    resendTimer = setInterval(() => {
+      resendSecondsLeft -= 1;
+      if (resendSecondsLeft <= 0) {
+        clearInterval(resendTimer);
+        el('otpResendBtn').disabled = false;
+        el('otpResendLabel').textContent = tr('auth.pro.resendBtn', 'Resend code');
+      } else updateResendLabel();
+    }, 1000);
+  }
+  function updateResendLabel() {
+    el('otpResendLabel').textContent = `${tr('auth.pro.resendIn', 'Resend code in')} ${resendSecondsLeft}s`;
+  }
+
+  function enterOtpStep() {
+    el('otpMaskedEmail').textContent = maskEmail(state.account.email);
+    el('otpError').classList.add('hidden');
+    el('otpSuccess').classList.add('hidden');
+    otpInput.clear();
+    goToStep(6);
+    startResendCooldown();
+  }
+
+  el('otpBackBtn').addEventListener('click', () => { clearInterval(resendTimer); goToStep(5); });
+  el('otpChangeEmailBtn').addEventListener('click', () => {
+    // Changing the email means the OTP challenge just sent is no longer
+    // relevant to what the user will actually submit -- the backend
+    // itself invalidates the OLD challenge the moment a new one is
+    // created for the new email (OtpService.send overwrites the same
+    // identifier+purpose key), so there is nothing stale left reachable
+    // once they resend from Step 1.
+    clearInterval(resendTimer);
+    goToStep(1);
+    el('s1Email').focus();
+  });
+
+  el('otpResendBtn').addEventListener('click', () => withBusyButton(el('otpResendBtn'), async () => {
+    try {
+      await sendEmailOtp(state.account.email, 'SIGNUP_EMAIL_VERIFY');
+      el('otpError').classList.add('hidden');
+      otpInput.clear();
+      startResendCooldown();
+    } catch (err) {
+      console.error('[signup-pro] otp resend failed', err.name, err.status || '');
+      el('otpError').textContent = describeBackendError(err);
+      el('otpError').classList.remove('hidden');
+      el('otpResendBtn').disabled = false;
+    }
+  }));
+
+  function setOtpVerifyLoading(loading) {
+    el('otpVerifyBtn').disabled = loading;
+    el('otpVerifySpinner').classList.toggle('hidden', !loading);
+    el('otpVerifyBtnLabel').textContent = loading ? tr('auth.otp.verifying', 'Verifying…') : tr('auth.pro.verifyBtn', 'Verify Email');
+  }
+
+  let verifying = false;
+  async function attemptVerify() {
+    if (verifying) return;
+    const code = otpInput.getValue();
+    if (code.length !== 6) return;
+    verifying = true;
+    el('otpError').classList.add('hidden');
+    setOtpVerifyLoading(true);
+    try {
+      const resp = await verifyEmailOtp(state.account.email, 'SIGNUP_EMAIL_VERIFY', code);
+      state.verifyToken = resp.verifyToken;
+      el('otpSuccess').textContent = tr('auth.otp.verified', 'Verified.');
+      el('otpSuccess').classList.remove('hidden');
+      await finalizeAccount();
+    } catch (err) {
+      console.error('[signup-pro] otp verify failed', err.name, err.status || '');
+      const msg = err instanceof BackendResponseError && err.status === 429
+        ? tr('auth.pro.errTooManyAttempts', 'Too many incorrect attempts. Please request a new code.')
+        : describeBackendError(err);
+      el('otpError').textContent = msg;
+      el('otpError').classList.remove('hidden');
+      otpInput.clear();
+      otpInput.focus();
+      verifying = false;
+      setOtpVerifyLoading(false);
+    }
+  }
+  el('otpVerifyBtn').addEventListener('click', attemptVerify);
+
+  // ---------------------------------------------------------------------
+  // Finalize: complete signup (Auth account + users/{uid} profile,
+  // accountType included) -> sign in with the custom token -> re-read
+  // the REAL stored accountType from Firestore (never trust the wizard's
+  // own in-memory selection for this) -> create the entity doc using
+  // the already-audited, already-rate-limited creation path for that
+  // type -> success. Each step after sign-in is independently retryable
+  // without re-collecting anything or re-verifying email again -- the
+  // account already exists and is real the moment completeSignup()
+  // returns, so a failure past that point is a "finish setting up",
+  // never a "start over".
+  // ---------------------------------------------------------------------
+  async function finalizeAccount() {
+    showFinalizing('auth.creatingAccount', 'Creating account…');
+    try {
+      const result = await completeSignup({
+        verifyToken: state.verifyToken,
+        fullName: state.account.fullName,
+        phoneNumber: state.account.phone,
+        password: state.account.password,
+        requestedRole: 'customer',
+        accountType: state.accountType
+      });
+      // Password has done its one and only job -- drop it from memory
+      // immediately rather than letting it sit in `state` any longer
+      // than the single request that needed it.
+      state.account.password = '';
+
+      if (!result.customToken) {
+        window.location.href = 'login.html';
+        return;
+      }
+      showFinalizing('auth.signup.signingIn', 'Signing you in…');
+      await signInWithCustomToken(auth, result.customToken);
+      state.uid = result.uid;
+
+      showFinalizing('auth.pro.settingUpProfile', 'Setting up your professional profile…');
+      const profileSnap = await getDoc(fsDoc(db, 'users', state.uid));
+      // REAL, backend-resolved accountType -- never the wizard's own
+      // client-side selection, per this task's explicit requirement.
+      state.realAccountType = profileSnap.exists() ? profileSnap.data().accountType : null;
+
+      await ensureEntityCreated();
+      showSuccess();
+    } catch (err) {
+      console.error('[signup-pro] finalize failed', err.name, err.status || '');
+      goToStep(6);
+      el('otpError').textContent = describeBackendError(err);
+      el('otpError').classList.remove('hidden');
+      verifying = false;
+      setOtpVerifyLoading(false);
+    }
+  }
+
+  // Returns true if an entity was created (or already existed), false if
+  // creation failed -- callers show a recoverable retry state on false,
+  // never a hard dead end (the account itself is already real either way).
+  async function ensureEntityCreated() {
+    const t = TYPE_CATALOG[state.realAccountType];
+    if (!t) return true; // unknown/no accountType -> nothing to create
+    const user = auth.currentUser;
+    try {
+      if (t.kind === 'company') {
+        const mine = await listMyCompanies(user);
+        let companyId = (mine.companies || []).find((c) => c.isOwner)?.companyId;
+        if (!companyId) {
+          const created = await createCompany(user, {
+            name: state.details.name,
+            description: state.details.description || undefined,
+            city: state.details.city || undefined,
+            district: state.details.district || undefined,
+            address: state.details.address || undefined
+          });
+          companyId = created.companyId;
+          const contactInfo = state.details.contactInfo || {};
+          if (Object.keys(contactInfo).length) {
+            await updateDoc(fsDoc(db, 'companies', companyId), { contactInfo });
+          }
+        }
+        state.createdEntityId = companyId;
+        if (state.mediaFile && companyId) {
+          try {
+            const safeName = state.mediaFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const fileRef = storageRef(storage, `company-logos/${companyId}/${Date.now()}-${safeName}`);
+            await withUploadTimeout(uploadBytes(fileRef, state.mediaFile));
+            const url = await withUploadTimeout(getDownloadURL(fileRef));
+            await updateDoc(fsDoc(db, 'companies', companyId), { logoUrl: url });
+          } catch (uploadErr) {
+            console.error('[signup-pro] logo upload failed (non-fatal)', uploadErr);
+          }
+        }
+      } else if (t.kind === 'organization') {
+        const mine = await listMyOrganizations(user);
+        let orgId = (mine.organizations || []).find((o) => o.isOwner)?.organizationId;
+        if (!orgId) {
+          const created = await createOrganization(user, {
+            type: t.orgType,
+            name: state.details.name,
+            description: state.details.description || undefined,
+            city: state.details.city || undefined,
+            district: state.details.district || undefined
+          });
+          orgId = created.organizationId;
+          const contactInfo = state.details.contactInfo || {};
+          if (Object.keys(contactInfo).length) {
+            await updateDoc(fsDoc(db, 'organizations', orgId), { contactInfo });
+          }
+        }
+        state.createdEntityId = orgId;
+      } else if (t.kind === 'serviceProvider') {
+        const d = state.details;
+        const data = {
+          serviceType: t.serviceType,
+          providerType: d.providerType || 'individual',
+          ownerId: user.uid,
+          displayName: d.name,
+          verified: false,
+          createdAt: Date.now() / 1000,
+          updatedAt: Date.now() / 1000
+        };
+        if (d.description) data.description = d.description;
+        if (d.city) data.city = d.city;
+        if (d.district) data.district = d.district;
+        if (d.experienceYears) data.experienceYears = d.experienceYears;
+        if (d.specialties?.length) data.specialties = d.specialties;
+        if (d.serviceAreas?.length) data.serviceAreas = d.serviceAreas;
+        if (d.servicesOffered?.length) data.servicesOffered = d.servicesOffered;
+        if (d.teamSize) data.teamSize = d.teamSize;
+
+        if (data.providerType === 'individual') {
+          // Doc id == uid -- setDoc is naturally idempotent here, a
+          // retry can never create a duplicate.
+          await setDoc(fsDoc(db, 'serviceProviders', user.uid), data);
+          state.createdEntityId = user.uid;
+        } else {
+          // team/company: auto-generated id -- check-before-create so a
+          // retry after a lost response can't produce two docs for the
+          // same owner.
+          const existingQ = query(collection(db, 'serviceProviders'), where('ownerId', '==', user.uid), limit(1));
+          const existingSnap = await getDocs(existingQ);
+          if (!existingSnap.empty) {
+            state.createdEntityId = existingSnap.docs[0].id;
+          } else {
+            const ref = await addDoc(collection(db, 'serviceProviders'), data);
+            state.createdEntityId = ref.id;
+          }
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error('[signup-pro] entity creation failed', err);
+      return false;
+    }
+  }
+
+  function showSuccess() {
+    Object.values(views).forEach((id) => { el(id).hidden = true; });
+    el('viewFinalizing').hidden = true;
+    el('viewSuccess').hidden = false;
+
+    const t = TYPE_CATALOG[state.realAccountType];
+    const goBtn = el('goToProfileBtn');
+    const retryBtn = el('retryProfileSetupBtn');
+    if (t && !state.createdEntityId) {
+      // Signed in and the account is real, but the entity doc didn't
+      // get created -- documented recoverable path, not a dead end.
+      el('successSubtitle').textContent = tr('auth.pro.successSubtitlePending', "Your account is ready. We're still finishing your business profile — you can retry that below.");
+      goBtn.href = 'account.html';
+      retryBtn.classList.remove('hidden');
+      retryBtn.addEventListener('click', () => withBusyButton(retryBtn, async () => {
+        const ok = await ensureEntityCreated();
+        if (ok && state.createdEntityId) {
+          retryBtn.classList.add('hidden');
+          el('successSubtitle').textContent = tr('auth.pro.successSubtitle', 'Your professional account has been created successfully.');
+          if (t.kind === 'company') goBtn.href = `office.html?id=${encodeURIComponent(state.createdEntityId)}`;
+        }
+      }));
+    } else if (t && t.kind === 'company' && state.createdEntityId) {
+      goBtn.href = `office.html?id=${encodeURIComponent(state.createdEntityId)}`;
+    } else {
+      // No dedicated profile page exists yet for this account type --
+      // account.html is the honest, functional landing spot until one
+      // is built (explicitly out of scope for this task).
+      goBtn.href = 'account.html';
+    }
+  }
+
+  // Already signed in? Don't offer the signup wizard again -- but only
+  // check ONCE, on the auth state this page loaded with. The wizard's
+  // own finalizeAccount() calls signInWithCustomToken() partway through
+  // Step 6, which would otherwise re-fire this same listener and yank
+  // the user away from their own in-progress "setting up your profile"
+  // screen.
+  let initialAuthChecked = false;
+  onAuthStateChanged(auth, (user) => {
+    if (initialAuthChecked) return;
+    initialAuthChecked = true;
+    if (user) window.location.href = 'account.html';
+  });
+</script>
+<script type="module" src="./js/error-monitor.js"></script>
+</body></html>
