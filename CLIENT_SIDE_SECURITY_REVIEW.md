@@ -43,9 +43,14 @@ findings below are the ones that turned out to matter.
 > found. Caught and fixed via direct browser testing before landing —
 > not just re-inspecting the escaped string, but building the real DOM
 > and confirming the payload created no new element/attribute and never
-> fired. CLIENT-03/04/05 remain open, unchanged from the original
-> review — not requested this round. See the commit message for full
-> detail; this file's own findings text is left as originally written.
+> fired. That gap turned out to affect more than CLIENT-01 — the same
+> quote-unsafe escapers were already used in `href`/`src` attributes in
+> several other files, tracked as **CLIENT-06** and now also **FIXED**
+> (commit `2855990`) at the root: all 6 affected escaping functions
+> switched to a quote-safe implementation, not just the specific call
+> sites found. CLIENT-03/04/05 remain open, unchanged from the original
+> review — not requested. See each commit message for full detail;
+> this file's own findings text is left as originally written.
 
 ### CLIENT-01 — Unescaped listing `city` field renders as stored XSS on the public, unauthenticated Insights page
 
@@ -154,19 +159,18 @@ findings below are the ones that turned out to matter.
 - **`sell.html`'s own review-step self-preview**, **`agent-dashboard.html`'s** entire financial/listing tables, **`js/notification-bell.js`'s** notification panel — all consistently escape every attacker-controllable field via a local escaping function before use.
 - **`mam-ai.html`'s "AI" responses**: not actually free-form LLM output — `searchReply()` and similar functions are deterministic, rule-based JS returning fixed response templates with only numeric/city data interpolated (properly escaped) and hardcoded internal `href` targets (`'buy.html'`, never attacker- or model-influenced). The theoretical "LLM echoes injected input into unescaped HTML" risk this stage set out to check for doesn't apply — there's no generative model in this render path at all.
 - **`account.html`'s favorites/submissions rendering**: uses the inherently-safe `document.createElement()` + `.textContent =` pattern throughout, not string-built `innerHTML` — immune to this entire class of bug by construction.
-- **Escaping-function correctness**: 8 separate local implementations exist across the codebase (`escapeHtml` in 5 files, `escapeAdmin`/`escAdmin`/`escapeFin`/`escapeReview` one each) — all 8 independently verified correct (either the `div.textContent → innerHTML` browser-native trick, or a manual regex covering all of `&<>"'`). None has an escaping gap. The duplication itself (7 reimplementations of a concept a shared `js/escape-html.js` module already provides and 4 pages already import) is a maintainability smell worth simplifying eventually, not a security finding — flagged here for completeness, not as a numbered finding.
+- **Escaping-function correctness**: 8 separate local implementations exist across the codebase (`escapeHtml` in 5 files, `escapeAdmin`/`escAdmin`/`escapeFin`/`escapeReview` one each). At the time of this review's original pass, all 8 were confirmed correct *for the text-node contexts they were checked in* — that framing turned out to be incomplete (see CLIENT-06, since fixed: 6 of the 8 used a `div.textContent → innerHTML` trick that doesn't escape quote characters, a real gap in the attribute contexts several of them were also used in). All 8 are now the quote-safe manual-regex form. The duplication itself (7 reimplementations of a concept a shared `js/escape-html.js` module already provides and 4 pages already import) remains a maintainability smell worth simplifying eventually, not a security finding.
 
 ---
 
-## CLIENT-06 — Correction found while fixing CLIENT-01: quote-unsafe escapers are already used in attribute contexts elsewhere in this codebase (NOT fixed, flagged only)
+## CLIENT-06 — Correction found while fixing CLIENT-01: quote-unsafe escapers are already used in attribute contexts elsewhere in this codebase
 
 While verifying CLIENT-01's fix with a real browser (not just re-reading the escaped string), the "Escaping-function correctness" note above turned out to be incomplete in a way that matters: **`div.textContent → innerHTML`-based escapers (`escapeHtml` in `js/escape-html.js`/`js/city-nav.js`/`mam-ai.html`, `escapeFin`, `escapeReview`, `escapeAdmin` in `admin.html`) are correct for text-node content but do NOT escape `"`/`'`** — confirmed directly: `escapeHtml('<img onerror="x">and&"\'')` returns the quote characters completely unescaped, because quotes aren't structurally significant in the text-node context `div.innerHTML`'s getter serializes to. This is fine everywhere these functions are used purely as `<td>${escapeX(val)}</td>`-style text-node content (the overwhelming majority of their use in this codebase, and the only context this review's original pass checked them in) — but is a real, live attribute-breakout vector anywhere they're used inside a quoted HTML attribute instead.
 
 **Confirmed this pattern already exists elsewhere**, not hypothetically: `admin.html:1951-1952` (`<a href="${escapeAdmin(url)}"><img src="${escapeAdmin(url)}"/></a>`), `admin.html:2765`/`:2957` (`img src="${escapeAdmin(...)}"`), and `js/escape-html.js`'s `escapeHtml` used the identical way in `buy.html`'s `card()`/`index.html`'s `featuredCard()`/`map.html`'s equivalent (`src="${isSafeHttpUrl(l.img) ? escapeHtml(l.img) : IMAGES.villa}"`). Also confirmed the gating `isSafeHttpUrl()` check doesn't neutralize this: `new URL()` accepts a string containing a literal `"` without throwing (percent-encodes it internally), but the calling code interpolates the *original* raw string, not the URL object's re-encoded form — so a Firestore `photoURL`/`img` value containing a literal `"` would reach these attributes unescaped-for-quotes exactly like CLIENT-01's `city` field did.
 
 - **Status**: Newly discovered, **not verified end-to-end** the way CLIENT-01/02 were (no confirmed real Firestore write path checked for `photoURL`-shaped fields specifically — plausible given `firestore.rules` validates listing/agent-profile field presence, not content, the same way it does for `city`/company `name`, but not independently re-confirmed for this specific field this pass).
-- **Not fixed this round** — out of the explicit "fix CLIENT-01 and CLIENT-02" scope, and touches more files (`admin.html`, `buy.html`, `index.html`, `map.html`, likely `listing.html`) than either of those did. Flagged here rather than silently expanded into.
-- **Recommended next step**: A dedicated pass auditing every `href="${escapeX(...)}"`/`src="${escapeX(...)}"` site in the codebase for this exact pattern, fixed either by switching those sites to a quote-safe escaper (like CLIENT-01/02's fix now uses) or by confirming `isSafeHttpUrl()`'s `new URL()` re-serialization (`u.href`, not the original raw string) is what actually gets interpolated instead.
+- **Remediation status**: **FIXED** (commit `2855990`). Root-cause fix rather than a per-call-site audit: all 6 `div.textContent`-round-trip escapers in the codebase (`escapeHtml` in `js/escape-html.js`/`js/city-nav.js`/`mam-ai.html`, `escapeFin`, `escapeReview`, `escapeAdmin` in `admin.html`) were switched to the same quote-safe manual-regex pattern `escAdmin`/`notification-bell.js`/`profile.html` already used correctly — strictly safer and behaviorally identical for every existing text-node use, and closes every current *and future* attribute-context use of any of these six functions at once, rather than requiring the exact kind of per-call-site audit that already missed 3 of CLIENT-01's own 6 sites on the first pass. Verified with a real headless browser using the actual, unmodified `js/escape-html.js` `escapeHtml()` (not a reimplementation): an `<img src="...">` attribute-breakout payload run through it and inserted via `innerHTML` produced no separate `onerror` attribute.
 
 ---
 
@@ -179,7 +183,7 @@ While verifying CLIENT-01's fix with a real browser (not just re-reading the esc
 ### Confirmed Low / Hardening
 - **CLIENT-03** — Scan-log rendering unescaped but currently safe (hardcoded data source) — fix now before it's wired to real data.
 - **CLIENT-04** — No CSP anywhere; a partial, meta-tag-deliverable policy is feasible and would contain (not prevent) exactly the kind of payload CLIENT-01/02 demonstrate is real.
-- **CLIENT-06** — Discovered while fixing CLIENT-01: quote-unsafe escaping functions are already used in `href`/`src` attribute contexts in several other files (`admin.html`, `buy.html`, `index.html`, `map.html`) — same class of bug as CLIENT-01, not verified end-to-end or fixed this round.
+- **CLIENT-06** — Discovered while fixing CLIENT-01: quote-unsafe escaping functions were already used in `href`/`src` attribute contexts in several other files (`admin.html`, `buy.html`, `index.html`, `map.html`) — same class of bug as CLIENT-01. **FIXED** — all 6 quote-unsafe escapers in the codebase switched to a quote-safe implementation at the root, not just the known call sites. Commit `2855990`.
 
 ### Informational
 - **CLIENT-05** — Stale TODO comment above an already-live production URL.
