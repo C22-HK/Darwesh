@@ -25,10 +25,14 @@ function cityLabel(city) { return (window.cityLabel && window.cityLabel(city)) |
 // arbitrary text -- and this widget renders on every page site-wide via
 // #citiesNavSlot, so an unescaped value here would be a zero-click,
 // site-wide stored XSS. Escaped before ever reaching innerHTML.
+// Safe for both text-node content and quoted attribute values -- see
+// js/escape-html.js's own comment (CLIENT-06,
+// CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+// div.textContent-round-trip form of this function wasn't.
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : String(str);
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // Dynamically-injected content never gets caught by i18n.js's one-time

@@ -1340,10 +1340,14 @@ document.querySelectorAll('.chip-toggle').forEach(btn => {
   AMENITY_LABELS[btn.dataset.amenity] = btn.querySelector('span[data-i18n]').textContent;
 });
 
+// Safe for both text-node content and quoted attribute values -- see
+// js/escape-html.js's own comment (CLIENT-06,
+// CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+// div.textContent-round-trip form of this function wasn't.
 function escapeReview(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : String(str);
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 function renderReview() {

@@ -6,10 +6,17 @@
 // site's own forms -- firestore.rules validates *who* can write a field,
 // not its content. Escaping at the point of rendering closes that
 // regardless of how the value got into Firestore.
+// Safe for BOTH text-node content and quoted HTML attribute values
+// (href="...", src="...", data-*="...", etc.) -- unlike the earlier
+// div.textContent-round-trip version of this function (CLIENT-06,
+// CLIENT_SIDE_SECURITY_REVIEW.md), which only escaped &/</>` and left
+// "/' untouched, quote characters aren't structurally significant in a
+// text node the way they are inside a quoted attribute -- this escapes
+// all five so it's correct in either context.
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : String(str);
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // For values used as an <img src>/<a href> (photo URLs, etc.) -- HTML-

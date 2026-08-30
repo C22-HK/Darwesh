@@ -800,10 +800,14 @@
   // ---------------------------------------------------------------------
   let agentCommissionRate = 0;
 
+  // Safe for both text-node content and quoted attribute values -- see
+  // js/escape-html.js's own comment (CLIENT-06,
+  // CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+  // div.textContent-round-trip form of this function wasn't.
   function escapeFin(str) {
-    const div = document.createElement('div');
-    div.textContent = str == null ? '' : String(str);
-    return div.innerHTML;
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
   }
 
   const FIN_CATEGORIES = {

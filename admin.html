@@ -1816,10 +1816,17 @@ function renderServicesRows() {
 // sell.html's form, and none of it was being escaped before landing in
 // innerHTML -- a classic stored-XSS-into-an-admin-session path. Every
 // submission-provided value rendered below goes through this first.
+// Safe for both text-node content and quoted attribute values -- see
+// js/escape-html.js's own comment (CLIENT-06,
+// CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+// div.textContent-round-trip form of this function wasn't. Behaves
+// identically to escAdmin() further down this file (same codebase had
+// two independent implementations of the same idea) -- kept as two
+// names rather than merged, to keep this fix minimal.
 function escapeAdmin(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : String(str);
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // Photo/verification URLs (photoURL, photoUrls, etc.) are just as
