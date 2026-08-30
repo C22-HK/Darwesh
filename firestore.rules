@@ -34,6 +34,99 @@ service cloud.firestore {
         : null;
     }
 
+    // ---- Profile Architecture: accountType / organizationId / permissions ----
+    // Phase 1 (data model + rules only) additions. `role` above is
+    // UNCHANGED and remains the sole source of truth for isAgent()/
+    // isAdmin() -- everything below is a second, additive layer that
+    // never widens what `role` already grants, per the Multi-Type
+    // Profile Architecture plan §2.1/§2.5/§3 ("profile type, role,
+    // organization membership and permissions must remain separated";
+    // "UI hiding is not authorization").
+    function myAccountType() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', null)
+        : null;
+    }
+    function myOrganizationId() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('organizationId', null)
+        : null;
+    }
+    // accountType is self-settable ONLY to one of these descriptive,
+    // non-authoritative values at signup (write-once, then admin/backend
+    // only -- see the users/{uid} rule below). 'admin' is deliberately
+    // EXCLUDED here -- that value is only ever assigned by an admin, even
+    // though, per fail-closed design, self-declaring it would grant
+    // nothing by itself (myPermissions() never trusts accountType alone).
+    function isValidSelfAccountType(v) {
+      return v in [
+        'individual_customer', 'real_estate_agent', 'office_owner', 'office_employee',
+        'professional_engineer', 'professional_designer', 'professional_lawyer',
+        'professional_landscaping', 'cleaning_individual', 'cleaning_team_or_company_owner',
+        'org_owner_residential_community', 'org_owner_developer',
+        'org_owner_finance_provider', 'org_owner_furniture_store'
+      ];
+    }
+    // Protected permissions (verbatim list from the approved architecture
+    // plan) can NEVER be resolved true by hasPermission() below, for
+    // ANY caller including one whose rolePermissionDefaults/
+    // permissionOverrides somehow contained a protected:true entry --
+    // defense in depth on top of the write-side guarantee that those two
+    // collections/fields are themselves never directly client-writable
+    // (see §2.6 below: they are backend/Admin-SDK-only). A protected
+    // action must always be gated by isAdmin() directly at its call
+    // site, never by hasPermission().
+    function isProtectedPermissionKey(key) {
+      return key in [
+        'admin_access', 'manage_roles', 'manage_permissions', 'verify_profiles',
+        'suspend_users', 'change_organization_owner', 'manage_platform_security'
+      ];
+    }
+    // Resolved-permission computation, mirroring myRole()'s exact shape.
+    // FAIL-CLOSED BY CONSTRUCTION: a missing/null accountType short-
+    // circuits every branch below to {} via `&&`'s short-circuit
+    // evaluation (no path ever falls through to any role's real
+    // defaults), and every .get(key, false) defaults an unset key to
+    // false rather than throwing or defaulting to true. There is no
+    // code path here that can resolve to "true" for a key that isn't
+    // explicitly, affirmatively granted.
+    function roleDefaultPermissions() {
+      return myAccountType() != null && exists(/databases/$(database)/documents/rolePermissionDefaults/$(myAccountType()))
+        ? get(/databases/$(database)/documents/rolePermissionDefaults/$(myAccountType())).data.get('permissions', {})
+        : {};
+    }
+    function myPermissionOverrides() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissionOverrides', {})
+        : {};
+    }
+    function hasPermission(key) {
+      return isSignedIn()
+          && !isProtectedPermissionKey(key)
+          && myPermissionOverrides().get(key, roleDefaultPermissions().get(key, false)) == true;
+    }
+    // Ownership lookups for the new collections below -- same
+    // "read the referenced doc's own identity field" pattern as
+    // myCompanyId(), used so a request/product/member rule can check
+    // who owns the PARENT resource without trusting anything the
+    // request itself claims.
+    function orgOwnerId(orgId) {
+      return exists(/databases/$(database)/documents/organizations/$(orgId))
+        ? get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId
+        : null;
+    }
+    function isOrgMember(orgId) {
+      return isSignedIn() && (
+        orgOwnerId(orgId) == request.auth.uid
+        || exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+      );
+    }
+    function providerOwnerId(providerId) {
+      return exists(/databases/$(database)/documents/serviceProviders/$(providerId))
+        ? get(/databases/$(database)/documents/serviceProviders/$(providerId)).data.ownerId
+        : null;
+    }
+
     // ---- Companies ----
     // A real estate company using this platform. Every user and listing
     // is tagged with a companyId. Any signed-in user can CREATE a new
@@ -93,15 +186,29 @@ service cloud.firestore {
       // informational, granted no access by this rule) -- an admin must
       // explicitly set the real companyId later (admin.html's role-
       // promotion flow) for that request to become real access.
+      // accountType (Profile Architecture Phase 1): self-settable ONLY to
+      // one of the non-'admin' descriptive values (isValidSelfAccountType)
+      // at signup -- purely a UI-routing hint, never itself checked by
+      // any authorization rule (hasPermission()/myPermissions() ignore it
+      // unless a matching rolePermissionDefaults doc exists, and that
+      // collection is backend-only-writable, see below). organizationId
+      // and permissionOverrides are deliberately NOT in the create
+      // allowlist at all -- a brand-new user can never self-claim
+      // membership in an existing organization or grant themselves any
+      // permission override at signup; both are admin/backend-assigned
+      // only, after the fact.
       allow create: if isOwner(uid) && request.resource.data.role == 'customer'
                     && (!('requestedRole' in request.resource.data)
                         || request.resource.data.requestedRole in ['customer', 'agent'])
                     && (!('companyId' in request.resource.data)
                         || request.resource.data.companyId == null
                         || !exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)))
+                    && (!('accountType' in request.resource.data)
+                        || isValidSelfAccountType(request.resource.data.accountType))
                     && request.resource.data.keys().hasOnly([
                          'email', 'displayName', 'firstName', 'lastName', 'phone',
                          'role', 'requestedRole', 'companyId', 'requestedCompanyId', 'requestedCompanyName',
+                         'accountType',
                          'phoneVerified', 'phoneVerifiedAt', 'emailVerified', 'createdAt'
                        ]);
       // .get(field, null) rather than direct dot access for every locked
@@ -131,18 +238,35 @@ service cloud.firestore {
       // existed anywhere before; this is the one place the field is
       // ever meant to be set, so it's a reasonable, narrowly-scoped
       // place to add it, not an invented business limit elsewhere).
-      allow update: if (isOwner(uid)
-                          && request.resource.data.role == resource.data.role
-                          && request.resource.data.get('assignedAgentId', null) == resource.data.get('assignedAgentId', null)
-                          && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
-                          && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
-                          && (!('commissionRate' in request.resource.data)
-                              || ((request.resource.data.commissionRate is int || request.resource.data.commissionRate is float)
-                                  && request.resource.data.commissionRate >= 0
-                                  && request.resource.data.commissionRate <= 100))
-                          && request.resource.data.diff(resource.data).affectedKeys()
-                               .hasOnly(['displayName', 'photoURL', 'commissionRate']))
-                    || isAdmin();
+      // permissionOverrides (Profile Architecture Phase 1): locked to its
+      // prior value for EVERY client-SDK update, including an isAdmin()
+      // session -- per explicit instruction, permission/access
+      // configuration must be backend/Admin-SDK-mediated only, with no
+      // client-writable path at all, not even an admin-gated one. Only
+      // the backend's Admin SDK credential (bypasses these rules
+      // entirely, same as create_user_profile/ensure_company today) may
+      // ever change it -- see §2.6 of the architecture plan. accountType
+      // and organizationId stay in the isAdmin()-bypassable branch below
+      // (same admin-direct-write precedent as role/companyId today) --
+      // they are UI-routing/membership-pointer fields, not themselves a
+      // permission grant (myPermissions() never trusts them alone).
+      allow update: if request.resource.data.get('permissionOverrides', {}) == resource.data.get('permissionOverrides', {})
+                    && (
+                         (isOwner(uid)
+                           && request.resource.data.role == resource.data.role
+                           && request.resource.data.get('assignedAgentId', null) == resource.data.get('assignedAgentId', null)
+                           && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
+                           && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
+                           && request.resource.data.get('accountType', null) == resource.data.get('accountType', null)
+                           && request.resource.data.get('organizationId', null) == resource.data.get('organizationId', null)
+                           && (!('commissionRate' in request.resource.data)
+                               || ((request.resource.data.commissionRate is int || request.resource.data.commissionRate is float)
+                                   && request.resource.data.commissionRate >= 0
+                                   && request.resource.data.commissionRate <= 100))
+                           && request.resource.data.diff(resource.data).affectedKeys()
+                                .hasOnly(['displayName', 'photoURL', 'commissionRate']))
+                         || isAdmin()
+                       );
       allow delete: if isAdmin();
 
       // Per-user favorites and saved searches — only that user (ever) reads/writes.
@@ -459,6 +583,255 @@ service cloud.firestore {
                           && request.resource.data.agentId == request.auth.uid
                           && isValidAgentTransaction());
       allow delete: if isOwner(resource.data.agentId) || isAdmin();
+    }
+
+    // ==================================================================
+    // ---- Profile Architecture (Phase 1: data model + rules only) ----
+    // ==================================================================
+    // Everything below is new, additive collections for the Multi-Type
+    // Profile Architecture. None of it changes, weakens, or is consulted
+    // by any rule above this point -- role/isAgent()/isAdmin()/
+    // isListingOwnerOrAdmin() and every AUTHZ-01..04/BL-01..09 rule stay
+    // exactly as they were. See the approved architecture plan for the
+    // full design; this phase is data model + rules + emulator tests
+    // only -- no backend endpoint, no UI, ships nothing to production
+    // without a separate explicit request.
+
+    // ---- Organizations ----
+    // Generalizes `companies` for the four NEW business/organization
+    // types this phase introduces. Real-estate offices are NOT migrated
+    // here yet -- they keep using `companies` unchanged (see plan §2.2
+    // migration note); this collection's `type` allowlist below
+    // deliberately excludes 'real_estate_office' for that reason.
+    // Publicly readable (no isSignedIn() requirement) -- these are
+    // meant to be public storefront/organization profiles a guest can
+    // browse, the same reasoning `listings`' public-visibility branch
+    // already uses for unauthenticated browsing.
+    match /organizations/{orgId} {
+      function isOrgOwnerNow() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      allow read: if true;
+      // A signed-in user may found a brand-new organization, becoming
+      // its owner -- same "self-registration, not a transfer" reasoning
+      // `companies`' own create rule already uses. `verified` can never
+      // be self-set true at creation (admin-only, same as
+      // listings.verified). members/{ownerUid} is NOT auto-created here
+      // (Firestore rules can't fan out a second document from one
+      // write) -- ownerId on this doc is itself the authoritative owner
+      // check everywhere below (orgOwnerId()/isOrgMember()), so no
+      // membership doc is required for the owner to have full access.
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.type in [
+                         'residential_community', 'developer_project',
+                         'finance_provider', 'furniture_store'
+                       ]
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.get('verified', false) == false
+                    && (!('details' in request.resource.data) || request.resource.data.details is map)
+                    && request.resource.data.keys().hasOnly([
+                         'type', 'ownerId', 'name', 'description', 'logoUrl',
+                         'coverImageUrl', 'city', 'district', 'location',
+                         'contactInfo', 'details', 'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // ownerId is locked for EVERY client-SDK update, including
+      // isAdmin() -- ownership transfer is one of the explicitly
+      // backend-mediated categories (plan §2.6); only a future backend
+      // endpoint (Admin SDK, bypasses these rules) may reassign it.
+      // `type` is likewise locked in the owner's own branch (an owner
+      // can't relabel their org into a different business type after
+      // the fact); an admin may still adjust `verified`/`type` directly,
+      // matching the existing listings.verified admin-direct precedent.
+      allow update: if request.resource.data.ownerId == resource.data.ownerId
+                    && (
+                         isAdmin()
+                         || (isOrgOwnerNow()
+                             && request.resource.data.type == resource.data.type
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && (!('details' in request.resource.data) || request.resource.data.details is map)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'name', 'description', 'logoUrl', 'coverImageUrl',
+                                    'city', 'district', 'location', 'contactInfo',
+                                    'details', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      // Explicit, queryable membership record for non-owner staff. An
+      // employee's presence here IS the approval record (plan §2.2/§3):
+      // there is no "request to join, auto-approved" path, and an
+      // employee can never write their own entry. Organization access
+      // changes are one of the explicitly backend-mediated categories
+      // (plan §2.6) -- this subcollection is never client-writable at
+      // all, by any role, including isAdmin(); only a future backend
+      // endpoint (Admin SDK) creates/edits/removes a membership doc.
+      match /members/{memberUid} {
+        allow read: if isAdmin()
+                    || (isSignedIn() && orgOwnerId(orgId) == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid == memberUid);
+        allow write: if false;
+      }
+    }
+
+    // ---- Service providers (Engineer/Designer/Lawyer/Landscaping/Cleaning) ----
+    // One collection for all five service types (plan §2.3) rather than
+    // five near-duplicated ones. Only 'cleaning' may use a non-
+    // 'individual' providerType (team/company) -- the other four are
+    // individual-only, per the approved plan.
+    match /serviceProviders/{providerId} {
+      function isProviderOwnerNow() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      function isValidServicesOffered(data) {
+        return !('servicesOffered' in data)
+            || data.servicesOffered.hasOnly([
+                 'house_cleaning', 'apartment_cleaning', 'office_cleaning',
+                 'deep_cleaning', 'move_in_cleaning', 'move_out_cleaning',
+                 'post_construction_cleaning', 'post_renovation_cleaning',
+                 'commercial_cleaning'
+               ]);
+      }
+      allow read: if true;
+      // An individual provider's document id must equal their own uid
+      // (providerId == ownerId == uid) -- team/company cleaning
+      // providers get a separate generated id, still owner-locked.
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.serviceType in ['engineer', 'designer', 'lawyer', 'landscaping', 'cleaning']
+                    && request.resource.data.providerType in ['individual', 'team', 'company']
+                    && (request.resource.data.providerType == 'individual' || request.resource.data.serviceType == 'cleaning')
+                    && (request.resource.data.providerType != 'individual' || providerId == request.auth.uid)
+                    && request.resource.data.get('verified', false) == false
+                    && isValidServicesOffered(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'serviceType', 'providerType', 'ownerId', 'displayName',
+                         'companyName', 'photoOrLogoUrl', 'description', 'city',
+                         'district', 'serviceAreas', 'experienceYears',
+                         'specialties', 'servicesOffered', 'portfolio', 'teamSize',
+                         'availableDays', 'availableHours', 'pricingModel',
+                         'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // ownerId is locked for EVERY client-SDK update, including
+      // isAdmin() -- same backend-mediated-ownership-transfer reasoning
+      // as organizations.ownerId above.
+      allow update: if request.resource.data.ownerId == resource.data.ownerId
+                    && (
+                         isAdmin()
+                         || (isProviderOwnerNow()
+                             && request.resource.data.serviceType == resource.data.serviceType
+                             && request.resource.data.providerType == resource.data.providerType
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && isValidServicesOffered(request.resource.data)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'displayName', 'companyName', 'photoOrLogoUrl',
+                                    'description', 'city', 'district', 'serviceAreas',
+                                    'experienceYears', 'specialties', 'servicesOffered',
+                                    'portfolio', 'teamSize', 'availableDays',
+                                    'availableHours', 'pricingModel', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin() || isProviderOwnerNow();
+
+      // Incoming customer requests, scoped under this specific provider's
+      // own path -- never a flat, filterable-by-anyone collection. This
+      // is the mechanism that satisfies "a cleaning provider must not
+      // see another provider's private jobs" (plan §2.3/§3): a rule
+      // would have to be written incorrectly to leak across providerId
+      // path segments, not merely configured incorrectly.
+      match /requests/{requestId} {
+        allow create: if isSignedIn()
+                      && request.resource.data.customerUid == request.auth.uid
+                      && request.resource.data.get('status', 'pending') == 'pending'
+                      && request.resource.data.keys().hasOnly(['customerUid', 'status', 'message', 'contactPhone', 'createdAt']);
+        allow read: if isAdmin()
+                    || (isSignedIn() && resource.data.customerUid == request.auth.uid)
+                    || (isSignedIn() && providerOwnerId(providerId) == request.auth.uid);
+        allow update: if isAdmin()
+                      || (isSignedIn() && providerOwnerId(providerId) == request.auth.uid
+                          && request.resource.data.customerUid == resource.data.customerUid
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'providerNote', 'updatedAt']));
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- Home goods / furniture catalog ----
+    // Explicitly NOT an order/payment system this phase (plan §2.4) --
+    // publish/browse/manage only.
+    match /productCategories/{categoryId} {
+      // Flat, parentId-linked tree seeded as data so new categories
+      // (any depth) need zero rules/code changes -- just a new document.
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /products/{productId} {
+      // "Products must belong to the correct seller/organization. Do not
+      // allow one store to modify another store's products" -- sellerId
+      // is locked on update (BL-01 agentId-lock pattern) and every
+      // write requires current membership in that SPECIFIC org (checked
+      // against the actual request/resource sellerId, never trusted
+      // from elsewhere), gated further by the create_product/
+      // edit_own_product permission so mere org membership isn't itself
+      // sufficient without the matching capability.
+      allow read: if true;
+      allow create: if isAdmin()
+                    || (isOrgMember(request.resource.data.sellerId)
+                        && hasPermission('create_product')
+                        && get(/databases/$(database)/documents/organizations/$(request.resource.data.sellerId)).data.type == 'furniture_store'
+                        && request.resource.data.name is string
+                        && request.resource.data.name.size() > 0
+                        && request.resource.data.status in ['available', 'out_of_stock', 'hidden', 'sold_out']
+                        && (request.resource.data.price is int || request.resource.data.price is float)
+                        && request.resource.data.price >= 0
+                        && request.resource.data.keys().hasOnly([
+                             'sellerId', 'name', 'categoryId', 'description', 'price', 'currency',
+                             'discountPrice', 'images', 'status', 'condition', 'dimensions',
+                             'material', 'color', 'deliveryAvailable', 'createdAt', 'updatedAt'
+                           ]));
+      allow update: if isAdmin()
+                    || (request.resource.data.sellerId == resource.data.sellerId
+                        && isOrgMember(resource.data.sellerId)
+                        && hasPermission('edit_own_product')
+                        && request.resource.data.status in ['available', 'out_of_stock', 'hidden', 'sold_out']
+                        && (request.resource.data.price is int || request.resource.data.price is float)
+                        && request.resource.data.price >= 0
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly([
+                               'name', 'categoryId', 'description', 'price', 'currency',
+                               'discountPrice', 'images', 'status', 'condition', 'dimensions',
+                               'material', 'color', 'deliveryAvailable', 'updatedAt'
+                             ]));
+      allow delete: if isAdmin() || (isOrgMember(resource.data.sellerId) && hasPermission('edit_own_product'));
+    }
+
+    // ---- Admin Access & Permissions ----
+    // Per explicit instruction: ALL permission/access-configuration
+    // writes -- protected or not -- go through a trusted backend/
+    // Admin-SDK path only, atomically paired with an accessAuditLog
+    // entry. These three collections are therefore `allow write: if
+    // false` for every client-SDK caller, including an authenticated
+    // isAdmin() session -- there is no admin-gated client path at all,
+    // by design (plan §2.6, revised per explicit feedback). Reads stay
+    // isAdmin()-gated client reads (rendering the admin panel carries no
+    // atomicity/audit concern). Phase 1 ships no backend endpoint yet
+    // (out of scope, see plan §5) -- these collections exist and are
+    // seedable only via the Admin SDK directly (e.g. this phase's own
+    // emulator test setup), not through any client surface, until a
+    // later phase's backend endpoints are approved and built.
+    match /permissionDefinitions/{key} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /rolePermissionDefaults/{accountTypeKey} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /accessAuditLog/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ---- Email OTP storage (backend-only) ----
