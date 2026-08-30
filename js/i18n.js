@@ -17,6 +17,12 @@ const RTL_LANGS = ['ku', 'ar'];
 
 const translations = {
   ku: {
+    'intro.eyebrow': 'بەخێربێیت',
+    'intro.statement': 'خانووبەرەی ڕاستەقینە، پیشەگەری ڕاستەقینە، و متمانەی ڕاستەقینە — بە هێمنی پێکەوە.',
+    'intro.enter': 'بچۆرە دەرویش',
+    'intro.hint': 'ئینتەر لێبدە، کرتە بکە، یان دەستی لێبدە بۆ بەردەوامبوون.',
+    'intro.audioEnable': 'دەنگی ئارام چالاک بکە',
+    'intro.audioDisable': 'دەنگی ئارام بێدەنگ بکە',
     'nav.home': 'سەرەکی',
     'nav.map': 'نەخشە',
     'nav.services': 'خزمەتگوزاریەکان',
@@ -1070,6 +1076,8 @@ const translations = {
     'auth.pro.mediaDragHint': 'کرتە بکە، یان وێنەیەک ڕاکێشە و لێرە دایبنێ.',
     'auth.pro.noImageSelected': 'هیچ وێنەیەک هەڵنەبژێردراوە.',
     'auth.pro.professionalSignupHint': 'ئۆفیسی خانووبەرە، ئەندازیاران، خزمەتگوزاری خاوێنکردنەوە، و زیاتر.',
+    'auth.visual.loginHeadline': 'بەخێربێیتەوە',
+    'auth.visual.loginSubtitle': 'دڵخوازەکان، داواکارییەکان، و گەڕانە هەڵگیراوەکانت هەر لەو شوێنەن کە جێت هێشتن.',
     'auth.visual.customerHeadline': 'بە دڵنیایی ماڵی داهاتووت بدۆزەرەوە',
     'auth.visual.customerSubtitle': 'دڵخوازەکان هەڵبگرە، داواکارییەکانت بەدواداچوونیان بکە، و ئاگادارکردنەوە وەربگرە لەسەر گەڕانە هەڵگیراوەکان — هەموو لە هەژمارێکی متمانەپێکراودا.',
     'auth.visual.proHeadline': 'بازرگانییەکەت گەشە پێبدە لەسەر دەرویش گروپ',
@@ -1148,6 +1156,12 @@ const translations = {
     'auth.pro.svc.commercial_cleaning': 'خاوێنکردنەوەی بازرگانی'
   },
   ar: {
+    'intro.eyebrow': 'أهلاً بك',
+    'intro.statement': 'عقارات حقيقية، محترفون حقيقيون، وثقة حقيقية — مجتمعين بهدوء.',
+    'intro.enter': 'ادخل دەرویش',
+    'intro.hint': 'اضغط إنتر، أو انقر، أو اضغط مطولاً للمتابعة.',
+    'intro.audioEnable': 'تفعيل الصوت الهادئ',
+    'intro.audioDisable': 'كتم الصوت الهادئ',
     'nav.home': 'الرئيسية',
     'nav.map': 'الخريطة',
     'nav.services': 'الخدمات',
@@ -2201,6 +2215,8 @@ const translations = {
     'auth.pro.mediaDragHint': 'انقر، أو اسحب وأفلت صورة هنا.',
     'auth.pro.noImageSelected': 'لم يتم اختيار صورة.',
     'auth.pro.professionalSignupHint': 'مكاتب عقارية، مهندسون، خدمات تنظيف، والمزيد.',
+    'auth.visual.loginHeadline': 'مرحباً بعودتك',
+    'auth.visual.loginSubtitle': 'مفضلاتك وطلباتك وعمليات البحث المحفوظة في مكانها تماماً كما تركتها.',
     'auth.visual.customerHeadline': 'اعثر على منزلك القادم بثقة',
     'auth.visual.customerSubtitle': 'احفظ المفضلة، وتابع طلباتك، واحصل على تنبيهات لعمليات البحث المحفوظة — كل ذلك في حساب واحد موثوق.',
     'auth.visual.proHeadline': 'نمِّ أعمالك مع مجموعة دەرویش',

@@ -7,6 +7,7 @@
 <title>Darwesh Group - Professional Sign Up</title>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -28,7 +29,7 @@
   .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--ps-color-secondary); flex: none; }
 </style>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
 
 <div class="auth-split">
 
@@ -276,7 +277,7 @@
     <!-- ============ Success ============ -->
     <section id="viewSuccess" class="pro-view text-center py-8" hidden aria-labelledby="successHeading">
       <div class="auth-card" style="max-width:420px; margin-inline:auto;">
-        <div class="mx-auto mb-5 flex items-center justify-center" style="width:72px;height:72px;border-radius:999px;background:var(--ps-color-tertiary-container); box-shadow:var(--ps-shadow-3d-2); overflow:hidden;">
+        <div class="cine-success-icon mx-auto mb-5 flex items-center justify-center" style="width:72px;height:72px;border-radius:999px;background:var(--ps-color-tertiary-container); box-shadow:var(--ps-shadow-3d-2); overflow:hidden;">
           <span class="material-symbols-outlined text-[40px]" style="color:var(--ps-color-on-tertiary-container);" aria-hidden="true">check_circle</span>
         </div>
         <p id="successHeading" class="font-headline-md text-[24px] text-primary mb-2" data-i18n="auth.pro.successTitle">Your profile is ready</p>
@@ -293,6 +294,7 @@
 </div>
 
 <script src="./js/i18n.js"></script>
+<script src="./js/cursor-follower.js"></script>
 <script type="module">
   import { auth, db, storage, getDoc, updateDoc, addDoc, setDoc, getDocs } from './js/firebase-init.js';
   import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
@@ -978,6 +980,24 @@
   // already uses (js/otp-ui.js): numeric-only, auto-advance, backspace
   // nav, arrow-key nav, full-code paste.
   // ---------------------------------------------------------------------
+  // Restrained visual-only feedback (cinematic system) -- never touches
+  // OTP send/verify/attempt-limit logic, purely CSS classes toggled
+  // around the same existing success/error paths below.
+  function shakeOtp() {
+    const wrap = el('otpDigitsContainer');
+    wrap.classList.remove('cine-otp-shake');
+    void wrap.offsetWidth;
+    wrap.classList.add('cine-otp-shake');
+  }
+  function convergeOtpSuccess() {
+    const wrap = el('otpDigitsContainer');
+    wrap.classList.remove('cine-otp-shake');
+    wrap.classList.add('cine-otp-converge');
+  }
+  function resetOtpFeedback() {
+    el('otpDigitsContainer').classList.remove('cine-otp-shake', 'cine-otp-converge');
+  }
+
   const otpInput = wireOtpInputs(el('otpDigitsContainer'), { onComplete: () => attemptVerify() });
   document.querySelectorAll('[data-otp-index]').forEach((input, i) => {
     input.setAttribute('aria-label', `${tr('auth.otp.ariaDigitLabel', 'Verification code digit')} ${i + 1}`);
@@ -1009,6 +1029,7 @@
     el('otpError').classList.add('hidden');
     el('otpSuccess').classList.add('hidden');
     otpInput.clear();
+    resetOtpFeedback();
     goToStep(6);
     startResendCooldown();
   }
@@ -1059,6 +1080,7 @@
       state.verifyToken = resp.verifyToken;
       el('otpSuccess').textContent = tr('auth.otp.verified', 'Verified.');
       el('otpSuccess').classList.remove('hidden');
+      convergeOtpSuccess();
       await finalizeAccount();
     } catch (err) {
       console.error('[signup-pro] otp verify failed', err.name, err.status || '');
@@ -1069,6 +1091,7 @@
       el('otpError').classList.remove('hidden');
       otpInput.clear();
       otpInput.focus();
+      shakeOtp();
       verifying = false;
       setOtpVerifyLoading(false);
     }
@@ -1122,6 +1145,7 @@
     } catch (err) {
       console.error('[signup-pro] finalize failed', err.name, err.status || '');
       goToStep(6);
+      resetOtpFeedback();
       el('otpError').textContent = describeBackendError(err);
       el('otpError').classList.remove('hidden');
       verifying = false;

@@ -21,6 +21,8 @@ violation reporting. -->
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Home</title>
 <link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -40,6 +42,46 @@ violation reporting. -->
   </style>
   </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
+<!-- ===========================================================
+     Cinematic entry / intro overlay -- presentation only, never an
+     auth gate. Starts `hidden`; the inline script immediately after
+     un-hides it before first paint, but ONLY when this browser session
+     hasn't entered yet (sessionStorage), exactly like the existing
+     lang/dir bootstrap script at the top of <head> avoids a flash for
+     its own concern. A signed-in visitor's session is completely
+     unaffected either way -- this never touches auth state.
+     =========================================================== -->
+<div id="cine-intro" class="cine-scope" hidden aria-modal="true" role="dialog" aria-labelledby="cineIntroMark">
+  <button id="cineAudioToggle" class="cine-audio-toggle" type="button" hidden aria-pressed="false">
+    <span class="material-symbols-outlined" aria-hidden="true" style="font-size:19px;">volume_off</span>
+  </button>
+  <div class="cine-intro-inner">
+    <p class="cine-intro-eyebrow" data-i18n="intro.eyebrow">Welcome</p>
+    <p id="cineIntroMark" class="cine-intro-mark">Darwesh Group</p>
+    <p class="cine-intro-statement" data-i18n="intro.statement">Real estate, real professionals, and real trust -- brought together, quietly.</p>
+    <div class="cine-enter-wrap">
+      <button id="cineEnterBtn" class="cine-enter-btn" type="button" aria-label="Enter Darwesh Group">
+        <svg class="cine-enter-ring" viewBox="0 0 128 128" aria-hidden="true">
+          <circle cx="64" cy="64" r="60"></circle>
+        </svg>
+        <span data-i18n="intro.enter">Enter Darwesh</span>
+      </button>
+    </div>
+    <p class="cine-intro-hint" data-i18n="intro.hint">Press Enter, tap, or click to continue.</p>
+  </div>
+</div>
+<script>
+  (function () {
+    try {
+      if (sessionStorage.getItem('darwesh_intro_seen') === '1') return;
+    } catch (e) { /* private mode -- show the intro rather than guess */ }
+    var el = document.getElementById('cine-intro');
+    if (el) {
+      el.hidden = false;
+      document.body.classList.add('cine-intro-open');
+    }
+  })();
+</script>
 <!-- TopAppBar -->
 <header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
 <div class="flex items-center gap-4">
@@ -379,5 +421,7 @@ async function loadFeaturedListings() {
 loadFeaturedListings();
 document.addEventListener('darwesh:langchange', renderFeaturedGrid);
 </script>
+<script src="./js/cursor-follower.js"></script>
+<script type="module" src="./js/intro-entry.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
 </body></html>

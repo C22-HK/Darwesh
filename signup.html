@@ -22,13 +22,14 @@ violation reporting. -->
 <title>Darwesh Group - Sign Up</title>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
   body { min-height: 100dvh; }
 </style>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
 
 <div class="auth-split">
 
@@ -212,6 +213,7 @@ violation reporting. -->
 </div>
 
 <script src="./js/i18n.js"></script>
+<script src="./js/cursor-follower.js"></script>
 <script type="module">
   import { auth, db, getDoc } from './js/firebase-init.js';
   import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
@@ -339,6 +341,19 @@ violation reporting. -->
   const otpResendLabel = document.getElementById('otpResendLabel');
   const otpBackBtn = document.getElementById('otpBackBtn');
 
+  const otpDigitsEl = document.getElementById('otpDigitsContainer');
+  // Restrained visual-only feedback (cinematic system) -- never touches
+  // OTP send/verify/attempt-limit logic, purely CSS classes toggled
+  // around the same existing success/error paths below.
+  function shakeOtp() {
+    otpDigitsEl.classList.remove('cine-otp-shake');
+    void otpDigitsEl.offsetWidth; // restart the animation if triggered twice in a row
+    otpDigitsEl.classList.add('cine-otp-shake');
+  }
+  function convergeOtpSuccess() {
+    otpDigitsEl.classList.remove('cine-otp-shake');
+    otpDigitsEl.classList.add('cine-otp-converge');
+  }
   const otpInput = wireOtpInputs(document.getElementById('otpDigitsContainer'), {
     onComplete: () => attemptVerify()
   });
@@ -378,6 +393,7 @@ violation reporting. -->
     otpMaskedEmail.textContent = maskEmail(pendingSignup.email);
     otpError.classList.add('hidden');
     otpInput.clear();
+    otpDigitsEl.classList.remove('cine-otp-shake', 'cine-otp-converge');
     showStep(otpStepView);
     startResendCooldown();
   }
@@ -422,12 +438,14 @@ violation reporting. -->
     setOtpVerifyLoading(true);
     try {
       const verifyResp = await verifyEmailOtp(pendingSignup.email, 'SIGNUP_EMAIL_VERIFY', code);
+      convergeOtpSuccess();
       await finishSignup(verifyResp.verifyToken);
     } catch (err) {
       console.error('[signup] otp verify failed', err.name, err.status || '');
       otpError.textContent = describeBackendError(err);
       otpError.classList.remove('hidden');
       otpInput.clear();
+      shakeOtp();
       submitting = false;
       setOtpVerifyLoading(false);
     }
@@ -473,6 +491,7 @@ violation reporting. -->
     } catch (err) {
       console.error('[signup] signup/complete failed', err.name, err.status || '');
       showStep(otpStepView);
+      otpDigitsEl.classList.remove('cine-otp-converge');
       submitting = false;
       setOtpVerifyLoading(false);
       otpError.textContent = describeBackendError(err);

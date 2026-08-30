@@ -51,6 +51,22 @@
   --ps-shadow-3d-2: 0 2px 4px rgba(4, 22, 39, 0.06), 0 14px 32px -10px rgba(4, 22, 39, 0.20);
   --ps-shadow-3d-3: 0 6px 16px rgba(4, 22, 39, 0.10), 0 32px 64px -20px rgba(4, 22, 39, 0.32);
   --ps-gold-edge: linear-gradient(120deg, transparent, var(--ps-color-secondary-container) 45%, var(--ps-color-secondary) 55%, transparent);
+
+  /* ---- Motion tokens -----------------------------------------------------
+   * One shared timing system instead of ad hoc per-rule millisecond
+   * values. Defined globally (not scoped to the cinematic pages) with
+   * values chosen to match what every existing hardcoded transition on
+   * this site already used, so introducing them here changes nothing
+   * visually by itself -- component rules below now reference these
+   * instead of a literal duration. css/cinematic.css overrides these
+   * same variable names to a slightly slower, calmer set on the pages
+   * that opt into the cinematic system (see .cine-scope). */
+  --motion-fast: 150ms;
+  --motion-standard: 220ms;
+  --motion-slow: 420ms;
+  --ease-premium: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
 }
 
 /* ---- Layout shell -------------------------------------------------- */
@@ -319,7 +335,7 @@
   font-size: 14px;
   color: var(--ps-color-on-surface);
   background: var(--ps-color-surface-container-lowest);
-  transition: border-color .15s ease, box-shadow .15s ease;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-fast, .15s) var(--ease-premium, ease);
 }
 .auth-input:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
 .auth-input[aria-invalid="true"] { border-color: var(--ps-color-error); }
@@ -337,7 +353,7 @@
 .auth-input-wrap .auth-input { padding-inline-start: 42px; }
 .auth-input-wrap .auth-input-icon { position: absolute; inset-inline-start: 13px; top: 50%; transform: translateY(-50%); font-size: 19px; color: var(--ps-color-outline); pointer-events: none; }
 .auth-input-wrap .auth-input.has-toggle { padding-inline-end: 42px; }
-.auth-toggle-visibility { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: var(--ps-color-outline); display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; transition: background-color .15s ease, color .15s ease; }
+.auth-toggle-visibility { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: var(--ps-color-outline); display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; transition: background-color var(--motion-fast, .15s) var(--ease-premium, ease), color var(--motion-fast, .15s) var(--ease-premium, ease); }
 .auth-toggle-visibility:hover { background: var(--ps-color-surface-container-low); color: var(--ps-color-on-surface-variant); }
 .auth-toggle-visibility:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
 .auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; flex: none; }
@@ -473,7 +489,7 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   box-shadow: var(--ps-shadow-3d-1);
-  transition: box-shadow .18s ease, transform .1s ease, background-color .18s ease, border-color .18s ease;
+  transition: box-shadow var(--motion-standard, .18s) var(--ease-premium, ease), transform var(--motion-fast, .1s) var(--ease-premium, ease), background-color var(--motion-standard, .18s) var(--ease-premium, ease), border-color var(--motion-standard, .18s) var(--ease-premium, ease);
   cursor: pointer;
 }
 .auth-btn-primary:hover { box-shadow: var(--ps-shadow-3d-2); border-color: var(--ps-color-secondary); }
@@ -497,7 +513,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  transition: border-color .15s ease, background-color .15s ease;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), background-color var(--motion-fast, .15s) var(--ease-premium, ease);
   cursor: pointer;
 }
 .auth-btn-secondary:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container-low); }
@@ -558,7 +574,7 @@
   border: 1.5px solid var(--ps-color-outline-variant);
   color: var(--ps-color-on-surface-variant);
   flex: none;
-  transition: background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
+  transition: background-color var(--motion-standard, .2s) var(--ease-premium, ease), color var(--motion-standard, .2s) var(--ease-premium, ease), border-color var(--motion-standard, .2s) var(--ease-premium, ease), box-shadow var(--motion-standard, .2s) var(--ease-premium, ease);
   box-shadow: var(--ps-shadow-3d-1);
 }
 .pro-step-dot.done { background: var(--ps-color-secondary); border-color: var(--ps-color-secondary); color: var(--ps-color-on-secondary); }
@@ -581,7 +597,7 @@
   text-align: start;
   background: var(--ps-color-surface-container-lowest);
   cursor: pointer;
-  transition: border-color .15s ease, box-shadow .18s ease, transform .12s ease, background-color .15s ease;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-standard, .18s) var(--ease-premium, ease), transform var(--motion-standard, .12s) var(--ease-premium, ease), background-color var(--motion-fast, .15s) var(--ease-premium, ease);
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -629,7 +645,7 @@
   overflow: hidden;
   position: relative;
   box-shadow: var(--ps-shadow-3d-1);
-  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-fast, .15s) var(--ease-premium, ease), background-color var(--motion-fast, .15s) var(--ease-premium, ease);
 }
 .media-tile:hover { border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
 .media-tile.drag-over { border-color: var(--ps-color-secondary); background: var(--ps-color-secondary-container); box-shadow: var(--ps-shadow-3d-2); }
@@ -662,7 +678,7 @@
   background: var(--ps-color-surface-container-lowest);
   color: var(--ps-color-on-surface);
   box-shadow: var(--ps-shadow-3d-1);
-  transition: border-color .15s ease, box-shadow .15s ease;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-fast, .15s) var(--ease-premium, ease);
 }
 .otp-digit:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
 .otp-digit[aria-invalid="true"] { border-color: var(--ps-color-error); }
