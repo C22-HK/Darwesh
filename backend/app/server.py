@@ -26,6 +26,7 @@ def create_app(
     password_reset_confirm_handler: object | None = None,
     organization_handler: object | None = None,
     permission_admin_handler: object | None = None,
+    company_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -40,7 +41,9 @@ def create_app(
     Profile Architecture Phase 2 access-management endpoints (see
     app.access.handlers) -- registered together (both come from
     app.main.build_access_handlers, gated on the same Firebase Admin
-    credential check)."""
+    credential check). company_handler backs Phase 3's additive real
+    estate office (`companies`) employee-membership endpoints -- gated on
+    the same credential check, registered alongside organization_handler."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -141,6 +144,51 @@ def create_app(
             "/api/v1/access/me/active-organization",
             organization_handler.set_active_organization,
             methods=["POST"],
+        )
+    if company_handler is not None:
+        app.add_api_route("/api/v1/access/companies", company_handler.create, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/membership-requests",
+            company_handler.request_membership,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/employees/{target_uid}/invite",
+            company_handler.invite_employee,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/invitations/accept",
+            company_handler.accept_invitation,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/invitations/decline",
+            company_handler.decline_invitation,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/employees/{target_uid}/revoke-invitation",
+            company_handler.revoke_invitation,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/employees/{target_uid}/approve",
+            company_handler.approve_membership,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/employees/{target_uid}/reject",
+            company_handler.reject_membership,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/companies/{company_id}/employees/{target_uid}/remove",
+            company_handler.remove_employee,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/me/companies", company_handler.list_my_companies, methods=["GET"]
         )
     if permission_admin_handler is not None:
         app.add_api_route(

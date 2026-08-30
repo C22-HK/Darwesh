@@ -16,8 +16,9 @@ import uvicorn
 
 from app.access.auth_context import FirebaseIdTokenVerifier
 from app.access.caller_context import AuthGate
+from app.access.company_ops import CompanyOps
 from app.access.firebase_clients import AccessFirebaseClients
-from app.access.handlers import OrganizationHandler, PermissionAdminHandler
+from app.access.handlers import CompanyHandler, OrganizationHandler, PermissionAdminHandler
 from app.access.organization_ops import OrganizationOps
 from app.access.permission_ops import PermissionOps
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
@@ -211,7 +212,9 @@ def build_email_otp_handlers(
     )
 
 
-def build_access_handlers(cfg: Config) -> tuple[OrganizationHandler | None, PermissionAdminHandler | None]:
+def build_access_handlers(
+    cfg: Config,
+) -> tuple[OrganizationHandler | None, PermissionAdminHandler | None, CompanyHandler | None]:
     """Wires up the Profile Architecture Phase 2 access-management
     endpoints (organization membership/ownership, role defaults, user
     permission overrides, effective-permissions read). Requires only a
@@ -226,18 +229,19 @@ def build_access_handlers(cfg: Config) -> tuple[OrganizationHandler | None, Perm
             "Access-management endpoints not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or "
             "deploy with APP_ENV=production to use Application Default Credentials -- to enable them)"
         )
-        return None, None
+        return None, None, None
 
     try:
         clients = AccessFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id)
     except ValueError as exc:
         logger.error("Access-management endpoints misconfigured, skipping", extra={"error": str(exc)})
-        return None, None
+        return None, None, None
 
     db = clients.firestore_client
     auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
     org_ops = OrganizationOps(db, logger=logger)
     perm_ops = PermissionOps(db, logger=logger)
+    company_ops = CompanyOps(db, logger=logger)
 
     # Firestore-backed in production (multi-instance Cloud Run, same
     # INFRA-01 reasoning as every other rate limiter in this backend),
@@ -280,6 +284,12 @@ def build_access_handlers(cfg: Config) -> tuple[OrganizationHandler | None, Perm
         PermissionAdminHandler(
             ops=perm_ops, auth=auth_gate, mutation_limiter=mutation_limiter, read_limiter=read_limiter, logger=logger
         ),
+        # Phase 3: reuses the SAME membership_limiter instance as
+        # OrganizationHandler above (one shared per-uid counter across
+        # both organization and company membership actions) rather than
+        # a new limiter category -- matches the explicit "reuse the
+        # existing rate-limit architecture" instruction.
+        CompanyHandler(ops=company_ops, auth=auth_gate, membership_limiter=membership_limiter, logger=logger),
     )
 
 
@@ -294,7 +304,7 @@ def create_configured_app():
     email_otp_send_handler, email_otp_verify_handler, signup_complete_handler, password_reset_confirm_handler = (
         build_email_otp_handlers(cfg)
     )
-    organization_handler, permission_admin_handler = build_access_handlers(cfg)
+    organization_handler, permission_admin_handler, company_handler = build_access_handlers(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -304,6 +314,7 @@ def create_configured_app():
         password_reset_confirm_handler,
         organization_handler,
         permission_admin_handler,
+        company_handler,
     )
 
 

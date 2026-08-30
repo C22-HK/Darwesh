@@ -17,6 +17,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.access.caller_context import AuthGate
+from app.access.company_ops import CompanyOps
 from app.access.constants import ALL_ACCOUNT_TYPES, ORGANIZATION_TYPES
 from app.access.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.access.organization_ops import OrganizationOps
@@ -362,6 +363,204 @@ class OrganizationHandler:
             self.logger.error("set active organization failed", extra={"error": str(exc)})
             return JSONResponse({"error": "Could not set your active organization right now."}, status_code=500)
         return JSONResponse({"activeOrganizationId": raw}, status_code=200)
+
+
+@dataclass
+class CompanyHandler:
+    """Phase 3: real estate office (`companies`) employee-membership
+    endpoints -- structurally identical HTTP shape to OrganizationHandler
+    above (same authenticate/rate-limit/parse/call/map-errors flow,
+    reusing the same module-level helpers), deliberately reusing the SAME
+    membership_limiter instance the caller passes in rather than a new
+    limiter category (Phase 2.2/Phase 3 instruction: reuse the existing
+    Stage 5 rate-limit architecture, don't create a second one)."""
+
+    ops: CompanyOps
+    auth: AuthGate
+    membership_limiter: RateLimiter
+    logger: logging.Logger
+
+    async def create(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        name = _string_field(body, "name")
+        try:
+            company_id = await self.ops.create_company(
+                caller_uid=caller.uid,
+                name=name or "",
+                description=_string_field(body, "description"),
+                city=_string_field(body, "city"),
+                district=_string_field(body, "district"),
+                address=_string_field(body, "address"),
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company create failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not create the office right now."}, status_code=500)
+        return JSONResponse({"companyId": company_id}, status_code=201)
+
+    async def request_membership(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        try:
+            await self.ops.request_membership(company_id=company_id, caller_uid=caller.uid)
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company membership request failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not submit the membership request right now."}, status_code=500)
+        return JSONResponse({"status": "pending"}, status_code=201)
+
+    async def invite_employee(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        target_uid = request.path_params.get("target_uid")
+        try:
+            await self.ops.invite_employee(
+                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("employee invite failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not invite this employee right now."}, status_code=500)
+        return JSONResponse({"status": "invited"}, status_code=201)
+
+    async def accept_invitation(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        try:
+            await self.ops.accept_invitation(company_id=company_id, caller_uid=caller.uid)
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company invitation accept failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not accept this invitation right now."}, status_code=500)
+        return JSONResponse({"status": "active"}, status_code=200)
+
+    async def decline_invitation(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        try:
+            await self.ops.decline_invitation(company_id=company_id, caller_uid=caller.uid)
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company invitation decline failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not decline this invitation right now."}, status_code=500)
+        return JSONResponse({"status": "declined"}, status_code=200)
+
+    async def revoke_invitation(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        target_uid = request.path_params.get("target_uid")
+        try:
+            await self.ops.revoke_invitation(
+                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company invitation revoke failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not revoke this invitation right now."}, status_code=500)
+        return JSONResponse({"status": "revoked"}, status_code=200)
+
+    async def approve_membership(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        target_uid = request.path_params.get("target_uid")
+        try:
+            await self.ops.approve_membership(
+                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company membership approve failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not approve this membership right now."}, status_code=500)
+        return JSONResponse({"status": "active"}, status_code=200)
+
+    async def reject_membership(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        target_uid = request.path_params.get("target_uid")
+        try:
+            await self.ops.reject_membership(
+                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company membership reject failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not reject this membership right now."}, status_code=500)
+        return JSONResponse({"status": "rejected"}, status_code=200)
+
+    async def remove_employee(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        company_id = request.path_params.get("company_id")
+        target_uid = request.path_params.get("target_uid")
+        try:
+            await self.ops.remove_employee(
+                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("employee removal failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not remove this employee right now."}, status_code=500)
+        return JSONResponse({"status": "removed"}, status_code=200)
+
+    async def list_my_companies(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        try:
+            companies = await self.ops.list_my_companies(uid=caller.uid)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("list my companies failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not list your offices right now."}, status_code=500)
+        return JSONResponse({"companies": companies}, status_code=200)
 
 
 @dataclass

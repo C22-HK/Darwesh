@@ -182,6 +182,11 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/serviceProviders/$(providerId)).data.ownerId
         : null;
     }
+    function companyOwnerId(companyId) {
+      return exists(/databases/$(database)/documents/companies/$(companyId))
+        ? get(/databases/$(database)/documents/companies/$(companyId)).data.get('ownerId', null)
+        : null;
+    }
 
     // ---- Companies ----
     // A real estate company using this platform. Every user and listing
@@ -190,10 +195,87 @@ service cloud.firestore {
     // time a name is used — but only if it doesn't already exist, so a
     // later signup can't overwrite an established company's name.
     // Editing or deleting an existing company is admin-only.
+    //
+    // Phase 3: additive schema extension only (no field renamed/removed,
+    // no change to the `role`/`agentId`/`companyId` authorization
+    // invariants above) -- mirrors organizations/{orgId}'s own
+    // ownerId-locked, backend-mediated-membership pattern exactly, so a
+    // real estate office can get the same premium profile treatment
+    // (logo/verified/description/contactInfo/real team roster) the four
+    // org_owner_* types already have, without touching the legacy
+    // companyId/agentId authorization surface those still rely on
+    // (BL-01/BL-04, unchanged). `ownerId` is OPTIONAL at create (unlike
+    // organizations, where it's required) specifically so admin.html's
+    // existing "Add Agent" flow (admin.html:3146-3151, which creates a
+    // company doc under the ADMIN's own session with no ownerId at all)
+    // keeps working completely unchanged -- an admin-created company
+    // stays ownerless until a real office_owner claims it through a
+    // future, separately-approved flow; it is NEVER inferable from
+    // company name, admin session, or any other signal (BL-04
+    // precedent). Once set, `ownerId` is locked for EVERY client-SDK
+    // update, including isAdmin() -- same backend-mediated-ownership-
+    // transfer reasoning as organizations.ownerId -- so an ownerless
+    // legacy company cannot be self-claimed by a normal signed-in update
+    // either; only a future, separately-approved backend endpoint may
+    // assign it (see PHASE3_PROFILE_FIELD_CONTRACT.md's migration note
+    // for the backfill plan, not executed this phase).
     match /companies/{companyId} {
+      function isCompanyOwnerNow() {
+        return isSignedIn() && resource.data.get('ownerId', null) == request.auth.uid;
+      }
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && !exists(/databases/$(database)/documents/companies/$(companyId));
-      allow update, delete: if isAdmin();
+      allow create: if isSignedIn()
+                    && !exists(/databases/$(database)/documents/companies/$(companyId))
+                    && (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid)
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.get('verified', false) == false
+                    && (!('location' in request.resource.data) || request.resource.data.location is map)
+                    && (!('contactInfo' in request.resource.data) || request.resource.data.contactInfo is map)
+                    && request.resource.data.keys().hasOnly([
+                         'name', 'address', 'ownerId', 'description', 'logoUrl',
+                         'coverImageUrl', 'city', 'district', 'location',
+                         'contactInfo', 'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // ownerId locked both directions via .get(,null) so a legacy
+      // ownerless doc (missing the field entirely) stays ownerless
+      // through this path -- see the block comment above.
+      allow update: if request.resource.data.get('ownerId', null) == resource.data.get('ownerId', null)
+                    && (
+                         isAdmin()
+                         || (isCompanyOwnerNow()
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && (!('location' in request.resource.data) || request.resource.data.location is map)
+                             && (!('contactInfo' in request.resource.data) || request.resource.data.contactInfo is map)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'name', 'address', 'description', 'logoUrl', 'coverImageUrl',
+                                    'city', 'district', 'location', 'contactInfo', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      // Explicit, queryable roster of an office's employees -- separate
+      // subcollection NAME from organizations/{orgId}/members on purpose
+      // (not "members"), so a collection-group query over one never
+      // accidentally returns docs from the other; same shape and same
+      // security posture otherwise. An employee's presence here IS the
+      // approval record (mirrors organizations/{orgId}/members'
+      // comment) -- never client-writable by anyone, including
+      // isAdmin(); only the backend's Admin SDK credential
+      // (app.access.company_ops) creates/edits/removes an entry. This is
+      // ADDITIVE to, not a replacement for, the existing
+      // users/{uid}.companyId pointer that BL-01/BL-04's listing
+      // authorization already relies on -- that legacy pointer is
+      // unchanged and still the sole source of listing-level agent/
+      // company authorization; this subcollection only adds a real,
+      // queryable membership-status record for profile display.
+      match /employees/{employeeUid} {
+        allow read: if isAdmin()
+                    || (isSignedIn() && companyOwnerId(companyId) == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid == employeeUid);
+        allow write: if false;
+      }
     }
 
     // ---- User profiles ----

@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.access.caller_context import CallerContext
 from app.access.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
-from app.access.handlers import OrganizationHandler, PermissionAdminHandler
+from app.access.handlers import CompanyHandler, OrganizationHandler, PermissionAdminHandler
 from app.auth.reset import InMemoryRateLimiter
 from app.config import Config
 from app.server import create_app
@@ -89,6 +89,49 @@ class FakeOrganizationOps:
         self._record("set_active_organization", **kwargs)
 
 
+class FakeCompanyOps:
+    def __init__(self):
+        self.calls: list[tuple[str, dict]] = []
+        self.next_result = None
+        self.next_error: Exception | None = None
+
+    def _record(self, action: str, **kwargs):
+        self.calls.append((action, kwargs))
+        if self.next_error is not None:
+            raise self.next_error
+        return self.next_result
+
+    async def create_company(self, **kwargs):
+        return self._record("create_company", **kwargs) or "new-company-id"
+
+    async def request_membership(self, **kwargs):
+        self._record("request_membership", **kwargs)
+
+    async def invite_employee(self, **kwargs):
+        self._record("invite_employee", **kwargs)
+
+    async def accept_invitation(self, **kwargs):
+        self._record("accept_invitation", **kwargs)
+
+    async def decline_invitation(self, **kwargs):
+        self._record("decline_invitation", **kwargs)
+
+    async def revoke_invitation(self, **kwargs):
+        self._record("revoke_invitation", **kwargs)
+
+    async def approve_membership(self, **kwargs):
+        self._record("approve_membership", **kwargs)
+
+    async def reject_membership(self, **kwargs):
+        self._record("reject_membership", **kwargs)
+
+    async def remove_employee(self, **kwargs):
+        self._record("remove_employee", **kwargs)
+
+    async def list_my_companies(self, **kwargs):
+        return self._record("list_my_companies", **kwargs) or []
+
+
 class FakePermissionOps:
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
@@ -145,6 +188,24 @@ def make_client(
     cfg = Config(port="8080", env="development", allowed_origins=[])
     app = create_app(cfg, None, None, None, None, None, org_handler, perm_handler)
     return TestClient(app), org_ops, perm_ops
+
+
+def make_company_client(
+    *, caller: CallerContext | None = ALICE, company_ops=None, generous_limits: bool = True
+) -> tuple[TestClient, FakeCompanyOps]:
+    company_ops = company_ops or FakeCompanyOps()
+    auth = FakeAuthGate(caller)
+    limit = 1000 if generous_limits else 0
+    logger = make_test_logger()
+    company_handler = CompanyHandler(
+        ops=company_ops,
+        auth=auth,
+        membership_limiter=InMemoryRateLimiter(limit=limit, window_seconds=60),
+        logger=logger,
+    )
+    cfg = Config(port="8080", env="development", allowed_origins=[])
+    app = create_app(cfg, None, None, None, None, None, None, None, company_handler)
+    return TestClient(app), company_ops
 
 
 # ---- authentication gating (applies to every endpoint) --------------------
@@ -421,6 +482,99 @@ def test_set_active_organization_requires_auth():
     client, _org_ops, _perm_ops = make_client(caller=None)
     resp = client.post("/api/v1/access/me/active-organization", json={"organizationId": "org1"})
     assert resp.status_code == 401
+
+
+# ---- real estate office (companies) membership -- Phase 3 ----------------
+
+
+def test_unauthenticated_create_company_returns_401():
+    client, _company_ops = make_company_client(caller=None)
+    resp = client.post("/api/v1/access/companies", json={"name": "Acme Realty"})
+    assert resp.status_code == 401
+
+
+def test_create_company_success_returns_201_and_company_id():
+    client, company_ops = make_company_client(caller=ALICE)
+    resp = client.post("/api/v1/access/companies", json={"name": "Acme Realty"})
+    assert resp.status_code == 201
+    assert resp.json()["companyId"] == "new-company-id"
+    assert company_ops.calls[0] == ("create_company", {"caller_uid": "alice", "name": "Acme Realty", "description": None, "city": None, "district": None, "address": None})
+
+
+def test_create_company_malformed_body_returns_400():
+    client, _company_ops = make_company_client(caller=ALICE)
+    resp = client.post(
+        "/api/v1/access/companies", content=b"not json", headers={"Content-Type": "application/json"}
+    )
+    assert resp.status_code == 400
+
+
+def test_create_company_maps_validation_error_to_400():
+    company_ops = FakeCompanyOps()
+    company_ops.next_error = ValidationError("'name' is required")
+    client, _company_ops = make_company_client(caller=ALICE, company_ops=company_ops)
+    resp = client.post("/api/v1/access/companies", json={"name": ""})
+    assert resp.status_code == 400
+    assert resp.json()["error"] == "'name' is required"
+
+
+def test_invite_employee_passes_authenticated_uid_and_admin_flag_never_from_body():
+    client, company_ops = make_company_client(caller=ALICE)
+    resp = client.post(
+        "/api/v1/access/companies/company1/employees/target-uid/invite",
+        json={"callerUid": "someone-else", "callerIsAdmin": True},
+    )
+    assert resp.status_code == 201
+    call = company_ops.calls[0][1]
+    assert call["caller_uid"] == "alice"
+    assert call["caller_is_admin"] is False
+    assert call["target_uid"] == "target-uid"
+
+
+def test_company_accept_invitation_uses_only_the_authenticated_callers_own_uid():
+    client, company_ops = make_company_client(caller=ALICE)
+    resp = client.post("/api/v1/access/companies/company1/invitations/accept", json={})
+    assert resp.status_code == 200
+    assert company_ops.calls[0][1]["caller_uid"] == "alice"
+
+
+def test_company_approve_membership_maps_forbidden_error_to_403_generic_message():
+    company_ops = FakeCompanyOps()
+    company_ops.next_error = ForbiddenError("only the office's owner or an admin may approve membership")
+    client, _company_ops = make_company_client(caller=ALICE, company_ops=company_ops)
+    resp = client.post("/api/v1/access/companies/company1/employees/target-uid/approve", json={})
+    assert resp.status_code == 403
+    assert resp.json()["error"] == "You do not have permission to perform this action."
+
+
+def test_remove_employee_maps_not_found_error_to_404_generic_message():
+    company_ops = FakeCompanyOps()
+    company_ops.next_error = NotFoundError("no membership record exists for this user at this office")
+    client, _company_ops = make_company_client(caller=ADMIN, company_ops=company_ops)
+    resp = client.post("/api/v1/access/companies/company1/employees/target-uid/remove", json={})
+    assert resp.status_code == 404
+
+
+def test_list_my_companies_returns_ops_result():
+    company_ops = FakeCompanyOps()
+    company_ops.next_result = [{"companyId": "company1", "name": "Acme Realty", "membershipStatus": "owner", "isOwner": True}]
+    client, _company_ops = make_company_client(caller=ALICE, company_ops=company_ops)
+    resp = client.get("/api/v1/access/me/companies")
+    assert resp.status_code == 200
+    assert resp.json()["companies"][0]["companyId"] == "company1"
+    assert company_ops.calls[0][1]["uid"] == "alice"
+
+
+def test_list_my_companies_requires_auth():
+    client, _company_ops = make_company_client(caller=None)
+    resp = client.get("/api/v1/access/me/companies")
+    assert resp.status_code == 401
+
+
+def test_company_membership_rate_limited_returns_429():
+    client, _company_ops = make_company_client(caller=ALICE, generous_limits=False)
+    resp = client.post("/api/v1/access/companies/company1/invitations/accept", json={})
+    assert resp.status_code == 429
 
 
 # ---- permission admin: role defaults / user overrides / effective read --
