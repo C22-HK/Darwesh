@@ -296,6 +296,22 @@
 import { db, getDocs } from './js/firebase-init.js';
 import { collection, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
+// Firestore's listings.city is attacker-controllable (any agent account
+// can set it to arbitrary text -- firestore.rules validates who can
+// write a field, not its content) and cityLabel() below falls through
+// to that raw value for any city it doesn't recognize, so every render
+// site must escape it. Safe for BOTH text-node content and quoted
+// attribute values -- unlike the div.textContent-round-trip escaper
+// used elsewhere in this codebase (safe for text nodes only, since
+// quote characters aren't structurally significant there), this one
+// explicitly escapes " and ' too, so it can't be used to break out of
+// a data-*="..."/aria-label="..." attribute.
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
 // ---------------------------------------------------------------------
 // Real data — computed live from the "listings" collection (the same
 // data every agent's Agent Dashboard and the public map read from).
@@ -442,12 +458,13 @@ function renderChart1(activeCity) {
     const barH = (c.saleAvg / maxY) * plotH;
     const y = MT + plotH - barH;
     const dim = activeCity !== "all" && activeCity !== c.city;
+    const safeCityLabel = escapeHtml(cityLabel(c.city));
     bars += `
-      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${cityLabel(c.city)}, average sale price ${fmtUSD(c.saleAvg)}"
-         data-city="${c.city}" data-value="${c.saleAvg}" data-count="${c.saleCount}" data-cx="${x + barW / 2}" data-topy="${y}">
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${safeCityLabel}, average sale price ${fmtUSD(c.saleAvg)}"
+         data-city="${escapeHtml(c.city)}" data-value="${c.saleAvg}" data-count="${c.saleCount}" data-cx="${x + barW / 2}" data-topy="${y}">
         <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="4" fill="${COLOR_SALE}"/>
         <text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" font-size="11.5" font-weight="700" font-family="Inter, sans-serif" fill="var(--ink-primary)">${fmtCompactUSD(c.saleAvg)}</text>
-        <text x="${x + barW / 2}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${cityLabel(c.city)}</text>
+        <text x="${x + barW / 2}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${safeCityLabel}</text>
       </g>`;
   });
 
@@ -455,7 +472,7 @@ function renderChart1(activeCity) {
 
   svg.querySelectorAll(".bar-mark").forEach(el => {
     const onEnter = () => {
-      const city = cityLabel(el.dataset.city), value = Number(el.dataset.value), count = el.dataset.count;
+      const city = escapeHtml(cityLabel(el.dataset.city)), value = Number(el.dataset.value), count = el.dataset.count;
       const cx = Number(el.dataset.cx), topy = Number(el.dataset.topy);
       showTip(tip, wrap, cx, topy, `
         <div style="font-weight:700;margin-bottom:2px;">${city}</div>
@@ -469,7 +486,7 @@ function renderChart1(activeCity) {
     el.addEventListener("blur", () => hideTip(tip));
   });
 
-  tbody.innerHTML = cities.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
+  tbody.innerHTML = cities.map(c => `<tr><td>${escapeHtml(cityLabel(c.city))}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
 }
 
 // ---------------------------------------------------------------------
@@ -512,23 +529,25 @@ function renderChart2(activeCity) {
     const rentH = (c.rentCount / maxY) * plotH;
     const saleX = groupX - barW - gap / 2;
     const rentX = groupX + gap / 2;
+    const safeCityLabel2 = escapeHtml(cityLabel(c.city));
+    const safeCityAttr2 = escapeHtml(c.city);
     bars += `
-      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${cityLabel(c.city)} for sale ${c.saleCount}"
-         data-city="${c.city}" data-type="For Sale" data-value="${c.saleCount}" data-color="${COLOR_SALE}" data-cx="${saleX + barW / 2}" data-topy="${MT + plotH - saleH}">
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${safeCityLabel2} for sale ${c.saleCount}"
+         data-city="${safeCityAttr2}" data-type="For Sale" data-value="${c.saleCount}" data-color="${COLOR_SALE}" data-cx="${saleX + barW / 2}" data-topy="${MT + plotH - saleH}">
         <rect x="${saleX}" y="${MT + plotH - saleH}" width="${barW}" height="${saleH}" rx="4" fill="${COLOR_SALE}"/>
       </g>
-      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${cityLabel(c.city)} for rent ${c.rentCount}"
-         data-city="${c.city}" data-type="For Rent" data-value="${c.rentCount}" data-color="${COLOR_RENT}" data-cx="${rentX + barW / 2}" data-topy="${MT + plotH - rentH}">
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${safeCityLabel2} for rent ${c.rentCount}"
+         data-city="${safeCityAttr2}" data-type="For Rent" data-value="${c.rentCount}" data-color="${COLOR_RENT}" data-cx="${rentX + barW / 2}" data-topy="${MT + plotH - rentH}">
         <rect x="${rentX}" y="${MT + plotH - rentH}" width="${barW}" height="${rentH}" rx="4" fill="${COLOR_RENT}"/>
       </g>
-      <text x="${groupX}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${cityLabel(c.city)}</text>`;
+      <text x="${groupX}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${safeCityLabel2}</text>`;
   });
 
   svg.innerHTML = `${gridSvg}<line x1="${ML}" y1="${MT + plotH}" x2="${W - MR}" y2="${MT + plotH}" stroke="var(--axis-line)" stroke-width="1"/>${bars}`;
 
   svg.querySelectorAll(".bar-mark").forEach(el => {
     const onEnter = () => {
-      const city = cityLabel(el.dataset.city), type = el.dataset.type, value = el.dataset.value, color = el.dataset.color;
+      const city = escapeHtml(cityLabel(el.dataset.city)), type = el.dataset.type, value = el.dataset.value, color = el.dataset.color;
       const cx = Number(el.dataset.cx), topy = Number(el.dataset.topy);
       showTip(tip, wrap, cx, topy, `
         <div style="font-weight:700;margin-bottom:2px;">${city}</div>
@@ -541,7 +560,7 @@ function renderChart2(activeCity) {
     el.addEventListener("blur", () => hideTip(tip));
   });
 
-  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${c.saleCount}</td><td>${c.rentCount}</td></tr>`).join("");
+  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${escapeHtml(cityLabel(c.city))}</td><td>${c.saleCount}</td><td>${c.rentCount}</td></tr>`).join("");
 }
 
 // ---------------------------------------------------------------------
