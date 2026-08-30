@@ -1,0 +1,289 @@
+/* Profile Shell design tokens (Phase 3).
+ *
+ * NOT a parallel design system -- every color value here is copied
+ * verbatim from tailwind.config.js (single source of truth for the
+ * brand palette) so profile pages stay visually identical to the rest
+ * of the site. This file exists only for the handful of things Tailwind
+ * utility classes can't express cleanly: a couple of reusable component
+ * classes for shell chrome (tabs, cards, skeletons) that need logical
+ * (dir-aware) properties instead of physical left/right, and a few
+ * tokens (focus ring, skeleton shimmer) with no Tailwind utility
+ * equivalent in this project's config. Every profile-shell component
+ * class below is deliberately written with logical properties
+ * (margin-inline/padding-inline/border-inline/inset-inline/text-align:
+ * start|end) so it renders correctly under both dir="ltr" and
+ * dir="rtl" with zero per-language overrides.
+ */
+
+:root {
+  /* Copied from tailwind.config.js -- keep these in lockstep with that
+     file's `colors` block; do not invent new brand colors here. */
+  --ps-color-primary: #041627;
+  --ps-color-on-primary: #ffffff;
+  --ps-color-secondary: #775a19;
+  --ps-color-on-secondary: #ffffff;
+  --ps-color-secondary-container: #fed488;
+  --ps-color-tertiary-container: #003115;
+  --ps-color-on-tertiary-container: #4ae183;
+  --ps-color-error: #ba1a1a;
+  --ps-color-error-container: #ffdad6;
+  --ps-color-surface-bright: #f7f9ff;
+  --ps-color-surface-container: #ebeef3;
+  --ps-color-surface-container-low: #f1f4f9;
+  --ps-color-surface-container-lowest: #ffffff;
+  --ps-color-on-surface: #181c20;
+  --ps-color-on-surface-variant: #44474c;
+  --ps-color-outline: #74777d;
+  --ps-color-outline-variant: #c4c6cd;
+
+  /* Tokens with no existing Tailwind config equivalent. */
+  --ps-radius-card: 16px;
+  --ps-radius-control: 10px;
+  --ps-shadow-card: 0 1px 2px rgba(4, 22, 39, 0.04), 0 8px 24px -12px rgba(4, 22, 39, 0.12);
+  --ps-shadow-elevated: 0 4px 12px rgba(4, 22, 39, 0.06), 0 16px 40px -16px rgba(4, 22, 39, 0.18);
+  --ps-focus-ring: 0 0 0 2px var(--ps-color-surface-bright), 0 0 0 4px var(--ps-color-secondary);
+}
+
+/* ---- Layout shell -------------------------------------------------- */
+
+.ps-shell {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 48px);
+}
+
+/* ---- Header / hero --------------------------------------------------
+ * Split layout on wide screens, compact stacked layout under 768px --
+ * one shared markup structure (no separate mobile-only DOM), driven
+ * entirely by this single rule so there's exactly one place the
+ * breakpoint lives. */
+
+.ps-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  border-radius: var(--ps-radius-card);
+  padding: clamp(20px, 4vw, 40px);
+  position: relative;
+  overflow: hidden;
+  background: var(--ps-color-primary);
+  color: var(--ps-color-on-primary);
+}
+
+@media (min-width: 768px) {
+  .ps-hero {
+    flex-direction: row;
+    align-items: center;
+    text-align: start;
+    gap: 28px;
+  }
+}
+
+.ps-hero-glow {
+  position: absolute;
+  inset-block-start: -96px;
+  inset-inline-end: -96px;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: var(--ps-color-secondary);
+  opacity: 0.14;
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+/* ---- Avatar / logo --------------------------------------------------- */
+
+.ps-avatar {
+  position: relative;
+  width: clamp(72px, 18vw, 104px);
+  height: clamp(72px, 18vw, 104px);
+  flex: none;
+}
+
+.ps-avatar-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 3px solid var(--ps-color-surface-container-lowest);
+  background: var(--ps-color-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: var(--ps-shadow-elevated);
+}
+
+.ps-avatar-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ps-avatar-upload {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--ps-color-secondary-container);
+  color: var(--ps-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--ps-shadow-card);
+  cursor: pointer;
+  border: 2px solid var(--ps-color-surface-container-lowest);
+}
+
+/* ---- Badges ------------------------------------------------------------ */
+
+.ps-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding-block: 3px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ps-badge-verified { background: var(--ps-color-tertiary-container); color: var(--ps-color-on-tertiary-container); }
+.ps-badge-unverified { background: rgba(255, 255, 255, 0.14); color: var(--ps-color-on-primary); }
+.ps-badge-unassigned { background: var(--ps-color-error-container); color: var(--ps-color-error); }
+.ps-badge-neutral { background: var(--ps-color-surface-container); color: var(--ps-color-on-surface-variant); }
+
+/* ---- Tabs (data-driven, replaces the copy-pasted .acct-tab/.listings-tab
+ * /.admin-tab pattern) -- horizontally scrollable strip at any width
+ * instead of wrapping, snap points for a clean mobile swipe. */
+
+.ps-tablist {
+  display: flex;
+  gap: clamp(16px, 3vw, 28px);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  border-block-end: 1px solid var(--ps-color-outline-variant);
+  scrollbar-width: none;
+}
+
+.ps-tablist::-webkit-scrollbar { display: none; }
+
+.ps-tab {
+  flex: none;
+  scroll-snap-align: start;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ps-color-on-surface-variant);
+  padding-block: 12px;
+  padding-inline: 4px;
+  border: none;
+  background: none;
+  border-block-end: 2px solid transparent;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.ps-tab[aria-selected="true"] {
+  color: var(--ps-color-primary);
+  border-block-end-color: var(--ps-color-secondary);
+}
+
+.ps-tab:focus-visible { box-shadow: var(--ps-focus-ring); border-radius: 4px; }
+
+.ps-panel[hidden] { display: none; }
+
+/* ---- Cards -------------------------------------------------------------- */
+
+.ps-card {
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--ps-radius-card);
+  box-shadow: var(--ps-shadow-card);
+}
+
+/* ---- Buttons (composed with existing Tailwind utility classes in markup;
+ * this only supplies the disabled/loading state Tailwind alone doesn't
+ * give a single reusable class for). */
+
+.ps-btn[disabled], .ps-btn[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ps-btn:focus-visible { box-shadow: var(--ps-focus-ring); }
+
+/* ---- Skeleton loading state --------------------------------------------- */
+
+.ps-skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--ps-color-surface-container) 25%,
+    var(--ps-color-surface-container-low) 37%,
+    var(--ps-color-surface-container) 63%
+  );
+  background-size: 400% 100%;
+  animation: ps-shimmer 1.4s ease infinite;
+}
+
+@keyframes ps-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-skeleton { animation: none; }
+}
+
+/* ---- Empty / error state ------------------------------------------------- */
+
+.ps-empty {
+  text-align: center;
+  padding-block: clamp(32px, 8vw, 56px);
+  padding-inline: 16px;
+  color: var(--ps-color-on-surface-variant);
+}
+
+/* ---- Form fields --------------------------------------------------------- */
+
+.ps-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ps-color-on-surface);
+  margin-block-end: 6px;
+}
+
+.ps-input {
+  width: 100%;
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--ps-radius-control);
+  padding-block: 9px;
+  padding-inline: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--ps-color-on-surface);
+  background: var(--ps-color-surface-container-lowest);
+  text-align: start;
+}
+
+.ps-input:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* Product/listing grid -- auto-fits from a comfortable minimum card
+ * width down to a single mobile column, no manual breakpoint list. */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+}

@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<title>Darwesh Group - Real Estate Office</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased">
+
+<header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
+  <a href="index.html" class="font-headline-md text-[20px] text-primary font-bold">Darwesh Group</a>
+  <div class="flex items-center gap-4">
+    <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.map">Map</a>
+    <a id="navProfileLink" href="account.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" data-i18n="office.myOffice">My Office</a>
+    <div class="relative">
+      <button aria-label="Language" class="lang-toggle-btn font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" type="button">
+        <span class="material-symbols-outlined text-[18px]">language</span>
+      </button>
+      <div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="ps-shell py-8">
+
+  <!-- Loading state -->
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:180px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:28px;width:220px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:120px;"></div>
+  </div>
+
+  <!-- Sign-in-required state -->
+  <div id="signinRequiredState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">lock</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="office.signInRequired">Sign in to view office profiles.</p>
+    <a href="login.html" class="inline-block mt-4 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="office.logIn">Log in</a>
+  </div>
+
+  <!-- Not found state -->
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">domain_disabled</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="office.notFound">Office not found</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="office.notFoundHint">This office may have been removed.</p>
+  </div>
+
+  <!-- Generic error state -->
+  <div id="errorState" class="hidden"></div>
+
+  <!-- No-office-yet state (signed in, no ?id, nothing owned/joined) -->
+  <div id="noOfficeState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">business</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="office.noOfficeYet">You're not part of an office yet</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1 max-w-sm mx-auto" data-i18n="office.noOfficeYetHint">Create a new office, or ask an existing office's owner to invite you.</p>
+    <div class="mt-5 max-w-xs mx-auto text-left">
+      <label class="ps-field-label" for="newOfficeName" data-i18n="office.name">Office name</label>
+      <input id="newOfficeName" class="ps-input" type="text" maxlength="200"/>
+      <button id="createOfficeBtn" type="button" class="ps-btn w-full mt-3 bg-primary text-on-primary py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="office.createOffice">Create an office</button>
+      <p id="createOfficeMsg" class="hidden text-[12px] mt-2"></p>
+    </div>
+  </div>
+
+  <!-- Office profile -->
+  <div id="officeContent" class="hidden">
+
+    <!-- Hero -->
+    <section class="ps-hero mb-8">
+      <div class="ps-hero-glow" aria-hidden="true"></div>
+      <div class="ps-avatar" style="position:relative;z-index:1;">
+        <div id="logoFrame" class="ps-avatar-frame">
+          <span class="material-symbols-outlined text-on-secondary text-[36px]" id="logoIcon">business</span>
+          <img id="logoImg" class="hidden" alt=""/>
+        </div>
+        <label id="logoUploadLabel" class="ps-avatar-upload hidden" title="Change logo">
+          <span class="material-symbols-outlined text-[15px]" aria-hidden="true">photo_camera</span>
+          <input id="logoUpload" type="file" accept="image/*" class="hidden"/>
+        </label>
+      </div>
+      <div style="position:relative;z-index:1;flex:1;min-width:0;">
+        <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
+          <h1 id="officeName" class="font-headline-md text-[24px] md:text-[28px] font-bold truncate max-w-full">—</h1>
+          <span id="verifiedBadge" class="ps-badge ps-badge-verified hidden">
+            <span class="material-symbols-outlined text-[13px]" aria-hidden="true">verified</span>
+            <span data-i18n="office.verified">Verified</span>
+          </span>
+          <span id="unverifiedBadge" class="ps-badge ps-badge-unverified hidden" data-i18n="office.unverified">Unverified</span>
+          <span id="unassignedBadge" class="ps-badge ps-badge-unassigned hidden" data-i18n="office.unassigned">Unassigned office</span>
+        </div>
+        <p id="officeLocation" class="font-body-md text-[13px] opacity-80 mb-2"></p>
+        <p id="officeDescription" class="font-body-md text-[14px] opacity-90 max-w-xl"></p>
+        <p id="unassignedHint" class="font-body-md text-[12.5px] opacity-75 max-w-xl mt-1 hidden" data-i18n="office.unassignedHint">This office has no assigned owner yet. Contact Darwesh Group support if this is your office.</p>
+        <div class="flex flex-wrap justify-center md:justify-start gap-2.5 mt-4">
+          <a id="contactBtn" href="#" class="ps-btn hidden bg-secondary text-on-secondary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="office.contactOffice">Contact office</a>
+          <button id="editProfileBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors" data-i18n="office.editProfile">Edit Profile</button>
+          <button id="verifyToggleBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors"></button>
+        </div>
+      </div>
+    </section>
+
+    <p id="adminViewingNote" class="hidden font-label-caps text-label-caps text-secondary mb-4" data-i18n="office.adminViewing">Viewing as admin</p>
+
+    <!-- Tabs -->
+    <div class="ps-tablist mb-6" role="tablist" aria-label="Office profile sections">
+      <button class="ps-tab" role="tab" id="tabBtnOverview" aria-controls="panelOverview" type="button" data-i18n="office.tabOverview">Overview</button>
+      <button class="ps-tab" role="tab" id="tabBtnListings" aria-controls="panelListings" type="button" data-i18n="office.tabListings">Listings</button>
+      <button class="ps-tab" role="tab" id="tabBtnTeam" aria-controls="panelTeam" type="button" data-i18n="office.tabTeam">Team</button>
+    </div>
+
+    <!-- Overview panel -->
+    <section id="panelOverview" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnOverview">
+      <div id="overviewReadOnly" class="ps-card p-5 md:p-6 max-w-2xl">
+        <div class="grid sm:grid-cols-2 gap-4 font-body-md text-[13.5px]">
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="office.address">Address</p>
+            <p id="ovAddress" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="office.phone">Phone</p>
+            <p id="ovPhone" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="office.email">Email</p>
+            <p id="ovEmail" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="office.whatsapp">WhatsApp</p>
+            <p id="ovWhatsapp" class="text-on-surface">—</p>
+          </div>
+        </div>
+        <p id="ovNoContact" class="hidden font-body-md text-[13px] text-on-surface-variant mt-3" data-i18n="office.noContact">No contact information available yet.</p>
+      </div>
+
+      <!-- Owner-only edit form -->
+      <form id="overviewEditForm" class="ps-card p-5 md:p-6 max-w-2xl hidden">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editName" data-i18n="office.name">Office name</label>
+            <input id="editName" class="ps-input" type="text" maxlength="200" required/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editDescription" data-i18n="office.description">Description</label>
+            <textarea id="editDescription" class="ps-input" rows="3" maxlength="2000"></textarea>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editCity" data-i18n="office.city">City</label>
+            <input id="editCity" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editDistrict" data-i18n="office.district">District</label>
+            <input id="editDistrict" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editAddress" data-i18n="office.address">Address</label>
+            <input id="editAddress" class="ps-input" type="text" maxlength="2000"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editPhone" data-i18n="office.phone">Phone</label>
+            <input id="editPhone" class="ps-input" type="tel"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editEmail" data-i18n="office.email">Email</label>
+            <input id="editEmail" class="ps-input" type="email"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editWhatsapp" data-i18n="office.whatsapp">WhatsApp</label>
+            <input id="editWhatsapp" class="ps-input" type="tel"/>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-5">
+          <button type="submit" id="saveOverviewBtn" class="ps-btn bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="office.save">Save</button>
+          <button type="button" id="cancelOverviewBtn" class="ps-btn border border-outline-variant px-5 py-2.5 rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="office.cancel">Cancel</button>
+          <p id="overviewSaveMsg" class="hidden text-[12px] self-center"></p>
+        </div>
+      </form>
+    </section>
+
+    <!-- Listings panel -->
+    <section id="panelListings" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnListings" hidden>
+      <div id="listingsGrid" class="ps-grid"></div>
+      <div id="listingsEmpty" class="ps-empty hidden"></div>
+    </section>
+
+    <!-- Team panel -->
+    <section id="panelTeam" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnTeam" hidden>
+      <div id="teamPrivateState" class="ps-empty hidden">
+        <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">lock</span>
+        <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="office.teamPrivate">Team roster is private</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="office.teamPrivateHint">Only the office owner and Darwesh Group admins can view the full team.</p>
+      </div>
+
+      <div id="selfMembershipCard" class="ps-card p-4 mb-4 hidden max-w-md"></div>
+
+      <div id="teamManaged" class="hidden">
+        <form id="inviteForm" class="ps-card p-4 mb-5 flex flex-col sm:flex-row gap-2 sm:items-end max-w-lg">
+          <div class="flex-1">
+            <label class="ps-field-label" for="inviteEmail" data-i18n="office.inviteByEmail">Agent's email</label>
+            <input id="inviteEmail" class="ps-input" type="email" required/>
+          </div>
+          <button type="submit" id="inviteBtn" class="ps-btn bg-secondary text-on-secondary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="office.invite">Invite</button>
+        </form>
+        <p id="inviteMsg" class="hidden text-[12px] mb-4"></p>
+
+        <div id="teamList" class="space-y-2"></div>
+        <div id="teamEmpty" class="ps-empty hidden">
+          <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">group</span>
+          <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="office.teamEmpty">No team members yet.</p>
+          <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="office.teamEmptyHint">Invite an existing agent by email to add them to your team.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+  import { auth, db, storage, getDoc, updateDoc, getDocs } from './js/firebase-init.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import {
+    mountTabs, renderEmptyState, renderErrorState,
+    withBusyButton, withUploadTimeout
+  } from './js/profile-shell.js';
+  import {
+    listMyCompanies, createCompany, inviteCompanyEmployee, approveCompanyMembership,
+    rejectCompanyMembership, removeCompanyEmployee, revokeCompanyInvitation,
+    acceptCompanyInvitation, declineCompanyInvitation,
+    BackendResponseError, BackendUnavailableError
+  } from './js/backend-api.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedId = params.get('id');
+
+  const el = (id) => document.getElementById(id);
+  function show(id) { el(id).classList.remove('hidden'); }
+  function hide(id) { el(id).classList.add('hidden'); }
+  function hideStates() {
+    ['loadingState', 'signinRequiredState', 'notFoundState', 'errorState', 'noOfficeState', 'officeContent']
+      .forEach(hide);
+  }
+
+  let currentUser = null;
+  let viewerRole = null; // 'admin' | 'agent' | 'customer' | null
+  let companyId = null;
+  let companyData = null;
+  let isOwnerView = false;
+  let isAdminView = false;
+
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    if (user) {
+      try {
+        const profileSnap = await getDoc(doc(db, 'users', user.uid));
+        viewerRole = profileSnap.exists() ? (profileSnap.data().role || null) : null;
+      } catch { viewerRole = null; }
+    }
+    await resolveAndLoad();
+  });
+
+  async function resolveAndLoad() {
+    // companies/{id} requires isSignedIn() at the rules layer regardless
+    // of whether a specific ?id= was requested (there is no anonymous-
+    // read path for this collection) -- checked here first so a signed-
+    // out visitor with a direct link sees the friendly sign-in prompt,
+    // not a generic "couldn't load" error surfaced from a permission
+    // denial deeper in loadOffice().
+    if (!currentUser) {
+      hideStates();
+      show('signinRequiredState');
+      return;
+    }
+    if (requestedId) {
+      companyId = requestedId;
+      await loadOffice();
+      return;
+    }
+    // Resolve "my office" via the real backend source of truth --
+    // GET /me/companies -- never by reading users.companyId or any
+    // other legacy pointer as if it were authorization.
+    try {
+      const result = await listMyCompanies(currentUser);
+      const mine = result.companies || [];
+      const owned = mine.find((c) => c.isOwner);
+      const active = mine.find((c) => c.membershipStatus === 'active');
+      const pendingOrInvited = mine.find((c) => c.membershipStatus === 'pending' || c.membershipStatus === 'invited');
+      const pick = owned || active || pendingOrInvited;
+      if (pick) {
+        window.location.replace(`office.html?id=${encodeURIComponent(pick.companyId)}`);
+        return;
+      }
+    } catch (err) {
+      // Falls through to the "no office yet" state below either way --
+      // a backend hiccup here shouldn't block someone from still being
+      // offered the create-office action.
+    }
+    hideStates();
+    show('noOfficeState');
+    wireCreateOffice();
+  }
+
+  function wireCreateOffice() {
+    const btn = el('createOfficeBtn');
+    if (btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', () => withBusyButton(btn, async () => {
+      const name = el('newOfficeName').value.trim();
+      const msg = el('createOfficeMsg');
+      msg.classList.add('hidden');
+      if (!name) return;
+      try {
+        const result = await createCompany(currentUser, { name });
+        window.location.replace(`office.html?id=${encodeURIComponent(result.companyId)}`);
+      } catch (err) {
+        msg.textContent = err instanceof BackendResponseError ? err.message
+          : err instanceof BackendUnavailableError ? 'Could not reach the server.'
+          : tr('office.errorGeneric', 'Something went wrong. Please try again.');
+        msg.style.color = '#ba1a1a';
+        msg.classList.remove('hidden');
+      }
+    }));
+  }
+
+  async function loadOffice() {
+    hideStates();
+    show('loadingState');
+    try {
+      const snap = await getDoc(doc(db, 'companies', companyId));
+      if (!snap.exists()) {
+        hideStates();
+        show('notFoundState');
+        return;
+      }
+      companyData = snap.data();
+      isOwnerView = !!(currentUser && companyData.ownerId && companyData.ownerId === currentUser.uid);
+      isAdminView = viewerRole === 'admin';
+      renderOffice();
+      hideStates();
+      show('officeContent');
+      setupTabs();
+      loadListingsTab();
+      loadTeamTab();
+    } catch (err) {
+      hideStates();
+      show('errorState');
+      renderErrorState(el('errorState'), {
+        message: tr('office.errorLoad', "Couldn't load this office."),
+        onRetry: loadOffice
+      });
+    }
+  }
+
+  function renderOffice() {
+    el('officeName').textContent = companyData.name || '—';
+    const locationParts = [companyData.city, companyData.district].filter(Boolean);
+    el('officeLocation').textContent = locationParts.join(' · ');
+    el('officeDescription').textContent = companyData.description || '';
+    if (!companyData.description) {
+      el('officeDescription').textContent = tr('office.noDescription', "This office hasn't added a description yet.");
+      el('officeDescription').classList.add('opacity-70');
+    }
+
+    hide('verifiedBadge'); hide('unverifiedBadge'); hide('unassignedBadge'); hide('unassignedHint');
+    if (!companyData.ownerId) {
+      show('unassignedBadge');
+      show('unassignedHint');
+    } else if (companyData.verified) {
+      show('verifiedBadge');
+    } else {
+      show('unverifiedBadge');
+    }
+
+    if (companyData.logoUrl) {
+      el('logoImg').src = companyData.logoUrl;
+      el('logoImg').classList.remove('hidden');
+      el('logoIcon').classList.add('hidden');
+    }
+
+    const contact = companyData.contactInfo || {};
+    el('ovAddress').textContent = companyData.address || '—';
+    el('ovPhone').textContent = contact.phone || '—';
+    el('ovEmail').textContent = contact.email || '—';
+    el('ovWhatsapp').textContent = contact.whatsapp || '—';
+    const hasAnyContact = companyData.address || contact.phone || contact.email || contact.whatsapp;
+    el('ovNoContact').classList.toggle('hidden', !!hasAnyContact);
+
+    const contactBtn = el('contactBtn');
+    if (contact.phone) {
+      contactBtn.href = `tel:${contact.phone}`;
+      show('contactBtn');
+    } else if (contact.email) {
+      contactBtn.href = `mailto:${contact.email}`;
+      show('contactBtn');
+    }
+
+    // Owner-only controls -- gated on a REAL ownerId match read from the
+    // company doc itself, never on a client-side guess, request param,
+    // or any legacy pointer. Every underlying write these controls
+    // trigger is independently re-enforced server-side (rules for the
+    // logo upload and the direct company-doc update; the backend's own
+    // AuthGate for every employees/* mutation) regardless of whether
+    // this button is even visible -- UI hiding is not authorization.
+    if (isOwnerView) {
+      show('editProfileBtn');
+      show('logoUploadLabel');
+    }
+    if (isAdminView) {
+      show('adminViewingNote');
+      const verifyBtn = el('verifyToggleBtn');
+      verifyBtn.textContent = companyData.verified
+        ? tr('office.markUnverified', 'Remove verified status')
+        : tr('office.markVerified', 'Mark as verified');
+      show('verifyToggleBtn');
+      verifyBtn.onclick = () => withBusyButton(verifyBtn, async () => {
+        await updateDoc(doc(db, 'companies', companyId), { verified: !companyData.verified, updatedAt: Date.now() / 1000 });
+        companyData.verified = !companyData.verified;
+        renderOffice();
+      });
+    }
+
+    wireEditForm();
+    wireLogoUpload();
+  }
+
+  function wireEditForm() {
+    const editBtn = el('editProfileBtn');
+    const form = el('overviewEditForm');
+    const readOnly = el('overviewReadOnly');
+    if (editBtn.dataset.wired) return;
+    editBtn.dataset.wired = '1';
+    editBtn.addEventListener('click', () => {
+      el('editName').value = companyData.name || '';
+      el('editDescription').value = companyData.description || '';
+      el('editCity').value = companyData.city || '';
+      el('editDistrict').value = companyData.district || '';
+      el('editAddress').value = companyData.address || '';
+      const contact = companyData.contactInfo || {};
+      el('editPhone').value = contact.phone || '';
+      el('editEmail').value = contact.email || '';
+      el('editWhatsapp').value = contact.whatsapp || '';
+      readOnly.classList.add('hidden');
+      form.classList.remove('hidden');
+    });
+    el('cancelOverviewBtn').addEventListener('click', () => {
+      form.classList.add('hidden');
+      readOnly.classList.remove('hidden');
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const saveBtn = el('saveOverviewBtn');
+      withBusyButton(saveBtn, async () => {
+        const msg = el('overviewSaveMsg');
+        msg.classList.add('hidden');
+        const contactInfo = {};
+        if (el('editPhone').value.trim()) contactInfo.phone = el('editPhone').value.trim();
+        if (el('editEmail').value.trim()) contactInfo.email = el('editEmail').value.trim();
+        if (el('editWhatsapp').value.trim()) contactInfo.whatsapp = el('editWhatsapp').value.trim();
+        const update = {
+          name: el('editName').value.trim(),
+          description: el('editDescription').value.trim(),
+          city: el('editCity').value.trim(),
+          district: el('editDistrict').value.trim(),
+          address: el('editAddress').value.trim(),
+          contactInfo,
+          updatedAt: Date.now() / 1000
+        };
+        try {
+          await updateDoc(doc(db, 'companies', companyId), update);
+          Object.assign(companyData, update);
+          renderOffice();
+          form.classList.add('hidden');
+          readOnly.classList.remove('hidden');
+        } catch (err) {
+          msg.textContent = tr('office.errorGeneric', 'Something went wrong. Please try again.');
+          msg.style.color = '#ba1a1a';
+          msg.classList.remove('hidden');
+        }
+      });
+    });
+  }
+
+  function wireLogoUpload() {
+    const input = el('logoUpload');
+    if (input.dataset.wired) return;
+    input.dataset.wired = '1';
+    input.addEventListener('change', async function () {
+      const file = this.files[0];
+      if (!file) return;
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileRef = storageRef(storage, `company-logos/${companyId}/${Date.now()}-${safeName}`);
+        await withUploadTimeout(uploadBytes(fileRef, file));
+        const url = await withUploadTimeout(getDownloadURL(fileRef));
+        await updateDoc(doc(db, 'companies', companyId), { logoUrl: url, updatedAt: Date.now() / 1000 });
+        companyData.logoUrl = url;
+        renderOffice();
+      } catch {
+        // Silent-fail is intentionally avoided elsewhere in this file,
+        // but a logo upload failure is low-stakes and self-evident (the
+        // logo just doesn't change) -- no dedicated status element for
+        // this one action to keep the hero visually calm.
+      } finally {
+        this.value = '';
+      }
+    });
+  }
+
+  function setupTabs() {
+    const tabs = [
+      { key: 'overview', button: el('tabBtnOverview'), panel: el('panelOverview') },
+      { key: 'listings', button: el('tabBtnListings'), panel: el('panelListings') },
+      { key: 'team', button: el('tabBtnTeam'), panel: el('panelTeam') }
+    ];
+    mountTabs({ tabs });
+  }
+
+  async function loadListingsTab() {
+    const grid = el('listingsGrid');
+    const emptyEl = el('listingsEmpty');
+    try {
+      const q = query(
+        collection(db, 'listings'),
+        where('companyId', '==', companyId),
+        where('private', '==', false),
+        where('status', '==', 'active'),
+        limit(24)
+      );
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        grid.innerHTML = '';
+        renderEmptyState(emptyEl, {
+          icon: 'home_work',
+          title: isOwnerView ? tr('office.listingsEmptyOwner', "Once your agents publish listings, they'll appear here.") : tr('office.listingsEmpty', 'No active listings from this office yet.')
+        });
+        show('listingsEmpty');
+        return;
+      }
+      hide('listingsEmpty');
+      grid.innerHTML = '';
+      snap.forEach((docSnap) => {
+        const d = docSnap.data();
+        const card = document.createElement('a');
+        card.href = `listing.html?id=${encodeURIComponent(docSnap.id)}`;
+        card.className = 'ps-card overflow-hidden hover:shadow-lg transition-shadow';
+        const price = typeof d.price === 'number' ? d.price.toLocaleString() : d.price;
+        card.innerHTML = `
+          <div style="aspect-ratio:4/3;background:#e5e8ee;overflow:hidden;">
+            ${d.img ? `<img src="${d.img}" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy"/>` : ''}
+          </div>
+          <div class="p-3">
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${d.title || ''}</p>
+            <p class="font-data-mono text-[13px] text-secondary mt-1">${price ? '$' + price : ''}</p>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    } catch {
+      grid.innerHTML = '';
+      renderErrorState(emptyEl, { message: tr('office.errorGeneric', 'Something went wrong. Please try again.'), onRetry: loadListingsTab });
+      show('listingsEmpty');
+    }
+  }
+
+  async function loadTeamTab() {
+    if (!(isOwnerView || isAdminView)) {
+      await loadSelfMembership();
+      if (!isOwnerView && !isAdminView) {
+        show('teamPrivateState');
+      }
+      return;
+    }
+    show('teamManaged');
+    wireInviteForm();
+    await refreshTeamList();
+  }
+
+  async function loadSelfMembership() {
+    if (!currentUser) return;
+    try {
+      const selfSnap = await getDoc(doc(db, 'companies', companyId, 'employees', currentUser.uid));
+      if (!selfSnap.exists()) return;
+      const data = selfSnap.data();
+      const card = el('selfMembershipCard');
+      if (data.status === 'invited') {
+        card.innerHTML = `
+          <p class="font-body-md text-[13.5px] text-on-surface mb-3">${tr('office.yourInvitation', "You've been invited to join this office.")}</p>
+          <div class="flex gap-2">
+            <button id="acceptInviteBtn" type="button" class="ps-btn bg-primary text-on-primary px-4 py-2 rounded-full font-label-caps text-label-caps">${tr('office.accept', 'Accept')}</button>
+            <button id="declineInviteBtn" type="button" class="ps-btn border border-outline-variant px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface">${tr('office.decline', 'Decline')}</button>
+          </div>
+        `;
+        card.classList.remove('hidden');
+        el('acceptInviteBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+          await acceptCompanyInvitation(currentUser, companyId);
+          window.location.reload();
+        }));
+        el('declineInviteBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+          await declineCompanyInvitation(currentUser, companyId);
+          window.location.reload();
+        }));
+      } else if (data.status === 'pending') {
+        card.innerHTML = `<p class="font-body-md text-[13.5px] text-on-surface-variant">${tr('office.statusPending', 'Pending approval')}</p>`;
+        card.classList.remove('hidden');
+      } else if (data.status === 'active') {
+        card.innerHTML = `<p class="font-body-md text-[13.5px] text-on-surface"><span class="ps-badge ps-badge-verified">${tr('office.statusActive', 'Active')}</span> ${tr('office.membershipAccepted', "You're now part of this team.")}</p>`;
+        card.classList.remove('hidden');
+      }
+    } catch {
+      // Not a member and not permitted to read another uid's record --
+      // resolves to the rules-enforced permission-denied case, treated
+      // the same as "no self record," never surfaced as an error.
+    }
+  }
+
+  function wireInviteForm() {
+    const form = el('inviteForm');
+    if (form.dataset.wired) return;
+    form.dataset.wired = '1';
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const btn = el('inviteBtn');
+      withBusyButton(btn, async () => {
+        const msg = el('inviteMsg');
+        msg.classList.add('hidden');
+        const email = el('inviteEmail').value.trim();
+        try {
+          const q = query(collection(db, 'users'), where('email', '==', email), where('role', '==', 'agent'), limit(1));
+          const snap = await getDocs(q);
+          if (snap.empty) {
+            msg.textContent = tr('office.agentNotFound', 'No agent account found with that email.');
+            msg.style.color = '#ba1a1a';
+            msg.classList.remove('hidden');
+            return;
+          }
+          const targetUid = snap.docs[0].id;
+          await inviteCompanyEmployee(currentUser, companyId, targetUid);
+          msg.textContent = tr('office.inviteSent', 'Invitation sent.');
+          msg.style.color = '#006300';
+          msg.classList.remove('hidden');
+          el('inviteEmail').value = '';
+          await refreshTeamList();
+        } catch (err) {
+          msg.textContent = err instanceof BackendResponseError ? err.message : tr('office.errorGeneric', 'Something went wrong. Please try again.');
+          msg.style.color = '#ba1a1a';
+          msg.classList.remove('hidden');
+        }
+      });
+    });
+  }
+
+  async function refreshTeamList() {
+    const list = el('teamList');
+    list.innerHTML = '';
+    try {
+      const snap = await getDocs(collection(db, 'companies', companyId, 'employees'));
+      if (snap.empty) {
+        show('teamEmpty');
+        return;
+      }
+      hide('teamEmpty');
+      const rows = await Promise.all(snap.docs.map(async (d) => {
+        const data = d.data();
+        let name = data.uid;
+        try {
+          const profileSnap = await getDoc(doc(db, 'users', d.id));
+          if (profileSnap.exists()) name = profileSnap.data().displayName || profileSnap.data().email || d.id;
+        } catch { /* keep uid as fallback label */ }
+        return { uid: d.id, status: data.status, name };
+      }));
+      rows.forEach(({ uid, status, name }) => {
+        const row = document.createElement('div');
+        row.className = 'ps-card p-3 flex items-center justify-between gap-3 flex-wrap';
+        const statusLabel = status === 'active' ? tr('office.statusActive', 'Active')
+          : status === 'pending' ? tr('office.statusPending', 'Pending approval')
+          : tr('office.statusInvited', 'Invited');
+        let actions = '';
+        if (status === 'pending') {
+          actions = `<button data-action="approve" data-uid="${uid}" class="ps-btn bg-primary text-on-primary px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('office.approve', 'Approve')}</button>
+                     <button data-action="reject" data-uid="${uid}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('office.reject', 'Reject')}</button>`;
+        } else if (status === 'invited') {
+          actions = `<button data-action="revoke" data-uid="${uid}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('office.revoke', 'Revoke invitation')}</button>`;
+        } else {
+          actions = `<button data-action="remove" data-uid="${uid}" class="ps-btn border border-error text-error px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('office.remove', 'Remove')}</button>`;
+        }
+        row.innerHTML = `
+          <div class="min-w-0">
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${name}</p>
+            <span class="ps-badge ps-badge-neutral mt-1">${statusLabel}</span>
+          </div>
+          <div class="flex gap-2 flex-none">${actions}</div>
+        `;
+        list.appendChild(row);
+      });
+      list.querySelectorAll('button[data-action]').forEach((btn) => {
+        btn.addEventListener('click', () => withBusyButton(btn, async () => {
+          const uid = btn.dataset.uid;
+          const action = btn.dataset.action;
+          if (action === 'approve') await approveCompanyMembership(currentUser, companyId, uid);
+          if (action === 'reject') await rejectCompanyMembership(currentUser, companyId, uid);
+          if (action === 'revoke') await revokeCompanyInvitation(currentUser, companyId, uid);
+          if (action === 'remove') await removeCompanyEmployee(currentUser, companyId, uid);
+          await refreshTeamList();
+        }));
+      });
+    } catch {
+      renderErrorState(list, { message: tr('office.errorGeneric', 'Something went wrong. Please try again.'), onRetry: refreshTeamList });
+    }
+  }
+</script>
+<script src="./js/i18n.js"></script>
+</body></html>

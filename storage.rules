@@ -36,6 +36,15 @@ rules_version = '2';
 //   photo, uploaded from account.html. Same owner-only pattern as
 //   agent-photos.
 //
+// - company-logos/{companyId}/{fileName} — Phase 3's Real Estate Office
+//   profile logo, uploaded from office.html. Unlike listing-photos, this
+//   DOES cheaply check real ownership via firestore.get() (the same
+//   cross-service pattern isAdmin() below already uses) against
+//   companies/{companyId}.ownerId — a company with no ownerId at all
+//   (an admin-created legacy/unclaimed office, see firestore.rules'
+//   Phase 3 comment on the companies match block) is therefore writable
+//   here only by an admin, never self-claimable by anyone else.
+//
 // - sell-verification/{token}/{fileName} — the live selfie captured on
 //   sell.html's Identity Verification step. This one is deliberately NOT
 //   public read like the others: it's a private document used only for
@@ -88,6 +97,28 @@ service firebase.storage {
     match /customer-photos/{uid}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == uid
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+    // company-logos/{companyId}/{fileName} -- Phase 3's Real Estate
+    // Office profile logo upload. Unlike listing-photos (any signed-in
+    // user, because every signed-in user on this project used to be an
+    // agent or admin), this checks REAL ownership via a Firestore
+    // cross-check, the same firestore.get() pattern this file already
+    // uses for isAdmin() -- a customer or an unrelated agent cannot
+    // upload into another office's logo path. Mirrors
+    // firestore.rules' companies.ownerId lock: an ownerless company
+    // (see that file's Phase 3 comment) has no matching uid here
+    // either, so it is only writable by an admin, never self-claimable
+    // by uploading a file into its path.
+    match /company-logos/{companyId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (
+                          isAdmin()
+                          || firestore.get(/databases/(default)/documents/companies/$(companyId)).data.get('ownerId', null) == request.auth.uid
+                        )
                      && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
