@@ -48,9 +48,16 @@ findings below are the ones that turned out to matter.
 > several other files, tracked as **CLIENT-06** and now also **FIXED**
 > (commit `2855990`) at the root: all 6 affected escaping functions
 > switched to a quote-safe implementation, not just the specific call
-> sites found. CLIENT-03/04/05 remain open, unchanged from the original
-> review — not requested. See each commit message for full detail;
-> this file's own findings text is left as originally written.
+> sites found. **CLIENT-04 is also FIXED** (commit `6b9930e`) — a
+> meta-delivered CSP, `'unsafe-inline'`-weakened as the finding itself
+> scoped, now live on all 21 pages, origin-allowlisted from a direct
+> read of every external resource this site's client code contacts
+> (including two map-tile providers this review's first pass hadn't
+> distinguished), verified with a real `securitypolicyviolation`
+> listener across 8 pages plus a positive-control block test.
+> CLIENT-03/05 remain open, unchanged from the original review — not
+> requested. See each commit message for full detail; this file's own
+> findings text is left as originally written.
 
 ### CLIENT-01 — Unescaped listing `city` field renders as stored XSS on the public, unauthenticated Insights page
 
@@ -135,6 +142,7 @@ findings below are the ones that turned out to matter.
   - `script-src`/`style-src` would additionally need `'unsafe-inline'` unless the inline-block hashing work above is done — a real, honest tradeoff, not a silent gap: this configuration is weaker than a strict CSP, but strictly stronger than having none.
 - **Recommended remediation**: Not implemented this stage — a real architectural decision (accept the `'unsafe-inline'`-weakened but still meaningfully-restrictive version now, vs. invest in per-block hashing for a strict policy later) that shouldn't be guessed at. If you want the weaker-but-real version, the origin list above is ready to drop into a `<meta>` tag on all 21 pages.
 - **Confidence**: High for the origin list (read directly from source, not inferred); High for the meta-tag mechanism and its `frame-ancestors`/reporting limitation (documented browser behavior, not implementation-specific).
+- **Remediation status**: **FIXED** (commit `6b9930e`) — the `'unsafe-inline'`-weakened version, exactly as scoped above. The origin list grew from a second, more careful sweep done while implementing: both map-tile providers actually used (`tile.openstreetmap.org` for `map.html`/`sell.html`/`listing.html`, `basemaps.cartocdn.com` for `admin.html`/`agent-dashboard.html` — a real difference this review's first pass didn't catch), `data:` for `insights.html`'s inline SVG background, and Sentry's domains (`browser.sentry-cdn.com`, `*.ingest.sentry.io`) — currently dormant (`js/error-monitor.js`'s `SENTRY_DSN` is empty) but allowlisted since that code is designed to activate the moment a DSN is filled in with no other change required, and an unused allowed origin costs nothing. Verified with a real headless browser via an actual `securitypolicyviolation` listener (not just absence of thrown errors) across 8 representative pages — zero violations — plus a positive control confirming a non-allowlisted domain is genuinely blocked, not silently let through by a broken policy. `frame-ancestors`/reporting remain unavailable via this delivery mechanism, unchanged, as documented above — not a regression, a pre-existing limitation of `<meta>`-delivered CSP.
 
 ---
 
@@ -182,7 +190,7 @@ While verifying CLIENT-01's fix with a real browser (not just re-reading the esc
 
 ### Confirmed Low / Hardening
 - **CLIENT-03** — Scan-log rendering unescaped but currently safe (hardcoded data source) — fix now before it's wired to real data.
-- **CLIENT-04** — No CSP anywhere; a partial, meta-tag-deliverable policy is feasible and would contain (not prevent) exactly the kind of payload CLIENT-01/02 demonstrate is real.
+- **CLIENT-04** — No CSP anywhere; a partial, meta-tag-deliverable policy is feasible and would contain (not prevent) exactly the kind of payload CLIENT-01/02 demonstrate is real. **FIXED**. Commit `6b9930e`.
 - **CLIENT-06** — Discovered while fixing CLIENT-01: quote-unsafe escaping functions were already used in `href`/`src` attribute contexts in several other files (`admin.html`, `buy.html`, `index.html`, `map.html`) — same class of bug as CLIENT-01. **FIXED** — all 6 quote-unsafe escapers in the codebase switched to a quote-safe implementation at the root, not just the known call sites. Commit `2855990`.
 
 ### Informational
