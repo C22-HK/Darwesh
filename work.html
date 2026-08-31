@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<title>Darwesh Group - Project</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
+
+<header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
+  <a href="index.html" class="font-headline-md text-[20px] text-primary font-bold">Darwesh Group</a>
+  <div class="flex items-center gap-4">
+    <a href="design.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.design">Design</a>
+    <a id="navProfileLink" href="login.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors">Profile</a>
+    <div class="relative">
+      <button aria-label="Language" class="lang-toggle-btn font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" type="button">
+        <span class="material-symbols-outlined text-[18px]">language</span>
+      </button>
+      <div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="ps-shell py-8">
+
+  <!-- Loading state -->
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:320px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:24px;width:260px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:100px;"></div>
+  </div>
+
+  <!-- Not found state -- covers both "no such post" and "not published
+       and the viewer isn't its owner/admin" (professionalPosts' read
+       rule, once published, denies the latter server-side; this page
+       never distinguishes the two client-side, so it can't leak which
+       case applies). -->
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">image_not_supported</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="pwork.detailNotFound">Project not found</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="pwork.detailNotFoundHint">This project may have been removed or is no longer published.</p>
+  </div>
+
+  <!-- Post content -->
+  <div id="postContent" class="hidden max-w-3xl mx-auto">
+    <img id="detailMedia" class="pwork-hero-media mb-6" alt="" loading="lazy"/>
+
+    <p id="detailCategory" class="pwork-section-heading mb-2"></p>
+    <h1 id="detailTitle" class="pwork-detail-title font-headline-md text-[24px] md:text-[28px] font-bold mb-2">—</h1>
+    <p id="detailMeta" class="pwork-detail-meta text-[13px] mb-6"></p>
+    <p id="detailDescription" class="font-body-md text-[14.5px] text-on-surface leading-relaxed mb-8"></p>
+
+    <p class="pwork-section-heading mb-2" data-i18n="pwork.createdBy">Created by</p>
+    <div id="creatorBlock" class="mb-10"></div>
+
+    <div id="moreWorkSection" class="hidden">
+      <p class="pwork-section-heading mb-3" data-i18n="pwork.moreWork">More work by this Designer</p>
+      <div id="moreWorkGrid" class="rp-masonry"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  import { fetchPost, resolveCreator, fetchPublishedWork, renderWorkCard, renderCreatorCard } from './js/professional-content.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  function categoryLabel(category) { return category ? tr(`pwork.category.${category}`, category) : ''; }
+  const el = (id) => document.getElementById(id);
+  function show(id) { el(id).classList.remove('hidden'); }
+  function hide(id) { el(id).classList.add('hidden'); }
+
+  const postId = new URLSearchParams(window.location.search).get('id');
+
+  async function load() {
+    if (!postId) { hide('loadingState'); show('notFoundState'); return; }
+
+    const post = await fetchPost(postId);
+    if (!post || post.status !== 'published') {
+      hide('loadingState');
+      show('notFoundState');
+      return;
+    }
+
+    const creator = await resolveCreator(post.profileId);
+
+    const cover = post.coverImageUrl || (Array.isArray(post.media) && post.media[0] && post.media[0].url) || '';
+    if (cover) { el('detailMedia').src = cover; } else { hide('detailMedia'); }
+    el('detailCategory').textContent = categoryLabel(post.category);
+    el('detailTitle').textContent = post.title || '—';
+    const metaParts = [post.city, post.district].filter(Boolean);
+    el('detailMeta').textContent = metaParts.join(' · ');
+    el('detailDescription').textContent = post.description || '';
+    el('creatorBlock').innerHTML = renderCreatorCard(creator, { variant: 'full' });
+
+    if (creator) {
+      const { items } = await fetchPublishedWork({ profileType: 'designer', profileId: post.profileId, pageSize: 7 });
+      const others = items.filter((p) => p.id !== post.id).slice(0, 6);
+      if (others.length) {
+        el('moreWorkGrid').innerHTML = others.map((p) => renderWorkCard(p, { categoryLabel: categoryLabel(p.category) })).join('');
+        show('moreWorkSection');
+      }
+    }
+
+    hide('loadingState');
+    show('postContent');
+  }
+
+  load();
+</script>
+<script src="./js/i18n.js"></script>
+</body></html>

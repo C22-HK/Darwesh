@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<title>Darwesh Group - Design</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
+
+<header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
+  <a href="index.html" class="font-headline-md text-[20px] text-primary font-bold">Darwesh Group</a>
+  <div class="flex items-center gap-4">
+    <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.map">Map</a>
+    <a id="navProfileLink" href="login.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors">Profile</a>
+    <div class="relative">
+      <button aria-label="Language" class="lang-toggle-btn font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" type="button">
+        <span class="material-symbols-outlined text-[18px]">language</span>
+      </button>
+      <div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
+        <button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="ps-shell py-8">
+  <section class="mb-8 max-w-2xl">
+    <p class="rp-hero-eyebrow mb-2" data-i18n="rp.role.designer">Designer</p>
+    <h1 class="font-headline-md text-[26px] md:text-[32px] font-bold text-on-surface mb-2" data-i18n="pwork.discoveryTitle">Design</h1>
+    <p class="font-body-md text-[14px] text-on-surface-variant" data-i18n="pwork.discoveryTagline">Discover interior, architectural, and design work from Darwesh professionals.</p>
+  </section>
+
+  <div id="categoryFilters" class="pwork-toolbar" role="group" aria-label="Category filters"></div>
+
+  <div id="workGrid" class="rp-masonry"></div>
+  <div id="workEmpty" class="ps-empty hidden"></div>
+
+  <div class="text-center mt-8">
+    <button id="loadMoreBtn" type="button" class="ps-btn hidden border border-outline-variant px-5 py-2.5 rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">…</button>
+  </div>
+</main>
+
+<script type="module">
+  import { fetchPublishedWork, renderWorkCard, resolveCreator } from './js/professional-content.js';
+  import { renderEmptyState, withBusyButton } from './js/profile-shell.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  function categoryLabel(category) { return category ? tr(`pwork.category.${category}`, category) : ''; }
+  const el = (id) => document.getElementById(id);
+
+  const CATEGORIES = ['residential', 'apartment', 'villa', 'office', 'cafe', 'commercial', 'interior', 'exterior'];
+  const params = new URLSearchParams(window.location.search);
+  let activeCategory = params.get('category');
+  if (!CATEGORIES.includes(activeCategory)) activeCategory = null;
+
+  let lastDoc = null;
+  const creatorCache = new Map();
+  const PAGE_SIZE = 24;
+
+  function renderFilters() {
+    const bar = el('categoryFilters');
+    const chips = [{ key: null, label: tr('pwork.filterAll', 'All') }]
+      .concat(CATEGORIES.map((c) => ({ key: c, label: categoryLabel(c) })));
+    bar.innerHTML = chips.map((c) => `
+      <button type="button" class="pwork-filter-chip${c.key === activeCategory ? ' is-active' : ''}" data-category="${c.key || ''}">${c.label}</button>
+    `).join('');
+    bar.querySelectorAll('[data-category]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activeCategory = btn.dataset.category || null;
+        const url = new URL(window.location.href);
+        if (activeCategory) url.searchParams.set('category', activeCategory); else url.searchParams.delete('category');
+        window.history.replaceState(null, '', url);
+        lastDoc = null;
+        el('workGrid').innerHTML = '';
+        renderFilters();
+        loadPage();
+      });
+    });
+  }
+
+  async function getCreator(profileId) {
+    if (creatorCache.has(profileId)) return creatorCache.get(profileId);
+    const creator = await resolveCreator(profileId);
+    creatorCache.set(profileId, creator);
+    return creator;
+  }
+
+  async function loadPage() {
+    const grid = el('workGrid');
+    const emptyEl = el('workEmpty');
+    const moreBtn = el('loadMoreBtn');
+    const { items, lastDoc: newCursor } = await fetchPublishedWork({
+      profileType: 'designer', category: activeCategory, pageSize: PAGE_SIZE, cursor: lastDoc
+    });
+    lastDoc = newCursor;
+
+    if (!items.length && !grid.children.length) {
+      renderEmptyState(emptyEl, { icon: 'palette', title: tr('pwork.discoveryEmpty', 'No published design work yet.') });
+      emptyEl.classList.remove('hidden');
+      moreBtn.classList.add('hidden');
+      return;
+    }
+    emptyEl.classList.add('hidden');
+
+    const cards = await Promise.all(items.map(async (post) => {
+      const creator = await getCreator(post.profileId);
+      return renderWorkCard(post, { creator, categoryLabel: categoryLabel(post.category) });
+    }));
+    grid.insertAdjacentHTML('beforeend', cards.join(''));
+
+    if (items.length === PAGE_SIZE) {
+      moreBtn.textContent = tr('pwork.loadMore', 'Load more');
+      moreBtn.classList.remove('hidden');
+    } else {
+      moreBtn.classList.add('hidden');
+    }
+  }
+
+  el('loadMoreBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, loadPage));
+
+  renderFilters();
+  loadPage();
+</script>
+<script src="./js/i18n.js"></script>
+</body></html>

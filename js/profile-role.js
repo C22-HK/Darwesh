@@ -33,7 +33,7 @@ function esc(s) {
 }
 
 export function initServiceProviderProfile(config) {
-  const { serviceType, fallbackIcon } = config;
+  const { serviceType, fallbackIcon, tabOrder, renderWorkTab } = config;
   const fallbackClass = `rp-fallback--${serviceType}`;
 
   const params = new URLSearchParams(window.location.search);
@@ -97,7 +97,7 @@ export function initServiceProviderProfile(config) {
       hideStates();
       show('providerContent');
       setupTabs();
-      renderProjects();
+      if (renderWorkTab) renderWorkTab(workTabContext()); else renderProjects();
       renderContactTab();
     } catch (err) {
       hideStates();
@@ -251,13 +251,30 @@ export function initServiceProviderProfile(config) {
   }
 
   function setupTabs() {
-    const tabs = [
-      { key: 'overview', button: el('tabBtnOverview'), panel: el('panelOverview') },
-      { key: 'projects', button: el('tabBtnProjects'), panel: el('panelProjects') },
-      { key: 'services', button: el('tabBtnServices'), panel: el('panelServices') },
-      { key: 'contact', button: el('tabBtnContact'), panel: el('panelContact') }
-    ];
-    mountTabs({ tabs });
+    // Same four tabs for every role today; only their ORDER is
+    // configurable (Designer wants Work first, per
+    // PROFESSIONAL_CONTENT_ARCHITECTURE.md's brief -- "the default tab
+    // should emphasize WORK/PORTFOLIO"). Engineer passes no `tabOrder`
+    // and gets the original, unchanged order/behavior.
+    const byKey = {
+      overview: { key: 'overview', button: el('tabBtnOverview'), panel: el('panelOverview') },
+      projects: { key: 'projects', button: el('tabBtnProjects'), panel: el('panelProjects') },
+      services: { key: 'services', button: el('tabBtnServices'), panel: el('panelServices') },
+      contact: { key: 'contact', button: el('tabBtnContact'), panel: el('panelContact') }
+    };
+    const order = tabOrder || ['overview', 'projects', 'services', 'contact'];
+    mountTabs({ tabs: order.map((k) => byKey[k]) });
+  }
+
+  // Read-only context handed to a role's custom work-tab renderer
+  // (Designer's professional-content.js integration) -- exposes exactly
+  // what it needs and nothing about this module's private state beyond
+  // that.
+  function workTabContext() {
+    return {
+      el, show, hide, esc,
+      providerId, providerData, isOwnerView, isAdminView, serviceType, fallbackIcon
+    };
   }
 
   function renderProjects() {
