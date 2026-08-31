@@ -60,6 +60,12 @@ rules_version = '2';
 //   authenticated getBytes()/getBlob() and render that as a local blob
 //   URL instead.
 //
+// - professional-work/{profileId}/{fileName} — Designer publishing (see
+//   the match block below for the full rationale): image/jpeg|png|webp
+//   only, owner-checked via firestore.get() against
+//   serviceProviders/{profileId}, and the one path in this file where
+//   deletion is actually allowed.
+//
 // The size/type checks are the only real guardrail against abuse at this
 // layer beyond that.
 service firebase.storage {
@@ -122,6 +128,44 @@ service firebase.storage {
                      && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
+    }
+
+    // professional-work/{profileId}/{fileName} -- Designer publishing
+    // (DESIGNER PUBLISHING phase). Same firestore.get() cross-check
+    // pattern as company-logos above, against serviceProviders/{profileId}
+    // instead of companies/{companyId}, additionally requiring
+    // serviceType=='designer' so this path can't be used by any other
+    // service-provider type while publishing is Designer-only (a
+    // stray upload here without a matching professionalPosts.serviceType
+    // gate at the Firestore layer would just be an orphaned file, but
+    // there is no reason to allow it at all).
+    //
+    // Deliberately narrower than every existing path in this file:
+    // image/jpeg|png|webp ONLY (no bare `image/.*` -- excludes
+    // image/svg+xml, which can carry an embedded <script> and is a real
+    // stored-XSS vector if ever rendered directly rather than as an
+    // <img>/background-image). Content-type is what Firebase Storage
+    // itself derives from the actual upload, never the client-supplied
+    // filename.
+    //
+    // The one path in this file where `allow delete` is NOT
+    // unconditionally false -- Designer publishing is user-manageable
+    // content the owner can genuinely take down (an explicit "Delete
+    // own work" requirement), unlike every other path here, which are
+    // permanent business records (listing photos, a company's logo,
+    // sell-form evidence) this codebase intentionally never lets any
+    // client delete.
+    match /professional-work/{profileId}/{fileName} {
+      function isOwnedDesignerProfile() {
+        return firestore.get(/databases/(default)/documents/serviceProviders/$(profileId)).data.get('ownerId', null) == request.auth.uid
+            && firestore.get(/databases/(default)/documents/serviceProviders/$(profileId)).data.get('serviceType', null) == 'designer';
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isOwnedDesignerProfile())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isOwnedDesignerProfile());
     }
   }
 }

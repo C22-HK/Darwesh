@@ -177,9 +177,8 @@
          existing photos never disappear -- see that doc's §13). -->
     <section id="panelProjects" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnProjects" hidden>
       <div id="workToolbar" class="pwork-toolbar hidden">
-        <button id="addWorkBtn" type="button" class="ps-btn pwork-addwork-btn bg-secondary text-on-secondary px-4 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="pwork.addWork">+ Add Work</button>
+        <a id="addWorkBtn" href="add-work.html" class="ps-btn pwork-addwork-btn bg-secondary text-on-secondary px-4 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="pwork.addWork">+ Add Work</a>
       </div>
-      <p id="addWorkMsg" class="pwork-comingsoon hidden" data-i18n="pwork.addWorkComingSoon">Publishing your work is coming soon.</p>
       <div id="projectsGrid" class="rp-masonry"></div>
       <div id="projectsEmpty" class="ps-empty hidden"></div>
     </section>
@@ -201,11 +200,10 @@
 
 <script type="module">
   import { initServiceProviderProfile } from './js/profile-role.js';
-  import { fetchPublishedWork, renderWorkCard } from './js/professional-content.js';
-  import { renderEmptyState, withBusyButton } from './js/profile-shell.js';
+  import { fetchPublishedWork, renderWorkCard, categoryLabel } from './js/professional-content.js';
+  import { renderEmptyState } from './js/profile-shell.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
-  function categoryLabel(category) { return category ? tr(`pwork.category.${category}`, category) : ''; }
 
   // Designer's Work tab: professionalPosts first (the real, forward-
   // looking source -- currently empty/permission-denied in production
@@ -219,17 +217,7 @@
     const emptyEl = el('projectsEmpty');
 
     const toolbar = el('workToolbar');
-    const addBtn = el('addWorkBtn');
-    const addMsg = el('addWorkMsg');
-    if (isOwnerView) {
-      toolbar.classList.remove('hidden');
-      if (!addBtn.dataset.wired) {
-        addBtn.dataset.wired = '1';
-        addBtn.addEventListener('click', () => withBusyButton(addBtn, async () => {
-          addMsg.classList.remove('hidden');
-        }));
-      }
-    }
+    if (isOwnerView) toolbar.classList.remove('hidden');
 
     const { items } = await fetchPublishedWork({ profileType: 'designer', profileId: providerId });
 

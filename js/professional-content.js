@@ -24,12 +24,74 @@
 // `verified` field at all) -- resolveCreator() is the only source of
 // truth a caller may render a verified badge from.
 
-import { db, getDoc, getDocs } from './firebase-init.js';
+import { db, storage, getDoc, getDocs } from './firebase-init.js';
 import { collection, query, where, orderBy, limit as fsLimit, doc, startAfter } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js';
+import { withUploadTimeout } from './profile-shell.js';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
-function esc(s) {
+// Exported so every page that string-builds HTML from Firestore-sourced
+// text or URLs (including media[].url, which -- unlike coverImageUrl --
+// firestore.rules does not deep-validate per-item) uses this SAME
+// escaping function rather than each page growing its own copy that can
+// drift out of sync or simply be forgotten on one interpolation site.
+export function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Single source of truth for the Designer category enum -- consumed by
+// design.html (discovery filters), add-work.html (publish/edit form),
+// and designer.html/work.html (card + detail labels). MUST mirror
+// firestore.rules' professionalPosts isValidCategory() byte-for-byte;
+// that function's own comment points back here. Do not hardcode a
+// second copy of this list anywhere else.
+export const DESIGNER_CATEGORIES = ['residential', 'apartment', 'villa', 'office', 'cafe', 'commercial', 'interior', 'exterior'];
+
+export function categoryLabel(category) {
+  return category ? tr(`pwork.category.${category}`, category) : '';
+}
+
+// ---- Media upload/delete (Designer publishing) ----------------------------
+//
+// storage.rules' professional-work/{profileId}/{fileName} match block is
+// the real, server-enforced gate (owner + serviceType=='designer' cross-
+// check, image/jpeg|png|webp only, 10MB cap) -- these client-side
+// constants exist purely for immediate UX (reject an obviously-bad file
+// before spending an upload round-trip), never as the actual security
+// boundary.
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const MAX_GALLERY_IMAGES = 10;
+
+export function isAllowedImageFile(file) {
+  return !!file && ALLOWED_IMAGE_TYPES.includes(file.type) && file.size > 0 && file.size < MAX_IMAGE_BYTES;
+}
+
+// Uploads one file under the caller's own profileId and resolves to its
+// real Storage download URL. Never trust a filename -- the path segment
+// is a random-suffixed, character-allowlisted copy of it, purely for
+// human-readability in the Storage console; storage.rules validates the
+// actual uploaded bytes' contentType, not this string.
+export async function uploadProfessionalWorkImage(profileId, file) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+  const path = `professional-work/${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
+  const fileRef = storageRef(storage, path);
+  await withUploadTimeout(uploadBytes(fileRef, file));
+  return withUploadTimeout(getDownloadURL(fileRef));
+}
+
+// Best-effort cleanup only (orphaned-upload rollback, or a genuine
+// owner-initiated image removal) -- never blocks or fails the caller's
+// user-facing flow on a cleanup failure (already deleted, network hiccup,
+// etc.). storage.rules independently re-enforces that only the owning
+// Designer (or admin) can actually delete a given path, regardless of
+// what this helper is asked to do.
+export async function deleteProfessionalWorkImage(url) {
+  try {
+    await deleteObject(storageRef(storage, url));
+  } catch {
+    /* best-effort only -- see doc comment above */
+  }
 }
 
 // ---- Reads ---------------------------------------------------------------

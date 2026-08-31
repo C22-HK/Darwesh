@@ -52,17 +52,15 @@
 </main>
 
 <script type="module">
-  import { fetchPublishedWork, renderWorkCard, resolveCreator } from './js/professional-content.js';
+  import { fetchPublishedWork, renderWorkCard, resolveCreator, DESIGNER_CATEGORIES, categoryLabel } from './js/professional-content.js';
   import { renderEmptyState, withBusyButton } from './js/profile-shell.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
-  function categoryLabel(category) { return category ? tr(`pwork.category.${category}`, category) : ''; }
   const el = (id) => document.getElementById(id);
 
-  const CATEGORIES = ['residential', 'apartment', 'villa', 'office', 'cafe', 'commercial', 'interior', 'exterior'];
   const params = new URLSearchParams(window.location.search);
   let activeCategory = params.get('category');
-  if (!CATEGORIES.includes(activeCategory)) activeCategory = null;
+  if (!DESIGNER_CATEGORIES.includes(activeCategory)) activeCategory = null;
 
   let lastDoc = null;
   const creatorCache = new Map();
@@ -71,7 +69,7 @@
   function renderFilters() {
     const bar = el('categoryFilters');
     const chips = [{ key: null, label: tr('pwork.filterAll', 'All') }]
-      .concat(CATEGORIES.map((c) => ({ key: c, label: categoryLabel(c) })));
+      .concat(DESIGNER_CATEGORIES.map((c) => ({ key: c, label: categoryLabel(c) })));
     bar.innerHTML = chips.map((c) => `
       <button type="button" class="pwork-filter-chip${c.key === activeCategory ? ' is-active' : ''}" data-category="${c.key || ''}">${c.label}</button>
     `).join('');

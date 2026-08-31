@@ -905,6 +905,91 @@ service cloud.firestore {
       }
     }
 
+    // ---- Professional posts (Designer publishing only, this phase) ----
+    // Implements the collection proposed in
+    // docs/PROFESSIONAL_CONTENT_ARCHITECTURE.md, scoped down to
+    // profileType=='designer' only -- Engineer/Lawyer/Landscaping/
+    // Cleaning are deliberately REJECTED at create time (not merely
+    // unbuilt in the UI), so this rule can't be silently reused by a
+    // hand-crafted request for a role whose publishing UX/category enum
+    // was never reviewed. Ownership reuses serviceProviders' own
+    // providerOwnerId() cross-reference -- "a real, already-validated
+    // serviceProviders document, owned by the caller" is the sole trust
+    // signal for "may this caller publish," exactly per plan §3.1 (never
+    // hasPermission('manage_portfolio'), which has no seeded
+    // rolePermissionDefaults yet and would fail-closed everyone out).
+    match /professionalPosts/{postId} {
+      function isPostOwnerNow() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      // MUST mirror js/professional-content.js's DESIGNER_CATEGORIES
+      // export byte-for-byte -- that file's own comment points back here.
+      function isValidCategory(v) {
+        return v in ['residential', 'apartment', 'villa', 'office', 'cafe', 'commercial', 'interior', 'exterior'];
+      }
+      // Real Storage download URLs only (never an arbitrary external
+      // string) -- narrows, but doesn't fully replace, the future
+      // exact-bucket/path check flagged in the architecture doc §7/§12.
+      function isStorageUrl(v) {
+        return v is string && v.matches('^https://firebasestorage\\.googleapis\\.com/.*$');
+      }
+      function isValidMedia(data) {
+        return !('media' in data)
+            || (data.media is list && data.media.size() <= 12);
+      }
+      function isValidContent(data) {
+        return data.title is string && data.title.size() > 0 && data.title.size() <= 200
+            && isValidCategory(data.category)
+            && isStorageUrl(data.coverImageUrl)
+            && (!('description' in data) || (data.description is string && data.description.size() <= 4000))
+            && (!('city' in data) || (data.city is string && data.city.size() <= 200))
+            && (!('district' in data) || (data.district is string && data.district.size() <= 200))
+            && (!('projectDate' in data) || (data.projectDate is string && data.projectDate.size() <= 40))
+            && isValidMedia(data);
+      }
+      // Public discovery only ever sees 'published' work -- 'hidden'
+      // (owner-only, a future self-service unpublish) and 'removed'
+      // (admin moderation only) are never exposed to anyone else. The
+      // owner can still see their own non-published post (so a removed
+      // post doesn't just silently vanish without explanation), admin
+      // sees everything for moderation.
+      allow read: if resource.data.status == 'published' || isAdmin() || isPostOwnerNow();
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.profileType == 'designer'
+                    && request.resource.data.profileId is string
+                    && providerOwnerId(request.resource.data.profileId) == request.auth.uid
+                    && get(/databases/$(database)/documents/serviceProviders/$(request.resource.data.profileId)).data.serviceType == 'designer'
+                    && request.resource.data.status in ['published', 'hidden']
+                    && isValidContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'ownerId', 'profileId', 'profileType', 'status', 'title', 'category',
+                         'description', 'city', 'district', 'coverImageUrl', 'media', 'projectDate',
+                         'createdAt', 'updatedAt'
+                       ]);
+      // ownerId/profileId/profileType/createdAt are locked two ways --
+      // an explicit `==` re-check AND their exclusion from the owner
+      // branch's affectedKeys() allowlist below -- same belt-and-
+      // suspenders defense-in-depth this file already uses for
+      // listings.agentId/companyId (BL-01). Only isAdmin() may set
+      // status to 'removed' (never in the owner's own allowed-values
+      // set) or bypass the content-shape validation, for real moderation
+      // (e.g. correcting an unsafe title) -- never a client-trusted
+      // "role" flag.
+      allow update: if isAdmin()
+                    || (isPostOwnerNow()
+                        && request.resource.data.ownerId == resource.data.ownerId
+                        && request.resource.data.profileId == resource.data.profileId
+                        && request.resource.data.profileType == resource.data.profileType
+                        && request.resource.data.createdAt == resource.data.createdAt
+                        && request.resource.data.status in ['published', 'hidden']
+                        && isValidContent(request.resource.data)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['status', 'title', 'category', 'description', 'city', 'district',
+                                       'coverImageUrl', 'media', 'projectDate', 'updatedAt']));
+      allow delete: if isAdmin() || isPostOwnerNow();
+    }
+
     // ---- Home goods / furniture catalog ----
     // Explicitly NOT an order/payment system this phase (plan §2.4) --
     // publish/browse/manage only.
