@@ -704,3 +704,110 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-bottomnav-item.is-active { color: var(--ps-color-secondary); }
 .cine-scope .home-bottomnav-fab { background: var(--ps-color-primary); border: 3px solid var(--ps-color-surface-container-lowest); box-shadow: var(--ps-shadow-3d-2); }
 .cine-scope .home-bottomnav-fab .material-symbols-outlined { color: var(--ps-color-secondary); }
+
+/* =========================================================================
+ * ROLE PROFILE SHELL -- shared foundation for engineer.html/designer.html
+ * (and future role profile pages). Reuses the SAME Profile Shell component
+ * vocabulary office.html already depends on (.ps-hero, .ps-avatar*,
+ * .ps-badge*, .ps-tablist/.ps-tab/.ps-panel, .ps-card, .ps-empty,
+ * .ps-skeleton, .ps-input, .ps-field-label, .ps-grid, all defined in
+ * profile-tokens.css) -- almost none of it needs a .cine-scope override
+ * here at all, because every one of those classes already reads the
+ * --ps-color-*/--ps-radius-* custom properties .cine-scope redefines
+ * elsewhere in this file. office.html itself never carries .cine-scope,
+ * so none of this touches its current light theme.
+ *
+ * The two fixes below are the ONLY .ps-* rules that don't already flow
+ * correctly through that cascade (both are the same class of bug as the
+ * .auth-btn-secondary fix from an earlier phase: a rule that reads
+ * --ps-color-primary as a FOREGROUND color, which only makes sense in
+ * the light default theme where primary is a dark navy).
+ * ========================================================================= */
+.cine-scope .ps-tab[aria-selected="true"] { color: var(--ps-color-secondary); border-block-end-color: var(--ps-color-secondary); }
+.cine-scope .rounded-full { border-radius: var(--radius-sm); }
+
+/* ---- Role hero -- image-led composition, distinct from office.html's
+ * plain solid .ps-hero. Structure: a media layer (real photo, or a
+ * generated role-aware fallback pattern -- never a hotlinked stock photo
+ * or a fabricated "portfolio" image) with the identity block layered on
+ * top, positioned differently per role variant below. ------------------ */
+.cine-scope .rp-hero { position: relative; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low); }
+.cine-scope .rp-hero-media { position: relative; width: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: var(--ps-color-surface-container); }
+.cine-scope .rp-hero-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,10,10,0.15) 0%, rgba(9,10,10,0.55) 70%, rgba(9,10,10,0.86) 100%); }
+.cine-scope .rp-hero-identity { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; padding: 20px clamp(16px, 4vw, 32px); margin-block-start: -64px; }
+.cine-scope .rp-hero-name { color: var(--ps-color-on-surface); }
+.cine-scope .rp-hero-meta { color: var(--ps-color-on-surface-variant); }
+.cine-scope .rp-hero-eyebrow { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; }
+
+/* Engineer: technical/architectural -- moderate image height, identity
+ * card reads as a dense "spec sheet" strip anchored at the base of the
+ * image (per spec: "large project image + identity card layered
+ * beside/below it"). */
+.cine-scope .rp-hero--engineer .rp-hero-media { height: clamp(220px, 32vw, 340px); }
+.cine-scope .rp-hero--engineer .rp-hero-media::before {
+  /* Restrained blueprint-line texture -- a decorative technical motif,
+   * not a stand-in for a real project photo (that's the fallback state,
+   * see .rp-fallback--engineer below); this sits under real photos too,
+   * at low opacity, as a quiet "engineering" signature. */
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(184,154,99,0.07) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(184,154,99,0.07) 0 1px, transparent 1px 32px);
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+/* Designer: portfolio/editorial -- the image IS the hero (more vertical
+ * space than Engineer), identity block kept minimal so it never
+ * dominates the composition. */
+.cine-scope .rp-hero--designer .rp-hero-media { height: clamp(280px, 44vw, 460px); }
+.cine-scope .rp-hero--designer .rp-hero-identity { margin-block-start: -48px; }
+
+/* ---- Role-aware fallback visuals (no real media yet) -- generated CSS
+ * patterns, never a hotlinked stock photo and never a fabricated
+ * "sample project". Each role gets its own quiet visual language so an
+ * empty profile still reads as belonging to that profession. --------- */
+.cine-scope .rp-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ps-color-surface-container); }
+.cine-scope .rp-fallback .material-symbols-outlined { font-size: 40px; color: var(--ps-color-outline); opacity: 0.7; }
+.cine-scope .rp-fallback--engineer {
+  background:
+    repeating-linear-gradient(45deg, rgba(184,154,99,0.05) 0 2px, transparent 2px 22px),
+    repeating-linear-gradient(-45deg, rgba(184,154,99,0.05) 0 2px, transparent 2px 22px),
+    var(--ps-color-surface-container);
+}
+.cine-scope .rp-fallback--designer {
+  background: linear-gradient(135deg, var(--ps-color-surface-container) 0%, var(--ps-color-surface-container-low) 45%, var(--ps-color-surface-container) 100%);
+}
+
+/* ---- Specialty / service chips ---------------------------------------- */
+.cine-scope .rp-chip { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: var(--radius-xs); background: var(--ps-color-surface-container); border: 1px solid var(--ps-color-outline-variant); color: var(--ps-color-on-surface-variant); font-size: 12.5px; font-weight: 500; }
+
+/* ---- Project / portfolio cards -----------------------------------------
+ * Shared card chrome for both roles; each page's own JS decides internal
+ * content density (Engineer: image + type/location/role/status text
+ * block below; Designer: image-forward, caption on hover/below, more
+ * image, less text -- per spec "images should be the hero of this
+ * profile"). */
+.cine-scope .rp-project-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); overflow: hidden; transition: transform var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease); }
+.cine-scope .rp-project-card:hover, .cine-scope .rp-project-card:focus-within { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .rp-project-media { position: relative; width: 100%; aspect-ratio: 4/3; background-size: cover; background-position: center; background-color: var(--ps-color-surface-container); overflow: hidden; }
+.cine-scope .rp-project-status { position: absolute; top: 10px; inset-inline-end: 10px; background: rgba(184,154,99,0.16); border: 1px solid rgba(184,154,99,0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); padding: 3px 9px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; backdrop-filter: blur(3px); }
+.cine-scope .rp-project-title { color: var(--ps-color-on-surface); }
+.cine-scope .rp-project-meta { color: var(--ps-color-on-surface-variant); }
+.cine-scope .rp-project-meta .material-symbols-outlined { color: var(--ps-color-outline); font-size: 15px; }
+
+/* Designer masonry -- a simple CSS-columns editorial gallery (no JS
+ * layout library); each card's own height varies naturally with its
+ * image, unlike Engineer's uniform 4:3 grid. */
+.cine-scope .rp-masonry { columns: 1; column-gap: 16px; }
+@media (min-width: 640px) { .cine-scope .rp-masonry { columns: 2; } }
+@media (min-width: 1024px) { .cine-scope .rp-masonry { columns: 3; } }
+.cine-scope .rp-masonry .rp-project-card { break-inside: avoid; margin-bottom: 16px; display: inline-block; width: 100%; }
+.cine-scope .rp-masonry .rp-project-media { aspect-ratio: auto; }
+
+/* ---- Contact / consultation request form ------------------------------- */
+.cine-scope .rp-contact-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); padding: clamp(18px, 3vw, 28px); }
+.cine-scope .rp-contact-sent { color: var(--cine-success); }
+
+/* ---- Owner-only management affordances --------------------------------- */
+.cine-scope .rp-owner-note { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }

@@ -8,7 +8,12 @@ onAuthStateChanged(auth, async (user) => {
   let dest = 'account.html';
   try {
     const snap = await getDoc(doc(db, 'users', user.uid));
-    if (snap.exists() && snap.data().role === 'agent') dest = 'agent-dashboard.html';
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data.accountType === 'professional_engineer') dest = 'engineer.html';
+      else if (data.accountType === 'professional_designer') dest = 'designer.html';
+      else if (data.role === 'agent') dest = 'agent-dashboard.html';
+    }
   } catch (e) {}
 
   const firstName = (user.displayName || user.email || 'Profile').split(' ')[0];
