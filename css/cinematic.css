@@ -950,7 +950,9 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .pwork-confirm-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); padding: 20px; }
 
 /* =========================================================================
- * `.hidden` MUST always win -- root-cause fix, not a per-element patch.
+ * `.hidden` must always win over the `.pwork-*` component rules --
+ * root-cause fix, not a per-element patch. SCOPED to `.pwork-*` only
+ * (see regression note below for why it must not be broader).
  *
  * Found while diagnosing the Add Work page: several `.cine-scope .xxx`
  * component rules above declare `display: flex/grid` (a 2-class compound
@@ -962,12 +964,31 @@ body.cine-intro-open { overflow: hidden; }
  * NO visual effect at all: the element stayed rendered, `display:flex`,
  * on top of whatever was meant to replace it (this is what actually
  * caused the Cover/Gallery uploaders to look "broken" -- the placeholder
- * text and the real image preview were both visible at once).
+ * text and the real image preview were both visible at once). The same
+ * `.pwork-*` classes are shared by designer.html (`#workToolbar`) and
+ * work.html (`#galleryStrip`, `#deleteConfirm`), so this must keep
+ * covering all three, not just add-work.html.
  *
- * This single rule has the same (0,2,0) specificity as those component
- * rules, so it must be declared LAST in this file to win the tie via
- * source order -- keep it at the end of cinematic.css as new component
- * classes are added, rather than special-casing `.hidden` on each one
- * individually (which is exactly the fragile pattern that caused this
- * bug in the first place). */
-.cine-scope .hidden { display: none; }
+ * REGRESSION (found auditing the Home page nav): an earlier version of
+ * this rule was `.cine-scope .hidden { display: none; }` -- unscoped,
+ * matching ANY element under `.cine-scope`. That is also (0,2,0), which
+ * made it beat Tailwind's *responsive* utilities too -- e.g.
+ * `.md\:flex { display: flex }` (0,1,0) inside a `@media (min-width:...)`
+ * block. Media-query wrapping does not add specificity, so on any
+ * `class="hidden md:flex"` element (the header's desktop nav on
+ * index.html/design.html/designer.html/engineer.html/work.html, the
+ * hero's `hidden sm:inline` AI-search label, etc.) `.cine-scope .hidden`
+ * won unconditionally at EVERY viewport width, including desktop --
+ * forcing `display:none` even where `.md:flex` should have taken over.
+ * That silently deleted the entire desktop nav (Home/Map/Services/
+ * About/Profile/MAM AI) site-wide on every `.cine-scope` page.
+ *
+ * Fix: match only elements that actually carry a `pwork-` component
+ * class, via an attribute-substring selector. `[class*="pwork-"]` alone
+ * is one more specificity unit (0,1,0), so combined with `.hidden` and
+ * the `.cine-scope` ancestor this rule is (0,3,0) -- it still
+ * unconditionally beats the `.pwork-*` component rules' (0,2,0) above
+ * (no more relying on being declared last), while never touching
+ * Tailwind's `hidden md:flex`/`hidden sm:inline`/etc pattern anywhere,
+ * since none of those elements carry a `pwork-` class. */
+.cine-scope [class*="pwork-"].hidden { display: none; }
