@@ -1456,8 +1456,30 @@ service cloud.firestore {
       // proof rather than something a second write could sneak past by
       // "updating" its way into holding the same slot.
       allow update: if false;
+      // SECURITY FIX (found during Phase 1 pre-deploy verification): the
+      // original version of this rule let an authorized org member
+      // delete their own lock UNCONDITIONALLY -- with no check that the
+      // listing it guards had actually been closed first. That let the
+      // documented "close, then release" protocol be skipped: delete the
+      // lock while its listing was STILL status=='active', immediately
+      // claim a fresh lock for the same (unitId, dealType), and publish
+      // a SECOND active listing -- leaving two simultaneously active
+      // listings for the same unit+dealType, exactly the invariant this
+      // whole mechanism exists to prevent. `!exists(...) ||
+      // status != 'active'` closes this: a lock may be released once its
+      // listing is genuinely non-active OR was never created at all (the
+      // legitimate stuck-lock recovery case, e.g. a client crash between
+      // claiming the lock and creating the listing) -- but never while
+      // that exact listing is still live. isAdmin() is unaffected (an
+      // admin's recovery path was never gated on this).
+      function lockCanBeReleased(data) {
+        return !exists(/databases/$(database)/documents/listings/$(data.activeListingId))
+            || get(/databases/$(database)/documents/listings/$(data.activeListingId)).data.status != 'active';
+      }
       allow delete: if isAdmin()
-                    || (isOrgMember(resource.data.organizationId) && hasOrgPermission(resource.data.organizationId, 'publish_unit_listing'));
+                    || (isOrgMember(resource.data.organizationId)
+                        && hasOrgPermission(resource.data.organizationId, 'publish_unit_listing')
+                        && lockCanBeReleased(resource.data));
     }
 
     // ---- Home goods / furniture catalog ----

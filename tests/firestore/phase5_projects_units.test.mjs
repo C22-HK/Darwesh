@@ -777,3 +777,179 @@ describe('UNIT -> LISTING publication (new, additive)', () => {
     await assertSucceeds(deleteDoc(doc(db, 'activeListingLocks', 'unit-1_sale')));
   });
 });
+
+// =========================================================================
+// FULL ACTIVE-LISTING LOCK LIFECYCLE AUDIT (Phase 1 pre-deploy
+// verification, scenarios A-J). Confirms the invariant "at most ONE
+// active listing per (unitId, dealType)" holds through every state
+// transition, not merely at the moment of concurrent lock creation --
+// and that legitimate relisting after a listing is no longer active
+// remains possible.
+describe('LOCK LIFECYCLE — full audit (A-J)', () => {
+  function seedFullOwnerContext() {
+    return (async () => {
+      await seedOrg(DEV_ORG, { ownerId: OWNER, type: 'developer_project', name: 'Darwesh Developments', verified: false });
+      await seedOwnerViaRoleDefaults();
+      await seedProject('proj-1', validProject());
+      await seedUnit('unit-1', validUnit({ priceAmount: 150000, currency: 'USD', listingType: 'sale', status: 'available' }));
+    })();
+  }
+
+  it('A. closing an active listing does not itself require or touch the lock', async () => {
+    await seedFullOwnerContext();
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
+    await seedListing('listing-x', {
+      title: 'Active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'active', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
+    });
+    const db = dbFor(testEnv, OWNER);
+    await assertSucceeds(updateDoc(doc(db, 'listings', 'listing-x'), { status: 'closed', updatedAt: 2 }));
+    // The lock still exists after close (release is a deliberate, separate
+    // step) -- so no OTHER listing can claim the slot yet.
+    await assertFails(setDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), {
+      unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-y', organizationId: DEV_ORG
+    }));
+  });
+
+  it('B/C. Unit.status can independently change (e.g. to sold/rented) without touching the lock or listing', async () => {
+    // Unit.status and listings.status are deliberately independent state
+    // machines (per the architecture delta) -- marking inventory sold/
+    // rented never requires a listing to exist or be closed first, and
+    // does not itself release or require the lock. This is intentional
+    // ("a developer can mark inventory Reserved/Sold with no listing ever
+    // existing" -- already covered by the UNIT update describe block
+    // above); this test confirms it holds even while an active,
+    // lock-holding listing for the SAME unit still exists, i.e. Unit.status
+    // drifting ahead of Listing.status is possible and does not corrupt
+    // the lock -- a known, accepted product-consistency gap (Section 4 of
+    // the verification report), not a security or uniqueness violation.
+    await seedFullOwnerContext();
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
+    await seedListing('listing-x', {
+      title: 'Active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'active', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
+    });
+    const db = dbFor(testEnv, OWNER);
+    await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { status: 'sold', updatedAt: 2 }));
+    // The lock is untouched by this -- still held, still blocking a
+    // second active listing for the same unit+dealType.
+    await assertFails(setDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), {
+      unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-y', organizationId: DEV_ORG
+    }));
+  });
+
+  it('D. an org publisher cannot hard-delete their own unit-backed listing (close via update instead; only admin can hard-delete)', async () => {
+    // listings.delete was not extended with an org branch in Phase 1 --
+    // only the pre-existing agent branch and admin can hard-delete. This
+    // is a functionality gap (bias toward the SAFE/restrictive direction,
+    // not a vulnerability), and does not impair the lock lifecycle: the
+    // documented release protocol only ever required CLOSING the listing
+    // (an update, which the org publisher CAN do) plus deleting the lock
+    // (a separate document, also authorized) -- never hard-deleting the
+    // listing document itself. Historical listings staying in place after
+    // close also matches the explicit "historical listings" requirement.
+    await seedFullOwnerContext();
+    await seedListing('listing-x', {
+      title: 'Active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'closed', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
+    });
+    const db = dbFor(testEnv, OWNER);
+    await assertFails(deleteDoc(doc(db, 'listings', 'listing-x')));
+  });
+
+  it('E. legitimate relisting after close+release succeeds (full round trip)', async () => {
+    // Already covered by "closing an active unit-backed listing, then
+    // releasing the lock, allows a fresh publish later" above; restated
+    // here as part of the complete lettered audit for traceability.
+    await seedFullOwnerContext();
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
+    await seedListing('listing-x', {
+      title: 'Active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'active', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
+    });
+    const db = dbFor(testEnv, OWNER);
+    await assertSucceeds(updateDoc(doc(db, 'listings', 'listing-x'), { status: 'closed', updatedAt: 2 }));
+    await assertSucceeds(deleteDoc(doc(db, 'activeListingLocks', 'unit-1_sale')));
+    await assertSucceeds(setDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), {
+      unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-relist', organizationId: DEV_ORG
+    }));
+    await assertSucceeds(setDoc(doc(db, 'listings', 'listing-relist'), {
+      title: 'Relisted', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'active', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 3
+    }));
+  });
+
+  it('F. the same Unit can hold simultaneous SALE and RENT locks/active listings (independent dealTypes)', async () => {
+    await seedFullOwnerContext();
+    const db = dbFor(testEnv, OWNER);
+    // Claim BOTH locks for the same unit -- different dealType, different lockId.
+    await assertSucceeds(setDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), {
+      unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-sale', organizationId: DEV_ORG
+    }));
+    await assertSucceeds(setDoc(doc(db, 'activeListingLocks', 'unit-1_rent'), {
+      unitId: 'unit-1', dealType: 'rent', activeListingId: 'listing-rent', organizationId: DEV_ORG
+    }));
+    // A unit's own listingType doesn't gate this -- the lock/listing
+    // dealType is independently supplied per listing; both can be
+    // simultaneously active, matching the explicit "one sale listing AND
+    // one rental listing" requirement.
+  });
+
+  it('G. a different (unauthorized) org cannot delete another org\'s lock', async () => {
+    await seedFullOwnerContext();
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
+    await seedListing('listing-x', {
+      title: 'Active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'closed', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
+    });
+    await seedOrg(OTHER_ORG, { ownerId: OTHER_OWNER, type: 'developer_project', name: 'Rival Devs', verified: false });
+    await seedOwnerViaRoleDefaults(OTHER_OWNER);
+    const db = dbFor(testEnv, OTHER_OWNER);
+    await assertFails(deleteDoc(doc(db, 'activeListingLocks', 'unit-1_sale')));
+  });
+
+  it('H. CRITICAL: an authorized org member cannot delete a lock while its listing is STILL active (closes the "steal the slot" hole)', async () => {
+    await seedFullOwnerContext();
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
+    await seedListing('listing-x', {
+      title: 'Still active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
+      private: false, status: 'active', // <-- the listing this lock guards is genuinely still active
+      unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
+    });
+    const db = dbFor(testEnv, OWNER);
+    // Even though OWNER is the legitimate, fully-authorized publisher for
+    // this exact unit/org, deleting the lock must be rejected while
+    // listing-x is still active -- otherwise a second active listing
+    // could immediately be published for the same unit+dealType.
+    await assertFails(deleteDoc(doc(db, 'activeListingLocks', 'unit-1_sale')));
+    // Prove the consequence would have been real: with the lock still
+    // correctly held, a second active listing genuinely cannot be created.
+    await assertFails(setDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), {
+      unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-y', organizationId: DEV_ORG
+    }));
+  });
+
+  it('I. a lock\'s activeListingId can never be reassigned/stolen via update, by anyone', async () => {
+    await seedFullOwnerContext();
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
+    const db = dbFor(testEnv, OWNER);
+    await assertFails(updateDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), { activeListingId: 'listing-hijack' }));
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
+    const adminDb = dbFor(testEnv, 'admin-1');
+    // allow update: if false is unconditional -- not even an admin can
+    // edit a lock in place (delete + recreate is the only path, and
+    // recreate is itself gated by lockCanBeReleased/create-only semantics).
+    await assertFails(updateDoc(doc(adminDb, 'activeListingLocks', 'unit-1_sale'), { activeListingId: 'listing-hijack' }));
+  });
+
+  it('J. a genuinely orphaned lock (listing creation was omitted after the lock was claimed) can still be recovered by the authorized org', async () => {
+    await seedFullOwnerContext();
+    // Lock claimed, but the corresponding listing was NEVER created
+    // (e.g. a client crash between step 1 and step 2 of the publish
+    // protocol) -- lockCanBeReleased()'s `!exists(...)` branch must still
+    // let the legitimate org recover this without needing an admin.
+    await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-never-created', organizationId: DEV_ORG });
+    const db = dbFor(testEnv, OWNER);
+    await assertSucceeds(deleteDoc(doc(db, 'activeListingLocks', 'unit-1_sale')));
+  });
+});
