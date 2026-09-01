@@ -17,7 +17,8 @@ import {
   addDoc as _addDoc,
   setDoc as _setDoc,
   updateDoc as _updateDoc,
-  deleteDoc as _deleteDoc
+  deleteDoc as _deleteDoc,
+  runTransaction as _runTransaction
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
@@ -164,3 +165,4 @@ export async function addDoc(...args) { await appCheckReady; return _addDoc(...a
 export async function setDoc(...args) { await appCheckReady; return _setDoc(...args); }
 export async function updateDoc(...args) { await appCheckReady; return _updateDoc(...args); }
 export async function deleteDoc(...args) { await appCheckReady; return _deleteDoc(...args); }
+export async function runTransaction(...args) { await appCheckReady; return _runTransaction(...args); }

@@ -15,7 +15,7 @@ via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
 silently ignored when CSP is delivered via a meta tag (a browser spec rule,
 not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -366,6 +366,8 @@ violation reporting. -->
       <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
+      <button class="admin-tab" data-tab="estateintel" type="button" data-i18n="admin.estateIntelTab">Estate Intelligence Map</button>
+      <button class="admin-tab" data-tab="estatedata" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
     </div>
 
     <!-- TAB: Dashboard -->
@@ -530,6 +532,71 @@ violation reporting. -->
       <div class="flex justify-end mt-3">
         <button id="clearScanLogBtn" class="font-label-caps text-label-caps text-error hover:underline" type="button" data-i18n="admin.clearDeviceLog">Clear this device's log</button>
       </div>
+    </section>
+
+    <!-- TAB: Estate Intelligence Map (Production Rebuild Phase 1 of 3, Part G).
+         Uses the shared js/maps-core.js Google Maps boundary -- shows the
+         "map unavailable" fallback when no key is configured, same as
+         buy-rent-map.html. Real Firestore data only: estates + their
+         current Listing + publicTransactionSummary, never fabricated
+         values. -->
+    <section id="tab-estateintel" class="admin-tab-panel">
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <select id="eiLayerFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
+          <option value="all" data-i18n="admin.ei.allListings">All Listings</option>
+          <option value="sale" data-i18n="buy.buyTab">Buy</option>
+          <option value="rent" data-i18n="nav.rent">Rent</option>
+        </select>
+        <select id="eiVerifiedFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
+          <option value="all" data-i18n="map.any">Any</option>
+          <option value="verified" data-i18n="common.verified">Verified</option>
+          <option value="unverified" data-i18n="admin.ei.unverified">Unverified</option>
+        </select>
+        <select id="eiTypeFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
+          <option value="all" data-i18n="map.allTypes">All Types</option>
+          <option value="apartment" data-i18n="map.apartment">Apartment</option>
+          <option value="villa" data-i18n="map.villa">Villa</option>
+          <option value="house" data-i18n="map.house">House</option>
+          <option value="land" data-i18n="map.land">Land</option>
+          <option value="office" data-i18n="map.office">Office</option>
+          <option value="shop" data-i18n="map.shop">Shop</option>
+        </select>
+        <p id="eiResultCount" class="font-data-mono text-data-mono text-on-surface-variant ml-auto"></p>
+      </div>
+      <div class="flex gap-4" style="height:600px;">
+        <div class="relative flex-1 rounded-xl overflow-hidden border border-outline-variant">
+          <div id="estateIntelMap" class="w-full h-full" style="background:#101111;"></div>
+          <div id="eiMapUnavailable" class="hidden absolute inset-0 flex items-center justify-center bg-surface-container-lowest p-6 text-center"></div>
+          <div class="absolute top-3 left-3 flex flex-col gap-2 z-20">
+            <button id="eiSearchAreaBtn" type="button" class="drm-map-btn" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">travel_explore</span><span data-i18n="drm.searchThisArea">Search This Area</span></button>
+            <button id="eiDrawAreaBtn" type="button" class="drm-map-btn" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">draw</span><span data-i18n="map.drawArea">Draw Area</span></button>
+            <button id="eiResetAreaBtn" type="button" class="hidden" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">restart_alt</span><span data-i18n="drm.resetArea">Reset Area</span></button>
+          </div>
+          <div class="absolute top-3 right-3 flex flex-col gap-2 z-20">
+            <button id="eiMyLocationBtn" type="button" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px;"><span class="material-symbols-outlined text-[16px]">my_location</span></button>
+            <button id="eiFullscreenBtn" type="button" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px;"><span class="material-symbols-outlined text-[16px]">fullscreen</span></button>
+            <div class="inline-flex bg-[#17150Fcc] rounded-lg border border-[#5D482B] overflow-hidden">
+              <button id="eiTypeRoadmap" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype active" data-i18n="drm.roadmap">Roadmap</button>
+              <button id="eiTypeSatellite" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype" data-i18n="drm.satellite">Satellite</button>
+              <button id="eiTypeHybrid" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype" data-i18n="drm.hybrid">Hybrid</button>
+            </div>
+          </div>
+        </div>
+        <div id="eiSidePanel" class="hidden w-[340px] flex-none overflow-y-auto bg-surface-container-lowest border border-outline-variant rounded-xl p-4"></div>
+      </div>
+    </section>
+
+    <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
+         Reads only -- every write this page can trigger still goes
+         through firestore.rules exactly as any other client write would;
+         nothing here is a privileged bypass. -->
+    <section id="tab-estatedata" class="admin-tab-panel">
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <input id="edSearchInput" type="text" class="flex-1 min-w-[220px] bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-body-md text-body-md" data-i18n-placeholder="admin.ed.searchPlaceholder" placeholder="Search by Estate ID, Listing ID, office, agent, project, unit, or location..."/>
+        <button id="edSearchBtn" type="button" class="bg-primary text-on-primary rounded-full px-5 py-2.5 font-label-caps text-label-caps" data-i18n="common.search">Search</button>
+      </div>
+      <p id="edEmptyState" class="text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="admin.ed.searchHint">Search for an Estate above to view its full record.</p>
+      <div id="edRecord" class="hidden space-y-4"></div>
     </section>
 
     <!-- TAB: Market Overview -->
@@ -898,9 +965,10 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth, deleteUser } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  doc, collection, serverTimestamp, getFirestore, runTransaction
+  doc, collection, serverTimestamp, getFirestore, runTransaction, query, where, limit
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+import { isConfigured as mapsConfigured, initMap as initGoogleMap, createMarker as createGoogleMarker } from './js/maps-core.js';
 
 function trAdmin(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -1000,6 +1068,406 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ---------------------------------------------------------------------
+// Estate Intelligence Map (Production Rebuild Phase 1 of 3, Part G).
+// Real Firestore data only -- listings (admin has full list/get access
+// per firestore.rules' isListingOwnerOrAdmin()), plus each marker's
+// linked Estate/transaction data when a listing actually carries an
+// estateId (still rare today -- Estate linkage is new and no publish
+// flow sets it automatically). Never invents a value for a field that
+// has no real data behind it; the side panel simply omits what it
+// doesn't have (see renderEiSidePanel below).
+// ---------------------------------------------------------------------
+window.estateIntelEngine = null;
+let eiAllListings = [];
+let eiAreaFilter = null;
+let eiDrawingManager = null;
+let eiDrawnCircle = null;
+
+async function makeGoogleEiEngine() {
+  const map = await initGoogleMap(document.getElementById('estateIntelMap'), { center: { lat: 36.19, lng: 44.01 }, zoom: 8, mapTypeControl: false });
+  if (!map) return null;
+  const google = window.google;
+  let overlays = [];
+  map.addListener('idle', () => renderEiMarkers());
+  if (google.maps.drawing) {
+    eiDrawingManager = new google.maps.drawing.DrawingManager({
+      drawingMode: null, drawingControl: false,
+      circleOptions: { fillColor: '#C89A4A', fillOpacity: 0.15, strokeColor: '#C89A4A', strokeWeight: 2, clickable: false, editable: true },
+    });
+    eiDrawingManager.setMap(map);
+    google.maps.event.addListener(eiDrawingManager, 'circlecomplete', (circle) => {
+      if (eiDrawnCircle) eiDrawnCircle.setMap(null);
+      eiDrawnCircle = circle;
+      eiDrawingManager.setDrawingMode(null);
+      const center = circle.getCenter(), radius = circle.getRadius();
+      eiAreaFilter = (l) => google.maps.geometry?.spherical?.computeDistanceBetween(new google.maps.LatLng(l.lat, l.lng), center) <= radius;
+      document.getElementById('eiResetAreaBtn').classList.remove('hidden');
+      renderEiMarkers();
+    });
+  }
+  return {
+    map,
+    invalidate() { google.maps.event.trigger(map, 'resize'); },
+    clearMarkers() { overlays.forEach((o) => o.setMap(null)); overlays = []; },
+    addMarker(l) {
+      const el = document.createElement('div');
+      el.textContent = '$' + Number(l.price || 0).toLocaleString();
+      el.style.cssText = 'font-family:Inter,sans-serif;font-weight:700;font-size:12px;padding:6px 10px;border-radius:999px;background:#17150F;color:#F2EEE5;border:1.5px solid ' + (l.verified ? '#2e7d32' : (l.status === 'active' ? '#775a19' : '#8a93a3')) + ';box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;cursor:pointer;transform:translate(-50%,-100%);';
+      el.addEventListener('click', () => renderEiSidePanel(l));
+      class Overlay extends google.maps.OverlayView {
+        onAdd() { this.getPanes().overlayMouseTarget.appendChild(el); }
+        draw() {
+          const proj = this.getProjection();
+          if (!proj) return;
+          const point = proj.fromLatLngToDivPixel(new google.maps.LatLng(l.lat, l.lng));
+          if (point) { el.style.position = 'absolute'; el.style.left = point.x + 'px'; el.style.top = point.y + 'px'; }
+        }
+        onRemove() { el.remove(); }
+      }
+      const overlay = new Overlay();
+      overlay.setMap(map);
+      overlays.push(overlay);
+    },
+  };
+}
+
+async function ensureEstateIntelEngine() {
+  if (window.estateIntelEngine) return window.estateIntelEngine;
+  const unavailableEl = document.getElementById('eiMapUnavailable');
+  if (!mapsConfigured()) {
+    unavailableEl.classList.remove('hidden');
+    unavailableEl.innerHTML = `<div><span class="material-symbols-outlined text-4xl text-outline mb-2 block">map</span><p class="font-headline-md text-on-surface mb-1">${trAdmin('drm.mapNotConfigured','Map view is not configured yet')}</p><p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.ei.notConfiguredHint','Configure the Google Maps key to enable this map (see docs/GOOGLE_MAPS_CONFIGURATION.md). The listing data below is unaffected.')}</p></div>`;
+    return null;
+  }
+  const engine = await makeGoogleEiEngine();
+  if (!engine) { unavailableEl.classList.remove('hidden'); return null; }
+  unavailableEl.classList.add('hidden');
+  window.estateIntelEngine = engine;
+  return engine;
+}
+
+function eiPassesFilters(l) {
+  const layer = document.getElementById('eiLayerFilter').value;
+  const verified = document.getElementById('eiVerifiedFilter').value;
+  const type = document.getElementById('eiTypeFilter').value;
+  if (layer !== 'all' && l.dealType !== layer) return false;
+  if (verified === 'verified' && !l.verified) return false;
+  if (verified === 'unverified' && l.verified) return false;
+  if (type !== 'all' && l.propertyType !== type) return false;
+  if (eiAreaFilter && !eiAreaFilter(l)) return false;
+  return true;
+}
+
+async function renderEiMarkers() {
+  const engine = window.estateIntelEngine;
+  if (!engine) return;
+  engine.clearMarkers();
+  const visible = eiAllListings.filter((l) => typeof l.lat === 'number' && typeof l.lng === 'number' && eiPassesFilters(l));
+  visible.forEach((l) => engine.addMarker(l));
+  document.getElementById('eiResultCount').textContent = visible.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
+}
+
+async function renderEstateIntelTab() {
+  const engine = await ensureEstateIntelEngine();
+  if (eiAllListings.length === 0) {
+    try {
+      const snap = await getDocs(query(collection(db, 'listings'), limit(500)));
+      eiAllListings = [];
+      snap.forEach((d) => eiAllListings.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error('[admin] estate intelligence map: failed to load listings', err);
+      eiAllListings = [];
+    }
+  }
+  if (engine) renderEiMarkers();
+  else document.getElementById('eiResultCount').textContent = eiAllListings.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
+}
+
+// Side panel -- real fields only. Last Verified Sale / transaction count
+// are populated ONLY when this listing actually carries a real estateId
+// AND that Estate has real transactionHistory documents (admin-readable,
+// see firestore.rules) -- never fabricated when absent, which is the
+// common case today since no publish flow sets estateId automatically yet.
+async function renderEiSidePanel(l) {
+  const panel = document.getElementById('eiSidePanel');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.loading','Loading...')}</p>`;
+
+  let estate = null, txCount = null, lastTx = null;
+  if (l.estateId) {
+    try {
+      const estateSnap = await getDoc(doc(db, 'estates', l.estateId));
+      if (estateSnap.exists()) estate = { id: estateSnap.id, ...estateSnap.data() };
+      const txSnap = await getDocs(collection(db, 'estates', l.estateId, 'transactionHistory'));
+      txCount = txSnap.size;
+      let latest = null;
+      txSnap.forEach((d) => { const data = d.data(); if (!latest || (data.createdAt || 0) > (latest.createdAt || 0)) latest = data; });
+      lastTx = latest;
+    } catch (err) {
+      // Admin-only subcollections -- a permission error here just means
+      // this admin session's own auth state is stale; degrade to "no
+      // transaction data" rather than breaking the whole panel.
+      console.error('[admin] estate intelligence: failed to load Estate/transaction data', err);
+    }
+  }
+
+  const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
+  const rows = [
+    [trAdmin('admin.ei.estateId','Estate ID'), l.estateId ? escapeAdmin(l.estateId) : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noEstateLinked','No Estate linked')}</span>`],
+    [trAdmin('admin.ei.currentAsking','Current Asking'), escapeAdmin(priceLabel)],
+    [trAdmin('admin.ei.status','Status'), escapeAdmin(l.status || '—')],
+    [trAdmin('map.homeType','Property Type'), escapeAdmin(l.propertyType || '—')],
+    [trAdmin('drm.minArea','Area').replace(' (m²)',''), l.sqft ? escapeAdmin(l.sqft + ' m²') : '—'],
+    [trAdmin('admin.ei.office','Office'), escapeAdmin(l.companyId || l.publisherOrgId || '—')],
+    [trAdmin('admin.ei.agent','Agent'), escapeAdmin(l.agentName || l.agentId || '—')],
+  ];
+  if (estate) {
+    rows.push([trAdmin('admin.ei.lastVerifiedSale','Last Verified Sale'), lastTx ? escapeAdmin('$' + Number(lastTx.priceAmount).toLocaleString() + ' (' + lastTx.transactionDate + ')') : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noVerifiedSale','No verified transaction on record')}</span>`]);
+    rows.push([trAdmin('admin.ei.priorTxCount','Previous Verified Transactions'), String(txCount ?? 0)]);
+  }
+
+  panel.innerHTML = `
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">${escapeAdmin(l.title || l.address || 'Listing')}</h3>
+    <p class="font-body-md text-[13px] text-on-surface-variant mb-3">${escapeAdmin(l.address || '')}, ${escapeAdmin(l.city || '')}</p>
+    ${l.verified ? `<span class="badge badge-verified mb-3 inline-block">${trAdmin('common.verified','Verified')}</span>` : ''}
+    <div class="space-y-2 mb-4">
+      ${rows.map(([k, v]) => `<div class="flex justify-between gap-2 text-[13px]"><span class="text-on-surface-variant">${k}</span><span class="text-on-surface text-right">${v}</span></div>`).join('')}
+    </div>
+    <div class="flex flex-col gap-2">
+      ${l.estateId ? `<button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewEstateRecord','View Estate Record')}</button>` : ''}
+      <a href="listing.html?id=${encodeURIComponent(l.id)}" target="_blank" rel="noopener" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps text-center">${trAdmin('admin.ei.viewCurrentListing','View Current Listing')}</a>
+      ${l.estateId ? `<button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewListingHistory','View Listing History')}</button>
+      <button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewTransactionHistory','View Transaction History')}</button>` : ''}
+      <button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps text-secondary" onclick="alert('${trAdmin('admin.ei.verifyLocationHint','Location verification is a manual field-check step -- mark it done once confirmed on site.').replace(/'/g,"\\'")}')">${trAdmin('admin.ei.verifyLocation','Verify Location')}</button>
+    </div>
+  `;
+}
+window.jumpToEstateData = function (estateId) {
+  document.querySelector('.admin-tab[data-tab="estatedata"]').click();
+  document.getElementById('edSearchInput').value = estateId;
+  document.getElementById('edSearchBtn').click();
+};
+
+document.getElementById('eiLayerFilter')?.addEventListener('change', renderEiMarkers);
+document.getElementById('eiVerifiedFilter')?.addEventListener('change', renderEiMarkers);
+document.getElementById('eiTypeFilter')?.addEventListener('change', renderEiMarkers);
+document.getElementById('eiSearchAreaBtn')?.addEventListener('click', () => {
+  const engine = window.estateIntelEngine;
+  if (!engine) return;
+  const bounds = engine.map.getBounds();
+  if (!bounds) return;
+  eiAreaFilter = (l) => bounds.contains({ lat: l.lat, lng: l.lng });
+  document.getElementById('eiResetAreaBtn').classList.remove('hidden');
+  renderEiMarkers();
+});
+document.getElementById('eiDrawAreaBtn')?.addEventListener('click', () => {
+  if (eiDrawingManager) eiDrawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.CIRCLE);
+});
+document.getElementById('eiResetAreaBtn')?.addEventListener('click', () => {
+  eiAreaFilter = null;
+  if (eiDrawnCircle) { eiDrawnCircle.setMap(null); eiDrawnCircle = null; }
+  document.getElementById('eiResetAreaBtn').classList.add('hidden');
+  renderEiMarkers();
+});
+document.getElementById('eiMyLocationBtn')?.addEventListener('click', () => {
+  const engine = window.estateIntelEngine;
+  if (!engine || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition((pos) => { engine.map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude }); engine.map.setZoom(14); });
+});
+document.getElementById('eiFullscreenBtn')?.addEventListener('click', () => {
+  const el = document.getElementById('estateIntelMap').parentElement;
+  if (!document.fullscreenElement) el.requestFullscreen?.(); else document.exitFullscreen?.();
+});
+function eiSetMapType(type, btnId) {
+  if (window.estateIntelEngine) window.estateIntelEngine.map.setMapTypeId(type);
+  document.querySelectorAll('.ei-maptype').forEach((b) => b.classList.toggle('active', b.id === btnId));
+}
+document.getElementById('eiTypeRoadmap')?.addEventListener('click', () => eiSetMapType('roadmap', 'eiTypeRoadmap'));
+document.getElementById('eiTypeSatellite')?.addEventListener('click', () => eiSetMapType('satellite', 'eiTypeSatellite'));
+document.getElementById('eiTypeHybrid')?.addEventListener('click', () => eiSetMapType('hybrid', 'eiTypeHybrid'));
+
+// ---------------------------------------------------------------------
+// Admin Estate Data (Production Rebuild Phase 1 of 3, Part H). Read-only
+// search + record view -- everything here goes through the same
+// firestore.rules every other client write/read would (admin session
+// reads estates/transactionHistory/protected the same way the rest of
+// this file already reads users/listings/companies; nothing here is a
+// privileged bypass of the rules layer).
+// ---------------------------------------------------------------------
+async function renderEstateDataTab() {
+  // No auto-load -- this tab is search-driven (per the explicit "Search
+  // by Estate ID / Listing ID / location / office / agent / project /
+  // unit" requirement), not a full-collection browse.
+}
+
+async function searchEstateData(qRaw) {
+  const q = qRaw.trim();
+  const emptyEl = document.getElementById('edEmptyState');
+  const recordEl = document.getElementById('edRecord');
+  if (!q) { emptyEl.classList.remove('hidden'); recordEl.classList.add('hidden'); return; }
+  recordEl.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.loading','Loading...')}</p>`;
+  recordEl.classList.remove('hidden');
+  emptyEl.classList.add('hidden');
+
+  // 1) Direct Estate ID.
+  let estate = null, estateId = null;
+  try {
+    const directSnap = await getDoc(doc(db, 'estates', q));
+    if (directSnap.exists()) { estate = { id: directSnap.id, ...directSnap.data() }; estateId = directSnap.id; }
+  } catch (err) { /* not a valid doc id shape -- fall through to other lookups */ }
+
+  // 2) Listing ID -> its estateId (if any), or just the listing itself.
+  let listing = null;
+  if (!estate) {
+    try {
+      const listingSnap = await getDoc(doc(db, 'listings', q));
+      if (listingSnap.exists()) {
+        listing = { id: listingSnap.id, ...listingSnap.data() };
+        if (listing.estateId) {
+          const eSnap = await getDoc(doc(db, 'estates', listing.estateId));
+          if (eSnap.exists()) { estate = { id: eSnap.id, ...eSnap.data() }; estateId = eSnap.id; }
+        }
+      }
+    } catch (err) { /* not a valid doc id shape */ }
+  }
+
+  // 3) Free-text: location / office / agent / project / unit -- scans
+  // the already-admin-visible listings collection for a text match
+  // (bounded to the first 500 like the Intelligence Map, consistent
+  // scale discipline) and takes the first hit as the anchor record.
+  if (!estate && !listing) {
+    try {
+      const snap = await getDocs(query(collection(db, 'listings'), limit(500)));
+      const needle = q.toLowerCase();
+      snap.forEach((d) => {
+        if (listing) return;
+        const data = d.data();
+        const haystack = [data.title, data.address, data.city, data.agentName, data.agentId, data.companyId, data.publisherOrgId, data.projectId, data.unitId].filter(Boolean).join(' ').toLowerCase();
+        if (haystack.includes(needle)) listing = { id: d.id, ...data };
+      });
+      if (listing && listing.estateId) {
+        const eSnap = await getDoc(doc(db, 'estates', listing.estateId));
+        if (eSnap.exists()) { estate = { id: eSnap.id, ...eSnap.data() }; estateId = eSnap.id; }
+      }
+    } catch (err) { console.error('[admin] estate data search failed', err); }
+  }
+
+  if (!estate && !listing) {
+    recordEl.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant text-center py-stack-lg">${trAdmin('admin.ed.noResults','No matching Estate, Listing, or reference found.')}</p>`;
+    return;
+  }
+
+  await renderEdRecord({ estate, estateId, anchorListing: listing });
+}
+
+async function renderEdRecord({ estate, estateId, anchorListing }) {
+  const recordEl = document.getElementById('edRecord');
+
+  // Listing history: every Listing document referencing this Estate
+  // (additive relationship, Part 7/8 of the Estate architecture -- may
+  // be zero or one today since estateId adoption is brand new).
+  let listingHistory = [];
+  if (estateId) {
+    try {
+      const snap = await getDocs(query(collection(db, 'listings'), where('estateId', '==', estateId), limit(50)));
+      snap.forEach((d) => listingHistory.push({ id: d.id, ...d.data() }));
+    } catch (err) { console.error('[admin] failed to load listing history', err); }
+  } else if (anchorListing) {
+    listingHistory = [anchorListing];
+  }
+  const currentListing = listingHistory.find((l) => l.status === 'active') || anchorListing || listingHistory[0] || null;
+
+  // Verified transaction history + protected admin data -- admin-only
+  // subcollections, read exactly as any admin session already reads
+  // other admin-gated data elsewhere in this file.
+  let txHistory = [], protectedData = null;
+  if (estateId) {
+    try {
+      const txSnap = await getDocs(collection(db, 'estates', estateId, 'transactionHistory'));
+      txSnap.forEach((d) => txHistory.push({ id: d.id, ...d.data() }));
+      txHistory.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    } catch (err) { console.error('[admin] failed to load transaction history', err); }
+    try {
+      const protSnap = await getDoc(doc(db, 'estates', estateId, 'protected', 'admin'));
+      if (protSnap.exists()) protectedData = protSnap.data();
+    } catch (err) { /* no protected/admin doc yet for this Estate -- fine */ }
+  }
+
+  function section(titleKey, titleFallback, bodyHtml) {
+    return `<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
+      <h4 class="font-headline-md text-[15px] text-on-surface mb-2">${trAdmin(titleKey, titleFallback)}</h4>
+      ${bodyHtml}
+    </div>`;
+  }
+  function kv(pairs) {
+    return `<div class="space-y-1.5">${pairs.map(([k, v]) => `<div class="flex justify-between gap-3 text-[13px]"><span class="text-on-surface-variant">${k}</span><span class="text-on-surface text-right">${v ?? '—'}</span></div>`).join('')}</div>`;
+  }
+
+  const overview = kv([
+    [trAdmin('admin.ei.estateId','Estate ID'), estateId ? escapeAdmin(estateId) : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noEstateLinked','No Estate linked')}</span>`],
+    [trAdmin('common.verified','Verified'), estate ? (estate.verified ? trAdmin('common.verified','Verified') : trAdmin('admin.ei.unverified','Unverified')) : '—'],
+    [trAdmin('map.homeType','Property Type'), estate ? escapeAdmin(estate.propertyType || '—') : (currentListing ? escapeAdmin(currentListing.propertyType || '—') : '—')],
+  ]);
+
+  const currentListingHtml = currentListing ? kv([
+    [trAdmin('admin.thAgentId','Listing ID'), escapeAdmin(currentListing.id)],
+    [trAdmin('admin.ei.currentAsking','Current Asking'), escapeAdmin('$' + Number(currentListing.price || 0).toLocaleString() + (currentListing.dealType === 'rent' ? '/mo' : ''))],
+    [trAdmin('admin.ei.status','Status'), escapeAdmin(currentListing.status || '—')],
+    [trAdmin('admin.ei.agent','Agent'), escapeAdmin(currentListing.agentName || currentListing.agentId || '—')],
+    [trAdmin('admin.ei.office','Office'), escapeAdmin(currentListing.companyId || currentListing.publisherOrgId || '—')],
+  ]) : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noCurrentListing','No active listing found for this Estate.')}</p>`;
+
+  const listingHistoryHtml = listingHistory.length ? `<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>${trAdmin('admin.thAgentId','Listing ID')}</th><th>${trAdmin('admin.ei.status','Status')}</th><th>${trAdmin('admin.ei.currentAsking','Price')}</th></tr></thead><tbody>${listingHistory.map((l) => `<tr><td>${escapeAdmin(l.id)}</td><td>${escapeAdmin(l.status || '—')}</td><td>${escapeAdmin('$' + Number(l.price || 0).toLocaleString())}</td></tr>`).join('')}</tbody></table></div>` : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noListingHistory','No Listings reference this Estate yet.')}</p>`;
+
+  const txHistoryHtml = txHistory.length ? `<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>${trAdmin('drm.readiness','Type').replace(' / Under Construction','')}</th><th>${trAdmin('map.priceLabel','Price')}</th><th>${trAdmin('admin.thScannedAt','Date')}</th><th>${trAdmin('admin.ei.agent','Verified By')}</th></tr></thead><tbody>${txHistory.map((t) => `<tr><td>${escapeAdmin(t.transactionType)}</td><td>${escapeAdmin(Number(t.priceAmount).toLocaleString() + ' ' + t.currency)}</td><td>${escapeAdmin(t.transactionDate)}</td><td>${escapeAdmin(t.verifiedBy || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noVerifiedTx','No verified transactions recorded for this Estate.')}</p>`;
+
+  const priceHistoryHtml = (() => {
+    const points = [...listingHistory.map((l) => ({ label: trAdmin('admin.ed.askingPrice','Asking'), price: l.price })), ...txHistory.map((t) => ({ label: t.transactionType, price: t.priceAmount }))];
+    return points.length ? kv(points.map((p) => [escapeAdmin(p.label), escapeAdmin(Number(p.price || 0).toLocaleString())])) : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noPriceHistory','No price data available.')}</p>`;
+  })();
+
+  const locationHtml = estate ? kv([
+    [trAdmin('sell.city','City'), escapeAdmin(estate.city || '—')],
+    [trAdmin('admin.ei.office','District'), escapeAdmin(estate.district || '—')],
+    [trAdmin('sell.neighborhoodAddress','Address'), escapeAdmin(estate.formattedAddress || '—')],
+    ['Lat/Lng', estate.location ? escapeAdmin(estate.location.lat + ', ' + estate.location.lng) : (currentListing ? escapeAdmin(currentListing.lat + ', ' + currentListing.lng) : '—')],
+  ]) : (currentListing ? kv([[trAdmin('sell.city','City'), escapeAdmin(currentListing.city || '—')], ['Lat/Lng', escapeAdmin(currentListing.lat + ', ' + currentListing.lng)]]) : `<p class="text-[13px] text-on-surface-variant">—</p>`);
+
+  const projectHtml = estate && (estate.projectId || estate.buildingId || estate.unitId) ? kv([
+    [trAdmin('admin.ei.currentAsking','Project ID').replace('Current Asking','Project ID'), escapeAdmin(estate.projectId || '—')],
+    ['Building ID', escapeAdmin(estate.buildingId || '—')],
+    ['Unit ID', escapeAdmin(estate.unitId || '—')],
+  ]) : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noProjectLink','Not linked to a Project/Building/Unit.')}</p>`;
+
+  const verificationHtml = kv([
+    [trAdmin('common.verified','Verified'), estate ? (estate.verified ? trAdmin('common.verified','Verified') : trAdmin('admin.ei.unverified','Unverified')) : '—'],
+    [trAdmin('admin.ei.priorTxCount','Verified Transactions'), String(txHistory.length)],
+  ]);
+
+  const auditHtml = kv([
+    [trAdmin('admin.thScannedAt','Created'), estate && estate.createdAt ? escapeAdmin(String(estate.createdAt)) : '—'],
+    [trAdmin('admin.ei.status','Updated'), estate && estate.updatedAt ? escapeAdmin(String(estate.updatedAt)) : '—'],
+    [trAdmin('admin.ei.office','Organization'), estate ? escapeAdmin(estate.organizationId || '—') : '—'],
+    ['Protected admin notes', protectedData ? trAdmin('admin.ed.protectedDataPresent','On file (admin-only)') : trAdmin('admin.ed.protectedDataAbsent','None on file')],
+  ]);
+
+  recordEl.innerHTML = [
+    section('admin.ed.sectionOverview', 'Overview', overview),
+    section('admin.ed.sectionCurrentListing', 'Current Listing', currentListingHtml),
+    section('admin.ed.sectionListingHistory', 'Listing History', listingHistoryHtml),
+    section('admin.ed.sectionVerifiedTx', 'Verified Transaction History', txHistoryHtml),
+    section('admin.ed.sectionPriceHistory', 'Price History', priceHistoryHtml),
+    section('admin.ed.sectionLocation', 'Location', locationHtml),
+    section('admin.ed.sectionProject', 'Project / Building / Unit', projectHtml),
+    section('admin.ed.sectionVerification', 'Verification', verificationHtml),
+    section('admin.ed.sectionAudit', 'Audit Information', auditHtml),
+  ].join('<div class="h-1"></div>');
+}
+
+document.getElementById('edSearchBtn')?.addEventListener('click', () => searchEstateData(document.getElementById('edSearchInput').value));
+document.getElementById('edSearchInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchEstateData(e.target.value); });
+
+// ---------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------
 document.querySelectorAll('.admin-tab').forEach(tab => {
@@ -1023,6 +1491,8 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'agents') renderAgentsTab();
     if (tab.dataset.tab === 'network') renderNetworkTab();
     if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
+    if (tab.dataset.tab === 'estateintel') { setTimeout(() => { if (window.estateIntelEngine) window.estateIntelEngine.invalidate(); }, 50); renderEstateIntelTab(); }
+    if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
   });
 });
 

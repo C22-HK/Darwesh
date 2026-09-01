@@ -48,7 +48,7 @@
 // everything that doesn't strictly require a live map.
 
 const SCRIPT_ID = 'darwesh-google-maps-script';
-const DEFAULT_LIBRARIES = ['places', 'geometry', 'marker'];
+const DEFAULT_LIBRARIES = ['places', 'geometry', 'marker', 'drawing'];
 
 let loadPromise = null;
 

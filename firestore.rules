@@ -1619,6 +1619,21 @@ service cloud.firestore {
       // No future "trusted external source" integration is built this
       // phase; this leaves room for one (still admin/backend-mediated)
       // without a schema change.
+      //
+      // REVISED (privacy review): this full record is now admin-only
+      // READ as well as write -- it is the INTERNAL record, and may
+      // carry verifier identity, internal notes, source/evidence, and
+      // other office/audit metadata that must never be public just
+      // because the parent Estate document is. Public transparency (the
+      // approved "asking price alongside verified sale history" UI
+      // example) is served instead by the separate
+      // `publicTransactionSummary` subcollection below -- a DELIBERATE,
+      // admin-authored, field-allowlisted projection, never an automatic
+      // mirror of this document. An admin who wants a transaction to be
+      // publicly visible writes both documents explicitly; writing this
+      // one alone keeps a verified transaction fully internal (e.g. a
+      // sale the seller asked to keep private, or one still under
+      // review) -- that is expected, correct behavior, not a bug.
       match /transactionHistory/{transactionId} {
         function isValidTransaction(data) {
           return data.transactionType in ['sale', 'rent']
@@ -1628,11 +1643,7 @@ service cloud.firestore {
               && (!('sourceListingId' in data) || data.sourceListingId is string)
               && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
         }
-        // Public read: this is an explicit customer-facing trust/
-        // transparency feature (per the approved UI example showing
-        // asking price alongside verified sale history to any viewer),
-        // NOT sensitive administrative data -- unlike `protected/` above.
-        allow read: if true;
+        allow read: if isAdmin();
         allow create: if isAdmin()
                       && request.resource.data.verifiedBy == request.auth.uid
                       && isValidTransaction(request.resource.data)
@@ -1649,6 +1660,47 @@ service cloud.firestore {
                       && isValidTransaction(request.resource.data)
                       && request.resource.data.diff(resource.data).affectedKeys()
                            .hasOnly(['transactionType', 'priceAmount', 'currency', 'transactionDate', 'sourceListingId', 'notes']);
+        allow delete: if isAdmin();
+      }
+
+      // ---- Public-safe Verified Transaction Summary (new, additive) ----
+      // The ONLY transaction-history surface ever readable by a non-admin
+      // caller. Deliberately a SEPARATE subcollection from
+      // `transactionHistory` above, not a public/private flag on the same
+      // document -- a flag can be flipped by a future bug or a careless
+      // rule change; a structurally separate, independently-allowlisted
+      // collection cannot accidentally leak verifier identity, internal
+      // notes, or source/evidence fields, because those fields have no
+      // path into this collection's own allowlist at all, checked here
+      // regardless of what the internal record contains. An admin creates
+      // a summary document only when they deliberately choose to publish
+      // that transaction -- there is no automatic projection from
+      // `transactionHistory` (this environment has no Cloud
+      // Function/trigger to perform one, and even if it did, an explicit
+      // admin publish action is the safer default for anything
+      // financial). `sourceListingId` is intentionally NOT carried into
+      // the public summary -- unlike the internal record, this document
+      // is meant to convey only "a sale/rent happened at roughly this
+      // price on this date," not to let a viewer cross-reference back to
+      // a specific (possibly now-private) listing document.
+      match /publicTransactionSummary/{summaryId} {
+        function isValidPublicSummary(data) {
+          return data.transactionType in ['sale', 'rent']
+              && data.priceAmount is int && data.priceAmount > 0
+              && data.currency in ['IQD', 'USD']
+              && data.transactionDate is string && data.transactionDate.size() > 0 && data.transactionDate.size() <= 40;
+        }
+        allow read: if true;
+        allow create: if isAdmin()
+                      && isValidPublicSummary(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'transactionType', 'priceAmount', 'currency', 'transactionDate', 'createdAt'
+                         ]);
+        allow update: if isAdmin()
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && isValidPublicSummary(request.resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['transactionType', 'priceAmount', 'currency', 'transactionDate']);
         allow delete: if isAdmin();
       }
     }

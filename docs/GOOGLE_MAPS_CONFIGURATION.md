@@ -109,24 +109,62 @@ which key (if any) is configured. A developer running locally with no
 key configured sees the graceful fallback everywhere; there is no
 separate "mock maps" mode to maintain.
 
-## 6. Planned page-by-page cutover (NOT done this phase)
+## 6. Page-by-page cutover status
 
-Explicitly deferred, in this order, each its own reviewable change once
-a real key exists to test against:
+Updated in the Phase 1 continuation pass that actually built the pages
+below on top of the `js/maps-core.js` foundation this document describes:
 
-1. Public Buy/Rent discovery map (new page/section, replaces nothing
-   existing — additive).
-2. `sell.html` / `admin.html` location pickers (replace the Nominatim/
-   Leaflet pin picker with `attachAddressAutocomplete()` +
-   `initMap()`) — currently working Leaflet code stays in place and
-   untouched until a real key is available to validate the swap.
-3. Office/Agent map (`agent-dashboard.html`'s team map).
-4. Admin Real Estate Intelligence Map (new admin surface).
+1. **Public Buy/Rent discovery map** (`buy-rent-map.html`) — built.
+   BUY/RENT toggle, filters, clustering, Search This Area/Draw Area,
+   map-type switch, fullscreen, URL-persisted state. Purely additive —
+   no existing page was changed to build it. Renders the graceful
+   "map unavailable" panel with the list still fully usable when no key
+   is configured (this sandbox's and every un-provisioned environment's
+   actual state today).
+2. **`sell.html` location picker** — built as a **dual-engine** picker:
+   `initGoogleLocationPicker()` (Places Autocomplete + draggable marker,
+   via `js/maps-core.js`) runs only when `isConfigured()` is true;
+   otherwise the original, already-hardened Leaflet/Nominatim
+   implementation runs completely unchanged (byte-for-byte the same
+   code, not merely "similar"). This is a deliberate risk-management
+   choice, not a partial migration: this repo's environments have never
+   had a real Google Maps key to verify the Google code path end-to-end
+   against, and sell.html's submission workflow has been through
+   multiple security review passes (BL-05/06/07, the verification-token
+   flow) — silently replacing its currently-working map engine with an
+   unverifiable one would be a regression risk with no way to catch it
+   here. The Leaflet path is therefore kept as the always-available,
+   proven fallback, not slated for removal until an operator has
+   actually verified the Google path in a real browser against a real
+   key.
+3. **Office/Agent map** (`agent-dashboard.html`'s pin picker + team
+   map) — same dual-engine pattern as sell.html, same rationale.
+4. **Admin Real Estate Intelligence Map** (`admin.html`, new "Estate
+   Intelligence Map" tab) — built directly against `js/maps-core.js`
+   only (no Leaflet fallback needed — this is a brand-new admin surface
+   with no pre-existing working implementation to preserve; it shows its
+   own "map unavailable" panel when unconfigured, and the search-driven
+   Admin Estate Data tab next to it works regardless of map
+   configuration).
 
-`listing.html`'s single-marker display map is the lowest-risk, lowest-
-priority candidate for cutover (or may simply stay on Leaflet
-indefinitely — a single static marker has no real Google-Maps-specific
-benefit).
+`listing.html`'s single-marker display map and `map.html`'s general
+explore/request-viewing map were **not touched** this pass — neither
+was named in the approved scope as a required cutover, and both keep
+working exactly as before on Leaflet.
+
+**What "migrated" means in practice for #2 and #3 today**: the Google
+code path exists, is wired correctly (verified by exercising it with a
+stubbed Leaflet global and a stubbed click handler — see the PR/commit
+history for the exact smoke tests run), and will activate automatically
+the moment an operator configures `window.DARWESH_MAPS_CONFIG.apiKey` —
+no further code change is needed to cut over. What has NOT happened is
+an operator verifying it renders and behaves correctly in a real
+browser against a real key; that verification is the one remaining
+step before Leaflet can be safely removed from these two pages. Until
+then, zero Leaflet/Nominatim/Overpass dependencies were removed from
+any page this pass — removing a proven-working fallback before its
+replacement is verified would trade a real, working map for an
+unverified one, which is explicitly the wrong trade at this stage.
 
 ---
 

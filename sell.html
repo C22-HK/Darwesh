@@ -15,7 +15,7 @@ via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
 silently ignored when CSP is delivered via a meta tag (a browser spec rule,
 not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -716,7 +716,7 @@ function showStep(n) {
   hideStepValidationMsg();
   if (n === 5) renderReview();
   document.getElementById('stepIndicator').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (n === 1) setTimeout(() => pinMap.invalidateSize(), 100);
+  if (n === 1) setTimeout(() => invalidatePinMapSize(), 100);
   if (n === 7) { if (!verificationBlob) startVerificationCamera(); } else { stopVerificationCamera(); }
 }
 
@@ -889,16 +889,27 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
 });
 
 /* ==========================================================================
-   Location: search (Nominatim/OpenStreetMap), current location, pin map
-   ========================================================================== */
-const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 18
-}).addTo(pinMap);
-let pinMarker = null;
+   Location: search, current location, pin map.
 
+   Dual-engine (Production Rebuild Phase 1 of 3, Part E): when
+   js/maps-core.js reports a configured Google Maps key,
+   initGoogleLocationPicker() below drives this same UI (#pinMap,
+   #locSearchInput, #useCurrentLocationBtn, #dropPinBtn) via the shared
+   Google Maps integration boundary (Places Autocomplete + a draggable
+   marker + click-to-place). Until then -- which is this sandbox's actual
+   state today, and every environment's state until an operator
+   provisions a key (see docs/GOOGLE_MAPS_CONFIGURATION.md) -- the
+   ORIGINAL, already-hardened Leaflet + Nominatim implementation below
+   runs completely unchanged, byte-for-byte the same behavior this page
+   has shipped with. This is a deliberate, conservative migration
+   strategy: the currently-working path is never modified or removed,
+   only wrapped, so there is zero regression risk to this form's
+   submission workflow from a Google Maps code path that cannot be
+   end-to-end verified in this environment. setPin()/
+   updateSelectedLocationCard()/applyReverseGeocode()/matchKnownCity()
+   are shared, engine-agnostic helpers used by both paths -- they only
+   ever touch the output form fields, never a map-library-specific API.
+   ========================================================================== */
 const KNOWN_CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
 const CITY_ALIASES = {
   erbil: 'Erbil', hewler: 'Erbil', hawler: 'Erbil', arbil: 'Erbil',
@@ -917,15 +928,11 @@ function matchKnownCity(addressObj) {
   return null;
 }
 
-function setPin(lat, lng, pan) {
-  if (pinMarker) pinMarker.setLatLng([lat, lng]);
-  else pinMarker = L.marker([lat, lng]).addTo(pinMap);
-  if (pan) pinMap.panTo([lat, lng]);
-  document.getElementById('pinLat').value = lat.toFixed(5);
-  document.getElementById('pinLng').value = lng.toFixed(5);
-  document.getElementById('locValidationMsg').classList.add('hidden');
-  updateSelectedLocationCard();
-}
+// Set by whichever engine actually initializes below -- gives showStep()
+// a single, engine-agnostic way to nudge the map after its container was
+// previously display:none (both Leaflet and Google Maps need this; a
+// stale/empty container before either engine is ready is a harmless no-op).
+let invalidatePinMapSize = () => {};
 
 function updateSelectedLocationCard() {
   const lat = document.getElementById('pinLat').value;
@@ -941,8 +948,19 @@ function updateSelectedLocationCard() {
 document.getElementById('addressInput').addEventListener('input', updateSelectedLocationCard);
 document.getElementById('citySelect').addEventListener('change', updateSelectedLocationCard);
 
-pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
-setTimeout(() => pinMap.invalidateSize(), 100);
+function applyReverseGeocode(addressObj, shortAddress) {
+  const matchedCity = matchKnownCity(addressObj);
+  if (matchedCity) document.getElementById('citySelect').value = matchedCity;
+  if (shortAddress) document.getElementById('addressInput').value = shortAddress;
+  updateSelectedLocationCard();
+}
+
+function geolocationErrorMessage(err) {
+  // GeolocationPositionError codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
+  if (err.code === 1) return tr('sell.loc.locationErrorDenied', 'Location permission was denied. Please allow location access for this site in your browser settings and try again.');
+  if (err.code === 2) return tr('sell.loc.locationErrorUnavailable', 'Your device could not determine your location. Please check that location services are enabled, or place your pin manually on the map.');
+  return tr('sell.loc.locationErrorTimeout', 'Getting your location took too long. Please try again, or place your pin manually on the map.');
+}
 
 document.getElementById('dropPinBtn').addEventListener('click', () => {
   const hint = document.getElementById('dropPinHint');
@@ -956,96 +974,170 @@ document.getElementById('editLocationBtn').addEventListener('click', () => {
   document.getElementById('locSearchInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
-function geolocationErrorMessage(err) {
-  // GeolocationPositionError codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
-  if (err.code === 1) return tr('sell.loc.locationErrorDenied', 'Location permission was denied. Please allow location access for this site in your browser settings and try again.');
-  if (err.code === 2) return tr('sell.loc.locationErrorUnavailable', 'Your device could not determine your location. Please check that location services are enabled, or place your pin manually on the map.');
-  return tr('sell.loc.locationErrorTimeout', 'Getting your location took too long. Please try again, or place your pin manually on the map.');
-}
+// ---- Google Maps engine (used only once a key is configured) ----------
+async function initGoogleLocationPicker() {
+  const { initMap, createMarker, attachAddressAutocomplete, reverseGeocode: gReverseGeocode } = await import('./js/maps-core.js');
+  const map = await initMap(document.getElementById('pinMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+  if (!map) return false; // isConfigured() was true but the script itself failed to load -- caller falls back to Leaflet
+  const google = window.google;
+  let marker = null;
 
-document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
-  if (!navigator.geolocation) {
-    alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
-    return;
+  function setPin(lat, lng, pan) {
+    if (marker) { marker.position ? (marker.position = { lat, lng }) : marker.setPosition({ lat, lng }); }
+    else marker = createMarker(google, map, { lat, lng }, { forceAdvanced: false });
+    if (pan) map.panTo({ lat, lng });
+    document.getElementById('pinLat').value = lat.toFixed(5);
+    document.getElementById('pinLng').value = lng.toFixed(5);
+    document.getElementById('locValidationMsg').classList.add('hidden');
+    updateSelectedLocationCard();
   }
-  const original = this.innerHTML;
-  this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    setPin(pos.coords.latitude, pos.coords.longitude, true);
-    pinMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
-    try {
-      const data = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      applyReverseGeocode(data);
-    } catch (err) { console.error('[sell] reverse geocode failed', err); }
-    this.innerHTML = original;
-  }, (err) => {
-    console.error('[sell] geolocation failed', err.code, err.message);
-    alert(geolocationErrorMessage(err));
-    this.innerHTML = original;
-  }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
-});
 
-async function searchLocation(q) {
-  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
-  if (!res.ok) throw new Error('Search failed');
-  return res.json();
-}
-async function reverseGeocode(lat, lng) {
-  const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
-  if (!res.ok) throw new Error('Reverse geocode failed');
-  return res.json();
-}
-function applyReverseGeocode(data) {
-  if (!data) return;
-  const matchedCity = matchKnownCity(data.address);
-  if (matchedCity) document.getElementById('citySelect').value = matchedCity;
-  const addr = data.address || {};
-  const short = [addr.neighbourhood || addr.suburb || addr.road, addr.city || addr.town].filter(Boolean).join(', ') || data.display_name;
-  document.getElementById('addressInput').value = short;
-  updateSelectedLocationCard();
-}
+  map.addListener('click', (e) => setPin(e.latLng.lat(), e.latLng.lng(), false));
+  invalidatePinMapSize = () => google.maps.event.trigger(map, 'resize');
 
-let locSearchTimer = null;
-const locSearchInput = document.getElementById('locSearchInput');
-const locSearchResults = document.getElementById('locSearchResults');
-locSearchInput.addEventListener('input', () => {
-  clearTimeout(locSearchTimer);
-  const q = locSearchInput.value.trim();
-  if (q.length < 3) { locSearchResults.classList.add('hidden'); return; }
-  locSearchTimer = setTimeout(async () => {
-    locSearchResults.classList.remove('hidden');
-    locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
-    try {
-      const results = await searchLocation(q);
-      if (!results.length) {
-        locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
-        return;
-      }
-      locSearchResults.innerHTML = '';
-      results.forEach(r => {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0';
-        item.textContent = r.display_name;
-        item.addEventListener('click', () => {
-          const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
-          setPin(lat, lng, true);
-          pinMap.setView([lat, lng], 15);
-          applyReverseGeocode(r);
-          locSearchResults.classList.add('hidden');
-          locSearchInput.value = r.display_name;
-        });
-        locSearchResults.appendChild(item);
-      });
-    } catch (err) {
-      console.error('[sell] location search failed', err);
-      locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+  document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
+      return;
     }
-  }, 400);
-});
-document.addEventListener('click', (e) => {
-  if (!locSearchInput.contains(e.target) && !locSearchResults.contains(e.target)) locSearchResults.classList.add('hidden');
-});
+    const original = this.innerHTML;
+    this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      setPin(pos.coords.latitude, pos.coords.longitude, true);
+      map.setZoom(15);
+      try {
+        const formatted = await gReverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        if (formatted) applyReverseGeocode(null, formatted);
+      } catch (err) { console.error('[sell] reverse geocode failed', err); }
+      this.innerHTML = original;
+    }, (err) => {
+      console.error('[sell] geolocation failed', err.code, err.message);
+      alert(geolocationErrorMessage(err));
+      this.innerHTML = original;
+    }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
+  });
+
+  await attachAddressAutocomplete(document.getElementById('locSearchInput'), (place) => {
+    setPin(place.lat, place.lng, true);
+    map.setZoom(15);
+    if (place.formattedAddress) document.getElementById('addressInput').value = place.formattedAddress;
+    updateSelectedLocationCard();
+  });
+
+  return true;
+}
+
+// ---- Leaflet + Nominatim engine (the existing, proven implementation --
+// unchanged from before this migration, used whenever Google Maps is not
+// configured) -------------------------------------------------------------
+function initLeafletLocationPicker() {
+  const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+  L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(pinMap);
+  let pinMarker = null;
+
+  function setPin(lat, lng, pan) {
+    if (pinMarker) pinMarker.setLatLng([lat, lng]);
+    else pinMarker = L.marker([lat, lng]).addTo(pinMap);
+    if (pan) pinMap.panTo([lat, lng]);
+    document.getElementById('pinLat').value = lat.toFixed(5);
+    document.getElementById('pinLng').value = lng.toFixed(5);
+    document.getElementById('locValidationMsg').classList.add('hidden');
+    updateSelectedLocationCard();
+  }
+
+  pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
+  invalidatePinMapSize = () => pinMap.invalidateSize();
+  setTimeout(() => pinMap.invalidateSize(), 100);
+
+  document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
+      return;
+    }
+    const original = this.innerHTML;
+    this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      setPin(pos.coords.latitude, pos.coords.longitude, true);
+      pinMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      try {
+        const data = await reverseGeocodeNominatim(pos.coords.latitude, pos.coords.longitude);
+        if (data) applyReverseGeocode(data.address, [data.address?.neighbourhood || data.address?.suburb || data.address?.road, data.address?.city || data.address?.town].filter(Boolean).join(', ') || data.display_name);
+      } catch (err) { console.error('[sell] reverse geocode failed', err); }
+      this.innerHTML = original;
+    }, (err) => {
+      console.error('[sell] geolocation failed', err.code, err.message);
+      alert(geolocationErrorMessage(err));
+      this.innerHTML = original;
+    }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
+  });
+
+  async function searchLocationNominatim(q) {
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
+    if (!res.ok) throw new Error('Search failed');
+    return res.json();
+  }
+  async function reverseGeocodeNominatim(lat, lng) {
+    const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
+    if (!res.ok) throw new Error('Reverse geocode failed');
+    return res.json();
+  }
+
+  let locSearchTimer = null;
+  const locSearchInput = document.getElementById('locSearchInput');
+  const locSearchResults = document.getElementById('locSearchResults');
+  locSearchInput.addEventListener('input', () => {
+    clearTimeout(locSearchTimer);
+    const q = locSearchInput.value.trim();
+    if (q.length < 3) { locSearchResults.classList.add('hidden'); return; }
+    locSearchTimer = setTimeout(async () => {
+      locSearchResults.classList.remove('hidden');
+      locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
+      try {
+        const results = await searchLocationNominatim(q);
+        if (!results.length) {
+          locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+          return;
+        }
+        locSearchResults.innerHTML = '';
+        results.forEach(r => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0';
+          item.textContent = r.display_name;
+          item.addEventListener('click', () => {
+            const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+            setPin(lat, lng, true);
+            pinMap.setView([lat, lng], 15);
+            applyReverseGeocode(r.address, [r.address?.neighbourhood || r.address?.suburb || r.address?.road, r.address?.city || r.address?.town].filter(Boolean).join(', ') || r.display_name);
+            locSearchResults.classList.add('hidden');
+            locSearchInput.value = r.display_name;
+          });
+          locSearchResults.appendChild(item);
+        });
+      } catch (err) {
+        console.error('[sell] location search failed', err);
+        locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+      }
+    }, 400);
+  });
+  document.addEventListener('click', (e) => {
+    if (!locSearchInput.contains(e.target) && !locSearchResults.contains(e.target)) locSearchResults.classList.add('hidden');
+  });
+}
+
+(async function initLocationPicker() {
+  try {
+    const { isConfigured } = await import('./js/maps-core.js');
+    if (isConfigured() && await initGoogleLocationPicker()) return;
+  } catch (err) {
+    console.error('[sell] Google Maps location picker failed to initialize, falling back to the built-in map', err);
+  }
+  initLeafletLocationPicker();
+})();
 
 /* ==========================================================================
    Photo upload: click + drag-and-drop, with thumbnail previews and

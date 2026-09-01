@@ -15,7 +15,7 @@ via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
 silently ignored when CSP is delivered via a meta tag (a browser spec rule,
 not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -383,7 +383,17 @@ violation reporting. -->
   let currentUid = null;
   let currentAgentName = '';
   let currentCompanyId = null;
-  let agentPinMap, agentPinMarker, pinLat = null, pinLng = null;
+  let pinLat = null, pinLng = null;
+  // Dual-engine abstraction (Production Rebuild Phase 1 of 3, Part F):
+  // whichever engine actually initializes in initMap() below assigns
+  // itself here -- every other call site in this file goes through
+  // pinMapEngine rather than touching a Leaflet- or Google-specific API
+  // directly, the same conservative "wrap, don't rewrite" strategy
+  // already proven for sell.html's picker (see its own comment for the
+  // full rationale: the existing Leaflet path is never modified, only
+  // wrapped, so there is zero regression risk from a Google Maps path
+  // that cannot be end-to-end verified in this sandbox).
+  let pinMapEngine = null;
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
@@ -398,7 +408,7 @@ violation reporting. -->
       document.getElementById('listingsPanel-' + tab.dataset.tab).classList.remove('hidden');
       if (tab.dataset.tab === 'team') loadTeamListings();
       if (tab.dataset.tab === 'map') {
-        setTimeout(() => { if (agentTeamMap) agentTeamMap.invalidateSize(); }, 50);
+        setTimeout(() => { if (teamMapEngine) teamMapEngine.invalidate(); }, 50);
         renderAgentTeamMap();
       }
       if (tab.dataset.tab === 'finances') loadFinances();
@@ -418,31 +428,143 @@ violation reporting. -->
     }).addTo(map);
   }
 
-  function initMap() {
-    agentPinMap = L.map('agentPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-    L.control.zoom({ position: 'bottomright' }).addTo(agentPinMap);
-    addBaseTiles(agentPinMap);
-    agentPinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
-    setTimeout(() => agentPinMap.invalidateSize(), 150);
+  function makeLeafletPinEngine() {
+    const map = L.map('agentPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    addBaseTiles(map);
+    let marker = null;
+    map.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
+    setTimeout(() => map.invalidateSize(), 150);
+    return {
+      place(lat, lng) { if (marker) marker.setLatLng([lat, lng]); else marker = L.marker([lat, lng]).addTo(map); },
+      clear() { if (marker) { map.removeLayer(marker); marker = null; } },
+      panZoom(lat, lng, zoom) { map.setView([lat, lng], zoom); },
+      invalidate() { map.invalidateSize(); },
+    };
+  }
+
+  async function makeGooglePinEngine() {
+    const { initMap: initGoogleMap, createMarker } = await import('./js/maps-core.js');
+    const map = await initGoogleMap(document.getElementById('agentPinMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+    if (!map) return null;
+    const google = window.google;
+    let marker = null;
+    map.addListener('click', (e) => setPin(e.latLng.lat(), e.latLng.lng()));
+    return {
+      place(lat, lng) {
+        if (marker) { marker.position ? (marker.position = { lat, lng }) : marker.setPosition({ lat, lng }); }
+        else marker = createMarker(google, map, { lat, lng }, { forceAdvanced: false });
+      },
+      clear() { if (marker) { marker.setMap ? marker.setMap(null) : (marker.map = null); marker = null; } },
+      panZoom(lat, lng, zoom) { map.panTo({ lat, lng }); map.setZoom(zoom); },
+      invalidate() { google.maps.event.trigger(map, 'resize'); },
+    };
+  }
+
+  async function initMap() {
+    try {
+      const { isConfigured } = await import('./js/maps-core.js');
+      if (isConfigured()) {
+        const engine = await makeGooglePinEngine();
+        if (engine) { pinMapEngine = engine; return; }
+      }
+    } catch (err) {
+      console.error('[agent-dashboard] Google Maps pin picker failed to initialize, falling back to the built-in map', err);
+    }
+    pinMapEngine = makeLeafletPinEngine();
   }
 
   // Team Map — every pinned listing belonging to this agent's company
   // (same scoping as loadTeamListings), tagged in a different color for
   // "mine" vs "teammates'" so an agent can see their own coverage next
   // to the rest of the team at a glance.
-  let agentTeamMap = null;
-  let agentTeamMapMarkers = [];
+  // Dual-engine (Part F, same rationale as pinMapEngine above): a
+  // teamMapEngine is lazily created on first render, then reused --
+  // whichever engine actually initializes stays fixed for the page's
+  // lifetime (the config doesn't change mid-session), exposing just the
+  // handful of operations this read-only overview map needs: place a
+  // labeled marker, clear them all, and fit the view to what's shown.
+  let teamMapEngine = null;
+
+  function makeLeafletTeamEngine() {
+    const map = L.map('agentTeamMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    addBaseTiles(map);
+    let markers = [];
+    return {
+      invalidate() { map.invalidateSize(); },
+      clearMarkers() { markers.forEach(m => map.removeLayer(m)); markers = []; },
+      addMarker(lat, lng, tagClass, tagLabel, popupHtml) {
+        const marker = L.marker([lat, lng], {
+          icon: L.divIcon({ className: '', iconSize: null, iconAnchor: [30, 15], html: `<div class="team-map-tag ${tagClass}">${tagLabel}</div>` })
+        }).addTo(map);
+        marker.bindPopup(popupHtml);
+        markers.push(marker);
+      },
+      fitToMarkers(points) {
+        if (points.length) map.fitBounds(L.latLngBounds(points).pad(0.25), { maxZoom: 13 });
+      },
+    };
+  }
+
+  async function makeGoogleTeamEngine() {
+    const { initMap: initGoogleMap } = await import('./js/maps-core.js');
+    const map = await initGoogleMap(document.getElementById('agentTeamMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+    if (!map) return null;
+    const google = window.google;
+    let overlays = [];
+    const infoWindow = new google.maps.InfoWindow();
+    return {
+      invalidate() { google.maps.event.trigger(map, 'resize'); },
+      clearMarkers() { overlays.forEach((o) => o.setMap(null)); overlays = []; },
+      addMarker(lat, lng, tagClass, tagLabel, popupHtml) {
+        const el = document.createElement('div');
+        el.className = `team-map-tag ${tagClass}`;
+        el.textContent = tagLabel;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => { infoWindow.setContent(popupHtml); infoWindow.setPosition({ lat, lng }); infoWindow.open(map); });
+        class Overlay extends google.maps.OverlayView {
+          onAdd() { this.getPanes().overlayMouseTarget.appendChild(el); }
+          draw() {
+            const proj = this.getProjection();
+            if (!proj) return;
+            const point = proj.fromLatLngToDivPixel(new google.maps.LatLng(lat, lng));
+            if (point) { el.style.position = 'absolute'; el.style.left = point.x + 'px'; el.style.top = point.y + 'px'; el.style.transform = 'translate(-50%,-50%)'; }
+          }
+          onRemove() { el.remove(); }
+        }
+        const overlay = new Overlay();
+        overlay.setMap(map);
+        overlays.push(overlay);
+      },
+      fitToMarkers(points) {
+        if (!points.length) return;
+        const bounds = new google.maps.LatLngBounds();
+        points.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
+        map.fitBounds(bounds, 40);
+      },
+    };
+  }
+
+  async function ensureTeamMapEngine() {
+    if (teamMapEngine) return teamMapEngine;
+    try {
+      const { isConfigured } = await import('./js/maps-core.js');
+      if (isConfigured()) {
+        const engine = await makeGoogleTeamEngine();
+        if (engine) { teamMapEngine = engine; return teamMapEngine; }
+      }
+    } catch (err) {
+      console.error('[agent-dashboard] Google Maps team map failed to initialize, falling back to the built-in map', err);
+    }
+    teamMapEngine = makeLeafletTeamEngine();
+    return teamMapEngine;
+  }
 
   async function renderAgentTeamMap() {
-    if (!agentTeamMap) {
-      agentTeamMap = L.map('agentTeamMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-      L.control.zoom({ position: 'bottomright' }).addTo(agentTeamMap);
-      addBaseTiles(agentTeamMap);
-    }
-    agentTeamMap.invalidateSize();
-
-    agentTeamMapMarkers.forEach(m => agentTeamMap.removeLayer(m));
-    agentTeamMapMarkers = [];
+    const engine = await ensureTeamMapEngine();
+    engine.invalidate();
+    engine.clearMarkers();
 
     // Same two-query split as loadTeamListings() (AUTHZ-01): a colleague's
     // PRIVATE listing is only visible here if it's also the viewer's own
@@ -468,36 +590,27 @@ violation reporting. -->
       const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
       const extraClasses = (isMine ? ' mine' : '') + (l.private ? ' private' : '');
       const priceLabel = '$' + Number(l.price).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
-      const marker = L.marker([l.lat, l.lng], {
-        icon: L.divIcon({
-          className: '', iconSize: null, iconAnchor: [30, 15],
-          html: `<div class="team-map-tag ${statusClass}${extraClasses}">${priceLabel}</div>`
-        })
-      }).addTo(agentTeamMap);
       const badges = [
         l.verified ? `<span class="badge badge-verified">${trDash('common.verified', 'Verified')}</span>` : '',
         l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#7a3fc2;">${trDash('map.privateListing', 'Private')}</span>` : ''
       ].filter(Boolean).join(' ');
-      marker.bindPopup(`
+      const popupHtml = `
         <div style="font-family:'Inter',sans-serif;min-width:160px;">
           <strong style="display:block;margin-bottom:2px;">${escapeFin(l.title)}</strong>
           <span style="color:#44474c;font-size:12.5px;">${escapeFin(l.address)}, ${escapeFin(l.city)}</span><br/>
           <span style="font-size:12.5px;">${isMine ? trDash('agentDash.youBadge','You') : (escapeFin(l.agentName) || trDash('agentDash.unknownAgent','Unknown agent'))}</span>
           ${badges ? `<div style="margin-top:4px;">${badges}</div>` : ''}
         </div>
-      `);
-      agentTeamMapMarkers.push(marker);
+      `;
+      engine.addMarker(l.lat, l.lng, statusClass + extraClasses, priceLabel, popupHtml);
     });
 
-    if (listings.length) {
-      agentTeamMap.fitBounds(L.latLngBounds(listings.map(l => [l.lat, l.lng])).pad(0.25), { maxZoom: 13 });
-    }
+    engine.fitToMarkers(listings.map(l => [l.lat, l.lng]));
   }
 
   function setPin(lat, lng) {
     pinLat = lat; pinLng = lng;
-    if (agentPinMarker) { agentPinMarker.setLatLng([lat, lng]); }
-    else { agentPinMarker = L.marker([lat, lng]).addTo(agentPinMap); }
+    if (pinMapEngine) pinMapEngine.place(lat, lng);
     document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   }
 
@@ -511,7 +624,7 @@ violation reporting. -->
     document.getElementById('priceLabel').textContent = trDash('agentDash.priceLabel','Price');
     pinLat = null; pinLng = null;
     document.getElementById('pinReadout').textContent = trDash('agentDash.noPinYet','No location pinned yet');
-    if (agentPinMarker) { agentPinMap.removeLayer(agentPinMarker); agentPinMarker = null; }
+    if (pinMapEngine) pinMapEngine.clear();
     updateImgPreview();
   }
   document.getElementById('formCancelBtn').addEventListener('click', resetForm);
@@ -668,7 +781,7 @@ violation reporting. -->
     document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
     document.getElementById('fPrivate').checked = !!l.private;
     setPin(l.lat, l.lng);
-    agentPinMap.setView([l.lat, l.lng], 13);
+    if (pinMapEngine) pinMapEngine.panZoom(l.lat, l.lng, 13);
     document.getElementById('formTitle').textContent = trDash('agentDash.editListing','Edit Listing');
     document.getElementById('formSubmitBtn').textContent = trDash('agentDash.updateListingBtn','Update Listing');
     document.getElementById('formCancelBtn').classList.remove('hidden');
@@ -1000,7 +1113,7 @@ violation reporting. -->
       document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
       loadMyListings();
       loadTeamListings();
-      if (agentTeamMap) renderAgentTeamMap();
+      if (teamMapEngine) renderAgentTeamMap();
     });
   });
 </script>

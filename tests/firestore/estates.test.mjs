@@ -272,13 +272,35 @@ describe('ESTATE transactionHistory/ — verified sale/rent history', () => {
     };
   }
 
-  it('anyone, including an unauthenticated caller, can read transaction history', async () => {
+  it('PRIVACY: the internal transactionHistory record is admin-only readable -- an unauthenticated caller cannot read it', async () => {
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'estates', '1', 'transactionHistory', 'tx1'), validTx({ notes: 'seller wants discretion', sourceListingId: 'l-internal-1' }));
+    });
+    const db = dbFor(testEnv, null);
+    await assertFails(getDocs(collection(db, 'estates', '1', 'transactionHistory')));
+    await assertFails(getDoc(doc(db, 'estates', '1', 'transactionHistory', 'tx1')));
+  });
+
+  it('PRIVACY: the Estate\'s own agent/org and a plain signed-in customer cannot read internal transaction history either', async () => {
+    await seedOrg(DEV_ORG, { ownerId: OWNER, type: 'developer_project', name: 'Darwesh Developments', verified: false });
+    await seedOwnerViaRoleDefaults();
+    await seedEstate('1', validEstate({ organizationId: DEV_ORG, createdByUid: OWNER }));
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'estates', '1', 'transactionHistory', 'tx1'), validTx());
+    });
+    await assertFails(getDoc(doc(dbFor(testEnv, OWNER), 'estates', '1', 'transactionHistory', 'tx1')));
+    await seedUser('customer-1', { role: 'customer', accountType: 'individual_customer', createdAt: 1 });
+    await assertFails(getDoc(doc(dbFor(testEnv, 'customer-1'), 'estates', '1', 'transactionHistory', 'tx1')));
+  });
+
+  it('an admin CAN read the internal transaction history record', async () => {
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
     await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
     await seed(testEnv, async (ctx) => {
       await setDoc(doc(ctx.firestore(), 'estates', '1', 'transactionHistory', 'tx1'), validTx());
     });
-    const db = dbFor(testEnv, null);
-    await assertSucceeds(getDocs(collection(db, 'estates', '1', 'transactionHistory')));
+    await assertSucceeds(getDoc(doc(dbFor(testEnv, 'admin-1'), 'estates', '1', 'transactionHistory', 'tx1')));
   });
 
   it('an admin can create a verified transaction record', async () => {
@@ -345,6 +367,80 @@ describe('ESTATE transactionHistory/ — verified sale/rent history', () => {
     const db = dbFor(testEnv, 'agent-1');
     await assertFails(updateDoc(doc(db, 'estates', '1', 'transactionHistory', 'tx1'), { priceAmount: 1 }));
     await assertFails(deleteDoc(doc(db, 'estates', '1', 'transactionHistory', 'tx1')));
+  });
+});
+
+// =========================================================================
+describe('ESTATE publicTransactionSummary/ — deliberately published, public-safe projection', () => {
+  function validSummary(overrides = {}) {
+    return { transactionType: 'sale', priceAmount: 185000, currency: 'USD', transactionDate: '2025-03-01', createdAt: 1, ...overrides };
+  }
+
+  it('anyone, including an unauthenticated caller, can read a published public summary', async () => {
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary());
+    });
+    const db = dbFor(testEnv, null);
+    await assertSucceeds(getDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1')));
+  });
+
+  it('an admin can publish a public summary', async () => {
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    const db = dbFor(testEnv, 'admin-1');
+    await assertSucceeds(setDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary()));
+  });
+
+  it('CRITICAL: no non-admin (including the Estate\'s own agent/org) can publish a public summary', async () => {
+    await seedUser('agent-1', { role: 'agent', companyId: 'co-1', createdAt: 1 });
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    await assertFails(setDoc(doc(dbFor(testEnv, 'agent-1'), 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary()));
+
+    await seedOrg(DEV_ORG, { ownerId: OWNER, type: 'developer_project', name: 'Darwesh Developments', verified: false });
+    await seedOwnerViaRoleDefaults();
+    await seedEstate('2', validEstate({ organizationId: DEV_ORG, createdByUid: OWNER }));
+    await assertFails(setDoc(doc(dbFor(testEnv, OWNER), 'estates', '2', 'publicTransactionSummary', 'tx1'), validSummary()));
+  });
+
+  it('CRITICAL: verifierBy/notes/sourceListingId (or any field beyond the public-safe allowlist) cannot be written into the public summary', async () => {
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    const db = dbFor(testEnv, 'admin-1');
+    await assertFails(setDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary({ verifiedBy: 'admin-1' })));
+    await assertFails(setDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary({ notes: 'internal note' })));
+    await assertFails(setDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary({ sourceListingId: 'l-1' })));
+  });
+
+  it('publishing a summary does NOT itself expose the internal transactionHistory record -- they remain fully independent', async () => {
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'estates', '1', 'transactionHistory', 'tx1'), { transactionType: 'sale', priceAmount: 185000, currency: 'USD', transactionDate: '2025-03-01', verifiedBy: 'admin-1', notes: 'private detail', createdAt: 1 });
+      await setDoc(doc(ctx.firestore(), 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary());
+    });
+    const db = dbFor(testEnv, null);
+    await assertSucceeds(getDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1')));
+    await assertFails(getDoc(doc(db, 'estates', '1', 'transactionHistory', 'tx1')));
+  });
+
+  it('an admin can correct summary content but not reassign createdAt', async () => {
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary());
+    });
+    const db = dbFor(testEnv, 'admin-1');
+    await assertSucceeds(updateDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), { priceAmount: 190000 }));
+    await assertFails(updateDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), { createdAt: 999 }));
+  });
+
+  it('rejects an invalid currency or non-positive price on the public summary', async () => {
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
+    await seedEstate('1', validEstate({ createdByUid: 'agent-1' }));
+    const db = dbFor(testEnv, 'admin-1');
+    await assertFails(setDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx1'), validSummary({ currency: 'EUR' })));
+    await assertFails(setDoc(doc(db, 'estates', '1', 'publicTransactionSummary', 'tx2'), validSummary({ priceAmount: 0 })));
   });
 });
 
@@ -446,6 +542,125 @@ describe('counters/estates — concurrency-safe public ID allocator', () => {
 
     const finalSnap = await getDoc(counterRef);
     assert.equal(finalSnap.data().value, N);
+  });
+});
+
+// =========================================================================
+// Estate ID ATOMICITY -- explicit review requirement: prove the counter
+// increment and the new Estate document are written in the SAME
+// Firestore transaction (js/estate-allocator.js's createEstate()), so
+// there is no state where the counter moves but no matching Estate
+// document exists, or vice versa. Mirrors js/estate-allocator.js's own
+// transaction body exactly (that module can't be imported directly here
+// -- it imports js/firebase-init.js, which wires up a real Firebase App
+// + App Check + hardcoded production config, none of which belongs in
+// an offline rules-emulator test) so this is a faithful re-exercise of
+// the same read-then-set-twice-in-one-transaction shape actually shipped
+// in that file, run against the real rules-enforced emulator client.
+describe('Estate ID allocation — atomicity (combined counter + Estate transaction)', () => {
+  async function allocateEstate(db, estateFields) {
+    const counterRef = doc(db, 'counters', 'estates');
+    return runTransaction(db, async (tx) => {
+      const snap = await tx.get(counterRef);
+      const next = (snap.exists() ? snap.data().value : 0) + 1;
+      const estateRef = doc(db, 'estates', String(next));
+      tx.set(counterRef, { value: next });
+      tx.set(estateRef, estateFields);
+      return { estateId: String(next) };
+    });
+  }
+
+  it('successful allocation: counter and Estate document both exist together after one call', async () => {
+    await seedUser('agent-1', { role: 'agent', companyId: 'co-1', createdAt: 1 });
+    const db = dbFor(testEnv, 'agent-1');
+    const { estateId } = await allocateEstate(db, validEstate({ createdByUid: 'agent-1' }));
+    assert.equal(estateId, '1');
+    const counterSnap = await getDoc(doc(db, 'counters', 'estates'));
+    const estateSnap = await getDoc(doc(db, 'estates', estateId));
+    assert.equal(counterSnap.data().value, 1);
+    assert.equal(estateSnap.exists(), true);
+  });
+
+  it('CRITICAL — no partial commit: a failing Estate write (invalid content) leaves the counter completely unchanged', async () => {
+    await seedUser('agent-1', { role: 'agent', companyId: 'co-1', createdAt: 1 });
+    await seedCounter('estates', 5); // simulate 5 real prior allocations
+    const db = dbFor(testEnv, 'agent-1');
+    await assert.rejects(
+      allocateEstate(db, validEstate({ createdByUid: 'agent-1', propertyType: 'castle' })) // fails isValidPropertyType
+    );
+    const counterSnap = await getDoc(doc(db, 'counters', 'estates'));
+    assert.equal(counterSnap.data().value, 5, 'counter must still read the pre-attempt value -- the failed Estate write must not have left the counter bumped');
+    const estateSnap = await getDoc(doc(db, 'estates', '6'));
+    // Public read of a nonexistent doc succeeds with exists()===false --
+    // this itself proves no Estate document was left behind at slot 6.
+    assert.equal(estateSnap.exists(), false);
+  });
+
+  it('CRITICAL — unauthorized caller: the whole transaction is denied, counter unchanged, no Estate created', async () => {
+    await seedUser('customer-1', { role: 'customer', accountType: 'individual_customer', createdAt: 1 });
+    await seedCounter('estates', 3);
+    const db = dbFor(testEnv, 'customer-1');
+    await assert.rejects(
+      allocateEstate(db, validEstate({ createdByUid: 'customer-1' }))
+    );
+    const counterSnap = await getDoc(doc(db, 'counters', 'estates'));
+    assert.equal(counterSnap.data().value, 3);
+    const estateSnap = await getDoc(doc(db, 'estates', '4'));
+    assert.equal(estateSnap.exists(), false);
+  });
+
+  it('CRITICAL — N concurrent createEstate()-shaped allocations never collide, skip, or duplicate a slot, and every allocated slot has a real matching Estate document', async () => {
+    await seedUser('agent-1', { role: 'agent', companyId: 'co-1', createdAt: 1 });
+    await seedCounter('estates', 0);
+    const db = dbFor(testEnv, 'agent-1');
+
+    // Same documented emulator-only retry need as the plain counter
+    // concurrency test above (the Firestore JS emulator surfaces a
+    // losing transaction's conflict as PERMISSION_DENIED instead of the
+    // retryable ABORTED production itself uses -- see that test's
+    // comment for the full explanation and the hand-verified proof).
+    // js/estate-allocator.js's own createEstate() intentionally does
+    // NOT include this retry loop -- it would be actively wrong in
+    // production, where a real PERMISSION_DENIED means "not
+    // authorized," not "please retry."
+    async function allocateWithEmulatorRetry() {
+      for (let attempt = 0; attempt < 25; attempt++) {
+        try {
+          return await allocateEstate(db, validEstate({ createdByUid: 'agent-1' }));
+        } catch (e) {
+          if (e.code !== 'permission-denied' && e.code !== 'aborted') throw e;
+          await new Promise((r) => setTimeout(r, 10 + Math.random() * 30));
+        }
+      }
+      throw new Error('exhausted retries');
+    }
+
+    const N = 12;
+    const results = await Promise.all(Array.from({ length: N }, () => allocateWithEmulatorRetry()));
+    const ids = results.map((r) => Number(r.estateId)).sort((a, b) => a - b);
+    assert.deepEqual(ids, Array.from({ length: N }, (_, i) => i + 1));
+
+    // Every allocated slot has a REAL Estate document -- not just a
+    // reserved number with nothing behind it.
+    for (const id of ids) {
+      const snap = await getDoc(doc(db, 'estates', String(id)));
+      assert.equal(snap.exists(), true, `estates/${id} must exist -- an allocated slot with no Estate document would be exactly the gap this design eliminates`);
+    }
+    const counterSnap = await getDoc(doc(db, 'counters', 'estates'));
+    assert.equal(counterSnap.data().value, N);
+  });
+
+  it('DEFENSE IN DEPTH: even bypassing the shared helper, a second write to an already-used Estate slot is still rejected (create-vs-update uniqueness holds independent of this file)', async () => {
+    await seedUser('agent-1', { role: 'agent', companyId: 'co-1', createdAt: 1 });
+    await seedEstate('7', validEstate({ createdByUid: 'agent-1' })); // simulates slot 7 already allocated
+    const db = dbFor(testEnv, 'agent-1');
+    // A caller that (incorrectly) tries to reuse slot 7 directly --
+    // Firestore classifies this as `update` since the doc already
+    // exists, and estates/{id}'s own update rule requires
+    // organizationId/createdByUid/createdAt to stay exactly as they
+    // were, which a "new" Estate payload for a DIFFERENT physical
+    // property will not satisfy.
+    await assertFails(setDoc(doc(db, 'estates', '7'), validEstate({ createdByUid: 'someone-else' })));
   });
 });
 
