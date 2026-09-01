@@ -61,19 +61,42 @@ jobs:
       # deploying broken. A missing secret is therefore never a reason
       # this workflow needs to fail the whole site deploy over -- it
       # just logs a warning so an operator notices maps aren't live.
+      # Safe diagnostics (booleans and a file byte-count only -- never the
+      # key's value or any substring of it) written to BOTH the workflow
+      # log and the run's Step Summary page (the summary is what actually
+      # shows up front-and-center on the Actions run overview, so this
+      # is not something an operator has to go digging through raw logs
+      # to find).
       - name: Generate js/maps-config.js from repository secret
         env:
           GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.GOOGLE_MAPS_BROWSER_KEY }}
         run: |
-          if [ -z "$GOOGLE_MAPS_BROWSER_KEY" ]; then
-            echo "::warning::GOOGLE_MAPS_BROWSER_KEY repository secret is not set -- deploying with Google Maps unconfigured (every page falls back gracefully, per docs/GOOGLE_MAPS_CONFIGURATION.md)."
+          mapsApiKeyPresent=false
+          if [ -n "$GOOGLE_MAPS_BROWSER_KEY" ]; then
+            mapsApiKeyPresent=true
+          else
+            echo "::warning::GOOGLE_MAPS_BROWSER_KEY repository secret is not set or is empty -- deploying with Google Maps unconfigured (every page falls back gracefully, per docs/GOOGLE_MAPS_CONFIGURATION.md)."
           fi
+
           node -e "
             const fs = require('fs');
             const apiKey = process.env.GOOGLE_MAPS_BROWSER_KEY || '';
             const contents = 'window.DARWESH_MAPS_CONFIG = ' + JSON.stringify({ apiKey }) + ';\n';
             fs.writeFileSync('js/maps-config.js', contents);
           "
+
+          fileBytes=$(wc -c < js/maps-config.js | tr -d ' ')
+          {
+            echo "### Google Maps key delivery"
+            echo "- \`mapsApiKeyPresent\`: **${mapsApiKeyPresent}**"
+            echo "- \`js/maps-config.js\` generated: **true** (${fileBytes} bytes)"
+            if [ "$mapsApiKeyPresent" = "false" ]; then
+              echo ""
+              echo "> No \`GOOGLE_MAPS_BROWSER_KEY\` value was available to this job. Confirm the secret exists under **Settings -> Secrets and variables -> Actions -> Secrets** (repository-level, not an environment secret) with exactly that name, then re-run this workflow."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "mapsApiKeyPresent=$mapsApiKeyPresent"
 
       # Matches Jekyll's own default exclusions (the ones classic
       # GitHub Pages "deploy from a branch" mode already applies today
@@ -88,6 +111,19 @@ jobs:
       # "wire up the maps key" silently.
       - name: Remove dev-only/VCS files before publishing (parity with classic Pages' Jekyll defaults)
         run: rm -rf .git .github .claude node_modules
+
+      # Hard-fails the deploy (rather than silently publishing without a
+      # map) if the previous steps somehow didn't leave js/maps-config.js
+      # in place for upload-pages-artifact to package -- this is what
+      # answers "is the file actually present in the artifact" for
+      # certain, instead of inferring it from earlier steps having run.
+      - name: Verify js/maps-config.js will be included in the published artifact
+        run: |
+          if [ ! -f js/maps-config.js ]; then
+            echo "::error::js/maps-config.js is missing right before packaging the Pages artifact -- refusing to deploy. This means an earlier step in this job failed silently; check the 'Generate js/maps-config.js' step's output above."
+            exit 1
+          fi
+          echo "js/maps-config.js present, $(wc -c < js/maps-config.js | tr -d ' ') bytes -- will be included in the Pages artifact."
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

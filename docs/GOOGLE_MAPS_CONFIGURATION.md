@@ -129,6 +129,59 @@ never hardcodes a key anywhere in this repo's tracked source:
 and that file is produced differently (manually copied vs. CI-generated)
 per environment. There is no separate "mock maps" mode to maintain.
 
+### 5.2 Troubleshooting "the map still shows Leaflet / still says unavailable"
+
+`js/maps-core.js` logs a small set of diagnostic lines to the browser
+console, prefixed `[darwesh-maps-core]`. None of them ever contain the
+key's value — only booleans and short, fixed labels:
+
+1. **`config { mapsConfigPresent, mapsApiKeyPresent }`** — logged once,
+   the first time any page calls `loadGoogleMaps()`.
+   - `mapsConfigPresent: false` → `js/maps-config.js` never set
+     `window.DARWESH_MAPS_CONFIG` at all. Check the Network tab for that
+     request: a 404 means the file wasn't in the deployed artifact (see
+     the Deploy Pages workflow run's Step Summary — it now reports
+     `mapsApiKeyPresent` and the generated file's byte count directly, or
+     failed outright if the file was somehow missing right before
+     packaging).
+   - `mapsConfigPresent: true, mapsApiKeyPresent: false` → the file
+     loaded, but its `apiKey` came back empty. This is almost always
+     `GOOGLE_MAPS_BROWSER_KEY` being unset/empty in the repository
+     secrets at the deploy that generated the currently-live file — the
+     workflow's own Step Summary states this explicitly when it happens.
+2. **`googleLoaderStarted { googleLoaderStarted: true }`** — logged once
+   a real key was found and the `<script src="https://maps.googleapis.com/...">`
+   tag is about to be injected. If you see `config` with
+   `mapsApiKeyPresent: true` but never see this line, something else in
+   the page's own code path is short-circuiting before `loadGoogleMaps()`
+   is even called — check that page's own `isConfigured()` call site.
+3. **`googleLoaderError { googleLoaderError: '...' }`** — logged only if
+   the browser could not load the Google script at all (a `<script>`
+   `error` event): a CSP `script-src` block, a network failure, or (rare)
+   a malformed request URL. **This does NOT fire for a rejected key** —
+   an invalid key, a referrer that doesn't match the key's restriction,
+   an API that isn't enabled, or a billing issue all still let the
+   bootstrap script itself load successfully; Google's own JS then logs
+   its own separate, distinctly-worded console error (e.g.
+   `Google Maps JavaScript API error: RefererNotAllowedMapError` or
+   `ApiNotActivatedMapError`) and the map silently fails to render. If
+   `googleLoaderStarted: true` fired, no `googleLoaderError` fired, and
+   the map still isn't there, **that** is the next thing to look for in
+   the console — it is a Google-authored message this module cannot
+   intercept, rewrite, or suppress, and it names the exact problem
+   (wrong referrer, wrong API, billing) far more precisely than anything
+   this module could infer on its own.
+
+A common false alarm: confirm you're actually on a page this project
+wires to Google Maps at all. `buy-rent-map.html`, `admin.html`'s Estate
+Intelligence Map, and (once a key is live) `sell.html`/
+`agent-dashboard.html`'s location pickers are the only surfaces that
+ever attempt to load Google Maps — see §6 below. `map.html` and
+`listing.html` are Leaflet-only by design and were never wired to this
+module at all; seeing Leaflet's "© OpenStreetMap contributors"
+attribution there is expected, unrelated behavior, not a sign of
+misconfiguration.
+
 ## 6. Page-by-page cutover status
 
 Updated in the Phase 1 continuation pass that actually built the pages

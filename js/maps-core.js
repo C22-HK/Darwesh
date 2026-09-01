@@ -76,8 +76,40 @@ function resolveConfig() {
   };
 }
 
+// Safe, non-secret diagnostics -- every field logged here is a boolean or
+// a short, fixed error label, NEVER the key's value or any part of it.
+// Added after a production incident where "map falls back silently" gave
+// no way to tell, from the browser console alone, whether the cause was
+// (a) js/maps-config.js never loading/being absent, (b) it loading but
+// with an empty apiKey, or (c) the Google script itself failing to load
+// (network/CSP/referrer-restriction/billing issue). One line per event,
+// prefixed so it's easy to filter for in devtools or a log aggregator.
+function logDiagnostic(event, fields) {
+  console.log('[darwesh-maps-core] ' + event, fields || '');
+}
+
+// Logged exactly once per page load, from whichever of
+// isConfigured()/loadGoogleMaps() a caller happens to reach first --
+// critically, this means the diagnostic fires even on pages
+// (buy-rent-map.html, admin.html's Estate Intelligence Map) that check
+// isConfigured() themselves and never call loadGoogleMaps() at all when
+// it's false. Without this being in BOTH functions, the exact "map
+// isn't showing" scenario this diagnostic exists to help debug would be
+// the one case where nothing gets logged.
+let configLogged = false;
+function logConfigOnce() {
+  if (configLogged) return;
+  configLogged = true;
+  const config = resolveConfig();
+  logDiagnostic('config', {
+    mapsConfigPresent: typeof window !== 'undefined' && !!window.DARWESH_MAPS_CONFIG,
+    mapsApiKeyPresent: !!config.apiKey,
+  });
+}
+
 /** True only when a page has actually supplied a Google Maps browser key. */
 export function isConfigured() {
+  logConfigOnce();
   return !!resolveConfig().apiKey;
 }
 
@@ -93,17 +125,31 @@ export function isConfigured() {
 export function loadGoogleMaps() {
   if (loadPromise) return loadPromise;
 
+  logConfigOnce();
   const config = resolveConfig();
+
   if (!config.apiKey) {
+    // mapsConfigPresent=true but mapsApiKeyPresent=false means
+    // js/maps-config.js loaded but its apiKey came back empty -- almost
+    // always the GOOGLE_MAPS_BROWSER_KEY repo secret being unset/empty
+    // at the deploy that generated it (see .github/workflows/deploy-
+    // pages.yml's own ::warning:: for that case). mapsConfigPresent=false
+    // means js/maps-config.js itself never set window.DARWESH_MAPS_CONFIG
+    // at all -- check whether the file 404'd (Network tab) before
+    // suspecting the key.
     loadPromise = Promise.resolve(null);
     return loadPromise;
   }
 
+  logDiagnostic('googleLoaderStarted', { googleLoaderStarted: true });
   loadPromise = new Promise((resolve) => {
     const existing = document.getElementById(SCRIPT_ID);
     if (existing) {
       existing.addEventListener('load', () => resolve(window.google || null), { once: true });
-      existing.addEventListener('error', () => resolve(null), { once: true });
+      existing.addEventListener('error', () => {
+        logDiagnostic('googleLoaderError', { googleLoaderError: 'script-load-failed-existing-tag' });
+        resolve(null);
+      }, { once: true });
       return;
     }
     const script = document.createElement('script');
@@ -118,7 +164,23 @@ export function loadGoogleMaps() {
     });
     script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
     script.addEventListener('load', () => resolve(window.google || null), { once: true });
-    script.addEventListener('error', () => resolve(null), { once: true });
+    // A 'error' event here means the browser could not load the script
+    // at all -- CSP script-src blocking maps.googleapis.com, a network
+    // failure, or (much less commonly) the URL itself being malformed.
+    // It does NOT fire for a key that loads but is then rejected by
+    // Google's backend (invalid, wrong referrer, wrong API not enabled,
+    // billing issue) -- that case still fires 'load' (the JS bootstrap
+    // file itself loaded fine) but google.maps.Map() or similar later
+    // throws/logs its own separate, Google-authored console error (e.g.
+    // "Google Maps JavaScript API error: ApiNotActivatedMapError" or
+    // "RefererNotAllowedMapError") that this module does not and cannot
+    // intercept or rewrite -- that error, exactly as Google prints it in
+    // devtools, is the next thing to check if googleLoaderStarted=true,
+    // no googleLoaderError was logged, and the map still doesn't render.
+    script.addEventListener('error', () => {
+      logDiagnostic('googleLoaderError', { googleLoaderError: 'script-load-failed' });
+      resolve(null);
+    }, { once: true });
     document.head.appendChild(script);
   });
 
@@ -241,21 +303,33 @@ export async function reverseGeocode(lat, lng) {
 }
 
 /**
- * Wires the Places Autocomplete (New) widget onto a text `<input>`
- * element, invoking `onPlaceSelected({lat, lng, formattedAddress})` when
- * the visitor picks a suggestion. No-op (returns `null`) if maps are not
+ * Wires the Places Autocomplete widget onto a text `<input>` element,
+ * invoking `onPlaceSelected({lat, lng, formattedAddress})` when the
+ * visitor picks a suggestion. No-op (returns `null`) if maps are not
  * configured -- the input remains a plain text field, which is still
  * fully usable (matches this codebase's existing "manual address entry
  * always works, autocomplete is an enhancement" pattern already used by
  * sell.html's Nominatim search box).
+ *
+ * KNOWN LIMITATION: this uses the LEGACY `google.maps.places.Autocomplete`
+ * widget, which calls Places API endpoints gated by the legacy "Places
+ * API" toggle in Cloud Console -- a project with ONLY "Places API (New)"
+ * enabled (not the legacy one) will load this widget without error but
+ * get no results back when a visitor types, since the New API is a
+ * separate product with its own enablement and its own client surface
+ * (`google.maps.places.PlaceAutocompleteElement`, a web component with a
+ * materially different DOM/event model than this legacy input-binding
+ * widget). Migrating to it is a real, separate follow-up -- not folded
+ * in here since it would change sell.html's tested search-box markup/
+ * behavior, which is out of scope for a map-loading bugfix. Until then:
+ * either enable the legacy "Places API" alongside "Places API (New)" on
+ * the browser key (Cloud Console -> APIs & Services -> Library), or
+ * treat autocomplete-not-returning-results as a known gap distinct from
+ * the map itself failing to load.
  */
 export async function attachAddressAutocomplete(inputEl, onPlaceSelected) {
   const google = await loadGoogleMaps();
   if (!google || !inputEl) return null;
-  // Prefer the modern PlaceAutocompleteElement (Places API New) when
-  // available; fall back to the legacy widget otherwise, since which
-  // one is enabled depends on which Places API the configured key has
-  // turned on (see docs/GOOGLE_MAPS_CONFIGURATION.md).
   if (google.maps.places?.Autocomplete) {
     const autocomplete = new google.maps.places.Autocomplete(inputEl, { fields: ['geometry', 'formatted_address'] });
     autocomplete.addListener('place_changed', () => {
