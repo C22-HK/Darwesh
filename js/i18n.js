@@ -1257,7 +1257,13 @@ const translations = {
     'pwork.errorImageInvalid': 'تکایە وێنەیەکی JPEG، PNG، یان WebP کەمتر لە 10 مێگابایت هەڵبژێرە.',
     'pwork.progressCover': 'بارکردنی وێنەی سەرەکی...',
     'pwork.progressGallery': 'بارکردنی وێنەی کارنامە...',
-    'pwork.progressPublishing': 'بڵاوکردنەوە...'
+    'pwork.progressPublishing': 'بڵاوکردنەوە...',
+    'pwork.addWorkSubtitle': 'نوێترین پڕۆژەکەت لەگەڵ کۆمەڵگای دیزاینی دەرەوش هاوبەش بکە.',
+    'pwork.sectionMedia': 'میدیا',
+    'pwork.sectionDetails': 'وردەکاریی پڕۆژە',
+    'pwork.sectionLocation': 'شوێن و بەروار',
+    'pwork.galleryCaption': 'تا 10 وێنە · JPEG، PNG، یان WebP',
+    'pwork.galleryPick': 'زیادکردنی وێنەی کارنامە'
   },
   ar: {
     'intro.eyebrow': 'أهلاً بك',
@@ -2500,7 +2506,13 @@ const translations = {
     'pwork.errorImageInvalid': 'يرجى اختيار صورة JPEG أو PNG أو WebP أقل من 10 ميغابايت.',
     'pwork.progressCover': 'جارٍ رفع صورة الغلاف...',
     'pwork.progressGallery': 'جارٍ رفع صورة المعرض...',
-    'pwork.progressPublishing': 'جارٍ النشر...'
+    'pwork.progressPublishing': 'جارٍ النشر...',
+    'pwork.addWorkSubtitle': 'شارك أحدث مشاريعك مع مجتمع دەرەوش للتصميم.',
+    'pwork.sectionMedia': 'الوسائط',
+    'pwork.sectionDetails': 'تفاصيل المشروع',
+    'pwork.sectionLocation': 'الموقع والتاريخ',
+    'pwork.galleryCaption': 'حتى 10 صور · JPEG أو PNG أو WebP',
+    'pwork.galleryPick': 'إضافة صور المعرض'
   }
 };
 

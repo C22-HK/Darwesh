@@ -248,6 +248,43 @@ html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
  * gold reads as the premium brand mark here instead of navy. */
 .cine-scope header a.text-primary { color: var(--cine-gold-2); font-weight: 700; }
 
+/* ---- Header/nav must never overlap page content --------------------------
+ * Root cause (found via inspection, not guessed): the shared header is
+ * `h-16` -- a FIXED 4rem height with no overflow safeguard -- while its
+ * wordmark ("Darwesh Group") and the signed-in profile link (set to the
+ * user's real display name by js/nav-auth.js, length unbounded) are plain
+ * inline text with no wrap protection. At narrow viewports, or simply
+ * with a longer real name than "Profile", that text wraps onto a second
+ * line; because the header is `position:sticky` with a hard-coded height
+ * (not a min-height), the wrapped second line has nowhere to go but to
+ * paint outside the header's own box -- past its bottom edge, directly
+ * onto whatever page content is scrolled beneath it. This reproduces at
+ * 320px in a real browser (confirmed by measuring the wordmark's
+ * rendered box, not assumed).
+ *
+ * Fix, in two parts, both structural (not a per-page margin patch):
+ * 1. `min-height` instead of a fixed height -- if this text ever DOES
+ *    need two lines for any reason (extreme zoom, a very long name, a
+ *    future longer nav label), the header simply grows and everything
+ *    below it reflows accordingly (sticky elements reserve their real,
+ *    current height) -- it can never again clip content beneath it.
+ * 2. `nowrap` + ellipsis truncation on exactly the two unbounded-length
+ *    text nodes (the wordmark, and the profile link/label), so in the
+ *    overwhelming majority of cases the header never needs to grow at
+ *    all -- a graceful "…" truncation, not a wrap, is what a long name
+ *    gets instead. */
+.cine-scope header.h-16 { height: auto; min-height: 64px; }
+.cine-scope header a.font-headline-md { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55vw; }
+.cine-scope header #navProfileLink,
+.cine-scope header #navProfileLabelMobile { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; display: inline-block; vertical-align: middle; }
+/* At the narrowest widths, shrink the wordmark rather than lean on
+ * truncation for the common case ("Darwesh Group" itself, not yet a
+ * long real name) -- ellipsis above stays as the safety net for
+ * whatever still doesn't fit (a long signed-in display name). */
+@media (max-width: 400px) {
+  .cine-scope header a.font-headline-md { font-size: 16px; max-width: 60vw; }
+}
+
 /* ---- Soft global motion for links/controls not already covered by a
  * dedicated component class. */
 .cine-scope a,
@@ -873,18 +910,64 @@ body.cine-intro-open { overflow: hidden; }
 
 /* ---- Add Work / Edit Work publish form (Designer publishing) --------- */
 .cine-scope .pwork-optional-tag { color: var(--ps-color-on-surface-variant); font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: normal; margin-inline-start: 4px; }
+.cine-scope .pwork-form-subtitle { color: var(--ps-color-on-surface-variant); font-size: 13.5px; margin-block-start: -18px; }
+
+/* Numbered section grouping (Media / Project Details / Location & Date)
+ * -- a divider + small numbered eyebrow, reusing .pwork-section-heading's
+ * existing type treatment rather than inventing a second heading style. */
+.cine-scope .pwork-form-section { padding-block-start: 32px; margin-block-start: 32px; border-block-start: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .pwork-form-section:first-of-type { padding-block-start: 0; margin-block-start: 28px; border-block-start: none; }
+.cine-scope .pwork-section-number { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--radius-xs); background: rgba(184, 154, 99, 0.12); color: var(--cine-gold-2); font-size: 10px; font-weight: 700; margin-inline-end: 8px; }
+
 .cine-scope .pwork-cover-zone { position: relative; width: 100%; aspect-ratio: 16/9; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: var(--radius-md); background: var(--ps-color-surface-container); display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
 .cine-scope .pwork-cover-zone:hover, .cine-scope .pwork-cover-zone:focus-visible { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-cover-zone:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
 .cine-scope .pwork-cover-zone img { width: 100%; height: 100%; object-fit: cover; }
 .cine-scope .pwork-cover-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--ps-color-on-surface-variant); font-size: 12.5px; text-align: center; padding: 0 16px; }
 .cine-scope .pwork-cover-placeholder .material-symbols-outlined { font-size: 30px; opacity: 0.7; }
 .cine-scope .pwork-remove-btn { position: absolute; top: 8px; inset-inline-end: 8px; width: 26px; height: 26px; border-radius: 999px; background: rgba(9,10,10,0.72); border: 1px solid rgba(255,255,255,0.25); color: #F2EEE5; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.cine-scope .pwork-remove-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
 .cine-scope .pwork-remove-btn .material-symbols-outlined { font-size: 16px; }
-.cine-scope .pwork-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-top: 12px; }
+
+.cine-scope .pwork-gallery-caption { color: var(--ps-color-on-surface-variant); font-size: 12px; margin-block-end: 12px; }
+/* Empty state: one wide, inviting dropzone (matching the Cover zone's
+ * visual language, just shorter) -- NOT the small square "add" tile,
+ * which only appears once at least one image already exists and the
+ * grid needs a trailing "add more" affordance. */
+.cine-scope .pwork-gallery-empty { width: 100%; min-height: 108px; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: var(--radius-md); background: var(--ps-color-surface-container); display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); color: var(--ps-color-on-surface-variant); font-size: 13px; }
+.cine-scope .pwork-gallery-empty:hover, .cine-scope .pwork-gallery-empty:focus-visible { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-gallery-empty:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .pwork-gallery-empty .material-symbols-outlined { font-size: 22px; opacity: 0.7; }
+
+.cine-scope .pwork-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
 .cine-scope .pwork-thumb { position: relative; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: var(--ps-color-surface-container); border: 1px solid var(--ps-color-outline-variant); }
 .cine-scope .pwork-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .cine-scope .pwork-thumb-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ps-color-on-surface-variant); font-size: 11px; cursor: pointer; border: 1.5px dashed var(--ps-color-outline-variant); transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
 .cine-scope .pwork-thumb-add:hover { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-thumb-add:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
 .cine-scope .pwork-thumb-add .material-symbols-outlined { font-size: 22px; }
 .cine-scope .pwork-progress { color: var(--ps-color-on-surface-variant); font-size: 12.5px; }
 .cine-scope .pwork-confirm-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); padding: 20px; }
+
+/* =========================================================================
+ * `.hidden` MUST always win -- root-cause fix, not a per-element patch.
+ *
+ * Found while diagnosing the Add Work page: several `.cine-scope .xxx`
+ * component rules above declare `display: flex/grid` (a 2-class compound
+ * selector, CSS specificity (0,2,0)) which is MORE specific than
+ * Tailwind's own `.hidden { display: none }` (a single class,
+ * specificity (0,1,0)). Per the cascade, specificity decides before
+ * source order -- so `element.classList.add('hidden')` on, e.g.,
+ * `.pwork-cover-placeholder` or `.pwork-remove-btn` was silently having
+ * NO visual effect at all: the element stayed rendered, `display:flex`,
+ * on top of whatever was meant to replace it (this is what actually
+ * caused the Cover/Gallery uploaders to look "broken" -- the placeholder
+ * text and the real image preview were both visible at once).
+ *
+ * This single rule has the same (0,2,0) specificity as those component
+ * rules, so it must be declared LAST in this file to win the tie via
+ * source order -- keep it at the end of cinematic.css as new component
+ * classes are added, rather than special-casing `.hidden` on each one
+ * individually (which is exactly the fragile pattern that caused this
+ * bug in the first place). */
+.cine-scope .hidden { display: none; }
