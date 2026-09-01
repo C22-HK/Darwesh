@@ -543,6 +543,17 @@ service cloud.firestore {
                && get(/databases/$(database)/documents/activeListingLocks/$(data.unitId + '_' + data.dealType)).data.activeListingId == thisListingId
              );
     }
+    // Estate linkage (additive, per the Production Rebuild Phase 1
+    // Estate<->Listing relationship): purely a reference, not a mirrored
+    // field like unitId/priceAmount -- Estate has no price/status of its
+    // own to drift out of sync with, so no lock/equality mechanism is
+    // needed here. Multiple Listings referencing the same estateId over
+    // time is the explicitly desired "listing history" behavior, not an
+    // error case.
+    function isValidOptionalEstateRef(data) {
+      return !('estateId' in data)
+          || (data.estateId is string && exists(/databases/$(database)/documents/estates/$(data.estateId)));
+    }
     match /listings/{listingId} {
       allow get, list: if isListingPubliclyVisible() || isListingOwnerOrAdmin();
       // CREATE_ALLOWED_FIELDS: an explicit allowlist of every field the
@@ -566,10 +577,11 @@ service cloud.firestore {
                           && 'private' in request.resource.data
                           && 'status' in request.resource.data
                           && hasSaneListingNumbers()
+                          && isValidOptionalEstateRef(request.resource.data)
                           && request.resource.data.keys().hasOnly([
                                'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
                                'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
-                               'agentId', 'agentName', 'companyId', 'status', 'createdAt'
+                               'agentId', 'agentName', 'companyId', 'status', 'estateId', 'createdAt'
                              ]))
                     || (isOrgMember(request.resource.data.get('publisherOrgId', ''))
                           && hasOrgPermission(request.resource.data.get('publisherOrgId', ''), 'publish_unit_listing')
@@ -580,10 +592,11 @@ service cloud.firestore {
                           && 'private' in request.resource.data
                           && 'status' in request.resource.data
                           && hasSaneListingNumbers()
+                          && isValidOptionalEstateRef(request.resource.data)
                           && request.resource.data.keys().hasOnly([
                                'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
                                'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
-                               'unitId', 'projectId', 'publisherOrgId', 'status', 'createdAt'
+                               'unitId', 'projectId', 'publisherOrgId', 'status', 'estateId', 'createdAt'
                              ]));
       // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an agent
       // may change any of the normal listing fields on their own
@@ -618,6 +631,19 @@ service cloud.firestore {
       // `verified` still must stay exactly what it already was on
       // this branch, unaffected by (and no longer exploitable via) the
       // identity lock above.
+      // estateId (Canonical Estate linkage, Part 8) is deliberately
+      // treated as immutable-after-create on both non-admin branches
+      // below, the same way unitId already is on the unit-backed branch
+      // -- it is a one-time "which physical property does this listing
+      // describe" decision made at publish time, not an ongoing editable
+      // field, and leaving it out of each branch's update allowlist
+      // while also pinning it equal to its stored value closes off an
+      // agent/org quietly re-pointing an already-published listing at a
+      // different Estate later (which would misattribute that listing's
+      // future history to the wrong property). Only isAdmin() can change
+      // it, via the unrestricted admin branch above. A Listing created
+      // before this field existed simply has no estateId, and
+      // .get(...,null) on both sides makes that unaffected by this check.
       allow update: if isAdmin()
                     || (isAgent()
                           && hasSaneListingNumbers()
@@ -628,6 +654,7 @@ service cloud.firestore {
                           && request.resource.data.companyId == resource.data.companyId
                           && request.resource.data.companyId == myCompanyId()
                           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && request.resource.data.get('estateId', null) == resource.data.get('estateId', null)
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly([
                                  'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
@@ -641,6 +668,7 @@ service cloud.firestore {
                           && request.resource.data.unitId == resource.data.unitId
                           && request.resource.data.publisherOrgId == resource.data.publisherOrgId
                           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && request.resource.data.get('estateId', null) == resource.data.get('estateId', null)
                           && isValidUnitBackedListingCore(request.resource.data)
                           && unitBackedListingCanBeActive(request.resource.data, listingId)
                           && request.resource.data.diff(resource.data).affectedKeys()
@@ -1480,6 +1508,197 @@ service cloud.firestore {
                     || (isOrgMember(resource.data.organizationId)
                         && hasOrgPermission(resource.data.organizationId, 'publish_unit_listing')
                         && lockCanBeReleased(resource.data));
+    }
+
+    // =========================================================================
+    // Canonical Estate + Verified Transaction History (Production Rebuild
+    // Phase 1 of 3, remaining implementation). Rules + schema only -- no
+    // editor/discovery UI ships this pass. Does not touch, weaken, or
+    // duplicate projects/buildings/floorPlans/units/activeListingLocks,
+    // professionalPosts, serviceProviders, or Storage rules above.
+    //
+    // ESTATE != LISTING:
+    //   Estate  -- the persistent PHYSICAL property. Stable identity across
+    //              relisting. Never a role/account. May exist with zero,
+    //              one, or many Listings over its lifetime.
+    //   Listing -- a marketplace publication/offer (unchanged collection,
+    //              gains one more optional field: estateId).
+    // A private homeowner's ordinary listing is NOT required to have an
+    // Estate -- estateId stays fully optional on `listings`, exactly like
+    // unitId already is, so no existing listing is ever affected.
+    match /estates/{estateId} {
+      function isValidPropertyType(v) {
+        return v in ['apartment', 'villa', 'townhouse', 'office', 'retail', 'land'];
+      }
+      function isValidLocationMap(v) {
+        return v is map
+            && 'lat' in v && (v.lat is int || v.lat is float)
+            && 'lng' in v && (v.lng is int || v.lng is float);
+      }
+      // Public-safe fields ONLY -- no owner contact info, no internal
+      // notes, no legal-name data. Sensitive administrative data lives
+      // exclusively in the `protected/admin` subcollection below, which
+      // this document's own read rule can never expose.
+      function isValidEstateContent(data) {
+        return (!('propertyType' in data) || isValidPropertyType(data.propertyType))
+            && (!('governorate' in data) || data.governorate is string)
+            && (!('city' in data) || data.city is string)
+            && (!('district' in data) || data.district is string)
+            && (!('formattedAddress' in data) || (data.formattedAddress is string && data.formattedAddress.size() <= 400))
+            && (!('location' in data) || isValidLocationMap(data.location))
+            && (!('landAreaSqm' in data) || ((data.landAreaSqm is int || data.landAreaSqm is float) && data.landAreaSqm > 0))
+            && (!('buildingAreaSqm' in data) || ((data.buildingAreaSqm is int || data.buildingAreaSqm is float) && data.buildingAreaSqm > 0))
+            && (!('projectId' in data) || data.projectId is string)
+            && (!('buildingId' in data) || data.buildingId is string)
+            && (!('unitId' in data) || data.unitId is string);
+      }
+      // Estate creation is authorized the SAME three ways `listings` already
+      // is (BL-01-era pattern, unchanged): admin, an ordinary agent (the
+      // existing homeowner/office/agent path), or an authorized org member
+      // (the new developer/community path) -- no new authorization
+      // primitive, reuses isOrgMember()/hasOrgPermission() exactly as
+      // projects/buildings/units already do.
+      allow read: if true;
+      allow create: if request.resource.data.get('verified', false) == false
+                    && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && isValidEstateContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'createdByUid', 'propertyType', 'governorate', 'city',
+                         'district', 'formattedAddress', 'location', 'landAreaSqm', 'buildingAreaSqm',
+                         'projectId', 'buildingId', 'unitId', 'verified', 'createdAt', 'updatedAt'
+                       ])
+                    && (
+                         isAdmin()
+                         || isAgent()
+                         || (request.resource.data.organizationId is string
+                             && isOrgMember(request.resource.data.organizationId)
+                             && hasOrgPermission(request.resource.data.organizationId, 'create_estate'))
+                       );
+      // organizationId/createdByUid/createdAt immutable; verified stays
+      // admin-only, same lock pattern as every other verified-flag
+      // collection in this file.
+      allow update: if request.resource.data.get('organizationId', null) == resource.data.get('organizationId', null)
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && isValidEstateContent(request.resource.data)
+                    && (
+                         isAdmin()
+                         || (request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && (
+                                  (isAgent() && !('organizationId' in resource.data))
+                                  || (resource.data.get('organizationId', null) != null
+                                      && isOrgMember(resource.data.organizationId)
+                                      && hasOrgPermission(resource.data.organizationId, 'edit_own_estate'))
+                                )
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'propertyType', 'governorate', 'city', 'district', 'formattedAddress',
+                                    'location', 'landAreaSqm', 'buildingAreaSqm', 'projectId', 'buildingId',
+                                    'unitId', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      // Sensitive administrative data (owner contact info, internal notes,
+      // legal-name data, etc.) -- deliberately isolated from the public
+      // Estate document above so it can NEVER become publicly readable
+      // just because the parent document is. Admin-only, both directions.
+      match /protected/{docId} {
+        allow read, write: if isAdmin();
+      }
+
+      // ---- Verified Transaction / Sale History ----
+      // CRITICAL, per explicit product requirement: Google Maps does NOT
+      // supply Iraqi sale-history data; AI must never generate this data;
+      // a closed listing does NOT by itself prove a sale price. A record
+      // existing in THIS subcollection at all is what "verified" means
+      // here -- there is no separate verified:true/false flag to check,
+      // because the write gate (isAdmin() only, both create and update)
+      // already IS the verification step, enforced at the rules layer,
+      // never merely by hiding an "add transaction" button in the UI.
+      // No future "trusted external source" integration is built this
+      // phase; this leaves room for one (still admin/backend-mediated)
+      // without a schema change.
+      match /transactionHistory/{transactionId} {
+        function isValidTransaction(data) {
+          return data.transactionType in ['sale', 'rent']
+              && data.priceAmount is int && data.priceAmount > 0
+              && data.currency in ['IQD', 'USD']
+              && data.transactionDate is string && data.transactionDate.size() > 0 && data.transactionDate.size() <= 40
+              && (!('sourceListingId' in data) || data.sourceListingId is string)
+              && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+        }
+        // Public read: this is an explicit customer-facing trust/
+        // transparency feature (per the approved UI example showing
+        // asking price alongside verified sale history to any viewer),
+        // NOT sensitive administrative data -- unlike `protected/` above.
+        allow read: if true;
+        allow create: if isAdmin()
+                      && request.resource.data.verifiedBy == request.auth.uid
+                      && isValidTransaction(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'transactionType', 'priceAmount', 'currency', 'transactionDate',
+                           'sourceListingId', 'notes', 'verifiedBy', 'createdAt'
+                         ]);
+        // verifiedBy/createdAt immutable -- a correction is a content
+        // edit, never a re-attribution of who verified it or when it was
+        // first recorded.
+        allow update: if isAdmin()
+                      && request.resource.data.verifiedBy == resource.data.verifiedBy
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && isValidTransaction(request.resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['transactionType', 'priceAmount', 'currency', 'transactionDate', 'sourceListingId', 'notes']);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- Concurrency-safe Estate public ID allocator ----
+    // "Design a concurrency-safe Estate public ID strategy. Do NOT
+    // implement a fragile client-side sequential counter." A single
+    // counter document, updated via the Firestore client SDK's
+    // runTransaction() (NOT a plain batch) -- Firestore's transaction
+    // mechanism provides genuine optimistic-concurrency-with-automatic-
+    // retry on this exact read-then-write-one-document pattern: if two
+    // clients' transactions both read counters/estates at the same
+    // value, the second to attempt to commit is transparently retried by
+    // the CLIENT SDK against the now-current value (this is a core,
+    // documented Firestore guarantee, not something this rule implements
+    // itself) -- so `value == resource.data.value + 1` here is exactly
+    // the invariant needed; two concurrent callers can never both commit
+    // the same next value.
+    //
+    // The allocated integer becomes the Estate's own Firestore document
+    // ID (estates/{N}) -- reusing the exact activeListingLocks proof:
+    // Firestore classifies a write to a given document path as `create`
+    // only once, so two different physical properties can never end up
+    // sharing the same estate number, independent of the counter's own
+    // correctness. The counter's only job is handing a legitimate caller
+    // a number nobody has been told to use yet -- it does not need to be
+    // cross-validated against the Estate write itself for the uniqueness
+    // guarantee to hold. `publicEstateId` (the "DG-EST-000042"-style
+    // display form) is intentionally NOT stored or rules-validated: the
+    // Firestore rules language has no zero-pad/sprintf-style string
+    // formatting, so exact display formatting is a client-side (shared
+    // JS helper) concern, derived consistently from the real, unique
+    // `estates/{N}` document ID -- a purely cosmetic layer on top of an
+    // already-collision-proof identity, not a security-relevant one.
+    match /counters/{counterId} {
+      allow read: if true;
+      // Authorization intentionally mirrors Estate creation's own gate
+      // (minus the org-scoped branch, since the counter is global and
+      // not tied to any one organization) -- a plain signed-in customer
+      // can never allocate a number, only an identity that could
+      // actually go on to create a matching Estate.
+      allow create: if counterId == 'estates'
+                    && request.resource.data.keys().hasOnly(['value'])
+                    && request.resource.data.value == 1
+                    && (isAdmin() || isAgent() || hasPermission('create_estate'));
+      allow update: if counterId == 'estates'
+                    && request.resource.data.keys().hasOnly(['value'])
+                    && request.resource.data.value == resource.data.value + 1
+                    && (isAdmin() || isAgent() || hasPermission('create_estate'));
+      allow delete: if false;
     }
 
     // ---- Home goods / furniture catalog ----

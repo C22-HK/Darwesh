@@ -156,6 +156,15 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
         "create_unit",
         "edit_own_unit",
         "publish_unit_listing",
+        # Canonical Estate identity (Production Rebuild Phase 1 of 3 --
+        # mirrors firestore.rules' hasOrgPermission() checks in the
+        # estates match block). Estate itself has no canonical
+        # price/status of its own (that stays on the Listing, as
+        # always) -- these two keys only gate creating/editing an
+        # Estate's own physical-property identity fields (location,
+        # property type, area, project/building/unit backreferences).
+        "create_estate",
+        "edit_own_estate",
         # Installments
         "manage_installment_profile",
         "manage_installment_plans",
