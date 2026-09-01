@@ -1,12 +1,17 @@
 # Google Maps — Configuration, API Requirements & Query/Performance Strategy
 
-Status: **foundation only, not yet wired into any live page.** This
-document accompanies `js/maps-core.js` (the shared integration boundary)
-as part of Production Rebuild Phase 1 of 3. Nothing described here has
-been enabled, provisioned, or deployed by this work — this sandbox has no
-Google Cloud credentials and cannot enable APIs or create keys. Every
-action in this document is a manual step for a human operator with
-Google Cloud Console access.
+Status: wired into `buy-rent-map.html`, `admin.html`'s Estate
+Intelligence Map/Estate Data tabs, and (as a dual-engine migration
+alongside the original Leaflet implementation) `sell.html`'s and
+`agent-dashboard.html`'s location pickers — see §6. Key delivery itself
+is now wired up too: `js/maps-config.js` (gitignored) is generated at
+GitHub Pages deploy time by `.github/workflows/deploy-pages.yml` from
+the `GOOGLE_MAPS_BROWSER_KEY` repository secret. What has **not**
+happened is any Google Cloud Console action — no API has been enabled,
+no key has been created or restricted, and nothing has been deployed by
+this work. Every action in §3–§4 is still a manual step for a human
+operator with Google Cloud Console access; §5 below now reflects the
+actual, implemented key-delivery mechanism rather than a plan.
 
 ## 1. Current state (as of this phase)
 
@@ -82,32 +87,47 @@ When an operator provisions the key in Google Cloud Console → Credentials:
 
 The module reads the key at runtime from, in order:
 
-1. `window.DARWESH_MAPS_CONFIG.apiKey` — a page sets this via a small
-   inline `<script>` *before* importing `maps-core.js`. In production
-   this would be templated in by whatever step already exists for
-   per-environment values (this static site currently has no build step
-   — see `js/backend-config.js`'s hostname-detection pattern as the
-   nearest existing precedent; a maps key would likely follow the same
-   "detect environment, pick the matching restricted key" shape once a
-   real deploy pipeline exists).
+1. `window.DARWESH_MAPS_CONFIG.apiKey` — set by `js/maps-config.js`, a
+   **gitignored** file loaded via a plain `<script src="./js/maps-config.js">`
+   tag near the top of `<head>` on every page that uses `maps-core.js`
+   (`buy-rent-map.html`, `sell.html`, `agent-dashboard.html`,
+   `admin.html`), placed before that page's own module script so the
+   config is always set before anything reads it. See §5.1 below for
+   exactly how this file gets populated in each environment.
 2. `<meta name="darwesh-google-maps-key" content="...">` — a lighter-
-   weight alternative for pages that would rather not add an inline
-   script.
+   weight fallback resolution path `maps-core.js` also supports, not
+   currently used by any page (all four use the script-tag path above),
+   kept for a future page that would rather not add a script tag.
 
-If neither is present (**exactly the case in this sandbox, and in any
-environment before an operator provisions a key**), `isConfigured()`
-returns `false`, `loadGoogleMaps()` resolves to `null` instead of
-throwing, and every `init`/`geocode`/`autocomplete` helper degrades to a
-visible "map unavailable — configuration required" placeholder (or a
-plain, still-fully-usable text input for the autocomplete case) rather
-than a blank box or an uncaught error. This was verified by exercising
-the module with no `DARWESH_MAPS_CONFIG` set — every exported function
-returns its documented fallback value.
+If neither is present, `isConfigured()` returns `false`,
+`loadGoogleMaps()` resolves to `null` instead of throwing, and every
+`init`/`geocode`/`autocomplete` helper degrades to a visible "map
+unavailable — configuration required" placeholder (or a plain,
+still-fully-usable text input for the autocomplete case, or -- for
+sell.html/agent-dashboard.html -- the original Leaflet implementation)
+rather than a blank box or an uncaught error.
 
-**Dev vs. prod behavior**: identical code path — the only difference is
-which key (if any) is configured. A developer running locally with no
-key configured sees the graceful fallback everywhere; there is no
-separate "mock maps" mode to maintain.
+### 5.1 Where `js/maps-config.js` actually comes from
+
+`js/maps-config.js` is never committed (`.gitignore` excludes it) and
+never hardcodes a key anywhere in this repo's tracked source:
+
+- **Local development**: copy `js/maps-config.local.example.js` to
+  `js/maps-config.js` and fill in a key restricted to
+  `http://localhost:*/*` / `http://127.0.0.1:*/*` (§4, point 2 — never
+  the production key). Until you do this, every page degrades
+  gracefully per above — this is expected, not an error to fix.
+- **Production (GitHub Pages)**: `.github/workflows/deploy-pages.yml`
+  generates `js/maps-config.js` at deploy time from the
+  `GOOGLE_MAPS_BROWSER_KEY` GitHub Actions repository secret, as one
+  step before publishing the site — the generated file ships to
+  visitors' browsers (a Maps browser key is meant to be client-visible,
+  per §4) but is never written back into git history at any point.
+
+**Dev vs. prod behavior**: identical code path in `maps-core.js` itself
+— the only difference is which key (if any) `js/maps-config.js` sets,
+and that file is produced differently (manually copied vs. CI-generated)
+per environment. There is no separate "mock maps" mode to maintain.
 
 ## 6. Page-by-page cutover status
 

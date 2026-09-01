@@ -7,17 +7,24 @@
 // <script> injection / key handling -- that duplication is exactly what
 // this file exists to prevent.
 //
-// NOT YET WIRED INTO ANY LIVE PAGE. This phase ships the configuration/
-// integration boundary only -- deliberately, not by oversight: this
-// sandbox has no real Google Maps browser API key and no way to verify
-// one end-to-end, and every existing map surface (map.html, listing.html,
-// sell.html, agent-dashboard.html, admin.html) currently works today on
-// Leaflet + OpenStreetMap/Nominatim/Overpass (zero API key, zero cost).
-// Swapping any of them onto an unverifiable Google Maps integration in
-// the same pass that introduces it would risk breaking a working page
-// with no way to test the replacement. See
-// docs/GOOGLE_MAPS_CONFIGURATION.md for the full key-provisioning /
-// restriction requirements and the planned page-by-page cutover.
+// WIRED INTO: buy-rent-map.html (the public Buy/Rent discovery map,
+// Google-only, no Leaflet fallback needed since it has no pre-existing
+// implementation to preserve), the Admin Estate Intelligence Map and
+// Admin Estate Data tabs in admin.html, and -- as a DUAL-ENGINE
+// migration, not a replacement -- the location pickers in sell.html and
+// agent-dashboard.html, where the original Leaflet + OpenStreetMap/
+// Nominatim implementation still runs unchanged whenever no key is
+// configured (isConfigured() below returns false), and continues to run
+// even once a key exists, until an operator has verified the Google
+// path end-to-end in a real browser (see each of those two pages' own
+// initLocationPicker()/initMap() comments, and
+// docs/GOOGLE_MAPS_CONFIGURATION.md §6 for the full cutover status).
+// map.html and listing.html were never in scope for this and remain
+// Leaflet-only. The key itself is supplied by js/maps-config.js, a
+// gitignored file generated at deploy time from a GitHub Actions repo
+// secret (see js/maps-config.local.example.js and
+// .github/workflows/deploy-pages.yml) -- never hardcoded here or
+// anywhere else in this repo, per the hard constraint below.
 //
 // -- Key handling (hard security constraint) --------------------------
 // This file NEVER hardcodes a Google Maps API key, and never will -- a
@@ -124,16 +131,20 @@ export function loadGoogleMaps() {
 // (no external CSS dependency) so this module has zero coupling to any
 // page's stylesheet; a page is free to restyle the produced element via
 // its own CSS targeting `.darwesh-map-unavailable`.
-// English-only fallback text: this module is not wired into any live
-// page yet, so there is no i18n dictionary entry for it (js/i18n.js is
-// CI-checked for exact ku/ar parity of every key actually referenced
-// from HTML -- adding an unused key here would be dead weight, and this
-// text is only ever a temporary "not configured" placeholder, never
-// user-facing production copy). The page that eventually adopts this
-// module is expected to either pass its own translated `message`, or
-// re-run its i18n pass over the produced `.darwesh-map-unavailable`
-// element the same way it already does for any other dynamically
-// inserted content.
+// English-only fallback text: this is a LAST-RESORT default, not what a
+// real visitor is expected to see -- every current caller (buy-rent-
+// map.html, admin.html's Estate Intelligence Map) checks isConfigured()
+// itself first and renders its own translated "map unavailable" markup
+// before ever calling initMap(), so this default only fires if a future
+// caller skips that pre-check or the script fails to load despite a key
+// being present. Because of that, there is no i18n dictionary entry for
+// it (js/i18n.js is CI-checked for exact ku/ar parity of every key
+// actually referenced from HTML -- adding one here for a string real
+// users essentially never see would be dead weight). A future caller
+// that DOES want this default shown is expected to either pass its own
+// translated `message`, or re-run its i18n pass over the produced
+// `.darwesh-map-unavailable` element the same way it already does for
+// any other dynamically inserted content.
 function renderUnavailable(container, message) {
   if (!container) return;
   container.innerHTML = '';

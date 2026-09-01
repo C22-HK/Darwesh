@@ -1,0 +1,107 @@
+name: Deploy Pages
+
+# Publishes this repo's static site to GitHub Pages from the
+# claude/web-project-hqdo8o branch -- NOT main, matching this project's
+# actual production branch. Do not repoint this at main.
+#
+# Runs on GitHub's Actions-based Pages deployment (actions/upload-pages-
+# artifact + actions/deploy-pages), not the classic "deploy from a
+# branch" method -- this is required, not a style choice: it is the only
+# way to publish a file (js/maps-config.js, generated below from a repo
+# secret) without ever committing it to the branch. For this workflow to
+# actually take effect, the repository's Pages source must be set to
+# "GitHub Actions" (Settings -> Pages -> Build and deployment -> Source).
+# If it is still set to "Deploy from a branch", this workflow will run
+# and report success but the live site will keep serving whatever that
+# branch mode already serves, unchanged -- see this repo's
+# docs/GOOGLE_MAPS_CONFIGURATION.md for the full explanation.
+on:
+  push:
+    branches: [claude/web-project-hqdo8o]
+  workflow_dispatch:
+
+# Least-privilege for what this workflow actually does: read the repo,
+# write a Pages deployment, and mint the OIDC token deploy-pages needs
+# to authenticate that deployment. Mirrors the same least-privilege
+# posture as .github/workflows/ci.yml (INFRA-09).
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment in flight at a time; a newer push should win
+# rather than queue behind an older one still deploying.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Pages artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Generates the gitignored js/maps-config.js from the
+      # GOOGLE_MAPS_BROWSER_KEY repository secret (Settings -> Secrets
+      # and variables -> Actions -> New repository secret). Uses
+      # JSON.stringify (not raw shell/string interpolation) to embed the
+      # secret's value, so nothing about the key's own content can break
+      # out of the generated JS string or inject unintended code. If the
+      # secret is unset, this still produces a valid file with an empty
+      # key -- js/maps-core.js's isConfigured() treats an empty string
+      # as "not configured" and every page degrades gracefully (the
+      # public Buy/Rent map and Admin Estate Intelligence Map show their
+      # "map unavailable" panel; sell.html/agent-dashboard.html fall
+      # back to their original Leaflet implementation) rather than
+      # deploying broken. A missing secret is therefore never a reason
+      # this workflow needs to fail the whole site deploy over -- it
+      # just logs a warning so an operator notices maps aren't live.
+      - name: Generate js/maps-config.js from repository secret
+        env:
+          GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.GOOGLE_MAPS_BROWSER_KEY }}
+        run: |
+          if [ -z "$GOOGLE_MAPS_BROWSER_KEY" ]; then
+            echo "::warning::GOOGLE_MAPS_BROWSER_KEY repository secret is not set -- deploying with Google Maps unconfigured (every page falls back gracefully, per docs/GOOGLE_MAPS_CONFIGURATION.md)."
+          fi
+          node -e "
+            const fs = require('fs');
+            const apiKey = process.env.GOOGLE_MAPS_BROWSER_KEY || '';
+            const contents = 'window.DARWESH_MAPS_CONFIG = ' + JSON.stringify({ apiKey }) + ';\n';
+            fs.writeFileSync('js/maps-config.js', contents);
+          "
+
+      # Matches Jekyll's own default exclusions (the ones classic
+      # GitHub Pages "deploy from a branch" mode already applies today
+      # with no .nojekyll file present in this repo) -- dotfiles/dot-
+      # directories and node_modules are removed from this disposable
+      # runner checkout before it becomes the published artifact, so
+      # Actions-based deployment serves the same set of top-level
+      # content classic Pages already does, not more. This intentionally
+      # does NOT newly exclude anything else (docs/*.md, backend/,
+      # firestore.rules, etc.) that classic Pages currently serves --
+      # changing that is a separate decision, not something to fold into
+      # "wire up the maps key" silently.
+      - name: Remove dev-only/VCS files before publishing (parity with classic Pages' Jekyll defaults)
+        run: rm -rf .git .github .claude node_modules
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
