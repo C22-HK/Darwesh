@@ -49,6 +49,7 @@ export function initServiceProviderProfile(config) {
   let providerData = null;
   let isOwnerView = false;
   let isAdminView = false;
+  let tabsController = null;
 
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
@@ -200,6 +201,16 @@ export function initServiceProviderProfile(config) {
     if (editBtn.dataset.wired) return;
     editBtn.dataset.wired = '1';
     editBtn.addEventListener('click', () => {
+      // The edit form lives inside the Overview/About panel, but Designer
+      // (and any future role that reorders tabs) can default to a
+      // DIFFERENT tab, e.g. "Work" -- so clicking Edit Profile from the
+      // hero, which is always visible regardless of active tab, must
+      // switch to that tab too. Without this, the form still gets
+      // populated and unhidden correctly, but sits inside a panel whose
+      // own `hidden` attribute (set by mountTabs' tab switching) keeps it
+      // completely invisible -- the exact "Edit Profile does nothing"
+      // symptom this fixes.
+      if (tabsController) tabsController.activate('overview');
       el('editDisplayName').value = providerData.displayName || '';
       el('editDescription').value = providerData.description || '';
       el('editCity').value = providerData.city || '';
@@ -263,7 +274,7 @@ export function initServiceProviderProfile(config) {
       contact: { key: 'contact', button: el('tabBtnContact'), panel: el('panelContact') }
     };
     const order = tabOrder || ['overview', 'projects', 'services', 'contact'];
-    mountTabs({ tabs: order.map((k) => byKey[k]) });
+    tabsController = mountTabs({ tabs: order.map((k) => byKey[k]) });
   }
 
   // Read-only context handed to a role's custom work-tab renderer

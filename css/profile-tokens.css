@@ -696,3 +696,32 @@
 @media (max-width: 380px) { .otp-digit { width: 39px; height: 48px; font-size: 19px; } .otp-digits { gap: 6px; } }
 
 .auth-security-badge { width: 56px; height: 56px; border-radius: var(--radius-sm); background: var(--ps-color-primary); color: var(--ps-color-secondary-container); display: flex; align-items: center; justify-content: center; margin-inline: auto; margin-block-end: 14px; box-shadow: var(--ps-shadow-3d-2); overflow: hidden; }
+
+/* =========================================================================
+ * `.hidden` must always win over `.ps-*` component rules -- root-cause
+ * fix, not a per-element patch. Found while investigating the Designer/
+ * Engineer profile's "Verified and Unverified shown at the same time"
+ * bug: `.ps-badge { display: inline-flex; ... }` above is a SINGLE-class
+ * rule, same (0,1,0) specificity as Tailwind's `.hidden { display: none }`
+ * (compiled into css/tailwind.css). At equal specificity the cascade
+ * falls back to source order, and this file is `<link>`ed AFTER
+ * tailwind.css on every page that uses it -- so `.ps-badge`'s
+ * `display: inline-flex` always won, and `element.classList.add('hidden')`
+ * on a `.ps-badge` (e.g. #verifiedBadge / #unverifiedBadge in
+ * js/profile-role.js's renderProvider()) silently did nothing: both
+ * badges stayed rendered at once. Verified directly (a `.ps-badge.hidden`
+ * test element computed to `display: inline-flex`, not `none`, before
+ * this fix). The same risk applies to any other single-class `.ps-*`
+ * rule here that sets `display` (e.g. `.ps-field-group-title`,
+ * `.ps-field-group-grid`) if it is ever toggled with `.hidden`.
+ *
+ * Fix: one attribute-substring selector, `[class*="ps-"]`, adds one more
+ * specificity unit -- `[class*="ps-"].hidden` is (0,2,0), which beats
+ * every single-class `.ps-*` rule unconditionally, regardless of file
+ * order, without `!important` and without hunting down every current and
+ * future `.ps-*` class individually (the same fragile per-element
+ * pattern that caused this bug). Every class in this codebase containing
+ * the substring "ps-" is one of this design system's own components
+ * (verified by grepping every *.html file's class attributes), so this
+ * never matches an unrelated class by accident. */
+[class*="ps-"].hidden { display: none; }
