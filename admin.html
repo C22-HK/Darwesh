@@ -1147,7 +1147,17 @@ async function ensureEstateIntelEngine() {
     return null;
   }
   const engine = await makeGoogleEiEngine();
-  if (!engine) { unavailableEl.classList.remove('hidden'); return null; }
+  if (!engine) {
+    // Same distinct-failure-mode fix as buy-rent-map.html's
+    // initDrmMap(): a key IS configured here (mapsConfigured() passed
+    // above), but the Google Maps script itself failed -- this used to
+    // reveal unavailableEl with no content ever written into it, a
+    // blank box giving no information. See the browser console for
+    // [darwesh-maps-core] googleLoaderStarted/googleLoaderError.
+    unavailableEl.classList.remove('hidden');
+    unavailableEl.innerHTML = `<div><span class="material-symbols-outlined text-4xl text-outline mb-2 block">error_outline</span><p class="font-headline-md text-on-surface mb-1">${trAdmin('drm.mapLoadFailed','Map failed to load')}</p><p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('drm.mapLoadFailedHint','The property list still works fully -- an administrator should check the browser console for [darwesh-maps-core] diagnostic lines, and the Google Cloud project\'s billing status and API key restrictions (see docs/GOOGLE_MAPS_CONFIGURATION.md).')}</p></div>`;
+    return null;
+  }
   unavailableEl.classList.add('hidden');
   window.estateIntelEngine = engine;
   return engine;

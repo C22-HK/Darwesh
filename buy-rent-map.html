@@ -545,7 +545,31 @@ async function initDrmMap() {
     return;
   }
   const map = await initMap(container, { center: state.center, zoom: state.zoom, mapTypeControl: false });
-  if (!map) { unavailableEl.classList.remove('hidden'); return; }
+  if (!map) {
+    // A key IS configured (we passed the isConfigured() check above) but
+    // the Google Maps script itself failed to load or initialize -- a
+    // DIFFERENT failure mode than "not configured", and it needs its own
+    // message: this branch previously just revealed #drmMapUnavailable
+    // with no content ever written into it, leaving a blank, empty box
+    // that additionally COVERED (being absolutely positioned on top of
+    // #drmMap) the actual "Map unavailable" text maps-core.js's own
+    // initMap()/renderUnavailable() had already written into #drmMap one
+    // layer underneath -- net visible result was a silent blank
+    // rectangle with no information at all. See the browser console for
+    // [darwesh-maps-core] googleLoaderStarted/googleLoaderError lines
+    // (or their absence) to pin down exactly why -- this module cannot
+    // reliably tell "billing/referrer/API rejected" apart from "network
+    // or CSP blocked the script" from here (see js/maps-core.js's own
+    // comment on this), so the message stays generic and points at the
+    // console rather than guessing.
+    unavailableEl.classList.remove('hidden');
+    unavailableEl.innerHTML = `<div class="text-center p-6 max-w-sm">
+      <span class="material-symbols-outlined text-4xl text-outline mb-2 block">error_outline</span>
+      <p class="font-headline-md text-on-surface mb-1">${tr('drm.mapLoadFailed','Map failed to load')}</p>
+      <p class="font-body-md text-[13px] text-on-surface-variant">${tr('drm.mapLoadFailedHint','The property list still works fully -- an administrator should check the browser console for [darwesh-maps-core] diagnostic lines, and the Google Cloud project\'s billing status and API key restrictions (see docs/GOOGLE_MAPS_CONFIGURATION.md).')}</p>
+    </div>`;
+    return;
+  }
   window.__drmMap = map;
   unavailableEl.classList.add('hidden');
 
