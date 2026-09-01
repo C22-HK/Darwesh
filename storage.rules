@@ -167,5 +167,69 @@ service firebase.storage {
                      && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
       allow delete: if request.auth != null && (isAdmin() || isOwnedDesignerProfile());
     }
+
+    // ---- Real-estate Projects/Buildings/Units/Floor Plans (Phase 1:
+    // rules + schema only, no upload UI yet -- see firestore.rules'
+    // matching section for the full architecture). Four fully separate,
+    // isolated paths -- NONE of them touch or weaken professional-work/
+    // above, which keeps its own untouched ownership check. Each path's
+    // ownership check cross-references the SAME organization membership
+    // Firestore already gates the corresponding metadata write on
+    // (org owner OR an active member -- coarse membership-level here,
+    // matching this file's existing granularity everywhere else; the
+    // fine-grained per-key permission check stays a Firestore-rules-only
+    // concept, same as company-logos/professional-work never re-check a
+    // permission map either). Image-only (jpeg/png/webp -- explicitly
+    // no SVG, same stored-XSS reasoning as professional-work/), 10MB cap,
+    // matching every existing path in this file. No PDF/brochure support
+    // this phase (deferred, per the approved architecture).
+    function isActiveOrgMember(orgId) {
+      return firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.get('ownerId', null) == request.auth.uid
+          || firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'pending') == 'active';
+    }
+    match /project-media/{projectId}/{fileName} {
+      function isProjectOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/projects/$(projectId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isProjectOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isProjectOrgMember());
+    }
+    match /building-media/{projectId}/{buildingId}/{fileName} {
+      function isBuildingOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/projects/$(projectId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isBuildingOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isBuildingOrgMember());
+    }
+    match /floorplan-media/{projectId}/{planId}/{fileName} {
+      function isFloorPlanOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/projects/$(projectId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isFloorPlanOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isFloorPlanOrgMember());
+    }
+    match /unit-media/{unitId}/{fileName} {
+      function isUnitOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/units/$(unitId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isUnitOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isUnitOrgMember());
+    }
   }
 }

@@ -471,7 +471,9 @@ service cloud.firestore {
           && resource.data.status == 'active';
     }
     function isListingOwnerOrAdmin() {
-      return isAdmin() || (isAgent() && resource.data.agentId == request.auth.uid);
+      return isAdmin()
+          || (isAgent() && resource.data.agentId == request.auth.uid)
+          || (isOrgMember(resource.data.publisherOrgId) && hasOrgPermission(resource.data.publisherOrgId, 'publish_unit_listing'));
     }
     // BL-05 fix (BUSINESS_LOGIC_REMEDIATION.md): when admin.html converts
     // a sell submission into a real listing, the new doc carries a
@@ -510,6 +512,37 @@ service cloud.firestore {
           && (!('sqft' in request.resource.data) || request.resource.data.sqft is int || request.resource.data.sqft is float)
           && (!('sqft' in request.resource.data) || request.resource.data.sqft >= 0);
     }
+    // ---- Unit-backed listing support (additive, optional -- see
+    // architecture delta §B). `listings` stays the SINGLE marketplace
+    // collection; a Unit-originated listing is just an ordinary listings
+    // doc carrying two extra optional fields (`unitId`, `publisherOrgId`)
+    // that every existing agent/admin listing simply never sets. price/
+    // dealType/status must MIRROR the referenced Unit's own canonical
+    // priceAmount/listingType at every write that touches them -- the
+    // exact mechanism that makes "unit price=X, listing price=Y" drift
+    // structurally impossible rather than merely discouraged.
+    function isValidUnitBackedListingCore(data) {
+      let unit = get(/databases/$(database)/documents/units/$(data.unitId)).data;
+      return data.publisherOrgId is string
+          && unit.organizationId == data.publisherOrgId
+          && data.price == unit.priceAmount
+          && data.dealType == unit.listingType
+          && !('agentId' in data)
+          && !('companyId' in data);
+    }
+    // A unit-backed listing may only carry status:'active' if it holds
+    // the matching activeListingLocks reservation for THIS exact listing
+    // id -- see that collection's own comment for the full uniqueness
+    // argument. A listing created/kept at status:'closed' never needs a
+    // lock at all (an inert historical record, not competing for the
+    // active slot).
+    function unitBackedListingCanBeActive(data, thisListingId) {
+      return data.status != 'active'
+          || (
+               exists(/databases/$(database)/documents/activeListingLocks/$(data.unitId + '_' + data.dealType))
+               && get(/databases/$(database)/documents/activeListingLocks/$(data.unitId + '_' + data.dealType)).data.activeListingId == thisListingId
+             );
+    }
     match /listings/{listingId} {
       allow get, list: if isListingPubliclyVisible() || isListingOwnerOrAdmin();
       // CREATE_ALLOWED_FIELDS: an explicit allowlist of every field the
@@ -520,6 +553,11 @@ service cloud.firestore {
       // it tries to set verified:true on their own new listing, not
       // merely ignored -- so a request attempting to self-certify fails
       // loudly rather than silently creating an unverified listing.
+      //
+      // The agent/admin branches below are BYTE-FOR-BYTE unchanged from
+      // before this phase -- every existing listing, and every future
+      // agent/admin-authored one, is completely unaffected by the new
+      // third branch.
       allow create: if (isAdmin() && isValidSourceSubmissionOrNone() && hasSaneListingNumbers())
                     || (isAgent()
                           && request.resource.data.agentId == request.auth.uid
@@ -532,6 +570,20 @@ service cloud.firestore {
                                'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
                                'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
                                'agentId', 'agentName', 'companyId', 'status', 'createdAt'
+                             ]))
+                    || (isOrgMember(request.resource.data.get('publisherOrgId', ''))
+                          && hasOrgPermission(request.resource.data.get('publisherOrgId', ''), 'publish_unit_listing')
+                          && request.resource.data.unitId is string
+                          && isValidUnitBackedListingCore(request.resource.data)
+                          && unitBackedListingCanBeActive(request.resource.data, listingId)
+                          && request.resource.data.get('verified', false) == false
+                          && 'private' in request.resource.data
+                          && 'status' in request.resource.data
+                          && hasSaneListingNumbers()
+                          && request.resource.data.keys().hasOnly([
+                               'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                               'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                               'unitId', 'projectId', 'publisherOrgId', 'status', 'createdAt'
                              ]));
       // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an agent
       // may change any of the normal listing fields on their own
@@ -576,6 +628,21 @@ service cloud.firestore {
                           && request.resource.data.companyId == resource.data.companyId
                           && request.resource.data.companyId == myCompanyId()
                           && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly([
+                                 'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                                 'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                                 'status', 'updatedAt'
+                               ]))
+                    || ('unitId' in resource.data
+                          && isOrgMember(resource.data.publisherOrgId)
+                          && hasOrgPermission(resource.data.publisherOrgId, 'publish_unit_listing')
+                          && hasSaneListingNumbers()
+                          && request.resource.data.unitId == resource.data.unitId
+                          && request.resource.data.publisherOrgId == resource.data.publisherOrgId
+                          && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && isValidUnitBackedListingCore(request.resource.data)
+                          && unitBackedListingCanBeActive(request.resource.data, listingId)
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly([
                                  'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
@@ -988,6 +1055,409 @@ service cloud.firestore {
                              .hasOnly(['status', 'title', 'category', 'description', 'city', 'district',
                                        'coverImageUrl', 'media', 'projectDate', 'updatedAt']));
       allow delete: if isAdmin() || isPostOwnerNow();
+    }
+
+    // =========================================================================
+    // Real-estate Projects / Residential Communities / Buildings / Floor
+    // Plans / Units -- PHASE 1 (rules + schema only, per the approved
+    // "Revised Architecture Delta"). No editor/discovery UI exists yet;
+    // this section exists so it can be built against a real, tested
+    // foundation later.
+    //
+    // Core separation (explicit, load-bearing, never collapsed):
+    //   Organization (existing collection) -- a business/legal identity,
+    //     never a human account, never itself authenticatable.
+    //   Project (this section) -- the Residential Community / Development
+    //     itself. NOT a Firebase Auth user, NOT a role, NOT an account.
+    //     `organizationId` is a plain reference field; the two documents
+    //     never merge, even for a residential-community org that manages
+    //     exactly one Project.
+    //   Building/Tower, FloorPlan -- entities, never roles/accounts.
+    //   Unit -- an inventory/property entity, never a role/account.
+    //
+    // Authorization for every write below is the SAME primitive already
+    // proven by `products`: isOrgMember(organizationId) (hard membership
+    // gate -- owner or active member of THAT org, never a stranger whose
+    // own unrelated accountType happens to carry the permission) AND
+    // hasOrgPermission(organizationId, key) (the actual capability
+    // check). No new authorization concept is introduced.
+    function isValidMoney(data, field) {
+      return field in data && data[field] is int && data[field] > 0;
+    }
+    function isValidCurrency(v) {
+      return v in ['IQD', 'USD'];
+    }
+    function isValidConstructionStatus(v) {
+      return v in ['planning', 'under_construction', 'nearing_completion', 'completed'];
+    }
+    function isValidCompletionPercent(v) {
+      return (v is int || v is float) && v >= 0 && v <= 100;
+    }
+    function isValidLocationMap(v) {
+      return v is map
+          && 'lat' in v && (v.lat is int || v.lat is float)
+          && 'lng' in v && (v.lng is int || v.lng is float);
+    }
+    // A Project may only be created under an org of a real-estate-project-
+    // capable type -- deliberately excludes finance_provider/furniture_store
+    // (those manage finance products / a catalog, never Projects) and
+    // real_estate_office (offices stay on the legacy `companies` collection
+    // and publish through `listings` directly, never through Projects).
+    function orgTypeIsProjectCapable(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)).data.type in ['developer_project', 'residential_community'];
+    }
+
+    match /projects/{projectId} {
+      // organizationId is immutable (checked in `update` below);
+      // createdByUid is audit-only, NEVER an authorization signal --
+      // capability always comes from the caller's CURRENT org membership/
+      // permission, re-checked live on every write, not from "did this
+      // uid create it."
+      function isValidProjectContent(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+            && (!('slug' in data) || (data.slug is string && data.slug.size() <= 200))
+            && (!('description' in data) || (data.description is string && data.description.size() <= 4000))
+            && (!('constructionStatus' in data) || isValidConstructionStatus(data.constructionStatus))
+            && (!('completionPercent' in data) || isValidCompletionPercent(data.completionPercent))
+            && (!('currency' in data) || isValidCurrency(data.currency))
+            && (!('startingPrice' in data) || isValidMoney(data, 'startingPrice'))
+            && (!('priceRangeMax' in data) || isValidMoney(data, 'priceRangeMax'))
+            && (!('location' in data) || isValidLocationMap(data.location))
+            && (!('governorate' in data) || data.governorate is string)
+            && (!('city' in data) || data.city is string)
+            && (!('district' in data) || data.district is string)
+            && (!('gallery' in data) || (data.gallery is list && data.gallery.size() <= 30))
+            && (!('videos' in data) || (data.videos is list && data.videos.size() <= 10))
+            && (!('nearbyLandmarks' in data) || (data.nearbyLandmarks is list && data.nearbyLandmarks.size() <= 20))
+            && (!('otherFees' in data) || (data.otherFees is list && data.otherFees.size() <= 20))
+            && (!('amenities' in data) || data.amenities is map)
+            && (!('socialLinks' in data) || data.socialLinks is map)
+            && (!('numberOfBuildings' in data) || (data.numberOfBuildings is int && data.numberOfBuildings >= 0))
+            && (!('numberOfUnits' in data) || (data.numberOfUnits is int && data.numberOfUnits >= 0))
+            && (!('numberOfPhases' in data) || (data.numberOfPhases is int && data.numberOfPhases >= 0))
+            && (!('totalLandAreaSqm' in data) || ((data.totalLandAreaSqm is int || data.totalLandAreaSqm is float) && data.totalLandAreaSqm > 0))
+            && (!('installmentAvailable' in data) || data.installmentAvailable is bool)
+            && (!('minDownPaymentPercent' in data) || isValidCompletionPercent(data.minDownPaymentPercent))
+            && (!('monthlyInstallmentFrom' in data) || isValidMoney(data, 'monthlyInstallmentFrom'))
+            && (!('paymentPeriodMonths' in data) || (data.paymentPeriodMonths is int && data.paymentPeriodMonths >= 0));
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.organizationId is string
+                    && orgTypeIsProjectCapable(request.resource.data.organizationId)
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'create_project')
+                    && request.resource.data.get('verified', false) == false
+                    && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && isValidProjectContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'createdByUid', 'name', 'slug', 'projectType',
+                         'governorate', 'city', 'district', 'neighborhood', 'address', 'location',
+                         'nearbyLandmarks', 'description', 'masterPlanImageUrl', 'constructionStatus',
+                         'completionPercent', 'launchDate', 'expectedCompletionDate', 'handoverDate',
+                         'numberOfBuildings', 'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm',
+                         'amenities', 'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
+                         'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
+                         'financeProviderOrgId', 'serviceFee', 'otherFees', 'salesOfficePhone',
+                         'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
+                         'videos', 'virtualTourUrl', 'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // organizationId/createdByUid/createdAt locked two ways (equality
+      // re-check + exclusion from the allowlist), same belt-and-suspenders
+      // pattern as listings.agentId (BL-01) and professionalPosts.ownerId.
+      allow update: if request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && (
+                         isAdmin()
+                         || (isOrgMember(resource.data.organizationId)
+                             && hasOrgPermission(resource.data.organizationId, 'edit_own_project')
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && isValidProjectContent(request.resource.data)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'name', 'slug', 'projectType', 'governorate', 'city', 'district',
+                                    'neighborhood', 'address', 'location', 'nearbyLandmarks', 'description',
+                                    'masterPlanImageUrl', 'constructionStatus', 'completionPercent',
+                                    'launchDate', 'expectedCompletionDate', 'handoverDate', 'numberOfBuildings',
+                                    'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm', 'amenities',
+                                    'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
+                                    'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
+                                    'financeProviderOrgId', 'serviceFee', 'otherFees', 'salesOfficePhone',
+                                    'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
+                                    'videos', 'virtualTourUrl', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      match /buildings/{buildingId} {
+        function parentProjectOrgId() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId;
+        }
+        function isValidBuildingContent(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+              && (!('number' in data) || (data.number is string && data.number.size() <= 60))
+              && (!('constructionStatus' in data) || isValidConstructionStatus(data.constructionStatus))
+              && (!('completionPercent' in data) || isValidCompletionPercent(data.completionPercent))
+              && (!('numberOfFloors' in data) || (data.numberOfFloors is int && data.numberOfFloors >= 0 && data.numberOfFloors <= 300))
+              && (!('unitsPerFloor' in data) || (data.unitsPerFloor is int && data.unitsPerFloor >= 0 && data.unitsPerFloor <= 200))
+              && (!('elevators' in data) || (data.elevators is int && data.elevators >= 0))
+              && (!('parkingSpaces' in data) || (data.parkingSpaces is int && data.parkingSpaces >= 0))
+              && (!('entrances' in data) || (data.entrances is int && data.entrances >= 0))
+              && (!('images' in data) || (data.images is list && data.images.size() <= 30))
+              && (!('position' in data) || data.position is map);
+        }
+        allow read: if true;
+        // Parent Project must exist (a direct get() on a missing doc
+        // throws, which fails the whole condition closed) and the
+        // organization authorization is derived from IT, not re-trusted
+        // from anything the client supplies about the building itself.
+        allow create: if isSignedIn()
+                      && request.resource.data.projectId == projectId
+                      && isOrgMember(parentProjectOrgId())
+                      && hasOrgPermission(parentProjectOrgId(), 'create_building')
+                      && isValidBuildingContent(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'projectId', 'name', 'number', 'constructionStatus', 'completionPercent',
+                           'numberOfFloors', 'unitsPerFloor', 'elevators', 'parkingSpaces', 'entrances',
+                           'handoverDate', 'images', 'position', 'createdAt', 'updatedAt'
+                         ]);
+        // The Project<->Building relationship can never be switched on
+        // update -- projectId locked both ways, and this match block's
+        // own path (projects/{projectId}/buildings/{buildingId}) makes a
+        // building moving to a DIFFERENT project structurally impossible
+        // anyway (that would be a different document path entirely).
+        allow update: if request.resource.data.projectId == resource.data.projectId
+                      && (
+                           isAdmin()
+                           || (isOrgMember(parentProjectOrgId())
+                               && hasOrgPermission(parentProjectOrgId(), 'edit_own_building')
+                               && isValidBuildingContent(request.resource.data)
+                               && request.resource.data.diff(resource.data).affectedKeys()
+                                    .hasOnly([
+                                      'name', 'number', 'constructionStatus', 'completionPercent',
+                                      'numberOfFloors', 'unitsPerFloor', 'elevators', 'parkingSpaces',
+                                      'entrances', 'handoverDate', 'images', 'position', 'updatedAt'
+                                    ]))
+                         );
+        allow delete: if isAdmin();
+      }
+
+      // Reusable template entity (Plan A/Plan B) -- a Unit references
+      // floorPlanId; full plan media/description is never duplicated onto
+      // every unit that uses it.
+      match /floorPlans/{planId} {
+        function parentProjectOrgIdForPlan() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId;
+        }
+        function isValidFloorPlanContent(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+              && (!('bedrooms' in data) || (data.bedrooms is int && data.bedrooms >= 0 && data.bedrooms <= 20))
+              && (!('bathrooms' in data) || (data.bathrooms is int && data.bathrooms >= 0 && data.bathrooms <= 20))
+              && (!('areaSqm' in data) || ((data.areaSqm is int || data.areaSqm is float) && data.areaSqm > 0))
+              && (!('description' in data) || (data.description is string && data.description.size() <= 2000))
+              && (!('galleryImages' in data) || (data.galleryImages is list && data.galleryImages.size() <= 10))
+              && (!('startingPrice' in data) || isValidMoney(data, 'startingPrice'))
+              && (!('currency' in data) || isValidCurrency(data.currency));
+        }
+        allow read: if true;
+        allow create: if isSignedIn()
+                      && request.resource.data.projectId == projectId
+                      && isOrgMember(parentProjectOrgIdForPlan())
+                      && hasOrgPermission(parentProjectOrgIdForPlan(), 'manage_floor_plans')
+                      && isValidFloorPlanContent(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'projectId', 'name', 'bedrooms', 'bathrooms', 'areaSqm', 'description',
+                           'floorPlanImageUrl', 'galleryImages', 'startingPrice', 'currency',
+                           'createdAt', 'updatedAt'
+                         ]);
+        allow update: if request.resource.data.projectId == resource.data.projectId
+                      && (
+                           isAdmin()
+                           || (isOrgMember(parentProjectOrgIdForPlan())
+                               && hasOrgPermission(parentProjectOrgIdForPlan(), 'manage_floor_plans')
+                               && isValidFloorPlanContent(request.resource.data)
+                               && request.resource.data.diff(resource.data).affectedKeys()
+                                    .hasOnly([
+                                      'name', 'bedrooms', 'bathrooms', 'areaSqm', 'description',
+                                      'floorPlanImageUrl', 'galleryImages', 'startingPrice', 'currency', 'updatedAt'
+                                    ]))
+                         );
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- Units (top-level, not nested -- see architecture delta §B/§C:
+    // discovery needs flat cross-project queries the same way `listings`
+    // already supports, and buildingId/floorPlanId stay plain reference
+    // fields, the same cross-collection-reference pattern professionalPosts
+    // already uses against serviceProviders). Floor is a scalar attribute
+    // (floorNumber/unitNumber), never its own document -- confirmed final
+    // in the architecture delta.
+    match /units/{unitId} {
+      function isValidPropertyType(v) {
+        return v in ['apartment', 'villa', 'townhouse', 'office', 'retail', 'land'];
+      }
+      function isValidListingType(v) {
+        return v in ['sale', 'rent'];
+      }
+      function isValidUnitStatus(v) {
+        return v in ['coming_soon', 'available', 'reserved', 'sold', 'rented', 'off_market'];
+      }
+      function isValidMoveInReadiness(v) {
+        return v in ['ready', 'under_construction'];
+      }
+      function buildingBelongsToProject(data) {
+        return !('buildingId' in data) || data.buildingId == null
+            || get(/databases/$(database)/documents/projects/$(data.projectId)/buildings/$(data.buildingId)).data.projectId == data.projectId;
+      }
+      function floorPlanBelongsToProject(data) {
+        return !('floorPlanId' in data) || data.floorPlanId == null
+            || get(/databases/$(database)/documents/projects/$(data.projectId)/floorPlans/$(data.floorPlanId)).data.projectId == data.projectId;
+      }
+      // Location projection (delta §C): Project stays canonical; a Unit
+      // may only ever store a location that PROVABLY matches its parent
+      // Project's CURRENT values at the moment of this write -- a client
+      // can never invent an independent location. `proj` is fetched once
+      // here (not once per field) to keep this within a sane get()-call
+      // budget for the whole rule.
+      function isValidUnitContent(data) {
+        let proj = get(/databases/$(database)/documents/projects/$(data.projectId)).data;
+        return proj.organizationId == data.organizationId
+            && data.unitNumber is string && data.unitNumber.size() > 0 && data.unitNumber.size() <= 60
+            && (!('floorNumber' in data) || data.floorNumber is int)
+            && isValidPropertyType(data.propertyType)
+            && isValidListingType(data.listingType)
+            && isValidUnitStatus(data.status)
+            && (!('moveInReadiness' in data) || isValidMoveInReadiness(data.moveInReadiness))
+            && data.priceAmount is int && data.priceAmount > 0
+            && isValidCurrency(data.currency)
+            && (!('rentPeriod' in data) || data.rentPeriod in ['monthly', 'yearly'])
+            && (!('installmentEligible' in data) || data.installmentEligible is bool)
+            && (!('totalAreaSqm' in data) || ((data.totalAreaSqm is int || data.totalAreaSqm is float) && data.totalAreaSqm > 0))
+            && (!('netAreaSqm' in data) || ((data.netAreaSqm is int || data.netAreaSqm is float) && data.netAreaSqm > 0))
+            && (!('bedrooms' in data) || (data.bedrooms is int && data.bedrooms >= 0 && data.bedrooms <= 20))
+            && (!('bathrooms' in data) || (data.bathrooms is int && data.bathrooms >= 0 && data.bathrooms <= 20))
+            && (!('livingRooms' in data) || (data.livingRooms is int && data.livingRooms >= 0 && data.livingRooms <= 10))
+            && (!('balconies' in data) || (data.balconies is int && data.balconies >= 0 && data.balconies <= 10))
+            && (!('hasKitchen' in data) || data.hasKitchen is bool)
+            && (!('buildingTotalFloors' in data) || (data.buildingTotalFloors is int && data.buildingTotalFloors >= 0))
+            && (!('parkingSpaces' in data) || (data.parkingSpaces is int && data.parkingSpaces >= 0))
+            && (!('hasStorageRoom' in data) || data.hasStorageRoom is bool)
+            && (!('gallery' in data) || (data.gallery is list && data.gallery.size() <= 30))
+            && (!('governorate' in data) || data.governorate is string)
+            && (!('city' in data) || data.city is string)
+            && (!('district' in data) || data.district is string)
+            && (!('location' in data) || isValidLocationMap(data.location))
+            && data.get('governorate', null) == proj.get('governorate', null)
+            && data.get('city', null) == proj.get('city', null)
+            && data.get('district', null) == proj.get('district', null)
+            && data.get('location', null) == proj.get('location', null)
+            && buildingBelongsToProject(data)
+            && floorPlanBelongsToProject(data);
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.organizationId is string
+                    && orgTypeIsProjectCapable(request.resource.data.organizationId)
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'create_unit')
+                    && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && isValidUnitContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'projectId', 'buildingId', 'floorPlanId', 'createdByUid',
+                         'unitNumber', 'floorNumber', 'propertyType', 'listingType', 'status',
+                         'moveInReadiness', 'priceAmount', 'currency', 'rentPeriod', 'installmentEligible',
+                         'totalAreaSqm', 'netAreaSqm', 'bedrooms', 'bathrooms', 'livingRooms',
+                         'balconies', 'hasKitchen', 'buildingTotalFloors', 'orientation',
+                         'parkingSpaces', 'hasStorageRoom', 'furnishing', 'condition', 'heating',
+                         'cooling', 'electricity', 'water', 'internet', 'coverImageUrl', 'gallery',
+                         'floorPlanImageUrl', 'videoUrl', 'virtualTourUrl', 'expectedHandoverDate',
+                         'governorate', 'city', 'district', 'location', 'createdAt', 'updatedAt'
+                       ]);
+      // organizationId/projectId/createdByUid/createdAt are all immutable
+      // -- an org can never "move" a unit into a different project or a
+      // different organization's inventory after the fact.
+      allow update: if request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.projectId == resource.data.projectId
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && (
+                         isAdmin()
+                         || (isOrgMember(resource.data.organizationId)
+                             && hasOrgPermission(resource.data.organizationId, 'edit_own_unit')
+                             && isValidUnitContent(request.resource.data)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'buildingId', 'floorPlanId', 'unitNumber', 'floorNumber', 'propertyType',
+                                    'listingType', 'status', 'moveInReadiness', 'priceAmount', 'currency',
+                                    'rentPeriod', 'installmentEligible', 'totalAreaSqm', 'netAreaSqm',
+                                    'bedrooms', 'bathrooms', 'livingRooms', 'balconies', 'hasKitchen',
+                                    'buildingTotalFloors', 'orientation', 'parkingSpaces', 'hasStorageRoom',
+                                    'furnishing', 'condition', 'heating', 'cooling', 'electricity', 'water',
+                                    'internet', 'coverImageUrl', 'gallery', 'floorPlanImageUrl', 'videoUrl',
+                                    'virtualTourUrl', 'expectedHandoverDate', 'governorate', 'city',
+                                    'district', 'location', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+    }
+
+    // ---- Active-listing uniqueness lock (Unit -> Listing publication) --
+    // Deterministic-document-ID reservation pattern, per the architecture
+    // delta's correction: Firestore Security Rules cannot run an
+    // arbitrary "does any active listing already exist for this
+    // unit+dealType" QUERY, so uniqueness is instead proven by a single,
+    // deterministically-addressable document whose id IS the uniqueness
+    // key (`unitId + '_' + dealType`). This needs no backend/Cloud
+    // Function/transaction: Firestore classifies a write to a given
+    // document path as `create` only when that document does not yet
+    // exist, and ALL writes to a single document are serialized by
+    // Firestore's backend -- so of any two concurrent attempts to create
+    // the SAME lockId, at most one is ever evaluated as `create` (the
+    // other is evaluated as `update`, which this rule always denies).
+    // This is Firestore's own documented, standard pattern for uniqueness
+    // constraints (the same idea used for e.g. "reserve a unique
+    // username"), not a novel mechanism.
+    //
+    // Required client protocol for a future publish UI (documented here
+    // since no such UI exists yet this phase): (1) create this lock doc
+    // FIRST, as its own committed write, with `activeListingId` set to a
+    // client-generated listing id; only after that succeeds, (2) create
+    // the `listings` doc at that same id with `status:'active'` -- the
+    // listings rule below independently re-verifies the lock exists and
+    // points at that exact listing id, so a listing can never "go active"
+    // without a lock it legitimately holds. To close/deactivate: (1)
+    // update the listing to `status:'closed'` FIRST, THEN (2) delete the
+    // lock to free the slot for a future listing -- never the reverse
+    // order, or a second listing could theoretically be published while
+    // the first is still active. A lock left behind after an incomplete
+    // publish (client crash mid-flow) is a liveness issue, not a security
+    // one -- recoverable by the same org's authorized member, or admin,
+    // deleting it; no Cloud Function/scheduled cleanup is built this
+    // phase.
+    match /activeListingLocks/{lockId} {
+      function isValidLockContent(data) {
+        return data.unitId is string
+            && data.dealType in ['sale', 'rent']
+            && lockId == (data.unitId + '_' + data.dealType)
+            && data.activeListingId is string
+            && data.organizationId is string;
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && isValidLockContent(request.resource.data)
+                    && get(/databases/$(database)/documents/units/$(request.resource.data.unitId)).data.organizationId == request.resource.data.organizationId
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'publish_unit_listing');
+      // Immutable once created -- a lock is claimed once and only ever
+      // deleted (to release), never edited in place; this is what makes
+      // the create-vs-update Firestore classification a real uniqueness
+      // proof rather than something a second write could sneak past by
+      // "updating" its way into holding the same slot.
+      allow update: if false;
+      allow delete: if isAdmin()
+                    || (isOrgMember(resource.data.organizationId) && hasOrgPermission(resource.data.organizationId, 'publish_unit_listing'));
     }
 
     // ---- Home goods / furniture catalog ----

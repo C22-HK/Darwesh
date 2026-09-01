@@ -144,6 +144,18 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
         "manage_projects",
         "manage_units",
         "manage_team",
+        # Real-estate Projects / Buildings / Floor Plans / Units (Phase 1
+        # of the multi-role real-estate ecosystem architecture -- mirrors
+        # firestore.rules' hasOrgPermission() checks in the projects/
+        # buildings/floorPlans/units/listings match blocks exactly).
+        "create_project",
+        "edit_own_project",
+        "create_building",
+        "edit_own_building",
+        "manage_floor_plans",
+        "create_unit",
+        "edit_own_unit",
+        "publish_unit_listing",
         # Installments
         "manage_installment_profile",
         "manage_installment_plans",
