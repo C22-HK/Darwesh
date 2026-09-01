@@ -52,6 +52,10 @@
   --ps-color-on-surface-variant: #A79F91;
   --ps-color-outline: #8E7448;
   --ps-color-outline-variant: #5D482B;
+  --ps-color-on-secondary-container: #F2EEE5;
+  --ps-color-surface-container-highest: #2A2418;
+  --ps-color-inverse-surface: #F2EEE5;
+  --ps-color-inverse-on-surface: #090A0A;
   --ps-focus-ring: 0 0 0 2px var(--ps-color-surface-bright), 0 0 0 4px var(--ps-color-secondary);
 
   /* Restrained corner system -- overrides the two shared radius tokens
@@ -101,22 +105,132 @@
   pointer-events: none;
 }
 
-/* ---- Tailwind utility overrides (compiled to literal hex at build
- * time, so they need their own scoped rule rather than a CSS variable). */
+/* =========================================================================
+ * Tailwind utility overrides -- SITE-WIDE UNIFICATION (Darwesh dark
+ * luxury). Tailwind's semantic color utilities (bg-background,
+ * text-on-surface, border-outline, ...) compile to literal hex values at
+ * build time (Tailwind has no runtime custom properties), so every one
+ * of them needs its own scoped override here -- there is no way to
+ * retheme them by changing a CSS variable alone.
+ *
+ * ROOT CAUSE of the About/Map/Buy/Rent/etc "still light" pages: those
+ * pages already use this exact same semantic token vocabulary (verified
+ * by grepping every non-cine-scope page -- they are built almost
+ * entirely from bg-background/text-on-surface/bg-primary-container/etc,
+ * NOT raw bg-white/bg-gray-500/bg-blue-600), but their <body> never
+ * carried the `cine-scope` class, so none of these overrides applied and
+ * they fell back to tailwind.config.js's literal light-theme hex values
+ * (e.g. primary-container: #1a2b3c navy, surface-variant: #e0e3e8 pale
+ * gray). Adding `cine-scope` to a page's <body> is what actually
+ * activates this palette -- see the per-page migration below. This
+ * block was previously a partial set (8 classes, only what the
+ * already-dark pages happened to use); it now covers every semantic
+ * bg-/text-/border- class used ANYWHERE in the codebase (audited via
+ * grep across all *.html + js/**\/*.js), so no page needs a one-off
+ * hack to retheme correctly once it opts in.
+ *
+ * Mapping principle (kept deliberately restrained, per the ~75/15/7/3
+ * dark/ivory/neutral/gold distribution): backgrounds always resolve to
+ * a dark neutral (obsidian/carbon/bronzed-black) or a real state color
+ * (error/success green) -- NEVER a large gold fill. Gold is reserved
+ * for text/icon/border accents (text-primary/text-secondary/
+ * border-primary/border-secondary), matching the existing convention
+ * below where text-primary was already gold while surfaces stay dark. */
 .cine-scope.bg-background,
-.cine-scope .bg-background { background-color: var(--ps-color-surface-bright); }
-.cine-scope .bg-surface-bright { background-color: var(--ps-color-surface-bright); }
-.cine-scope .bg-surface-container-lowest { background-color: var(--ps-color-surface-container-lowest); }
-.cine-scope .text-on-surface,
-.cine-scope.text-on-surface { color: var(--ps-color-on-surface); }
-.cine-scope .text-on-surface-variant { color: var(--ps-color-on-surface-variant); }
-.cine-scope .text-primary { color: var(--cine-gold-2); }
-.cine-scope .text-secondary { color: var(--cine-gold-1); }
-.cine-scope .text-error { color: var(--ps-color-error); }
-.cine-scope .border-outline-variant { border-color: var(--ps-color-outline-variant); }
-.cine-scope .hover\:bg-surface-container:hover { background-color: var(--ps-color-surface-container); }
+.cine-scope .bg-background,
+.cine-scope .bg-surface,
+.cine-scope .bg-surface-bright,
+.cine-scope .bg-primary { background-color: var(--ps-color-surface-bright); }
+.cine-scope .bg-surface-dim { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .bg-surface-variant,
+.cine-scope .bg-surface-container { background-color: var(--ps-color-surface-container); }
+.cine-scope .bg-surface-container-low { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .bg-surface-container-lowest,
+.cine-scope .bg-primary-container,
+.cine-scope .bg-primary-fixed { background-color: var(--ps-color-surface-container-lowest); }
+.cine-scope .bg-surface-container-high { background-color: var(--ps-color-surface-container-high); }
+.cine-scope .bg-surface-container-highest { background-color: var(--ps-color-surface-container-highest); }
+.cine-scope .bg-surface-tint,
+.cine-scope .bg-outline { background-color: var(--ps-color-outline-variant); }
+.cine-scope .bg-secondary { background-color: var(--ps-color-secondary); }
+.cine-scope .bg-secondary-container { background-color: var(--ps-color-surface-container-high); }
+.cine-scope .bg-tertiary-container { background-color: var(--ps-color-tertiary-container); }
+.cine-scope .bg-on-tertiary-container { background-color: var(--ps-color-on-tertiary-container); }
+.cine-scope .bg-on-primary,
+.cine-scope .bg-white { background-color: var(--ps-color-on-primary); }
+.cine-scope .bg-on-secondary-container { background-color: var(--ps-color-secondary-container); }
+.cine-scope .bg-on-secondary-fixed-variant { background-color: var(--ps-color-outline); }
+.cine-scope .bg-inverse-surface { background-color: var(--ps-color-inverse-surface); }
+.cine-scope .bg-error { background-color: var(--ps-color-error); }
+.cine-scope .bg-error-container { background-color: var(--ps-color-error-container); }
+.cine-scope .hover\:bg-surface-container:hover,
+.cine-scope .hover\:bg-surface-variant:hover { background-color: var(--ps-color-surface-container); }
+.cine-scope .hover\:bg-surface-container-low:hover { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .hover\:bg-surface-container-lowest:hover,
+.cine-scope .hover\:bg-primary-container:hover,
+.cine-scope .hover\:bg-primary-fixed:hover { background-color: var(--ps-color-surface-container-lowest); }
 .cine-scope .hover\:bg-surface-container-high:hover { background-color: var(--ps-color-surface-container-high); }
-.cine-scope .hover\:text-primary:hover { color: var(--cine-gold-2); }
+.cine-scope .hover\:bg-surface-container-highest:hover { background-color: var(--ps-color-surface-container-highest); }
+.cine-scope .hover\:bg-primary:hover { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .hover\:bg-secondary:hover { background-color: var(--cine-gold-2); }
+.cine-scope .hover\:bg-secondary-container:hover { background-color: var(--ps-color-surface-container-highest); }
+.cine-scope .hover\:bg-on-secondary-container:hover { background-color: var(--ps-color-outline-variant); }
+.cine-scope .hover\:bg-error-container:hover { background-color: var(--ps-color-error-container); }
+.cine-scope .hover\:bg-white:hover { background-color: var(--ps-color-on-primary); }
+
+.cine-scope .text-on-surface,
+.cine-scope.text-on-surface,
+.cine-scope .text-on-background,
+.cine-scope .text-on-primary,
+.cine-scope .text-on-primary-container,
+.cine-scope .text-on-primary-fixed,
+.cine-scope .text-on-secondary-container,
+.cine-scope .text-on-error-container,
+.cine-scope .text-secondary-container,
+.cine-scope .text-white,
+.cine-scope .hover\:text-on-primary:hover,
+.cine-scope .hover\:text-on-primary-container:hover,
+.cine-scope .hover\:text-on-secondary-container:hover { color: var(--ps-color-on-surface); }
+.cine-scope .text-on-surface-variant,
+.cine-scope .text-outline-variant { color: var(--ps-color-on-surface-variant); }
+.cine-scope .text-primary,
+.cine-scope .text-primary-container,
+.cine-scope .border-primary-container,
+.cine-scope .hover\:text-primary:hover,
+.cine-scope .hover\:text-primary-container:hover { color: var(--cine-gold-2); }
+.cine-scope .text-secondary,
+.cine-scope .text-secondary-fixed,
+.cine-scope .text-primary-fixed-dim,
+.cine-scope .text-secondary-fixed-dim,
+.cine-scope .text-outline,
+.cine-scope .hover\:text-secondary:hover { color: var(--cine-gold-1); }
+.cine-scope .text-on-secondary,
+.cine-scope .text-inverse-primary { color: var(--ps-color-on-secondary); }
+.cine-scope .text-on-tertiary-container,
+.cine-scope .text-tertiary-fixed { color: var(--ps-color-on-tertiary-container); }
+.cine-scope .text-error,
+.cine-scope .hover\:text-error:hover { color: var(--ps-color-error); }
+
+.cine-scope .border-outline-variant,
+.cine-scope .border-primary-fixed,
+.cine-scope .border-secondary-container,
+.cine-scope .border-surface,
+.cine-scope .border-surface-variant,
+.cine-scope .border-surface-container-high,
+.cine-scope .border-surface-container-lowest { border-color: var(--ps-color-outline-variant); }
+.cine-scope .border-outline { border-color: var(--ps-color-outline); }
+.cine-scope .border-primary,
+.cine-scope .hover\:border-primary:hover { border-color: var(--cine-gold-2); }
+.cine-scope .border-secondary,
+.cine-scope .hover\:border-secondary:hover { border-color: var(--cine-gold-1); }
+.cine-scope .border-tertiary-container,
+.cine-scope .border-tertiary-fixed-dim { border-color: rgba(127, 184, 154, 0.35); }
+.cine-scope .border-inverse-surface,
+.cine-scope .border-white { border-color: rgba(242, 238, 229, 0.35); }
+.cine-scope .border-error { border-color: var(--ps-color-error); }
+
+.cine-scope .focus\:ring-primary:focus { --tw-ring-color: var(--cine-gold-2); }
+.cine-scope .focus\:ring-secondary:focus { --tw-ring-color: var(--cine-gold-1); }
 /* =========================================================================
  * Language selector -- premium flag-based control. Behavior (open/close,
  * keyboard nav, aria-expanded/aria-current, setLanguage()/localStorage

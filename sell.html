@@ -21,57 +21,59 @@ violation reporting. -->
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Sell a Property</title>
 <link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <style>
     body { min-height: max(884px, 100dvh); }
-    input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #775a19; border-color: transparent; }
-    #pinMap { background: #e5e8ee; }
-    .dropzone.drag-over { background: #f1f4f9; border-color: #775a19; }
+    input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #B89A63; border-color: transparent; }
+    #pinMap { background: #101111; }
+    .dropzone.drag-over { background: #221E15; border-color: #8E7448; }
 
     /* Step indicator */
     .step-indicator { display: flex; align-items: flex-start; justify-content: space-between; }
     .step-indicator .step-item { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; position: relative; }
     .step-indicator .step-item:not(:last-child)::after {
       content: ""; position: absolute; top: 15px; left: calc(50% + 22px); width: calc(100% - 44px); height: 0;
-      border-top: 2px dashed #c4c6cd;
+      border-top: 2px dashed #5D482B;
     }
     html[dir="rtl"] .step-indicator .step-item:not(:last-child)::after { left: auto; right: calc(50% + 22px); }
-    .step-indicator .step-item.done:not(:last-child)::after { border-top-color: #775a19; border-top-style: solid; }
+    .step-indicator .step-item.done:not(:last-child)::after { border-top-color: #8E7448; border-top-style: solid; }
     .step-indicator .step-circle {
       width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 700; border: 2px solid #c4c6cd; color: #74777d; background: #ffffff; z-index: 1;
+      font-size: 13px; font-weight: 700; border: 2px solid #5D482B; color: #A79F91; background: #17150F; z-index: 1;
       transition: all .2s ease;
     }
-    .step-indicator .step-item.active .step-circle { border-color: #775a19; background: #775a19; color: #ffffff; }
-    .step-indicator .step-item.done .step-circle { border-color: #775a19; background: #fed488; color: #5d4201; }
-    .step-indicator .step-label { font-size: 11px; font-weight: 600; color: #74777d; text-align: center; }
-    .step-indicator .step-item.active .step-label { color: #775a19; }
-    .step-indicator .step-item.done .step-label { color: #181c20; }
+    .step-indicator .step-item.active .step-circle { border-color: #B89A63; background: #B89A63; color: #090A0A; }
+    .step-indicator .step-item.done .step-circle { border-color: #8E7448; background: #8E7448; color: #090A0A; }
+    .step-indicator .step-label { font-size: 11px; font-weight: 600; color: #A79F91; text-align: center; }
+    .step-indicator .step-item.active .step-label { color: #B89A63; }
+    .step-indicator .step-item.done .step-label { color: #F2EEE5; }
     .step-indicator .step-item.clickable { cursor: pointer; }
 
     .wizard-step.hidden { display: none; }
 
     /* Counters */
-    .counter-widget { border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px 8px; text-align: center; }
+    .counter-widget { border: 1px solid #5D482B; border-radius: 0.5rem; padding: 10px 8px; text-align: center; }
     .counter-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; }
-    .counter-btn { width: 26px; height: 26px; border-radius: 999px; border: 1px solid #c4c6cd; background: #ffffff; display: flex; align-items: center; justify-content: center; }
-    .counter-btn:active { background: #f1f4f9; }
+    .counter-btn { width: 26px; height: 26px; border-radius: 999px; border: 1px solid #5D482B; background: #17150F; display: flex; align-items: center; justify-content: center; }
+    .counter-btn:active { background: #221E15; }
     .counter-value { min-width: 20px; font-weight: 700; font-size: 14px; }
 
     /* Amenity + toggle chips */
     .chip-toggle {
-      border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px 12px; font-size: 13px; font-weight: 600;
-      display: flex; align-items: center; gap: 6px; color: #44474c; background: #ffffff; transition: all .15s ease;
+      border: 1px solid #5D482B; border-radius: 0.5rem; padding: 10px 12px; font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px; color: #A79F91; background: #17150F; transition: all .15s ease;
     }
-    .chip-toggle.active { border-color: #775a19; background: #fef6e6; color: #5d4201; }
+    .chip-toggle.active { border-color: #B89A63; background: #B89A63; color: #090A0A; }
     .pill-toggle {
-      flex: 1; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px; font-size: 13px; font-weight: 700;
-      color: #44474c; background: #ffffff;
+      flex: 1; border: 1px solid #5D482B; border-radius: 0.5rem; padding: 10px; font-size: 13px; font-weight: 700;
+      color: #A79F91; background: #17150F;
     }
-    .pill-toggle.active { border-color: #775a19; background: #fef6e6; color: #5d4201; }
+    .pill-toggle.active { border-color: #B89A63; background: #B89A63; color: #090A0A; }
 
     .photo-thumb[draggable="true"] { cursor: grab; }
     .photo-thumb.dragging { opacity: 0.4; }
@@ -90,7 +92,7 @@ violation reporting. -->
     }
   </style>
   </head>
-<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
 <!-- TopAppBar -->
 <header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
 <div class="flex items-center gap-4">
