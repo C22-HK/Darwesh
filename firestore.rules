@@ -1569,7 +1569,16 @@ service cloud.firestore {
                        ])
                     && (
                          isAdmin()
-                         || isAgent()
+                         // BUG FIX (found during a site-wide bug hunt): this branch used to be
+                         // plain `isAgent()`, with no restriction on organizationId -- since
+                         // that field is in the create allowlist above regardless of which OR
+                         // branch actually authorizes the write, any agent (unrelated to any
+                         // org, holding no create_estate grant anywhere) could set
+                         // organizationId to any real org's id in the same request, falsely
+                         // attributing an Estate to a rival developer/community. Mirrors the
+                         // update rule's own already-correct `isAgent() && !('organizationId'
+                         // in resource.data)` restriction, which this create rule was missing.
+                         || (isAgent() && !('organizationId' in request.resource.data))
                          || (request.resource.data.organizationId is string
                              && isOrgMember(request.resource.data.organizationId)
                              && hasOrgPermission(request.resource.data.organizationId, 'create_estate'))

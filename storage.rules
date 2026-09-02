@@ -19,11 +19,13 @@ rules_version = '2';
 // - listing-photos/{token}/{fileName} — photos uploaded from the Add/Edit
 //   Listing form in admin.html and agent-dashboard.html. Both require a
 //   signed-in agent or admin already (enforced by those pages' own auth
-//   gates), so this only requires request.auth != null rather than
-//   checking a specific role — Storage rules can't cheaply check the
-//   Firestore listings doc's agentId the way firestore.rules does for
-//   the listing itself, and every signed-in user on this project is
-//   already an agent or admin (customers never reach these pages).
+//   gates); the rule itself also cross-checks the caller's
+//   users/{uid}.role via firestore.get() (same pattern as isAdmin()
+//   below) rather than trusting request.auth != null alone — Storage
+//   rules can't cheaply check the Firestore listings doc's agentId the
+//   way firestore.rules does for the listing itself, but it CAN cheaply
+//   confirm the caller is an agent or admin at all, which a plain
+//   signed-in customer or other self-registered account type is not.
 //
 // - agent-photos/{uid}/{fileName} — an agent's own profile photo,
 //   uploaded from agent-dashboard.html. Unlike listing-photos, this one
@@ -74,6 +76,10 @@ service firebase.storage {
       return request.auth != null
         && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    function isAgentOrAdmin() {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['agent', 'admin'];
+    }
     match /sell-submissions/{token}/{fileName} {
       allow read: if true;
       allow write: if request.resource.size < 10 * 1024 * 1024
@@ -88,7 +94,18 @@ service firebase.storage {
     }
     match /listing-photos/{token}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
+      // BUG FIX (site-wide bug hunt): this used to only check
+      // request.auth != null, on the assumption that "every signed-in
+      // user on this project is already an agent or admin (customers
+      // never reach these pages)" -- that stopped being true once
+      // self-registered non-agent account types (individual_customer,
+      // professional_engineer, org_owner_*, etc.) existed. Any of those
+      // signed-in users could write arbitrary images into this public,
+      // unauthenticated-read path directly via the SDK, bypassing the
+      // Add/Edit Listing form's own UI gate. Tightened to a real
+      // firestore.get() role cross-check, the same pattern company-logos
+      // and professional-work below already use.
+      allow write: if isAgentOrAdmin()
                      && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
@@ -108,12 +125,11 @@ service firebase.storage {
       allow delete: if false;
     }
     // company-logos/{companyId}/{fileName} -- Phase 3's Real Estate
-    // Office profile logo upload. Unlike listing-photos (any signed-in
-    // user, because every signed-in user on this project used to be an
-    // agent or admin), this checks REAL ownership via a Firestore
-    // cross-check, the same firestore.get() pattern this file already
-    // uses for isAdmin() -- a customer or an unrelated agent cannot
-    // upload into another office's logo path. Mirrors
+    // Office profile logo upload. Unlike listing-photos (any agent or
+    // admin), this checks REAL ownership via a Firestore cross-check,
+    // the same firestore.get() pattern this file already uses for
+    // isAdmin() -- a customer or an unrelated agent cannot upload into
+    // another office's logo path. Mirrors
     // firestore.rules' companies.ownerId lock: an ownerless company
     // (see that file's Phase 3 comment) has no matching uid here
     // either, so it is only writable by an admin, never self-claimable

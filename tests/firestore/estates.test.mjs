@@ -108,6 +108,19 @@ describe('ESTATE — create', () => {
     await assertSucceeds(setDoc(doc(db, 'estates', '1'), validEstate({ createdByUid: 'agent-1' })));
   });
 
+  // BUG FIX regression (site-wide bug hunt): the plain-agent create branch
+  // used to have no restriction on organizationId at all, so any agent
+  // (unrelated to any org, holding no create_estate grant) could set
+  // organizationId to a real org's id in the same request and have it
+  // accepted purely via the isAgent() branch, bypassing the org-membership
+  // check entirely.
+  it('a plain agent CANNOT attach an organizationId they have no membership/permission for', async () => {
+    await seedOrg(DEV_ORG, { ownerId: OWNER, type: 'developer_project', name: 'Darwesh Developments', verified: false });
+    await seedUser('agent-1', { role: 'agent', companyId: 'co-1', createdAt: 1 });
+    const db = dbFor(testEnv, 'agent-1');
+    await assertFails(setDoc(doc(db, 'estates', '1'), validEstate({ organizationId: DEV_ORG, createdByUid: 'agent-1' })));
+  });
+
   it('an authorized org member (global role-default grant) can create an Estate for their org', async () => {
     await seedOrg(DEV_ORG, { ownerId: OWNER, type: 'developer_project', name: 'Darwesh Developments', verified: false });
     await seedOwnerViaRoleDefaults();
