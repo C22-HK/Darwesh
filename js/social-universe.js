@@ -75,7 +75,7 @@ function build(mount, platforms) {
           </button>
         </div>
       </div>
-      <div class="so-caption" id="soCaption"></div>
+      <div class="so-caption" id="soCaption" aria-live="polite" aria-atomic="true"></div>
       <p class="so-hint" id="soHint">${esc(tr('social.dragHint', 'Drag, swipe, or use the arrow keys to explore'))}</p>
     </div>
   `;
