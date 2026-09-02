@@ -39,39 +39,32 @@ violation reporting. -->
 <script src="./js/site-header.js"></script>
 <div id="siteMobileNav" data-active="services"></div>
 <script src="./js/site-mobile-nav.js"></script>
-<main class="px-margin-mobile md:px-margin-desktop py-stack-lg max-w-container-max mx-auto space-y-stack-lg">
-<!-- Hero Section -->
-<section class="text-center space-y-stack-md">
-<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-primary" data-i18n="services.title">Darwesh Services</h1>
-<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto" data-i18n="services.heroSubtitle">
-                A complete ecosystem for all your property needs, bridging traditional real estate values with PropTech innovation.
-            </p>
-</section>
-<!-- Service Universe -- premium interactive discovery for Darwesh's real
-     professional service marketplace (Engineering, Design, Legal,
-     Landscaping, Cleaning -- see js/service-catalog.js's header comment
-     for why exactly these five and no others). The 3D orbital layer is
-     entirely optional/progressive -- the list immediately below it is
-     the same 5 services, always present, always fully keyboard/screen-
+<main class="px-margin-mobile md:px-margin-desktop py-stack-md max-w-container-max mx-auto space-y-stack-lg">
+<!-- Service Universe -- the page's hero. Premium interactive discovery
+     for Darwesh's real professional service marketplace (Engineering,
+     Design, Legal, Landscaping, Cleaning -- see js/service-catalog.js's
+     header comment for why exactly these five and no others). The
+     title/intro copy that used to be a separate hero section above this
+     now lives INSIDE the universe's own info column (its idle state --
+     see js/service-universe.js's renderIdleInfo()), so the page never
+     spends a whole extra section's worth of vertical space on both a
+     hero AND the universe. The orbital layer is entirely optional/
+     progressive -- the strip of real links immediately below it is the
+     same 5 services, always present, always fully keyboard/screen-
      reader usable, and is what a browser with JS disabled or the
      Universe's own fallback path (js/service-universe.js) falls back to. -->
 <section>
-<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="svc.universeTitle">Explore the Darwesh Service Universe</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md" data-i18n="svc.universeSubtitle">Real professionals, verified by Darwesh. Drag, swipe, or select a service to learn more.</p>
 <div id="serviceUniverse"></div>
-</section>
-
 <!-- Accessible alternative -- not a fallback-only afterthought, a
-     first-class equivalent (section 13's explicit requirement). -->
-<section>
-<h2 class="font-headline-md text-headline-md text-primary mb-stack-md" data-i18n="svc.allServicesTitle">All Services</h2>
-<div class="su-list-grid" id="allServicesList"></div>
+     first-class equivalent, redrawn as a slim editorial strip of real
+     links rather than a grid of dashboard cards. -->
+<nav class="su-strip" id="allServicesStrip" aria-label="All services"></nav>
 </section>
 <!-- Browse Apartments by City -->
 <section>
 <h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="services.browseByCityTitle">Browse Apartments by City</h2>
 <p class="font-body-md text-body-md text-on-surface-variant mb-stack-md" data-i18n="services.browseByCitySubtitle">Jump straight to verified apartment listings in the city you're looking for — no extra searching needed.</p>
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="cityBrowseGrid"></div>
+<div class="svc-city-row" id="cityBrowseGrid"></div>
 </section>
 <!-- Smart Map Promo -->
 <section class="bg-primary text-on-primary rounded-xl overflow-hidden relative border border-primary-container shadow-lg">
@@ -122,19 +115,14 @@ violation reporting. -->
     return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function renderAllServicesList() {
-    const grid = document.getElementById('allServicesList');
-    grid.innerHTML = SERVICE_CATALOG.map((svc) => `
-      <a class="su-list-card" href="${svc.directoryHref}">
-        <span class="su-list-icon"><span class="material-symbols-outlined" aria-hidden="true">${svc.icon}</span></span>
-        <span class="min-w-0">
-          <span class="su-list-name block truncate">${esc(tr(svc.titleKey, svc.title))}</span>
-          <span class="su-list-tagline block truncate">${esc(tr(svc.taglineKey, svc.tagline))}</span>
-        </span>
-      </a>`).join('');
+  function renderAllServicesStrip() {
+    const strip = document.getElementById('allServicesStrip');
+    const label = `<span class="su-strip-label">${esc(tr('svc.allServicesTitle', 'All Services'))}</span>`;
+    const links = SERVICE_CATALOG.map((svc, i) => `${i > 0 ? '<span class="su-strip-sep" aria-hidden="true">&middot;</span>' : ''}<a class="su-strip-link" href="${svc.directoryHref}">${esc(tr(svc.titleKey, svc.title))}</a>`).join('');
+    strip.innerHTML = label + links;
   }
-  renderAllServicesList();
-  document.addEventListener('darwesh:langchange', renderAllServicesList);
+  renderAllServicesStrip();
+  document.addEventListener('darwesh:langchange', renderAllServicesStrip);
 
   initServiceUniverse('serviceUniverse');
 </script>
@@ -154,22 +142,16 @@ function renderCityBrowseGrid() {
   const grid = document.getElementById('cityBrowseGrid');
   if (!grid) return;
   const counts = cityApartmentCounts || {};
-  grid.innerHTML = BROWSE_CITIES.map(city => {
+  // Editorial row -- a city with zero listings still gets a real link
+  // (browsing an empty city is honest, not broken), but the "0" is
+  // deliberately small/muted text, never a dominant badge, per this
+  // pass's explicit "do not make a zero count a visually dominant
+  // feature" instruction.
+  grid.innerHTML = BROWSE_CITIES.map((city, i) => {
     const count = counts[city] || 0;
     const label = (window.cityLabel && window.cityLabel(city)) || city;
-    return `
-      <a href="buy.html?type=apartment&city=${encodeURIComponent(city)}" class="group flex items-center justify-between bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3.5 hover:border-primary hover:shadow-[0_4px_16px_rgba(26,43,60,0.06)] transition-all">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors flex-none">
-            <span class="material-symbols-outlined text-[20px]">location_on</span>
-          </div>
-          <span class="font-body-lg text-body-lg font-medium text-on-surface truncate">${label}</span>
-        </div>
-        <div class="flex items-center gap-1 text-on-surface-variant flex-none">
-          <span class="font-data-mono text-data-mono text-[13px]">${count}</span>
-          <span class="material-symbols-outlined text-[18px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-        </div>
-      </a>`;
+    const sep = i > 0 ? '<span class="svc-city-sep" aria-hidden="true">&middot;</span>' : '';
+    return `${sep}<a href="buy.html?type=apartment&city=${encodeURIComponent(city)}" class="svc-city-link">${label}<span class="svc-city-count">(${count})</span></a>`;
   }).join('');
 }
 

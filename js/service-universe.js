@@ -1,32 +1,40 @@
 // Darwesh Group -- Service Universe interaction engine (services.html).
 //
+// VISUAL REFINEMENT PASS NOTE: this pass changed composition (bigger
+// stage, worlds instead of icon-buttons, an in-place editorial info
+// column instead of a floating panel) but NOT the interaction state
+// machine. orbitAngle/focusedIndex are still the only two pieces of
+// state; drag/wheel/keyboard/click semantics, the deep-link contract,
+// the reduced-motion/visibility-pause behavior, and the Firestore-
+// isolation architecture below are byte-for-byte the same design as
+// before -- only what layout()/selectPlanet()/deselect() render into
+// changed.
+//
 // Renders the 5 real service domains from js/service-catalog.js as an
-// orbital "carousel" of planets around a central Darwesh Core, driven
-// entirely by CSS 3D transforms (perspective + rotateY + translateZ) and
+// orbital field of "worlds" around an ambient Darwesh Core, driven
+// entirely by CSS transforms (translate/scale/opacity/filter) and
 // requestAnimationFrame -- no canvas, no WebGL, no external animation
-// library (per this phase's explicit "prefer lightweight DOM/CSS 3D"
-// instruction). A single JS number (`orbitAngle`, degrees) is the whole
-// state driving every planet's position; drag/swipe/wheel/keyboard all
+// library. A single JS number (`orbitAngle`, degrees) is the whole
+// state driving every world's position; drag/swipe/wheel/keyboard all
 // just mutate that one number.
 //
-// FIRESTORE ISOLATION (per this phase's explicit "never connect
-// Firestore reads to continuous rendering" instruction): the ONLY
+// FIRESTORE ISOLATION (unchanged from the previous pass): the ONLY
 // Firestore reads this module performs are five bounded COUNT
 // aggregation queries (getCountFromServer -- never downloads documents),
 // run exactly ONCE at init, fully decoupled from the animation loop.
 // Nothing here ever issues a Firestore read from inside the drag handler,
-// the rAF loop, or the focus-panel renderer -- those three consume only
+// the rAF loop, or the info-column renderer -- those three consume only
 // already-resolved, cached numbers.
 //
 // Firestore/firebase-init.js is imported DYNAMICALLY inside loadCounts()
-// below, never as a static top-level import: a static `import ... from
-// './firebase-init.js'` would fail the ENTIRE module (planets, drag,
-// keyboard, panel -- none of which need Firestore at all) if the
-// Firebase CDN is ever unreachable, which is exactly the "Fallback Mode"
-// failure this phase explicitly says never to allow (section 26). A
-// failed dynamic import inside a try/catch degrades to honest fallback
-// copy in the panel instead (see renderPanel), same pattern buy.html
-// already uses for its own optional Firestore-backed enhancements.
+// below, never as a static top-level import: a static import would fail
+// the ENTIRE module (worlds, drag, keyboard, info column -- none of
+// which need Firestore at all) if the Firebase CDN is ever unreachable,
+// which is exactly the "Fallback Mode" failure this feature must never
+// allow. A failed dynamic import inside a try/catch degrades to honest
+// fallback copy in the info column instead (see renderFocusedInfo), same
+// pattern buy.html already uses for its own optional Firestore-backed
+// enhancements.
 import { SERVICE_CATALOG } from './service-catalog.js';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -41,13 +49,12 @@ export function initServiceUniverse(mountId) {
   try {
     build(mount);
   } catch (err) {
-    // Fallback mode (section 26): anything going wrong in the 3D
-    // interaction layer must never leave the user with a black screen,
-    // an empty canvas, or dead controls -- fall back to the always-
-    // present accessible list, which lives outside this module's DOM
-    // entirely (see services.html) and needs no JS from this file to
-    // work at all.
-    console.error('Service Universe failed to initialize; accessible list remains available.', err);
+    // Fallback mode: anything going wrong in the interactive layer must
+    // never leave the user with a black screen, an empty stage, or dead
+    // controls -- fall back to the always-present accessible strip,
+    // which lives outside this module's DOM entirely (see services.html)
+    // and needs no JS from this file to work at all.
+    console.error('Service Universe failed to initialize; the accessible strip remains available.', err);
     mount.innerHTML = '';
     mount.classList.add('hidden');
   }
@@ -59,38 +66,35 @@ function build(mount) {
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   mount.innerHTML = `
-    <div class="su-stage" id="suStage">
-      <div class="su-core" aria-hidden="true">
-        <div class="su-core-ring"></div>
-        <div class="su-core-ring su-core-ring--2"></div>
-        <div class="su-core-glow"></div>
+    <div class="su-layout su-atmosphere">
+      <div class="su-info-col">
+        <div class="su-info-content" id="suInfoContent"></div>
       </div>
-      <div class="su-orbit" id="suOrbit" role="listbox" aria-label="${esc(tr('svc.universeAriaLabel', 'Darwesh service planets'))}"></div>
-      <div class="su-nav">
-        <button type="button" class="su-nav-btn" id="suPrevBtn" aria-label="${esc(tr('svc.prevService', 'Previous service'))}">
-          <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
-        </button>
-        <button type="button" class="su-nav-btn" id="suNextBtn" aria-label="${esc(tr('svc.nextService', 'Next service'))}">
-          <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
-        </button>
+      <div class="su-stage-col">
+        <div class="su-stage" id="suStage" tabindex="-1">
+          <div class="su-core-glow" aria-hidden="true"></div>
+          <div class="su-core-ring" aria-hidden="true"></div>
+          <div class="su-orbit" id="suOrbit" role="listbox" aria-label="${esc(tr('svc.universeAriaLabel', 'Darwesh service planets'))}"></div>
+          <div class="su-nav">
+            <button type="button" class="su-nav-btn" id="suPrevBtn" aria-label="${esc(tr('svc.prevService', 'Previous service'))}">
+              <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+            </button>
+            <button type="button" class="su-nav-btn" id="suNextBtn" aria-label="${esc(tr('svc.nextService', 'Next service'))}">
+              <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+            </button>
+          </div>
+        </div>
+        <p class="su-hint" id="suHint">${esc(tr('svc.dragHint', 'Drag, swipe, or use the arrow keys to explore'))}</p>
       </div>
     </div>
-    <div class="su-panel" id="suPanel" hidden>
-      <button type="button" class="su-panel-close" id="suPanelClose" aria-label="${esc(tr('svc.closePanel', 'Close'))}">
-        <span class="material-symbols-outlined" aria-hidden="true">close</span>
-      </button>
-      <div id="suPanelBody"></div>
-    </div>
-    <p class="su-hint" id="suHint">${esc(tr('svc.dragHint', 'Drag, swipe, or use the arrow keys to explore'))}</p>
   `;
 
   const orbitEl = document.getElementById('suOrbit');
   const stageEl = document.getElementById('suStage');
-  const panelEl = document.getElementById('suPanel');
-  const panelBodyEl = document.getElementById('suPanelBody');
+  const infoEl = document.getElementById('suInfoContent');
   const hintEl = document.getElementById('suHint');
 
-  // ---- Planet DOM (built once from the catalog; the ONLY thing the
+  // ---- World DOM (built once from the catalog; the ONLY thing the
   // rAF loop and drag handler ever mutate afterwards is CSS transforms/
   // classes on these already-built nodes). --------------------------
   const planetButtons = SERVICE_CATALOG.map((svc, i) => {
@@ -138,7 +142,7 @@ function build(mount) {
   }
 
   function frontIndex() {
-    // Whichever planet's own angle is closest to 0 (directly facing the
+    // Whichever world's own angle is closest to 0 (directly facing the
     // viewer) is the current "front" one -- used for idle de-emphasis
     // AND as the target when snapping after drag/wheel/keyboard input.
     let best = 0, bestAbs = Infinity;
@@ -149,42 +153,57 @@ function build(mount) {
     return best;
   }
 
+  // ---- Sizing per breakpoint -- base world diameter (--su-base, a CSS
+  // custom property every .su-planet reads for width/height) and orbit
+  // radius. Bigger worlds this pass (was 96px flat, now up to ~220px at
+  // focus) need a proportionally larger radius so neighbors still clear
+  // the front world without overlapping. -------------------------------
+  function metrics() {
+    const w = window.innerWidth;
+    if (w < 640) return { base: 96, radiusX: 168, arcDip: 10 };
+    if (w < 900) return { base: 118, radiusX: 250, arcDip: 16 };
+    if (w < 1280) return { base: 138, radiusX: 340, arcDip: 20 };
+    return { base: 150, radiusX: 400, arcDip: 24 };
+  }
+
   function layout() {
-    const isNarrow = window.innerWidth < 640;
-    const radiusX = isNarrow ? 140 : window.innerWidth < 1024 ? 210 : 300;
-    const arcDip = isNarrow ? 14 : 22;
+    const { base, radiusX, arcDip } = metrics();
+    orbitEl.style.setProperty('--su-base', base + 'px');
     for (let i = 0; i < N; i++) {
       const planetAngle = i * STEP + orbitAngle;
       const rel = normalize(planetAngle);
       const rad = rel * Math.PI / 180;
-      const depth = Math.cos(rad); // 1 = front, -1 = directly behind the front planet
+      const depth = Math.cos(rad); // 1 = front, -1 = directly behind the front world
       const btn = planetButtons[i];
       // Plain 2D screen-space placement, linear in `rel` (not sin(rel)):
-      // with only 5 planets spaced 72deg apart, two of them always sit
+      // with only 5 worlds spaced 72deg apart, two of them always sit
       // beyond 90deg -- sin() stops being monotonic past 90deg, so it
       // swings those two back TOWARD center instead of further out,
-      // overlapping their 72deg neighbors (found during this phase's own
-      // QA pass). A plain linear map of angle-to-x is monotonic across
-      // the whole range by construction, so every planet's left-to-right
-      // ORDER always matches its actual position around the ring, with
-      // no overlap regardless of N. `depth` (cos(rel)) still separately
-      // drives the scale/opacity falloff below, which is what actually
-      // produces the "near vs far" orbit read.
+      // overlapping their 72deg neighbors. A plain linear map of angle-
+      // to-x is monotonic across the whole range by construction, so
+      // every world's left-to-right ORDER always matches its actual
+      // position around the ring, with no overlap regardless of N.
+      // `depth` (cos(rel)) still separately drives the scale/opacity/
+      // blur falloff below, which is what actually produces the "near
+      // vs far" orbit read.
       const x = (rel / 180) * radiusX;
       const y = (1 - depth) * arcDip;
-      const scale = focusedIndex === i ? 1.3 : 0.62 + 0.38 * ((depth + 1) / 2);
-      const opacity = focusedIndex !== null && focusedIndex !== i ? 0.3 : 0.5 + 0.5 * ((depth + 1) / 2);
+      const scale = focusedIndex === i ? 1.5 : 0.45 + 0.55 * ((depth + 1) / 2);
+      const opacity = focusedIndex !== null && focusedIndex !== i ? 0.28 : 0.48 + 0.52 * ((depth + 1) / 2);
       btn.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale})`;
       btn.style.opacity = String(opacity);
       btn.style.zIndex = String(Math.round((depth + 1) * 100));
       btn.classList.toggle('su-planet--front', i === frontIndex() && focusedIndex === null);
+      btn.classList.toggle('su-planet--far', depth < -0.3 && focusedIndex !== i);
     }
   }
 
   // ---- Idle auto-orbit (paused on reduced-motion, hidden tab, drag,
-  // and while a planet is focused -- an enlarged focused planet must
-  // hold still, not drift). Uses rAF with a delta-time step so it's
-  // frame-rate independent and trivially pausable/resumable. ----------
+  // and while a world is focused -- an enlarged focused world must hold
+  // still, not drift). Uses rAF with a delta-time step so it's frame-
+  // rate independent and trivially pausable/resumable. Deliberately
+  // almost imperceptible (per this pass's explicit "idle motion can be
+  // almost imperceptible" instruction) -- slower than the previous pass. --
   let lastFrameTime = null;
   function idleTick(t) {
     if (paused || dragging || focusedIndex !== null || reduceMotion) {
@@ -194,7 +213,7 @@ function build(mount) {
     }
     if (lastFrameTime !== null) {
       const dt = t - lastFrameTime;
-      orbitAngle += dt * 0.006; // very slow drift, ~1 rotation/minute
+      orbitAngle += dt * 0.0035; // very slow drift, well under 1 rotation/minute
       layout();
     }
     lastFrameTime = t;
@@ -206,7 +225,8 @@ function build(mount) {
 
   // ---- Snap-to-front animation (after drag release, wheel, keyboard,
   // or an explicit prev/next click) -- short eased tween, skipped
-  // entirely under reduced-motion (snaps instantly instead). ----------
+  // entirely under reduced-motion (snaps instantly instead). No
+  // bouncing/overshoot -- a plain ease-out cubic. ----------------------
   function snapTo(targetIndex, { instant = false } = {}) {
     cancelAnimationFrame(settleRafId);
     const targetAngle = -targetIndex * STEP;
@@ -234,15 +254,15 @@ function build(mount) {
   // ---- Pointer drag / swipe (unified mouse + touch via Pointer Events).
   // Deliberately NOT using setPointerCapture: capturing on pointerdown
   // redirects the subsequent synthesized click event away from whatever
-  // planet button is under the pointer, to the stage itself -- which
-  // silently broke every planet click (first-click-to-focus, section 6)
-  // during this phase's own QA pass. Instead, a real drag is
-  // distinguished from a plain click by a small movement threshold
+  // world button is under the pointer, to the stage itself -- which
+  // silently breaks first-click-to-focus. Instead, a real drag is
+  // distinguished from a plain click/tap by a small movement threshold
   // (DRAG_THRESHOLD): pointermove/pointerup listen on `window` only
   // while a pointer is down, and orbitAngle is only touched once the
   // pointer has actually moved past the threshold -- a tap that never
   // crosses it leaves the native click event to fire on the button
-  // exactly as normal.
+  // exactly as normal (this is also what prevents "accidental
+  // navigation after dragging").
   function onPointerDown(e) {
     pointerActive = true;
     dragging = false;
@@ -279,9 +299,9 @@ function build(mount) {
     window.removeEventListener('pointercancel', onPointerUp);
     if (!dragging) return;
     dragging = false;
-    // Small, capped inertia -- explicitly NOT uncontrolled spinning
-    // (section 6): velocity is clamped and decays to zero quickly, then
-    // the ring always settles on a real planet, never mid-orbit.
+    // Small, capped inertia -- explicitly NOT uncontrolled spinning:
+    // velocity is clamped and decays to zero quickly, then the ring
+    // always settles on a real world, never mid-orbit.
     const flung = Math.max(-6, Math.min(6, dragVelocity * 60));
     orbitAngle += flung;
     snapTo(frontIndex());
@@ -290,8 +310,8 @@ function build(mount) {
 
   // ---- Wheel / trackpad -- only a strongly-horizontal gesture rotates
   // the universe; a normal vertical scroll wheel is left completely
-  // alone so the page still scrolls normally (section 14: "use mouse
-  // wheel / trackpad carefully"). Debounced snap-to-front on pause.
+  // alone so the page still scrolls normally. Debounced snap-to-front
+  // on pause.
   let wheelSnapTimer = null;
   stageEl.addEventListener('wheel', (e) => {
     if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || Math.abs(e.deltaX) < 4) return;
@@ -302,9 +322,9 @@ function build(mount) {
     wheelSnapTimer = setTimeout(() => snapTo(frontIndex()), 140);
   }, { passive: false });
 
-  // ---- Keyboard: ArrowLeft/ArrowRight rotate to the neighboring
-  // planet and move focus with it; Enter/Space selects (first press) or
-  // navigates (second press on an already-focused planet). ------------
+  // ---- Keyboard: ArrowLeft/ArrowRight rotate to the neighboring world
+  // and move focus with it; Enter/Space selects (first press) or
+  // navigates (second press on an already-focused world). --------------
   function focusableIndex() {
     return focusedIndex !== null ? focusedIndex : frontIndex();
   }
@@ -329,8 +349,8 @@ function build(mount) {
     planetButtons[next].focus();
   });
 
-  // ---- Planet selection (click/tap AND Enter/Space, per section 19 --
-  // every planet is a real <button>, so both are native for free). ----
+  // ---- World selection (click/tap AND Enter/Space -- every world is a
+  // real <button>, so both are native for free). -----------------------
   planetButtons.forEach((btn, i) => {
     btn.addEventListener('click', () => {
       if (suppressNextClick) { suppressNextClick = false; return; }
@@ -340,14 +360,14 @@ function build(mount) {
 
   function selectPlanet(i) {
     if (focusedIndex === i) {
-      // Second click on an already-focused planet == the explicit CTA.
+      // Second click on an already-focused world == the explicit CTA.
       navigateTo(SERVICE_CATALOG[i]);
       return;
     }
     focusedIndex = i;
     planetButtons.forEach((b, bi) => b.setAttribute('aria-selected', String(bi === i)));
     snapTo(i);
-    renderPanel(SERVICE_CATALOG[i]);
+    renderFocusedInfo(SERVICE_CATALOG[i]);
     hintEl.classList.add('su-hint--hidden');
     trackEvent('service_focus', { service: SERVICE_CATALOG[i].key });
     updateUrl(SERVICE_CATALOG[i].key);
@@ -356,12 +376,11 @@ function build(mount) {
   function deselect() {
     focusedIndex = null;
     planetButtons.forEach((b) => b.setAttribute('aria-selected', 'false'));
-    panelEl.hidden = true;
+    renderIdleInfo();
     hintEl.classList.remove('su-hint--hidden');
     layout();
     updateUrl(null);
   }
-  document.getElementById('suPanelClose').addEventListener('click', deselect);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && focusedIndex !== null) deselect();
   });
@@ -371,48 +390,64 @@ function build(mount) {
     window.location.href = svc.directoryHref;
   }
 
-  // ---- Focus panel (section 7) -- only ever renders REAL data: the
-  // service's own catalog copy, plus real provider/verified counts
-  // once the one-time count fetch below resolves. Never invents a
-  // number, a rating, or a review count. -----------------------------
-  function renderPanel(svc) {
+  // ---- Info column -- one slot, two states. Idle state absorbs what
+  // used to be a separate hero section (title/intro copy) so the page
+  // never spends vertical space on both a hero AND a panel. Focused
+  // state is editorial (typography + one divider rule), never a
+  // bordered dashboard card, and only ever renders REAL data: the
+  // service's own catalog copy, plus real provider/verified counts once
+  // the one-time count fetch below resolves. Never invents a number,
+  // a rating, or a review count. ----------------------------------------
+  function renderIdleInfo() {
+    infoEl.innerHTML = `
+      <p class="su-info-eyebrow">${esc(tr('svc.directoryEyebrow', 'Darwesh Service Providers'))}</p>
+      <h1 class="su-info-title">${esc(tr('svc.universeTitle', 'Explore the Darwesh Service Universe'))}</h1>
+      <p class="su-info-body">${esc(tr('svc.universeSubtitle', 'Real professionals, verified by Darwesh. Drag, swipe, or select a service to learn more.'))}</p>
+      <hr class="su-info-divider"/>
+    `;
+  }
+
+  function renderFocusedInfo(svc) {
     const c = counts.get(svc.key);
     let statsHtml;
     if (c === 'error' || c === undefined) {
-      statsHtml = `<p class="su-panel-stats-fallback">${esc(tr('svc.exploreProfessionals', 'Explore available professionals'))}</p>`;
+      statsHtml = `<p class="su-info-fallback">${esc(tr('svc.exploreProfessionals', 'Explore available professionals'))}</p>`;
     } else if (c.total === 0) {
-      statsHtml = `<p class="su-panel-stats-fallback">${esc(tr('svc.noneYetShort', 'Providers will appear here as they join Darwesh'))}</p>`;
+      statsHtml = `<p class="su-info-fallback">${esc(tr('svc.noneYetShort', 'Providers will appear here as they join Darwesh'))}</p>`;
     } else {
       statsHtml = `
-        <div class="su-panel-stats">
-          <div class="su-panel-stat">
-            <span class="su-panel-stat-num">${c.total}</span>
-            <span class="su-panel-stat-label">${esc(tr('svc.statAvailable', 'Available'))}</span>
+        <div class="su-info-stats">
+          <div>
+            <span class="su-info-stat-num">${c.total}</span>
+            <span class="su-info-stat-label">${esc(tr('svc.statAvailable', 'Available'))}</span>
           </div>
-          <div class="su-panel-stat">
-            <span class="su-panel-stat-num">${c.verified}</span>
-            <span class="su-panel-stat-label">${esc(tr('svc.statVerified', 'Verified'))}</span>
+          <div>
+            <span class="su-info-stat-num">${c.verified}</span>
+            <span class="su-info-stat-label">${esc(tr('svc.statVerified', 'Verified'))}</span>
           </div>
         </div>`;
     }
-    panelBodyEl.innerHTML = `
-      <div class="su-panel-icon"><span class="material-symbols-outlined" aria-hidden="true">${svc.icon}</span></div>
-      <p class="su-panel-eyebrow">${esc(tr('svc.directoryEyebrow', 'Darwesh Service Providers'))}</p>
-      <h2 class="su-panel-title">${esc(tr(svc.titleKey, svc.title))}</h2>
-      <p class="su-panel-tagline">${esc(tr(svc.taglineKey, svc.tagline))}</p>
+    infoEl.innerHTML = `
+      <p class="su-info-eyebrow">${esc(tr('svc.directoryEyebrow', 'Darwesh Service Providers'))}</p>
+      <h1 class="su-info-title">${esc(tr(svc.titleKey, svc.title))}</h1>
+      <p class="su-info-body">${esc(tr(svc.taglineKey, svc.tagline))}</p>
       ${statsHtml}
-      <a class="su-panel-cta" href="${svc.directoryHref}">
+      <a class="su-info-cta" href="${svc.directoryHref}">
         ${esc(tr(svc.ctaKey, svc.ctaFallback))}
         <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
       </a>
+      <button type="button" class="su-info-back" id="suBackBtn">
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        ${esc(tr('svc.closePanel', 'Close'))}
+      </button>
     `;
-    panelEl.hidden = false;
+    document.getElementById('suBackBtn').addEventListener('click', deselect);
   }
 
   // ---- Real provider counts -- ONE bounded aggregation query pair per
   // service, run exactly once here at init, never again, never inside
   // the render loop. A failed count degrades to honest fallback copy
-  // (see renderPanel above), never a fabricated number. ---------------
+  // (see renderFocusedInfo above), never a fabricated number. ----------
   async function loadCounts() {
     let db, getCountFromServer, collection, query, where;
     try {
@@ -424,10 +459,10 @@ function build(mount) {
       ({ collection, query, where } = firestoreMod);
     } catch {
       // Firebase/network unreachable -- every service falls back to
-      // honest copy in the panel (see renderPanel); the interactive
-      // layer above never depended on this resolving at all.
+      // honest copy in the info column; the interactive layer above
+      // never depended on this resolving at all.
       SERVICE_CATALOG.forEach((svc) => counts.set(svc.key, 'error'));
-      if (focusedIndex !== null) renderPanel(SERVICE_CATALOG[focusedIndex]);
+      if (focusedIndex !== null) renderFocusedInfo(SERVICE_CATALOG[focusedIndex]);
       return;
     }
     await Promise.all(SERVICE_CATALOG.map(async (svc) => {
@@ -441,20 +476,20 @@ function build(mount) {
       } catch {
         counts.set(svc.key, 'error');
       }
-      // Refresh the panel in place if this exact service is already open
-      // when its count resolves (counts load in parallel, in no
-      // guaranteed order).
+      // Refresh the info column in place if this exact service is
+      // already open when its count resolves (counts load in parallel,
+      // in no guaranteed order).
       if (focusedIndex !== null && SERVICE_CATALOG[focusedIndex].key === svc.key) {
-        renderPanel(svc);
+        renderFocusedInfo(svc);
       }
     }));
   }
   loadCounts();
 
-  // ---- Deep-linking (section 27) -- services.html?service=engineering
-  // focuses that planet on load; selecting a different planet updates
-  // the URL via replaceState (never pushState -- a continuous drag or
-  // idle orbit must never touch history, only a deliberate selection). --
+  // ---- Deep-linking -- services.html?service=engineer focuses that
+  // world on load; selecting a different world updates the URL via
+  // replaceState (never pushState -- a continuous drag or idle orbit
+  // must never touch history, only a deliberate selection). -----------
   function updateUrl(key) {
     const url = new URL(window.location.href);
     if (key) url.searchParams.set('service', key); else url.searchParams.delete('service');
@@ -465,17 +500,19 @@ function build(mount) {
   if (requestedIndex >= 0) {
     // Defer to next frame so initial layout has already run once.
     requestAnimationFrame(() => selectPlanet(requestedIndex));
+  } else {
+    renderIdleInfo();
   }
 
-  // ---- Resize -- throttled via rAF, recomputes radius only (planet
-  // count/angles never change). ---------------------------------------
+  // ---- Resize -- throttled via rAF, recomputes metrics only (world
+  // count/angles never change). ------------------------------------
   let resizeRafId = null;
   window.addEventListener('resize', () => {
     if (resizeRafId) return;
     resizeRafId = requestAnimationFrame(() => { layout(); resizeRafId = null; });
   });
 
-  // Language switch re-renders labels/panel copy without touching
+  // Language switch re-renders labels/info copy without touching
   // orbitAngle/focus state.
   document.addEventListener('darwesh:langchange', () => {
     planetButtons.forEach((btn, i) => {
@@ -483,16 +520,16 @@ function build(mount) {
       btn.setAttribute('aria-label', tr(svc.titleKey, svc.title));
       btn.querySelector('.su-planet-label').textContent = tr(svc.titleKey, svc.title);
     });
-    if (focusedIndex !== null) renderPanel(SERVICE_CATALOG[focusedIndex]);
+    if (focusedIndex !== null) renderFocusedInfo(SERVICE_CATALOG[focusedIndex]); else renderIdleInfo();
     hintEl.textContent = tr('svc.dragHint', 'Drag, swipe, or use the arrow keys to explore');
   });
 
   layout();
 }
 
-// Analytics-ready events (section 28) -- no vendor wired up, just a
-// structured, no-PII hook so one can be added later without touching
-// this module's interaction logic. Never transmits personal data.
+// Analytics-ready events -- no vendor wired up, just a structured,
+// no-PII hook so one can be added later without touching this module's
+// interaction logic. Never transmits personal data.
 function trackEvent(name, detail) {
   if (typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent('darwesh:analytics', { detail: { name, ...detail } }));
