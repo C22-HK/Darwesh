@@ -1,7 +1,7 @@
 // Shared Firebase initialization — imported by every page that needs
 // auth or the database. Keeping this in one place means the config only
 // lives in one file. Every page that touches Firebase, directly or via
-// a shared widget (js/notification-bell.js, js/city-nav.js), ends up
+// a shared widget (js/notification-bell.js), ends up
 // importing THIS module -- and because ES modules are cached/de-duped
 // by the browser, its top-level code (including the App Check call
 // below) runs exactly once per page load no matter how many different
@@ -126,8 +126,8 @@ try {
 // obtaining a token means reCAPTCHA Enterprise injecting and loading ITS
 // OWN script and completing a real round trip -- easily slower than a
 // page's first Firestore read, which several pages/widgets
-// (js/city-nav.js, js/notification-bell.js, buy.html/map.html/index.html
-// loading `listings` right away) fire immediately on load. Measured on
+// (js/notification-bell.js, buy.html/map.html/index.html loading
+// `listings` right away) fire immediately on load. Measured on
 // the live site: Storage/Auth (whose calls happen after a deliberate
 // user action, well after this settles) sit at 100% verified, while
 // Firestore sat at 1-5% verified -- direct evidence of this exact race,

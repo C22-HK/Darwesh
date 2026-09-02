@@ -1,20 +1,20 @@
 // Darwesh shared site header -- the ONE canonical top nav bar (flag
 // language selector, wordmark, Home / Buy-Rent Map / Explore Map /
-// Cities & Apartments / Services / About / Profile / MAM AI /
-// notifications) for every public content page. Before this file
-// existed, every page hand-duplicated its own <header> markup and they
-// had drifted: different nav link sets, different labels, and only some
-// pages had the flag-based language selector while others still had a
-// plain globe icon. This is the single source of truth going forward.
+// Services / About / Profile / MAM AI / notifications) for every public
+// content page. Before this file existed, every page hand-duplicated its
+// own <header> markup and they had drifted: different nav link sets,
+// different labels, and only some pages had the flag-based language
+// selector while others still had a plain globe icon. This is the single
+// source of truth going forward.
 //
 // Deliberately a CLASSIC script, not `type="module"`: it must inject its
 // markup into the DOM SYNCHRONOUSLY, before the later classic
 // <script src="./js/i18n.js"> tag runs its one-time data-i18n /
 // .lang-toggle-btn wiring pass, and before the deferred `type="module"`
-// scripts (js/city-nav.js, js/notification-bell.js, js/nav-auth.js) run
-// their own one-time querySelectorAll passes over the page -- none of
-// those scripts re-scan the DOM later (no MutationObserver), so if this
-// ran after them, the header elements they exist to wire up would simply
+// scripts (js/notification-bell.js, js/nav-auth.js) run their own
+// one-time querySelectorAll passes over the page -- none of those
+// scripts re-scan the DOM later (no MutationObserver), so if this ran
+// after them, the header elements they exist to wire up would simply
 // never be found. A classic script placed as the FIRST <script> tag in
 // <body>, right after the mount point, blocks HTML parsing and runs
 // immediately -- guaranteeing every later script (classic or deferred
@@ -30,8 +30,8 @@
 // mam-ai.html, listing.html), which then highlights nothing as current.
 //
 // No dynamic/user-supplied data is ever interpolated into this markup
-// (every string here is a fixed literal), so unlike js/city-nav.js this
-// file has no escaping concern.
+// (every string here is a fixed literal), so this file has no escaping
+// concern.
 (function () {
   var mount = document.getElementById('siteHeader');
   if (!mount) return;
@@ -76,7 +76,6 @@
         '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home"' + ariaCurrent('home') + '>Home</a>' +
         '<a class="' + navClass('buyRentMap') + '" href="buy-rent-map.html" data-i18n="drm.navLabel"' + ariaCurrent('buyRentMap') + '>Buy/Rent Map</a>' +
         '<a class="' + navClass('exploreMap') + '" href="map.html" data-i18n="nav.exploreMap"' + ariaCurrent('exploreMap') + '>Explore Map</a>' +
-        '<span id="citiesNavSlot"></span>' +
         '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
         '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
         '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html">Profile</a>' +

@@ -34,8 +34,6 @@ const translations = {
     'nav.renovate': 'نۆژەنکردنەوە',
     'nav.insights': 'شیکاری بازاڕ',
     'nav.about': 'دەربارەمان',
-    'citiesNav.title': 'شارەکان و شوقەکان',
-    'citiesNav.allListings': 'هەموو ڕیکلامەکان',
 
     'notif.title': 'ئاگادارکردنەوەکان',
     'notif.signInPrompt': 'بچۆژوورەوە بۆ بینینی نوێترین زانیاری داواکارییەکانت.',
@@ -1348,8 +1346,6 @@ const translations = {
     'nav.renovate': 'تجديد',
     'nav.insights': 'تحليلات السوق',
     'nav.about': 'من نحن',
-    'citiesNav.title': 'المدن والشقق',
-    'citiesNav.allListings': 'جميع الإعلانات',
 
     'notif.title': 'الإشعارات',
     'notif.signInPrompt': 'سجّل الدخول لرؤية تحديثات طلباتك.',
