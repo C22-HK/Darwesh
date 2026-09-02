@@ -305,6 +305,18 @@ function build(mount) {
     const flung = Math.max(-6, Math.min(6, dragVelocity * 60));
     orbitAngle += flung;
     snapTo(frontIndex());
+    // suppressNextClick must only ever swallow the click event that is
+    // THIS drag's own tail end (the browser fires "click" synchronously
+    // right after "pointerup"/"mouseup" when they land on the same
+    // element) -- never a later, unrelated tap. Without this reset, a
+    // single drag left the flag armed indefinitely, so the very NEXT
+    // tap on any world -- seconds or minutes later, a completely
+    // separate gesture -- was silently swallowed instead of focusing
+    // it (found via mobile touch-drag QA). setTimeout(0) runs in the
+    // next task, strictly after the synchronous pointerup->click
+    // sequence of THIS gesture has already finished, so it can never
+    // clear the flag before the click it's meant to guard.
+    setTimeout(() => { suppressNextClick = false; }, 0);
   }
   stageEl.addEventListener('pointerdown', onPointerDown);
 
