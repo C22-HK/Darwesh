@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<title>Darwesh Group - Cleaning Provider Profile</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-16 pb-24 md:pb-0">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <!-- Loading state -->
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:260px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:28px;width:220px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:120px;"></div>
+  </div>
+
+  <!-- Sign-in-required state -->
+  <div id="signinRequiredState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">lock</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="rp.signInRequired">Sign in to view this profile.</p>
+    <a href="login.html" class="inline-block mt-4 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="rp.logIn">Log in</a>
+  </div>
+
+  <!-- Not found state -->
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">cleaning_services</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="rp.notFound">Profile not found</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="rp.notFoundHint">This profile may have been removed.</p>
+  </div>
+
+  <!-- Generic error state -->
+  <div id="errorState" class="hidden"></div>
+
+  <!-- Provider profile -->
+  <div id="providerContent" class="hidden">
+
+    <!-- Hero -->
+    <section class="rp-hero rp-hero--cleaning mb-8">
+      <div id="heroMedia" class="rp-hero-media"></div>
+      <div class="rp-hero-identity">
+        <div class="w-full">
+          <p id="heroEyebrow" class="rp-hero-eyebrow mb-1">—</p>
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <h1 id="providerName" class="rp-hero-name font-headline-md text-[24px] md:text-[28px] font-bold truncate max-w-full">—</h1>
+            <span id="verifiedBadge" class="ps-badge ps-badge-verified hidden">
+              <span class="material-symbols-outlined text-[13px]" aria-hidden="true">verified</span>
+              <span data-i18n="rp.verified">Verified</span>
+            </span>
+            <span id="unverifiedBadge" class="ps-badge ps-badge-unverified hidden" data-i18n="rp.unverified">Unverified</span>
+          </div>
+          <p id="heroMeta" class="rp-hero-meta text-[13px]"></p>
+          <div class="flex flex-wrap gap-2.5 mt-4">
+            <button id="editProfileBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors" data-i18n="rp.editProfile">Edit Profile</button>
+            <button id="verifyToggleBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors"></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p id="adminViewingNote" class="hidden font-label-caps text-label-caps text-secondary mb-4" data-i18n="rp.adminViewingNote">Viewing as admin</p>
+
+    <!-- Tabs -->
+    <div class="ps-tablist mb-6" role="tablist" aria-label="Cleaning provider profile sections">
+      <button class="ps-tab" role="tab" id="tabBtnOverview" aria-controls="panelOverview" type="button" data-i18n="rp.tabOverview">Overview</button>
+      <button class="ps-tab" role="tab" id="tabBtnProjects" aria-controls="panelProjects" type="button" data-i18n="cleaning.tabProjects">Work</button>
+      <button class="ps-tab" role="tab" id="tabBtnServices" aria-controls="panelServices" type="button" data-i18n="rp.tabServices">Services</button>
+      <button class="ps-tab" role="tab" id="tabBtnContact" aria-controls="panelContact" type="button" data-i18n="rp.tabContact">Contact</button>
+    </div>
+
+    <!-- Overview panel -->
+    <section id="panelOverview" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnOverview">
+      <div id="overviewReadOnly" class="ps-card p-5 md:p-6 max-w-2xl mb-5">
+        <p id="ovDescription" class="font-body-md text-[14px] text-on-surface mb-5">—</p>
+        <div class="grid sm:grid-cols-2 gap-4 font-body-md text-[13.5px]">
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="rp.city">City</p>
+            <p id="ovCity" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="rp.district">District</p>
+            <p id="ovDistrict" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="rp.experience">Experience</p>
+            <p id="ovExperience" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="rp.serviceAreas">Service areas</p>
+            <p id="ovServiceAreas" class="text-on-surface">—</p>
+          </div>
+        </div>
+        <div class="mt-5">
+          <p class="text-on-surface-variant font-label-caps text-[11px] mb-2" data-i18n="rp.specialties">Specialties</p>
+          <div id="ovSpecialtiesChips" class="flex flex-wrap gap-2"></div>
+        </div>
+      </div>
+
+      <!-- Owner-only edit form -- text/array fields only; no image upload
+           this phase (storage.rules has no service-provider media path). -->
+      <form id="overviewEditForm" class="ps-card p-5 md:p-6 max-w-2xl hidden">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editDisplayName" data-i18n="rp.editDisplayName">Display name</label>
+            <input id="editDisplayName" class="ps-input" type="text" maxlength="200" required/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editDescription" data-i18n="rp.editDescription">Description</label>
+            <textarea id="editDescription" class="ps-input" rows="3" maxlength="2000"></textarea>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editCity" data-i18n="rp.editCity">City</label>
+            <input id="editCity" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editDistrict" data-i18n="rp.editDistrict">District</label>
+            <input id="editDistrict" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editExperienceYears" data-i18n="rp.editExperienceYears">Years of experience</label>
+            <input id="editExperienceYears" class="ps-input" type="number" min="0" max="80"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editServiceAreas" data-i18n="rp.editServiceAreas">Service areas (comma-separated)</label>
+            <input id="editServiceAreas" class="ps-input" type="text" maxlength="500"/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editSpecialties" data-i18n="rp.editSpecialties">Specialties (comma-separated)</label>
+            <input id="editSpecialties" class="ps-input" type="text" maxlength="500"/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editPricingModel" data-i18n="rp.editPricingModel">Pricing notes (optional)</label>
+            <input id="editPricingModel" class="ps-input" type="text" maxlength="500"/>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-5">
+          <button type="submit" id="saveOverviewBtn" class="ps-btn bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="rp.save">Save</button>
+          <button type="button" id="cancelOverviewBtn" class="ps-btn border border-outline-variant px-5 py-2.5 rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="rp.cancel">Cancel</button>
+          <p id="overviewSaveMsg" class="hidden text-[12px] self-center"></p>
+        </div>
+      </form>
+    </section>
+
+    <!-- Projects panel -->
+    <section id="panelProjects" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnProjects" hidden>
+      <div id="projectsGrid" class="ps-grid"></div>
+      <div id="projectsEmpty" class="ps-empty hidden"></div>
+    </section>
+
+    <!-- Services panel -->
+    <section id="panelServices" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnServices" hidden>
+      <div class="ps-card p-5 md:p-6 max-w-2xl">
+        <p class="text-on-surface-variant font-label-caps text-[11px] mb-2" data-i18n="rp.specialties">Specialties</p>
+        <div id="servicesChips" class="flex flex-wrap gap-2"></div>
+      </div>
+    </section>
+
+    <!-- Contact panel -->
+    <section id="panelContact" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnContact" hidden>
+      <div id="contactCard" class="rp-contact-card max-w-lg"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+  import { initServiceProviderProfile } from './js/profile-role.js';
+  initServiceProviderProfile({ serviceType: 'cleaning', fallbackIcon: 'cleaning_services' });
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/i18n.js"></script>
+</body></html>
