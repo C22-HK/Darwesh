@@ -96,6 +96,17 @@ violation reporting. -->
 
 <p id="emptyState" class="hidden text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="buy.noResults">No properties match your search. Try a different city or home type.</p>
 
+<!-- Distinct from emptyState: the query itself failed (network/Firestore),
+     not "zero real listings matched" -- previously both cases silently
+     collapsed into the exact same "No properties match your search"
+     copy, with no way for a real user (or a support agent looking over
+     their shoulder) to tell a genuine empty result apart from a broken
+     fetch, and no retry affordance either way. -->
+<div id="buyErrorState" class="hidden text-center py-stack-lg">
+<p class="font-body-md text-body-md text-on-surface-variant mb-3" data-i18n="buy.loadError">Couldn't load listings. Please check your connection and try again.</p>
+<button id="buyRetryBtn" type="button" class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="common.retry">Retry</button>
+</div>
+
 <div class="buy-toast" id="buyToast"></div>
 </main>
 
@@ -129,7 +140,9 @@ let listingsLoaded = false;
 // denied) -- an unconstrained fetch here would now fail outright.
 // Only dealType === 'sale' shows here — Buy is a sale-only page.
 // ---------------------------------------------------------------------
+let listingsLoadError = false;
 async function loadListings() {
+  listingsLoadError = false;
   try {
     const [{ db, getDocs }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
@@ -155,10 +168,15 @@ async function loadListings() {
     }));
   } catch (e) {
     LISTINGS = [];
+    listingsLoadError = true;
   }
   listingsLoaded = true;
   render();
 }
+document.getElementById('buyRetryBtn').addEventListener('click', () => {
+  listingsLoaded = false;
+  loadListings();
+});
 loadListings();
 
 // ---------------------------------------------------------------------
@@ -285,8 +303,18 @@ function render() {
     document.getElementById('listingsGrid').innerHTML = '';
     document.getElementById('resultCount').textContent = tr('map.loadingListings', 'Loading listings…');
     document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('buyErrorState').classList.add('hidden');
     return;
   }
+
+  if (listingsLoadError) {
+    document.getElementById('listingsGrid').innerHTML = '';
+    document.getElementById('resultCount').textContent = '';
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('buyErrorState').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('buyErrorState').classList.add('hidden');
 
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const type = document.getElementById('typeFilter').value;

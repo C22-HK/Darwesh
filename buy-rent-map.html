@@ -388,15 +388,28 @@ function enrichListings(docs) {
       };
     });
 }
+// Race guard: the Buy/Rent toggle calls this directly on every click with
+// no debounce. Without a generation token, clicking Rent then quickly
+// Buy could let the (now-stale) Rent response land AFTER the Buy
+// response if requests settle out of order, overwriting ALL_LISTINGS
+// with the wrong deal type's data while the toggle UI (and fmtPrice(),
+// which reads state.dealType for its "/mo" suffix) shows "Buy" --
+// rental prices rendered as if they were sale prices, wrong information
+// shown to a real shopper. Same pattern as rent.html's queryGeneration.
+let listingsRequestGeneration = 0;
 async function loadListings() {
+  const myGeneration = ++listingsRequestGeneration;
   listingsLoaded = false;
   render();
+  let nextListings;
   try {
     const docs = await fetchListingsRaw();
-    ALL_LISTINGS = enrichListings(docs);
+    nextListings = enrichListings(docs);
   } catch (e) {
-    ALL_LISTINGS = [];
+    nextListings = [];
   }
+  if (myGeneration !== listingsRequestGeneration) return; // superseded by a newer toggle click
+  ALL_LISTINGS = nextListings;
   listingsLoaded = true;
   render();
 }

@@ -1152,7 +1152,19 @@ const photoGalleryLabel = document.getElementById('photoGalleryLabel');
 let photoPreviewUrls = [];
 let dragFromIndex = null;
 const photoUploadState = new Map(); // File -> { url, error, promise }
-let sellPhotoToken = null;
+// Generated unconditionally at load, not lazily on first property-photo
+// upload: this token is also the required Firestore subcollection
+// document ID for the identity-verification photo write (see
+// attachVerificationPhoto() below and firestore.rules' `verification`
+// match block, which requires token == this submission's own
+// photoUploadToken). Property photos are optional -- a seller who
+// uploads zero of them (e.g. a land listing) would otherwise leave this
+// token null, which firestore.rules can never match (a document ID is
+// never equal to a null field value), silently and permanently
+// discarding the verification selfie every such submitter is required
+// to take. Generating it upfront makes the token always real regardless
+// of whether any property photo is ever uploaded.
+let sellPhotoToken = crypto.randomUUID();
 
 function ensurePhotoUploadStarted(file) {
   if (photoUploadState.has(file)) return;
@@ -1163,7 +1175,6 @@ function ensurePhotoUploadStarted(file) {
     try {
       await getSubmissionAuthReady();
       const compressed = await compressImage(file);
-      if (!sellPhotoToken) sellPhotoToken = crypto.randomUUID();
       const safeName = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' +
         file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]*$/, '.jpg');
       const fileRef = storageFns.ref(submitStorage, `sell-submissions/${sellPhotoToken}/${safeName}`);
@@ -1847,6 +1858,15 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   // listing itself never waited on it. Skipped entirely when every upload
   // had already finished by submit time, which is the normal case.
   const stillPending = [...photoStatus.pendingPromises];
+  // "Upload failed -- will retry when you submit" (updateVerifyUploadStatusUI)
+  // was a promise the code never actually kept: verificationUploadPromise
+  // always RESOLVES (its own try/catch only ever sets
+  // verificationUploadError, never rejects), so re-awaiting the same
+  // already-settled promise here just resolved again immediately without
+  // retrying anything, silently completing the submission with no
+  // verification photo attached. Actually re-invoke the upload when it
+  // previously failed and the captured photo is still in memory.
+  if (verificationUploadError && verificationBlob) startVerificationUpload(verificationBlob);
   if (verificationUploadPromise && !verificationPhotoPath) stillPending.push(verificationUploadPromise);
   if (stillPending.length) {
     Promise.all(stillPending).then(async () => {

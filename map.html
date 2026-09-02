@@ -451,7 +451,9 @@ let listingsLoaded = false;
 // viewed from agent-dashboard.html's map. A listing with no lat/lng
 // can't be placed on this map so it's left out here.
 // ---------------------------------------------------------------------
+let listingsLoadError = false;
 async function loadListings() {
+  listingsLoadError = false;
   try {
     const [{ db, getDocs }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
@@ -483,6 +485,7 @@ async function loadListings() {
     });
   } catch (e) {
     LISTINGS = [];
+    listingsLoadError = true;
   }
   listingsLoaded = true;
   refresh();
@@ -530,7 +533,15 @@ async function toggleFavorite(id) {
     return;
   }
   const uid = favAuth.currentUser.uid;
-  const idStr = 'map-' + id;
+  // Every other favoriting surface site-wide (buy.html, rent.html, and
+  // listing.html -- the shared detail page for both sale and rent) uses
+  // the 'buy-' + id doc-id prefix regardless of dealType. This page used
+  // to write 'map-' + id instead, a different document for the exact
+  // same listing -- so a listing favorited here never showed as already
+  // saved on buy.html/rent.html/listing.html and vice versa, and
+  // account.html's favorites list (no dedup by underlying listing id)
+  // would show it twice. Matched to the site-wide convention.
+  const idStr = 'buy-' + id;
   const l = LISTINGS.find(x => x.id === id);
   const ref = favFns.doc(favDb, 'users', uid, 'favorites', idStr);
   if (favoriteIds.has(idStr)) {
@@ -781,7 +792,7 @@ function card(l) {
       <span class="font-label-caps text-label-caps text-[10px] text-on-tertiary-container">${tr('map.verifiedByDarwesh','Verified by Darwesh Group')}</span>
     </div>` : '';
 
-  const favActive = favoriteIds.has('map-' + l.id);
+  const favActive = favoriteIds.has('buy-' + l.id);
   const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-3 left-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
@@ -840,6 +851,21 @@ function renderList() {
     document.getElementById('cardList').innerHTML = `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.loadingListings','Loading listings…')}</p>`;
     document.getElementById('resultCount').textContent = '';
     document.getElementById('resultCountMobile').textContent = '';
+    return;
+  }
+  if (listingsLoadError) {
+    // Distinct from "0 listings matched" (map.noListingsYet, below) --
+    // a genuine fetch failure previously rendered as an identical "0
+    // homes in Kurdistan Region" with no error indication and no way to
+    // retry.
+    document.getElementById('cardList').innerHTML = `<div class="col-span-full text-center py-8">
+      <p class="text-on-surface-variant mb-3">${tr('buy.loadError', "Couldn't load listings. Please check your connection and try again.")}</p>
+      <button id="mapRetryBtn" type="button" class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">${tr('common.retry', 'Retry')}</button>
+    </div>`;
+    document.getElementById('resultCount').textContent = '';
+    document.getElementById('resultCountMobile').textContent = '';
+    const retryBtn = document.getElementById('mapRetryBtn');
+    if (retryBtn) retryBtn.addEventListener('click', () => { listingsLoaded = false; loadListings(); });
     return;
   }
   const list = filteredListings();
