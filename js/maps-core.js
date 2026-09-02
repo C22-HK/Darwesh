@@ -88,6 +88,26 @@ function logDiagnostic(event, fields) {
   console.log('[darwesh-maps-core] ' + event, fields || '');
 }
 
+// Reports CSP violations for Google's own map-serving domains straight to
+// the console. The Map constructor can complete without throwing even when
+// a CSP directive silently blocks the tile/asset requests Google's SDK
+// issues after construction (fetch/XHR under connect-src, <img> tiles under
+// img-src) -- that failure mode shows up as a dark/blank map canvas with no
+// JS exception anywhere, exactly the class of bug this exists to make
+// diagnosable from a live console instead of guessed at. `blockedURI` is
+// origin-only for a cross-origin resource by browser spec (never includes
+// the blocked request's query string), so this can never leak the API key
+// even though the key is sent as a query parameter on the tile/script URL.
+if (typeof document !== 'undefined') {
+  document.addEventListener('securitypolicyviolation', (e) => {
+    if (!/google|gstatic/i.test(e.blockedURI || '') && !/google|gstatic/i.test(e.sourceFile || '')) return;
+    logDiagnostic('cspViolation', {
+      violatedDirective: e.violatedDirective,
+      blockedURI: e.blockedURI,
+    });
+  });
+}
+
 // Logged exactly once per page load, from whichever of
 // isConfigured()/loadGoogleMaps() a caller happens to reach first --
 // critically, this means the diagnostic fires even on pages

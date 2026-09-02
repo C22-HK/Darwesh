@@ -23,8 +23,29 @@ new Function(), or string-form setTimeout/setInterval the way
 here; if a live console check ever shows the SAME violation persisting
 after this change, that would mean the blocked call is genuine eval()
 rather than WASM, and needs separate investigation rather than reflexively
-widening this grant. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+widening this grant.
+
+https://*.googleapis.com / https://*.gstatic.com (img-src, connect-src):
+after wasm-unsafe-eval fixed the script-src block, the map still rendered
+as a dark/blank canvas -- Roadmap/Satellite/Hybrid chrome and the map
+container both render (those are this page's own DOM, not proof the
+underlying google.maps.Map succeeded), but no tiles paint and no JS
+exception is thrown, because the Map constructor completes synchronously
+before the SDK's own async tile/asset requests go out. Those requests hit
+Google-operated subdomains this policy did not name (only the bootstrap
+loader's own host, maps.googleapis.com, and maps.gstatic.com were listed) --
+Google's own published CSP guidance for the Maps JavaScript API recommends
+the wildcarded https://*.googleapis.com / https://*.gstatic.com precisely
+because it does not publish, and can change without notice, which specific
+subdomain serves tiles/imagery/markers for a given rendering path (vector
+vs. raster vs. satellite/hybrid) -- pinning one guessed hostname here would
+be fragile against exactly this class of regression. js/maps-core.js now
+also reports any securitypolicyviolation naming a google/gstatic domain
+straight to the console (blockedURI is origin-only for cross-origin
+resources by spec, so this can never leak the API key), so a live check
+after this change can confirm directly whether it was sufficient rather
+than guessing further. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com https://*.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
 it runs before any script on this page that imports maps-core.js.
@@ -46,6 +67,13 @@ gracefully (see js/maps-core.js). -->
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
     #drmMap { background: #101111; width: 100%; height: 100%; }
+    /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
+       well-documented conflict with Google Maps' own internally-rendered
+       <img> tiles/UI assets under .gm-style -- Google's own troubleshooting
+       guidance for exactly this framework-reset class of issue is to scope
+       an override back to their own markup rather than relax the site-wide
+       reset. Purely additive, zero effect outside .gm-style. */
+    .gm-style img { max-width: none; }
     .drm-shell { height: calc(100dvh - 4rem - 3.5rem); }
     @media (min-width: 768px) { .drm-shell { height: calc(100dvh - 4rem); } }
     .drm-price-pin {
@@ -77,13 +105,27 @@ gracefully (see js/maps-core.js). -->
 <header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
 <div class="flex items-center gap-4">
 <div class="relative">
-<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">
-<span class="material-symbols-outlined">language</span>
+<button aria-label="Language" class="lang-toggle-btn" type="button">
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">AR</span>
 </button>
-<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50">
+<button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">
+<span>کوردی</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">
+<span>العربية</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">
+<span>English</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
 </div>
 </div>
 <a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
@@ -309,13 +351,26 @@ let ALL_LISTINGS = [];
 let PROJECTS_BY_ID = new Map();
 let listingsLoaded = false;
 
-async function loadProjects() {
+// fetchProjects()/populateProjectFilter() and fetchListingsRaw()/
+// enrichListings() are split from loadProjects()/loadListings() (below,
+// kept as their public entry points) specifically so the bootstrap
+// sequence at the bottom of this script can run the projects read and the
+// listings read CONCURRENTLY (Promise.all) instead of one strictly after
+// the other -- listings only need project data to ENRICH already-fetched
+// results (readiness/installment/projectName), not to start the query, so
+// making listings wait for projects to finish first was adding a full
+// extra network round-trip to first content paint for no reason.
+async function fetchProjects() {
   try {
     const snap = await getDocs(query(collection(db, 'projects'), limit(200)));
-    snap.forEach((d) => PROJECTS_BY_ID.set(d.id, d.data()));
+    const map = new Map();
+    snap.forEach((d) => map.set(d.id, d.data()));
+    return map;
   } catch (e) {
-    PROJECTS_BY_ID = new Map(); // fails closed to "no project data" -- readiness/installment filters simply match nothing project-related rather than crash
+    return new Map(); // fails closed to "no project data" -- readiness/installment filters simply match nothing project-related rather than crash
   }
+}
+function populateProjectFilter() {
   const sel = document.getElementById('drmProject');
   for (const [id, p] of PROJECTS_BY_ID) {
     const opt = document.createElement('option');
@@ -324,42 +379,53 @@ async function loadProjects() {
     sel.appendChild(opt);
   }
 }
+async function loadProjects() {
+  PROJECTS_BY_ID = await fetchProjects();
+  populateProjectFilter();
+}
 
+async function fetchListingsRaw() {
+  const q = query(
+    collection(db, 'listings'),
+    where('private', '==', false),
+    where('status', '==', 'active'),
+    where('dealType', '==', state.dealType),
+    limit(200)
+  );
+  const snap = await getDocs(q);
+  const docs = [];
+  snap.forEach((d) => docs.push({ id: d.id, ...d.data() }));
+  return docs;
+}
+function enrichListings(docs) {
+  return docs
+    .filter((d) => typeof d.lat === 'number' && typeof d.lng === 'number')
+    .map((d) => {
+      const project = d.projectId ? PROJECTS_BY_ID.get(d.projectId) : null;
+      return {
+        id: d.id,
+        title: d.title || d.address || 'Property',
+        city: d.city || '', address: d.address || '',
+        type: d.propertyType || '',
+        price: Number(d.price) || 0,
+        beds: Number(d.beds) || 0, baths: Number(d.baths) || 0, sqft: Number(d.sqft) || 0,
+        lat: d.lat, lng: d.lng,
+        img: d.img || '',
+        verified: !!d.verified,
+        furnished: Array.isArray(d.amenities) && d.amenities.includes('furnished'),
+        projectId: d.projectId || null,
+        projectName: project ? (project.name || '') : '',
+        readiness: project ? (project.constructionStatus === 'completed' ? 'ready' : 'under_construction') : 'ready',
+        installmentAvailable: !!(project && project.installmentAvailable),
+      };
+    });
+}
 async function loadListings() {
   listingsLoaded = false;
   render();
   try {
-    const q = query(
-      collection(db, 'listings'),
-      where('private', '==', false),
-      where('status', '==', 'active'),
-      where('dealType', '==', state.dealType),
-      limit(200)
-    );
-    const snap = await getDocs(q);
-    const docs = [];
-    snap.forEach((d) => docs.push({ id: d.id, ...d.data() }));
-    ALL_LISTINGS = docs
-      .filter((d) => typeof d.lat === 'number' && typeof d.lng === 'number')
-      .map((d) => {
-        const project = d.projectId ? PROJECTS_BY_ID.get(d.projectId) : null;
-        return {
-          id: d.id,
-          title: d.title || d.address || 'Property',
-          city: d.city || '', address: d.address || '',
-          type: d.propertyType || '',
-          price: Number(d.price) || 0,
-          beds: Number(d.beds) || 0, baths: Number(d.baths) || 0, sqft: Number(d.sqft) || 0,
-          lat: d.lat, lng: d.lng,
-          img: d.img || '',
-          verified: !!d.verified,
-          furnished: Array.isArray(d.amenities) && d.amenities.includes('furnished'),
-          projectId: d.projectId || null,
-          projectName: project ? (project.name || '') : '',
-          readiness: project ? (project.constructionStatus === 'completed' ? 'ready' : 'under_construction') : 'ready',
-          installmentAvailable: !!(project && project.installmentAvailable),
-        };
-      });
+    const docs = await fetchListingsRaw();
+    ALL_LISTINGS = enrichListings(docs);
   } catch (e) {
     ALL_LISTINGS = [];
   }
@@ -419,7 +485,17 @@ function render() {
 
   if (!listingsLoaded) {
     countEl.textContent = tr('map.loadingListings', 'Loading listings…');
-    listEl.innerHTML = '';
+    // Lightweight skeleton instead of a blank panel while the first
+    // listings query is in flight -- pure CSS pulse, no extra request.
+    listEl.innerHTML = Array.from({ length: 4 }).map(() => `
+      <div class="drm-skeleton-card flex bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden animate-pulse">
+        <div class="w-28 h-24 flex-none bg-surface-container"></div>
+        <div class="p-3 flex-1 min-w-0 space-y-2">
+          <div class="h-4 bg-surface-container rounded w-3/4"></div>
+          <div class="h-3 bg-surface-container rounded w-1/2"></div>
+          <div class="h-4 bg-surface-container rounded w-1/3 mt-3"></div>
+        </div>
+      </div>`).join('');
     emptyEl.classList.add('hidden');
     return;
   }
@@ -431,7 +507,7 @@ function render() {
   listEl.innerHTML = visible.map((l) => `
     <a href="listing.html?id=${encodeURIComponent(l.id)}" data-id="${l.id}" class="drm-card block bg-surface-container-lowest rounded-xl border border-outline-variant hover:shadow-md transition-all overflow-hidden ${l.id === selectedId ? 'ring-2 ring-secondary' : ''}">
       <div class="flex">
-        <div class="w-28 h-24 flex-none bg-surface-container overflow-hidden">${l.img && isSafeHttpUrl(l.img) ? `<img class="w-full h-full object-cover" src="${escapeHtml(l.img)}"/>` : ''}</div>
+        <div class="w-28 h-24 flex-none bg-surface-container overflow-hidden">${l.img && isSafeHttpUrl(l.img) ? `<img class="w-full h-full object-cover" src="${escapeHtml(l.img)}" loading="lazy" decoding="async"/>` : ''}</div>
         <div class="p-3 flex-1 min-w-0">
           <p class="font-headline-md text-[15px] text-on-surface truncate">${escapeHtml(l.title)}</p>
           <p class="font-body-md text-[13px] text-on-surface-variant truncate">${escapeHtml(l.address)}, ${escapeHtml(l.city)}</p>
@@ -722,6 +798,18 @@ document.getElementById('drmMobileMapBtn').addEventListener('click', () => {
   document.getElementById('drmMapPanel').classList.remove('hidden');
   document.getElementById('drmMobileMapBtn').classList.add('bg-on-primary/20');
   document.getElementById('drmMobileListBtn').classList.remove('bg-on-primary/20');
+  // On mobile, initDrmMap() runs at page load while #drmMapPanel is still
+  // `hidden` (the "List" tab is the default view) -- Google Maps computes
+  // its tile layout from the container's size AT CONSTRUCTION TIME and
+  // does not observe it becoming visible later on its own, a well-known
+  // "grey/blank map after unhiding its container" failure mode. Trigger a
+  // resize + recenter every time the map tab is actually shown so it
+  // always ends up correctly laid out, not just on whichever viewport
+  // happened to have the panel visible at construction time.
+  if (window.__drmMap && window.google?.maps) {
+    google.maps.event.trigger(window.__drmMap, 'resize');
+    window.__drmMap.setCenter(state.center);
+  }
 });
 
 // Prefill drawer inputs from URL-restored state, so a shared link
@@ -741,9 +829,16 @@ document.getElementById('drmInstallment').checked = state.installment;
 
 updateDealToggle();
 initDrmMap();
-loadProjects().then(() => {
+// Map init (above), the projects read, and the listings read all start
+// concurrently -- none of the three blocks either of the others. Listings
+// render as soon as their own query resolves, using whatever project data
+// (possibly none yet) is available at that moment; the extra render()
+// once projects finish guarantees readiness/installment/projectName end
+// up correct regardless of which of the two reads happens to finish
+// first, without making the faster one wait for the slower one.
+Promise.all([loadProjects(), loadListings()]).then(() => {
   document.getElementById('drmProject').value = state.projectId;
-  loadListings();
+  render();
 });
 document.addEventListener('darwesh:langchange', render);
 </script>

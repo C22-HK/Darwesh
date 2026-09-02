@@ -24,8 +24,21 @@ blocks (reported by Chrome as a generic "script-src ... eval" violation).
 'wasm-unsafe-eval' is the CSP-standard, narrower grant purpose-built for
 this: it permits WebAssembly.compile()/instantiate() ONLY, not eval(),
 new Function(), or string-form setTimeout/setInterval the way the broader
-'unsafe-eval' would. Deliberately not using 'unsafe-eval' here. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+'unsafe-eval' would. Deliberately not using 'unsafe-eval' here.
+
+https://*.googleapis.com / https://*.gstatic.com (img-src, connect-src):
+same fix as buy-rent-map.html/admin.html -- once a key is configured here
+and the Google path is enabled, the SDK's own async tile/asset requests
+need Google-operated subdomains this policy only partially named (just
+the bootstrap loader's own host, maps.googleapis.com, and
+maps.gstatic.com). Google's own published CSP guidance for the Maps
+JavaScript API recommends the wildcarded https://*.googleapis.com /
+https://*.gstatic.com precisely because it does not publish, and can
+change without notice, which specific subdomain serves tiles/imagery for
+a given rendering path. js/maps-core.js reports any securitypolicyviolation
+naming a google/gstatic domain to the console (blockedURI is origin-only
+for cross-origin resources by spec, so this can never leak the API key). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
 it runs before any script on this page that imports maps-core.js.
@@ -49,6 +62,13 @@ own initLocationPicker()). -->
     body { min-height: max(884px, 100dvh); }
     input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #B89A63; border-color: transparent; }
     #pinMap { background: #101111; }
+    /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
+       well-documented conflict with Google Maps' own internally-rendered
+       <img> tiles/UI assets under .gm-style, once a key is configured and
+       the Google path is enabled here. Purely additive, zero effect
+       outside .gm-style (the Leaflet picker this page runs by default is
+       unaffected -- Leaflet doesn't use this class). */
+    .gm-style img { max-width: none; }
     .dropzone.drag-over { background: #221E15; border-color: #8E7448; }
 
     /* Step indicator */
@@ -115,20 +135,34 @@ own initLocationPicker()). -->
 <header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
 <div class="flex items-center gap-4">
 <div class="relative">
-<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">
-<span class="material-symbols-outlined">language</span>
+<button aria-label="Language" class="lang-toggle-btn" type="button">
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">AR</span>
 </button>
-<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50">
+<button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">
+<span>کوردی</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">
+<span>العربية</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">
+<span>English</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
 </div>
 </div>
 <a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
 </div>
 <nav class="hidden md:flex items-center gap-8">
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="buy-rent-map.html" data-i18n="nav.map">Map</a>
 <span id="citiesNavSlot"></span>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
 <a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
@@ -613,7 +647,7 @@ own initLocationPicker()). -->
 <span class="material-symbols-outlined">home</span>
 <span class="font-label-caps text-label-caps mt-1" data-i18n="nav.home">Home</span>
 </a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="buy-rent-map.html">
 <span class="material-symbols-outlined">map</span>
 <span class="font-label-caps text-label-caps mt-1" data-i18n="nav.map">Map</span>
 </a>
