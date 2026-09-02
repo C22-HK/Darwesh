@@ -34,6 +34,7 @@ const translations = {
     'nav.renovate': 'نۆژەنکردنەوە',
     'nav.insights': 'شیکاری بازاڕ',
     'nav.about': 'دەربارەمان',
+    'nav.profile': 'پرۆفایل',
 
     'notif.title': 'ئاگادارکردنەوەکان',
     'notif.signInPrompt': 'بچۆژوورەوە بۆ بینینی نوێترین زانیاری داواکارییەکانت.',
@@ -233,6 +234,7 @@ const translations = {
     'buy.sortFeatured': 'ڕیزکردن: تایبەت',
     'buy.viewOnMap': 'بینین لەسەر نەخشە',
     'buy.noResults': 'هیچ خانووبەرەیەک لەگەڵ گەڕانەکەت ناگونجێت. شار یان جۆرێکی تر تاقی بکەرەوە.',
+    'buy.loadError': 'نەتوانرا ڕیکلامەکان بار بکرێن. تکایە پەیوەندییەکەت بپشکنە و دووبارە هەوڵبدەرەوە.',
 
     'rent.title': 'کرێی خانووبەرە',
     'rent.subtitle': 'خانووبەرەی پشتڕاستکراو بۆ کرێ لە سەرانسەری کوردستان.',
@@ -1093,6 +1095,7 @@ const translations = {
     'office.markUnverified': 'لابردنی دۆخی پشتڕاستکراو',
     'office.errorLoad': 'نەتوانرا ئەم ئۆفیسە بار بکرێت.',
     'office.errorGeneric': 'هەڵەیەک ڕوویدا. تکایە دووبارە هەوڵبدەرەوە.',
+    'office.errorUnreachable': 'نەتوانرا پەیوەندی بە سێرڤەرەوە بکرێت.',
     'office.notFound': 'ئۆفیس نەدۆزرایەوە',
     'office.notFoundHint': 'ڕەنگە ئەم ئۆفیسە لابراو بێت.',
     'office.myOffice': 'ئۆفیسی من',
@@ -1358,6 +1361,7 @@ const translations = {
     'nav.renovate': 'تجديد',
     'nav.insights': 'تحليلات السوق',
     'nav.about': 'من نحن',
+    'nav.profile': 'الملف الشخصي',
 
     'notif.title': 'الإشعارات',
     'notif.signInPrompt': 'سجّل الدخول لرؤية تحديثات طلباتك.',
@@ -1557,6 +1561,7 @@ const translations = {
     'buy.sortFeatured': 'ترتيب: مميز',
     'buy.viewOnMap': 'عرض على الخريطة',
     'buy.noResults': 'لا توجد عقارات مطابقة لبحثك. جرّب مدينة أو نوع عقار مختلف.',
+    'buy.loadError': 'تعذّر تحميل العقارات. يرجى التحقق من الاتصال والمحاولة مرة أخرى.',
 
     'rent.title': 'إيجار عقار',
     'rent.subtitle': 'عقارات موثقة معروضة للإيجار في جميع أنحاء كردستان.',
@@ -2417,6 +2422,7 @@ const translations = {
     'office.markUnverified': 'إزالة حالة التوثيق',
     'office.errorLoad': 'تعذر تحميل هذا المكتب.',
     'office.errorGeneric': 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+    'office.errorUnreachable': 'تعذّر الاتصال بالخادم.',
     'office.notFound': 'المكتب غير موجود',
     'office.notFoundHint': 'ربما تمت إزالة هذا المكتب.',
     'office.myOffice': 'مكتبي',

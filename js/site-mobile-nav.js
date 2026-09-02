@@ -55,7 +55,7 @@
       '</a>' +
       '<a id="navProfileLinkMobile" class="' + itemClass('') + '" href="login.html" aria-label="Profile">' +
         '<span class="material-symbols-outlined" aria-hidden="true">person</span>' +
-        '<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1 text-center leading-tight">Profile</span>' +
+        '<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.profile">Profile</span>' +
       '</a>' +
     '</nav>';
 })();
