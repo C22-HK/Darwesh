@@ -23,6 +23,7 @@ violation reporting. -->
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/social-universe.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -141,6 +142,19 @@ violation reporting. -->
 </div>
 </a>
 </div>
+</section>
+<!-- Social Universe -- compact orbital field of Darwesh's real, official
+     social channels only (see js/social-links.js's header comment for
+     the audit behind which platforms appear here). A quiet visual
+     transition beneath the hero/primary discovery area above, not a
+     second hero -- deliberately smaller/lighter than the Services
+     Universe (css/social-universe.css explains why it is not a copy of
+     that component). The strip below the stage is the same real links,
+     always present, fully keyboard/screen-reader usable independent of
+     whether the orbital layer initializes. -->
+<section class="cine-reveal max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mt-10 md:mt-16">
+<div id="socialUniverse"></div>
+<nav class="so-links" id="socialLinksStrip" aria-label="Darwesh social channels"></nav>
 </section>
 <!-- Browse Apartments by City -->
 <section class="cine-reveal max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop mt-14 md:mt-28">
@@ -471,6 +485,26 @@ document.addEventListener('darwesh:langchange', renderFeaturedGrid);
 
 const footerYearEl = document.getElementById('footerYear');
 if (footerYearEl) footerYearEl.textContent = '© ' + new Date().getFullYear() + ' Darwesh Group';
+</script>
+<script type="module">
+  import { initSocialUniverse } from './js/social-universe.js';
+  import { getConfiguredSocialLinks } from './js/social-links.js';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function renderSocialLinksStrip() {
+    const strip = document.getElementById('socialLinksStrip');
+    if (!strip) return;
+    const platforms = getConfiguredSocialLinks();
+    strip.innerHTML = platforms
+      .map((s) => `<a class="so-links-link" href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.label)}</a>`)
+      .join('');
+  }
+  renderSocialLinksStrip();
+
+  initSocialUniverse('socialUniverse');
 </script>
 <script src="./js/cursor-follower.js"></script>
 <script type="module" src="./js/intro-entry.js"></script>

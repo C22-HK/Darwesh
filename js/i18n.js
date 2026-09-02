@@ -1339,6 +1339,15 @@ const translations = {
     'svc.cleaning.typeTeam': 'تیم',
     'svc.cleaning.typeCompany': 'کۆمپانیا',
 
+    'social.eyebrow': 'پەیوەندیدار بمێنەرەوە',
+    'social.title': 'دەرەوشی گروپ بەدواداچن',
+    'social.universeAriaLabel': 'کەناڵە کۆمەڵایەتییەکانی دەرویش',
+    'social.prevPlatform': 'کەناڵی پێشوو',
+    'social.nextPlatform': 'کەناڵی داهاتوو',
+    'social.dragHint': 'ڕایبکێشە، سوایپ بکە، یان کلیلە ئاڕاستەکان بەکاربهێنە بۆ گەڕان',
+    'social.openCta': 'کردنەوە',
+    'social.close': 'داخستن',
+
     'nav.design': 'دیزاین',
     'designer.tabWork': 'کار',
     'designer.tabAbout': 'دەربارە',
@@ -2715,6 +2724,15 @@ const translations = {
     'svc.cleaning.typeIndividual': 'فردي',
     'svc.cleaning.typeTeam': 'فريق',
     'svc.cleaning.typeCompany': 'شركة',
+
+    'social.eyebrow': 'ابق على تواصل',
+    'social.title': 'تابع دارويش جروب',
+    'social.universeAriaLabel': 'قنوات دارويش الاجتماعية',
+    'social.prevPlatform': 'القناة السابقة',
+    'social.nextPlatform': 'القناة التالية',
+    'social.dragHint': 'اسحب أو مرر أو استخدم مفاتيح الأسهم للاستكشاف',
+    'social.openCta': 'فتح',
+    'social.close': 'إغلاق',
 
     'nav.design': 'التصميم',
     'designer.tabWork': 'الأعمال',
