@@ -199,6 +199,7 @@
           <button type="submit" id="inviteBtn" class="ps-btn bg-secondary text-on-secondary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="office.invite">Invite</button>
         </form>
         <p id="inviteMsg" class="hidden text-[12px] mb-4"></p>
+        <p id="teamActionMsg" class="hidden text-[12px] mb-4"></p>
 
         <div id="teamList" class="space-y-2"></div>
         <div id="teamEmpty" class="ps-empty hidden">
@@ -226,6 +227,26 @@
     acceptCompanyInvitation, declineCompanyInvitation,
     BackendResponseError, BackendUnavailableError
   } from './js/backend-api.js';
+  // Same escaping function every other page's Firestore-sourced-HTML
+  // rendering uses (js/professional-content.js's own header comment
+  // documents it as the shared, single source of truth for this, since
+  // this file's own module-script context can't use the classic-script
+  // js/escape-html.js the non-module pages use instead). This file was
+  // rendering listing title/img and employee displayName straight into
+  // innerHTML with no escaping at all until now -- a listing title or a
+  // signed-up employee's displayName (both attacker-controllable free
+  // text) could carry live markup that executed for every visitor of
+  // this office's public page or every viewer of its Team tab.
+  import { esc } from './js/professional-content.js';
+  function isSafeHttpUrl(url) {
+    if (typeof url !== 'string' || url.trim() === '') return false;
+    try {
+      const u = new URL(url, window.location.href);
+      return u.protocol === 'https:' || u.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  }
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -370,7 +391,7 @@
       show('unverifiedBadge');
     }
 
-    if (companyData.logoUrl) {
+    if (isSafeHttpUrl(companyData.logoUrl)) {
       el('logoImg').src = companyData.logoUrl;
       el('logoImg').classList.remove('hidden');
       el('logoIcon').classList.add('hidden');
@@ -412,9 +433,18 @@
         : tr('office.markVerified', 'Mark as verified');
       show('verifyToggleBtn');
       verifyBtn.onclick = () => withBusyButton(verifyBtn, async () => {
-        await updateDoc(doc(db, 'companies', companyId), { verified: !companyData.verified, updatedAt: Date.now() / 1000 });
-        companyData.verified = !companyData.verified;
-        renderOffice();
+        try {
+          await updateDoc(doc(db, 'companies', companyId), { verified: !companyData.verified, updatedAt: Date.now() / 1000 });
+          companyData.verified = !companyData.verified;
+          renderOffice();
+        } catch (err) {
+          // withBusyButton has no catch of its own -- without this, a
+          // failed toggle (offline, a transient permission-check race)
+          // just silently re-enabled the button with its old label and
+          // no indication anything went wrong.
+          console.error('[office] verify toggle failed', err);
+          verifyBtn.textContent = tr('office.errorGeneric', 'Something went wrong. Please try again.');
+        }
       });
     }
 
@@ -545,11 +575,11 @@
         const price = typeof d.price === 'number' ? d.price.toLocaleString() : d.price;
         card.innerHTML = `
           <div style="aspect-ratio:4/3;background:#221E15;overflow:hidden;">
-            ${d.img ? `<img src="${d.img}" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy"/>` : ''}
+            ${isSafeHttpUrl(d.img) ? `<img src="${esc(d.img)}" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy"/>` : ''}
           </div>
           <div class="p-3">
-            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${d.title || ''}</p>
-            <p class="font-data-mono text-[13px] text-secondary mt-1">${price ? '$' + price : ''}</p>
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${esc(d.title || '')}</p>
+            <p class="font-data-mono text-[13px] text-secondary mt-1">${price ? '$' + esc(String(price)) : ''}</p>
           </div>
         `;
         grid.appendChild(card);
@@ -588,15 +618,34 @@
             <button id="acceptInviteBtn" type="button" class="ps-btn bg-primary text-on-primary px-4 py-2 rounded-full font-label-caps text-label-caps">${tr('office.accept', 'Accept')}</button>
             <button id="declineInviteBtn" type="button" class="ps-btn border border-outline-variant px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface">${tr('office.decline', 'Decline')}</button>
           </div>
+          <p id="inviteResponseMsg" class="hidden text-[12px] mt-2"></p>
         `;
         card.classList.remove('hidden');
+        function showInviteResponseError(err) {
+          // withBusyButton has no catch of its own -- without this, a
+          // failed Accept/Decline (routed through the backend, which is
+          // not deployed anywhere yet -- see js/backend-config.js -- so
+          // this is the ALWAYS-taken path in production today) just
+          // silently re-enabled the button and reloaded nothing, with no
+          // indication to the invited employee that anything happened.
+          const msg = el('inviteResponseMsg');
+          msg.textContent = err instanceof BackendResponseError ? err.message
+            : err instanceof BackendUnavailableError ? tr('office.errorUnreachable', 'Could not reach the server.')
+            : tr('office.errorGeneric', 'Something went wrong. Please try again.');
+          msg.style.color = '#E5787A';
+          msg.classList.remove('hidden');
+        }
         el('acceptInviteBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
-          await acceptCompanyInvitation(currentUser, companyId);
-          window.location.reload();
+          try {
+            await acceptCompanyInvitation(currentUser, companyId);
+            window.location.reload();
+          } catch (err) { showInviteResponseError(err); }
         }));
         el('declineInviteBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
-          await declineCompanyInvitation(currentUser, companyId);
-          window.location.reload();
+          try {
+            await declineCompanyInvitation(currentUser, companyId);
+            window.location.reload();
+          } catch (err) { showInviteResponseError(err); }
         }));
       } else if (data.status === 'pending') {
         card.innerHTML = `<p class="font-body-md text-[13.5px] text-on-surface-variant">${tr('office.statusPending', 'Pending approval')}</p>`;
@@ -675,16 +724,16 @@
           : tr('office.statusInvited', 'Invited');
         let actions = '';
         if (status === 'pending') {
-          actions = `<button data-action="approve" data-uid="${uid}" class="ps-btn bg-primary text-on-primary px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('office.approve', 'Approve')}</button>
-                     <button data-action="reject" data-uid="${uid}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('office.reject', 'Reject')}</button>`;
+          actions = `<button data-action="approve" data-uid="${esc(uid)}" class="ps-btn bg-primary text-on-primary px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('office.approve', 'Approve')}</button>
+                     <button data-action="reject" data-uid="${esc(uid)}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('office.reject', 'Reject')}</button>`;
         } else if (status === 'invited') {
-          actions = `<button data-action="revoke" data-uid="${uid}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('office.revoke', 'Revoke invitation')}</button>`;
+          actions = `<button data-action="revoke" data-uid="${esc(uid)}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('office.revoke', 'Revoke invitation')}</button>`;
         } else {
-          actions = `<button data-action="remove" data-uid="${uid}" class="ps-btn border border-error text-error px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('office.remove', 'Remove')}</button>`;
+          actions = `<button data-action="remove" data-uid="${esc(uid)}" class="ps-btn border border-error text-error px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('office.remove', 'Remove')}</button>`;
         }
         row.innerHTML = `
           <div class="min-w-0">
-            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${name}</p>
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${esc(name)}</p>
             <span class="ps-badge ps-badge-neutral mt-1">${statusLabel}</span>
           </div>
           <div class="flex gap-2 flex-none">${actions}</div>
@@ -693,13 +742,27 @@
       });
       list.querySelectorAll('button[data-action]').forEach((btn) => {
         btn.addEventListener('click', () => withBusyButton(btn, async () => {
+          const msg = el('teamActionMsg');
+          msg.classList.add('hidden');
           const uid = btn.dataset.uid;
           const action = btn.dataset.action;
-          if (action === 'approve') await approveCompanyMembership(currentUser, companyId, uid);
-          if (action === 'reject') await rejectCompanyMembership(currentUser, companyId, uid);
-          if (action === 'revoke') await revokeCompanyInvitation(currentUser, companyId, uid);
-          if (action === 'remove') await removeCompanyEmployee(currentUser, companyId, uid);
-          await refreshTeamList();
+          try {
+            if (action === 'approve') await approveCompanyMembership(currentUser, companyId, uid);
+            if (action === 'reject') await rejectCompanyMembership(currentUser, companyId, uid);
+            if (action === 'revoke') await revokeCompanyInvitation(currentUser, companyId, uid);
+            if (action === 'remove') await removeCompanyEmployee(currentUser, companyId, uid);
+            await refreshTeamList();
+          } catch (err) {
+            // withBusyButton only re-enables the button on error (no
+            // catch of its own) -- without this, every click here failed
+            // completely silently: the button just re-enabled and
+            // nothing else happened, no matter what went wrong.
+            msg.textContent = err instanceof BackendResponseError ? err.message
+              : err instanceof BackendUnavailableError ? tr('office.errorUnreachable', 'Could not reach the server.')
+              : tr('office.errorGeneric', 'Something went wrong. Please try again.');
+            msg.style.color = '#E5787A';
+            msg.classList.remove('hidden');
+          }
         }));
       });
     } catch {
