@@ -7,8 +7,24 @@ tradeoff as every other page in this codebase (see buy.html/map.html for
 the full rationale). maps.googleapis.com/maps.gstatic.com are added here
 specifically for js/maps-core.js -- this is the first page in the repo
 that actually loads Google Maps (gracefully inert if no key is
-configured, see js/maps-core.js's own header comment). -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+configured, see js/maps-core.js's own header comment).
+
+'wasm-unsafe-eval' (script-src): Google's own Maps JavaScript API bundle
+(loaded from maps.googleapis.com, not any code in this repo -- grepped
+this codebase for eval()/new Function()/string-form setTimeout and found
+none) compiles WebAssembly as part of its modern map-rendering engine,
+which a strict CSP with neither 'unsafe-eval' nor 'wasm-unsafe-eval'
+blocks, producing a "script-src ... eval" console violation and a blank
+map with no other visible error. 'wasm-unsafe-eval' is the CSP-standard,
+narrower alternative purpose-built for exactly this: it permits
+WebAssembly.compile()/instantiate() ONLY -- it does NOT permit eval(),
+new Function(), or string-form setTimeout/setInterval the way
+'unsafe-eval' would. Deliberately not using the broader 'unsafe-eval'
+here; if a live console check ever shows the SAME violation persisting
+after this change, that would mean the blocked call is genuine eval()
+rather than WASM, and needs separate investigation rather than reflexively
+widening this grant. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleusercontent.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://maps.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
 it runs before any script on this page that imports maps-core.js.
@@ -90,7 +106,7 @@ gracefully (see js/maps-core.js). -->
 </div>
 <div class="relative flex-1 min-w-[160px]">
 <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">location_on</span>
-<input id="drmLocationInput" class="w-full bg-surface-container-lowest border border-outline-variant rounded-full pl-9 pr-4 py-2 font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-2 focus:ring-secondary" placeholder="City, district or address..." type="text" data-i18n-placeholder="buy.searchPlaceholder"/>
+<input id="drmLocationInput" class="w-full bg-surface-container-lowest border border-outline-variant rounded-full pl-9 pr-4 py-2 font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-2 focus:ring-secondary" placeholder="City, district or address..." type="text" data-i18n-placeholder="buy.searchPlaceholder" aria-label="City, district or address"/>
 </div>
 <button id="drmMoreFiltersBtn" type="button" class="flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
 <span class="material-symbols-outlined text-[18px]">tune</span> <span data-i18n="common.filters">Filters</span>
@@ -109,31 +125,31 @@ gracefully (see js/maps-core.js). -->
 </div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.minPrice">Min Price</label>
+<label for="drmMinPrice" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.minPrice">Min Price</label>
 <input id="drmMinPrice" type="number" min="0" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md"/>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.maxPrice">Max Price</label>
+<label for="drmMaxPrice" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.maxPrice">Max Price</label>
 <input id="drmMaxPrice" type="number" min="0" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md"/>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.beds">Beds</label>
+<label for="drmBeds" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.beds">Beds</label>
 <select id="drmBeds" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
 <option value="0" data-i18n="map.any">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option><option value="5">5+</option>
 </select>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.baths">Baths</label>
+<label for="drmBaths" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.baths">Baths</label>
 <select id="drmBaths" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
 <option value="0" data-i18n="map.any">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option>
 </select>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min Area (m²)</label>
+<label for="drmMinArea" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min Area (m²)</label>
 <input id="drmMinArea" type="number" min="0" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md"/>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.maxArea">Max Area (m²)</label>
+<label for="drmMaxArea" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.maxArea">Max Area (m²)</label>
 <input id="drmMaxArea" type="number" min="0" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md"/>
 </div>
 <div class="sm:col-span-2">
@@ -148,7 +164,7 @@ gracefully (see js/maps-core.js). -->
 </div>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.readiness">Ready / Under Construction</label>
+<label for="drmReadiness" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.readiness">Ready / Under Construction</label>
 <select id="drmReadiness" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
 <option value="any" data-i18n="map.any">Any</option>
 <option value="ready" data-i18n="drm.ready">Ready</option>
@@ -156,7 +172,7 @@ gracefully (see js/maps-core.js). -->
 </select>
 </div>
 <div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.projectCommunity">Project / Community</label>
+<label for="drmProject" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.projectCommunity">Project / Community</label>
 <select id="drmProject" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
 <option value="" data-i18n="map.any">Any</option>
 </select>
