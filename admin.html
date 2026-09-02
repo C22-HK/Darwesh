@@ -55,6 +55,20 @@ unavailable" panel gracefully (see ensureEstateIntelEngine() below). -->
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Admin</title>
 <link href="css/tailwind.css" rel="stylesheet"/>
+<!-- css/cinematic.css: only for its unscoped .lang-select/.lang-toggle-btn/
+.lang-flag/.lang-menu/.lang-option structural (layout-only, zero color)
+rules the flag-based language selector below needs -- everything else in
+that file is scoped under .cine-scope, a class this page's <body>
+deliberately does not opt into, so none of its color/premium-theme rules
+can affect this page. Verified before adding: grepped cinematic.css for
+every selector NOT prefixed .cine-scope and confirmed the only other ones
+are #cine-intro/#cine-cursor/.cine-reveal/.cine-audio-toggle, none of
+which this page uses. Not adding css/profile-tokens.css alongside it --
+that DOES define the color tokens this page's own bg-primary/
+text-on-surface-variant/etc. classes would start resolving through, a
+real, wide-reaching visual change (89+ uses on this page alone) this
+change is not meant to make. -->
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
@@ -378,13 +392,24 @@ unavailable" panel gracefully (see ensureEstateIntelEngine() below). -->
       <a href="index.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.backToSite">Back to site</a>
       <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="adminNameLabel"></span>
       <div class="relative">
-<button aria-label="Language" class="lang-toggle-btn font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" type="button">
-<span class="material-symbols-outlined text-[18px]">language</span>
+<button aria-label="Language" class="lang-toggle-btn text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13">AR</span>
 </button>
-<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg z-50">
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14"><span>کوردی</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14"><span>العربية</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14"><span>English</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
 </div>
 </div>
       <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button" data-i18n="common.logOut">Log out</button>
