@@ -1,0 +1,355 @@
+/* Darwesh Group -- Service Universe (services.html). Opt-in via the
+ * #serviceUniverse mount point; scoped under .cine-scope since every
+ * page carrying this component already carries that class (see
+ * cinematic.css's own header comment for the palette this reads).
+ *
+ * Pure CSS 3D (perspective + rotateY + translateZ), driven by exactly
+ * one JS number (see js/service-universe.js). No canvas, no WebGL.
+ */
+
+.cine-scope .su-stage {
+  position: relative;
+  height: clamp(280px, 44vw, 400px);
+  margin: 0 auto;
+  touch-action: pan-y; /* horizontal drag is ours; vertical page scroll stays native */
+  user-select: none;
+  -webkit-user-select: none;
+  /* A planet at the side of the orbit paints at up to its full radius
+   * from center -- clipped here so it can never contribute horizontal
+   * scroll to the page (measured and required by this phase's mobile QA
+   * pass: section 17's "no horizontal page overflow" at 375/390/430px).
+   * The planet is still fully visible while it's within the stage's own
+   * bounds; only a sliver that would otherwise bleed past the container
+   * edge is clipped. */
+  overflow: hidden;
+}
+
+/* ---- Darwesh Core -- an abstract architectural/technological motif,
+ * never a literal sun. A restrained gold ring pair + soft glow.
+ * Deliberately positioned ABOVE the orbit band (not concentric with
+ * it): the front/focused planet always sits at the ring's own
+ * horizontal center, so a Core placed at that same point would be
+ * permanently hidden behind it. Sitting above keeps the Core visible
+ * at all times while the ring still reads as "orbiting" beneath it.
+ * Purely decorative (aria-hidden). ------------------------------------- */
+.cine-scope .su-core {
+  position: absolute;
+  top: 34%; left: 50%;
+  width: 64px; height: 64px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cine-scope .su-core-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 1px solid var(--cine-gold-1);
+  opacity: 0.55;
+}
+.cine-scope .su-core-ring--2 {
+  inset: -18px;
+  border-color: var(--cine-gold-1);
+  opacity: 0.22;
+  animation: su-core-spin 40s linear infinite;
+}
+.cine-scope .su-core-glow {
+  position: absolute; inset: -30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(184,154,99,0.16) 0%, transparent 70%);
+}
+@keyframes su-core-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .su-core-ring--2 { animation: none; }
+}
+
+/* ---- Orbit ring -- a plain 2D positioning anchor; each planet's own
+ * translate()/scale() (computed in js/service-universe.js's layout(),
+ * plain trigonometry, no CSS 3D transforms) is relative to this point.
+ * Positioned below the Core (see .su-core above) so the two never
+ * overlap. ---------------------------------------------------------------- */
+.cine-scope .su-orbit {
+  position: absolute;
+  top: 64%; left: 50%;
+  width: 1px; height: 1px;
+  cursor: grab;
+}
+.cine-scope .su-stage:active .su-orbit { cursor: grabbing; }
+
+/* ---- Planets -- real <button> elements (accessibility: section 19),
+ * positioned via inline transform from JS. The inner .su-planet-face
+ * counter-rotates (billboard) so the icon/label always face the viewer
+ * regardless of where the planet sits on the ring. ---------------------- */
+.cine-scope .su-planet {
+  position: absolute;
+  top: 0; left: 0;
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  border: 1px solid var(--ps-color-outline-variant);
+  background: var(--ps-color-surface-container-lowest);
+  cursor: pointer;
+  transition: box-shadow 220ms var(--ease-premium, ease);
+  will-change: transform, opacity;
+}
+.cine-scope .su-planet:focus-visible {
+  outline: none;
+  box-shadow: var(--ps-focus-ring);
+}
+.cine-scope .su-planet--front,
+.cine-scope .su-planet[aria-selected="true"] {
+  border-color: var(--cine-gold-2);
+  box-shadow: 0 0 0 1px rgba(184,154,99,0.35), 0 8px 28px rgba(9,10,10,0.5);
+}
+.cine-scope .su-planet-face {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px;
+  border-radius: 50%;
+  transition: transform 160ms var(--ease-premium, ease);
+}
+.cine-scope .su-planet-glyph {
+  font-size: 22px;
+  color: var(--cine-gold-2);
+}
+.cine-scope .su-planet-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ps-color-on-surface-variant);
+  text-align: center;
+  padding: 0 8px;
+  line-height: 1.15;
+}
+
+/* Per-service procedural texture -- same visual language as that
+ * service's own profile-page hero (cinematic.css's .rp-hero--KEY), kept
+ * intentionally consistent site-wide rather than inventing a second
+ * unrelated icon system. */
+.cine-scope .su-planet--engineer {
+  background-image: repeating-linear-gradient(0deg, rgba(184,154,99,0.06) 0 1px, transparent 1px 14px), repeating-linear-gradient(90deg, rgba(184,154,99,0.06) 0 1px, transparent 1px 14px);
+}
+.cine-scope .su-planet--designer {
+  background: linear-gradient(135deg, var(--ps-color-surface-container-lowest) 0%, var(--ps-color-surface-container-low) 50%, var(--ps-color-surface-container-lowest) 100%);
+}
+.cine-scope .su-planet--lawyer {
+  background-image: repeating-radial-gradient(circle at 50% 50%, rgba(184,154,99,0.08) 0 1px, transparent 1px 12px);
+}
+.cine-scope .su-planet--landscaping {
+  background-image: radial-gradient(ellipse 70% 60% at 30% 30%, rgba(127,184,154,0.14), transparent 70%);
+}
+.cine-scope .su-planet--cleaning {
+  background-image: linear-gradient(115deg, transparent 30%, rgba(242,238,229,0.08) 48%, transparent 66%);
+}
+
+/* ---- Prev/Next controls -- accessible orbit navigation (section 19). -- */
+.cine-scope .su-nav {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  padding: 0 4px;
+}
+.cine-scope .su-nav-btn {
+  pointer-events: auto;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--ps-color-outline-variant);
+  background: rgba(9,10,10,0.55);
+  color: var(--cine-gold-2);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+.cine-scope .su-nav-btn:hover { border-color: var(--cine-gold-2); }
+.cine-scope .su-nav-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+[dir="rtl"] .cine-scope .su-nav-btn .material-symbols-outlined { transform: scaleX(-1); }
+
+.cine-scope .su-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ps-color-on-surface-variant);
+  opacity: 0.75;
+  margin-top: 14px;
+  transition: opacity 200ms ease;
+}
+.cine-scope .su-hint--hidden { opacity: 0; }
+
+/* ---- Focus panel -- always in-flow (never a fixed overlay), so it can
+ * never "cover everything" on mobile (section 17's explicit requirement).
+ * ------------------------------------------------------------------------ */
+.cine-scope .su-panel {
+  position: relative;
+  max-width: 560px;
+  margin: 24px auto 0;
+  background: var(--ps-color-surface-container-low);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: 28px clamp(20px, 5vw, 36px) 24px;
+  text-align: center;
+}
+.cine-scope .su-panel-close {
+  position: absolute;
+  top: 12px; inset-inline-end: 12px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  color: var(--ps-color-on-surface-variant);
+  display: flex; align-items: center; justify-content: center;
+}
+.cine-scope .su-panel-close:hover { background: var(--ps-color-surface-container); }
+.cine-scope .su-panel-close:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .su-panel-icon {
+  width: 52px; height: 52px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--ps-color-surface-container);
+  border: 1px solid var(--ps-color-outline-variant);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--cine-gold-2);
+}
+.cine-scope .su-panel-eyebrow {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--cine-gold-1);
+  margin-bottom: 6px;
+}
+.cine-scope .su-panel-title {
+  font-size: clamp(20px, 3.4vw, 26px);
+  font-weight: 700;
+  color: var(--ps-color-on-surface);
+  margin-bottom: 8px;
+}
+.cine-scope .su-panel-tagline {
+  font-size: 14px;
+  color: var(--ps-color-on-surface-variant);
+  max-width: 42ch;
+  margin: 0 auto 18px;
+  line-height: 1.5;
+}
+.cine-scope .su-panel-stats {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-bottom: 20px;
+}
+.cine-scope .su-panel-stat { display: flex; flex-direction: column; align-items: center; }
+.cine-scope .su-panel-stat-num {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 24px; font-weight: 700;
+  color: var(--cine-gold-2);
+}
+.cine-scope .su-panel-stat-label {
+  font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ps-color-on-surface-variant);
+}
+.cine-scope .su-panel-stats-fallback {
+  font-size: 13px;
+  color: var(--ps-color-on-surface-variant);
+  font-style: italic;
+  margin-bottom: 20px;
+}
+.cine-scope .su-panel-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--ps-color-secondary);
+  color: var(--ps-color-on-secondary);
+  padding: 12px 26px;
+  border-radius: 999px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  transition: opacity 160ms ease;
+  min-height: 44px; /* thumb-friendly (section 17) */
+}
+.cine-scope .su-panel-cta:hover { opacity: 0.88; }
+.cine-scope .su-panel-cta:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* ---- Accessible alternative list (services.html) -- always present,
+ * never depends on the 3D layer above (section 13/26). ------------------ */
+.cine-scope .su-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.cine-scope .su-list-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: border-color 160ms ease, transform 160ms ease;
+  min-height: 44px;
+}
+.cine-scope .su-list-card:hover { border-color: var(--ps-color-secondary); transform: translateY(-2px); }
+.cine-scope .su-list-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .su-list-icon {
+  flex: none;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--ps-color-surface-container);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--cine-gold-2);
+}
+.cine-scope .su-list-name { font-size: 14.5px; font-weight: 600; color: var(--ps-color-on-surface); }
+.cine-scope .su-list-tagline { font-size: 12px; color: var(--ps-color-on-surface-variant); margin-top: 2px; }
+
+/* ---- Responsive: shrink stage/planets on narrow viewports (section 17
+ * targets: 375/390/430px). Radius itself is recomputed in JS; this only
+ * shrinks the planet chrome so nothing overlaps at small widths. ------- */
+@media (max-width: 480px) {
+  .cine-scope .su-planet { width: 76px; height: 76px; }
+  .cine-scope .su-planet-glyph { font-size: 18px; }
+  .cine-scope .su-planet-label { font-size: 8.5px; }
+  .cine-scope .su-core { width: 52px; height: 52px; }
+}
+
+/* ---- service.html directory toolbar/cards (shares this file since
+ * both pages are part of the same Service Universe feature). ----------- */
+.cine-scope .svc-back-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--ps-color-on-surface-variant);
+}
+.cine-scope .svc-back-link:hover { color: var(--cine-gold-2); }
+.cine-scope .svc-back-link .material-symbols-outlined { font-size: 18px; }
+[dir="rtl"] .cine-scope .svc-back-link .material-symbols-outlined { transform: scaleX(-1); }
+
+.cine-scope .svc-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cine-scope .svc-city-input { max-width: 220px; }
+.cine-scope .svc-filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--ps-color-outline-variant);
+  background: var(--ps-color-surface-container-lowest);
+  color: var(--ps-color-on-surface-variant);
+  font-size: 12.5px; font-weight: 600;
+  min-height: 40px;
+  transition: border-color 160ms ease, color 160ms ease;
+}
+.cine-scope .svc-filter-chip:hover { border-color: var(--cine-gold-1); }
+.cine-scope .svc-filter-chip:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .svc-filter-chip.is-active {
+  border-color: var(--cine-gold-2);
+  color: var(--cine-gold-2);
+  background: rgba(184,154,99,0.1);
+}
+
+.cine-scope .svc-provider-card {
+  display: block;
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: transform 200ms var(--ease-premium, ease), border-color 200ms var(--ease-premium, ease);
+}
+.cine-scope .svc-provider-card:hover,
+.cine-scope .svc-provider-card:focus-visible { transform: translateY(-3px); border-color: var(--ps-color-secondary); outline: none; }
+.cine-scope .svc-card-media {
+  width: 100%; aspect-ratio: 16/9;
+  background-size: cover; background-position: center;
+  background-color: var(--ps-color-surface-container);
+}
+.cine-scope .svc-card-media--fallback { display: flex; align-items: center; justify-content: center; }
+.cine-scope .svc-card-media--fallback .material-symbols-outlined { font-size: 32px; color: var(--ps-color-outline); opacity: 0.7; }
+.cine-scope .svc-card-body { padding: 14px; }
+.cine-scope .svc-card-name { font-size: 14.5px; font-weight: 600; color: var(--ps-color-on-surface); }
+.cine-scope .svc-card-meta { font-size: 12px; color: var(--ps-color-on-surface-variant); }
