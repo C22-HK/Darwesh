@@ -894,11 +894,23 @@
   // ---------------------------------------------------------------------
   // Step 5: Review
   // ---------------------------------------------------------------------
+  // `value` here is whatever the user just typed into this wizard's own
+  // fields (city, address, team size, etc.) rendered back to them on
+  // the Review step before submit -- this only ever displays in the
+  // current user's own browser (never persisted/shown to anyone else at
+  // this point), so it's self-XSS at worst, but escaping it costs
+  // nothing and matches how every other page in this codebase handles
+  // interpolating free-text into innerHTML.
+  function escapeReviewValue(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
   function reviewRow(label, value) {
     if (!value) return '';
     return `<div class="flex justify-between gap-3 py-1.5 border-b border-outline-variant last:border-0">
       <span class="font-body-md text-[12.5px] text-on-surface-variant">${label}</span>
-      <span class="font-body-md text-[13px] text-on-surface text-end">${value}</span>
+      <span class="font-body-md text-[13px] text-on-surface text-end">${escapeReviewValue(value)}</span>
     </div>`;
   }
   function reviewSection(titleKey, titleFallback, icon, rowsHtml, editStep) {

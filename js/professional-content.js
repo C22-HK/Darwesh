@@ -10,14 +10,16 @@
 //                             used inline on a work card and full-size on
 //                             the work detail page.
 //
-// `professionalPosts` has no firestore.rules match block yet (see the
-// architecture doc's §14) -- every query/read here treats a thrown
-// permission-denied (or any other read failure) the same as a genuine
-// empty result. This is NOT a fake/placeholder result: it is the correct,
-// honest rendering of "this collection has nothing to show yet," whether
-// that's because the rule doesn't exist yet or because it exists and is
-// simply empty. Nothing in this file ever invents a post, a creator, or a
-// count.
+// `professionalPosts` has a real, owner-gated firestore.rules match block
+// (create/update require providerOwnerId(profileId) == request.auth.uid
+// and serviceType == 'designer') -- every query/read here still treats a
+// thrown permission-denied (or any other read failure) the same as a
+// genuine empty result, since a caller with no access to a given
+// profile's posts should see nothing rather than an error. This is NOT a
+// fake/placeholder result: it is the correct, honest rendering of "this
+// collection has nothing to show yet," whether that's because the
+// caller isn't authorized or because it's simply empty. Nothing in this
+// file ever invents a post, a creator, or a count.
 //
 // Verification is NEVER read from a post document (none of the query
 // helpers below select it, because professionalPosts carries no

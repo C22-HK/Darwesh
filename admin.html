@@ -2300,7 +2300,8 @@ function renderServicesRows() {
     const isSell = s.type === 'sell';
     const typeLabel = isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
     const typeIcon = isSell ? 'sell' : 'event_available';
-    const thumbUrl = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
+    const thumbUrlRaw = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
+    const thumbUrl = isSafeHttpUrl(thumbUrlRaw) ? thumbUrlRaw : null;
     const thumb = thumbUrl
       ? `<img src="${escapeAdmin(thumbUrl)}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
       : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
@@ -3229,12 +3230,14 @@ async function fetchAgentStats() {
       verifiedCount: verifiedCounts[d.id] || 0
     });
   });
-  return { agents, companiesSnap, listingsSnap, companyNames };
+  return { agents, usersSnap, companiesSnap, listingsSnap, companyNames };
 }
 
 async function renderBranchesTab() {
-  const { companiesSnap, listingsSnap } = await fetchAgentStats();
-  const usersSnap = await getDocs(collection(db, 'users'));
+  // Reuses fetchAgentStats()'s own usersSnap instead of re-fetching the
+  // entire `users` collection a second time here -- this used to do two
+  // full collection reads on every Branches tab render.
+  const { usersSnap, companiesSnap, listingsSnap } = await fetchAgentStats();
 
   const agentCounts = {}, listingCounts = {}, portfolioValues = {};
   usersSnap.forEach(d => { const u = d.data(); if (u.role === 'agent' && u.companyId) agentCounts[u.companyId] = (agentCounts[u.companyId] || 0) + 1; });
