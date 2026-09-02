@@ -855,6 +855,24 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-bottomnav-item.is-active { color: var(--ps-color-secondary); }
 .cine-scope .home-bottomnav-fab { background: var(--ps-color-primary); border: 3px solid var(--ps-color-surface-container-lowest); box-shadow: var(--ps-shadow-3d-2); }
 .cine-scope .home-bottomnav-fab .material-symbols-outlined { color: var(--ps-color-secondary); }
+/* Real bottom padding is set in px here (not a Tailwind pb-* utility on
+   the element, deliberately) so js/site-mobile-nav.js's shared markup
+   controls the exact same clearance everywhere it's used: at least 10px
+   of breathing room on every device, growing to clear the home
+   indicator/gesture bar on notched phones via env(safe-area-inset-bottom)
+   (a no-op, resolving to 0, on every device without one). */
+.cine-scope .home-bottomnav { padding-top: 8px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.cine-scope .home-bottomnav-item:focus-visible,
+.cine-scope .home-bottomnav-fab:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
+
+/* js/site-header.js's desktop nav links and js/site-mobile-nav.js's
+   bottom-nav items are plain <a> tags styled with Tailwind color
+   utilities, not one of this file's own named components -- Tailwind's
+   own preflight sets a:focus{outline:2px solid transparent}, so without
+   this they'd have literally no visible keyboard-focus indicator at all.
+   Scoped to the two mount points' own IDs rather than every <a> site-wide. */
+#siteHeader a:focus-visible,
+#siteMobileNav a:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
 
 /* =========================================================================
  * ROLE PROFILE SHELL -- shared foundation for engineer.html/designer.html

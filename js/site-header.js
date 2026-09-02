@@ -42,6 +42,9 @@
       ? 'font-label-caps text-label-caps text-primary dark:text-primary-fixed-dim font-bold transition-colors'
       : 'font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors';
   }
+  function ariaCurrent(key) {
+    return key === active ? ' aria-current="page"' : '';
+  }
 
   mount.innerHTML =
     '<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">' +
@@ -69,18 +72,18 @@
         '</div>' +
         '<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>' +
       '</div>' +
-      '<nav class="hidden md:flex items-center gap-6">' +
-        '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home">Home</a>' +
-        '<a class="' + navClass('buyRentMap') + '" href="buy-rent-map.html" data-i18n="drm.navLabel">Buy/Rent Map</a>' +
-        '<a class="' + navClass('exploreMap') + '" href="map.html" data-i18n="nav.exploreMap">Explore Map</a>' +
+      '<nav class="hidden md:flex items-center gap-6" aria-label="Primary">' +
+        '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home"' + ariaCurrent('home') + '>Home</a>' +
+        '<a class="' + navClass('buyRentMap') + '" href="buy-rent-map.html" data-i18n="drm.navLabel"' + ariaCurrent('buyRentMap') + '>Buy/Rent Map</a>' +
+        '<a class="' + navClass('exploreMap') + '" href="map.html" data-i18n="nav.exploreMap"' + ariaCurrent('exploreMap') + '>Explore Map</a>' +
         '<span id="citiesNavSlot"></span>' +
-        '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services">Services</a>' +
-        '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about">About</a>' +
+        '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
+        '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
         '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html">Profile</a>' +
         '<a class="inline-flex items-center gap-1.5 bg-secondary text-on-secondary px-[18px] py-[9px] rounded-lg font-label-caps text-label-caps hover:opacity-90 transition-opacity" href="mam-ai.html">MAM AI</a>' +
       '</nav>' +
       '<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">' +
-        '<span class="material-symbols-outlined">notifications</span>' +
+        '<span class="material-symbols-outlined" aria-hidden="true">notifications</span>' +
       '</button>' +
     '</header>';
 })();
