@@ -271,14 +271,23 @@ function build(mount, platforms) {
     }
   });
 
+  // Prev/Next must land on the SAME shared selection state a tile click
+  // does (focusedIndex + aria-selected + the caption's actual content),
+  // not just rotate the ring -- otherwise clicking these buttons visibly
+  // moves the orbit but the platform name/handle/CTA a user is actually
+  // reading never changes, which reads as "the buttons do nothing."
+  // selectPlanet() already no-ops into a navigation only when the target
+  // is the CURRENTLY selected index, which next/prev here can never be
+  // for N>1 (it's always focusableIndex() +/-1 mod N), so this can never
+  // accidentally open an external link.
   document.getElementById('soPrevBtn').addEventListener('click', () => {
     const next = ((focusableIndex() - 1) % N + N) % N;
-    snapTo(next);
+    selectPlanet(next);
     planetButtons[next].focus();
   });
   document.getElementById('soNextBtn').addEventListener('click', () => {
     const next = ((focusableIndex() + 1) % N + N) % N;
-    snapTo(next);
+    selectPlanet(next);
     planetButtons[next].focus();
   });
   if (N <= 1) {
