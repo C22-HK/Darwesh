@@ -19,237 +19,523 @@ violation reporting. -->
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Darwesh Group - Rent Profile</title>
+<title>Darwesh Group - Rent a Property</title>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com" rel="preconnect"/>
-<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-        .premium-shadow {
-            box-shadow: 0px 4px 20px rgba(26, 43, 60, 0.05);
-        }
-        .verified-border {
-            border-left: 2px solid #8E7448; /* secondary color */
-        }
-    </style>
-</head>
-<body class="cine-scope bg-surface text-on-surface font-body-md antialiased min-h-screen pb-safe pb-24 md:pb-0">
+    /* Hero: Obsidian -> Carbon gradient with the site's established
+       restrained-gold hairline accent (same treatment already used by
+       .home-promo / .home-mam-banner in cinematic.css). */
+    .rent-hero {
+      background: linear-gradient(150deg, var(--cine-bg-0) 0%, var(--cine-bg-1) 100%);
+      position: relative;
+    }
+    .rent-hero::before {
+      content: ''; position: absolute; inset-inline: 0; inset-block-start: 0;
+      height: 2px; background: var(--ps-gold-edge); opacity: 0.8;
+    }
+    /* Search card intentionally overlaps the hero's bottom edge -- a single
+       raised panel, not a separate section, so hero and search read as one
+       product moment rather than two stacked blocks. */
+    .rent-search-card { box-shadow: var(--ps-shadow-3d-3); }
+
+    .rent-adv-toggle .material-symbols-outlined { transition: transform 200ms ease; }
+    .rent-adv-toggle[aria-expanded="true"] .material-symbols-outlined { transform: rotate(180deg); }
+    @media (prefers-reduced-motion: reduce) {
+      .rent-adv-toggle .material-symbols-outlined { transition: none; }
+    }
+
+    .rent-toast {
+      position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
+      background: #17150F; color: #F2EEE5; border: 1px solid #5D482B; padding: 10px 20px; border-radius: 999px;
+      font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+      opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 1100;
+      display: flex; align-items: center; gap: 8px; white-space: nowrap;
+    }
+    .rent-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    @media (min-width: 768px) { .rent-toast { bottom: 1.5rem; } }
+  </style>
+  </head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
 <!-- TopAppBar -->
-<div id="siteHeader" data-active="profile"></div>
+<div id="siteHeader" data-active=""></div>
 <script src="./js/site-header.js"></script>
-<div id="siteMobileNav" data-active="profile"></div>
+<div id="siteMobileNav" data-active=""></div>
 <script src="./js/site-mobile-nav.js"></script>
-<main class="pt-16 md:pt-16">
-<!-- Hero Header -->
-<section class="relative w-full h-64 md:h-80 bg-primary-container overflow-hidden">
-<div class="absolute inset-0 bg-cover bg-center opacity-60 mix-blend-overlay" data-alt="A breathtaking twilight view from a luxury high-rise apartment balcony overlooking a modern metropolis. The scene is illuminated by the soft, warm glow of city lights blending with the deep blue evening sky. High-end outdoor furniture sits on the terrace, conveying wealth, exclusivity, and premium real estate. The mood is sophisticated and aspirational, utilizing deep navy tones and subtle golden light accents." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCDKVcK-dZBAvNnpfzoFatYquCTPcm0PedEeoogkOtY_CyBXrpuRd_l05oRdN1LaHoVjWnj60DdulRPa2NcQmqhtylnAe1V4eScvJ6Ds4Re6WwnTBS3PZxljj3pqYWK9lxDPOfyNFnb6w6FILXRoYhsmZID7RW1uWOTqGVSTy28VMzmXVEaMN86zD68U_SsLDti-GPvYleB6le79NanDcwDJfnhkpQ87LCTT7ohrIFh00SQkCiFd7uB')"></div>
-<div class="absolute inset-0 bg-gradient-to-t from-primary-container via-primary-container/40 to-transparent"></div>
-<div class="relative h-full container mx-auto max-w-[1280px] px-margin-mobile md:px-margin-desktop flex flex-col justify-end pb-stack-lg">
-<div class="flex items-center gap-4 mb-2">
-<img alt="Rent Service Icon" class="w-12 h-12 md:w-16 md:h-16 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWJ19wVNraJVdXo5T-2gm9euUzuntsesSN5CLX-zaR36yHJCJwhT7-9v8zc7zZzD3Dd1aioWzMv4yhJ4q_DT7oXIfhgowMwzlhwaT_cCBJQfVD5gdjCxQ0wAOnh_pBAEkNxymb6go5MRLF_gA8qPNhAoOUyqcYlZSjdLVjqtzugWL2kFYlkaGOMwdpUdPSNaMnKEGmko_X9XNoUEGf0p-XtZO0UX9UBEpT5FBmKt3mFbDh6PgB8GQZLR0M8wFokJsPRg"/>
-<div>
-<h1 class="font-display-lg-mobile md:font-display-lg text-display-lg-mobile md:text-display-lg text-on-primary" data-i18n="rent.portfolioTitle">Rent Portfolio</h1>
-<p class="font-body-md text-body-md text-primary-fixed-dim mt-1" data-i18n="rent.portfolioSubtitle">Manage your luxury rentals and applications.</p>
-</div>
-</div>
+
+<main class="w-full">
+<!-- Hero + Search -->
+<section class="rent-hero pt-stack-lg pb-20 md:pb-24 px-margin-mobile md:px-margin-desktop">
+<div class="max-w-container-max mx-auto text-center">
+<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg mb-2" style="color: var(--cine-text-primary);" data-i18n="rent.title">Rent a Property</h1>
+<p class="font-body-lg text-body-lg max-w-2xl mx-auto" style="color: var(--cine-text-secondary);" data-i18n="rent.subtitle">Verified properties for rent across Kurdistan.</p>
 </div>
 </section>
-<!-- Main Content Grid -->
-<div class="container mx-auto max-w-[1280px] px-margin-mobile md:px-margin-desktop py-stack-lg grid grid-cols-1 lg:grid-cols-12 gap-gutter">
-<!-- Application Status Stepper (Full Width) -->
-<div class="lg:col-span-12">
-<div class="bg-surface-container-lowest rounded-xl border border-outline-variant premium-shadow p-stack-md md:p-stack-lg relative overflow-hidden">
-<div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-secondary to-primary-container"></div>
-<h2 class="font-headline-md text-headline-md text-primary mb-stack-md flex items-center gap-2">
-<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">assignment_turned_in</span>
-                        Active Application: The Pearl Residence
-                    </h2>
-<div class="flex flex-col md:flex-row justify-between relative mt-stack-lg md:mt-12">
-<!-- Connecting Line -->
-<div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-surface-container-high -z-10 -translate-y-1/2"></div>
-<!-- Step 1 (Completed) -->
-<div class="flex md:flex-col items-center gap-4 md:gap-2 relative z-10 mb-6 md:mb-0">
-<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center border-2 border-primary">
-<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
+
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop -mt-14 md:-mt-16 relative z-10">
+<!-- Search / Filter Card -->
+<div class="rent-search-card bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-sm md:p-stack-md">
+<div class="flex flex-col gap-3">
+<!-- Location -->
+<div class="relative">
+<span class="material-symbols-outlined absolute start-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">location_on</span>
+<input id="rentSearchInput" class="w-full bg-surface-container border border-outline-variant rounded-lg ps-9 pe-4 py-2.5 font-body-md text-body-md text-on-surface placeholder-outline-variant focus:ring-2 focus:ring-secondary focus:border-transparent" placeholder="Search city or neighborhood..." type="text" data-i18n-placeholder="buy.searchPlaceholder" aria-label="Search city or neighborhood"/>
 </div>
-<div class="flex flex-col md:items-center">
-<span class="font-label-caps text-label-caps text-primary">Submitted</span>
-<span class="font-data-mono text-data-mono text-on-surface-variant text-xs">Oct 12</span>
+<!-- Type / Beds / Price -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+<select id="rentTypeFilter" class="bg-surface-container border border-outline-variant rounded-lg px-3 py-2.5 font-label-caps text-label-caps text-on-surface focus:ring-2 focus:ring-secondary col-span-2 md:col-span-1" aria-label="Property type">
+<option value="all" data-i18n="buy.allHomeTypes">All Home Types</option>
+<option value="house" data-i18n="map.house">House</option>
+<option value="villa" data-i18n="map.villa">Villa</option>
+<option value="apartment" data-i18n="map.apartment">Apartment</option>
+<option value="land" data-i18n="map.land">Land</option>
+<option value="building" data-i18n="map.building">Building</option>
+<option value="office" data-i18n="map.office">Office</option>
+<option value="shop" data-i18n="map.shop">Shop</option>
+<option value="commercialProperty" data-i18n="map.commercialProperty">Commercial Property</option>
+</select>
+<select id="rentBedsFilter" class="bg-surface-container border border-outline-variant rounded-lg px-3 py-2.5 font-label-caps text-label-caps text-on-surface focus:ring-2 focus:ring-secondary" aria-label="Bedrooms">
+<option value="0" data-i18n="map.any">Any Beds</option>
+<option value="1">1+</option>
+<option value="2">2+</option>
+<option value="3">3+</option>
+<option value="4">4+</option>
+<option value="5">5+</option>
+</select>
+<input id="rentMinPrice" type="number" min="0" inputmode="numeric" class="bg-surface-container border border-outline-variant rounded-lg px-3 py-2.5 font-body-md text-body-md text-on-surface focus:ring-2 focus:ring-secondary" data-i18n-placeholder="map.minPrice" placeholder="Min Price" aria-label="Minimum monthly price"/>
+<input id="rentMaxPrice" type="number" min="0" inputmode="numeric" class="bg-surface-container border border-outline-variant rounded-lg px-3 py-2.5 font-body-md text-body-md text-on-surface focus:ring-2 focus:ring-secondary" data-i18n-placeholder="map.maxPrice" placeholder="Max Price" aria-label="Maximum monthly price"/>
 </div>
-</div>
-<!-- Step 2 (Completed) -->
-<div class="flex md:flex-col items-center gap-4 md:gap-2 relative z-10 mb-6 md:mb-0">
-<!-- Mobile Connecting Line segment -->
-<div class="md:hidden absolute left-5 -top-8 w-0.5 h-8 bg-primary -z-10"></div>
-<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center border-2 border-primary">
-<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
-</div>
-<div class="flex flex-col md:items-center">
-<span class="font-label-caps text-label-caps text-primary">Review</span>
-<span class="font-data-mono text-data-mono text-on-surface-variant text-xs">Oct 14</span>
-</div>
-</div>
-<!-- Step 3 (Active) -->
-<div class="flex md:flex-col items-center gap-4 md:gap-2 relative z-10 mb-6 md:mb-0">
-<!-- Mobile Connecting Line segment -->
-<div class="md:hidden absolute left-5 -top-8 w-0.5 h-8 bg-primary -z-10"></div>
-<div class="w-10 h-10 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center border-2 border-secondary ring-4 ring-secondary/20">
-<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">hourglass_empty</span>
-</div>
-<div class="flex flex-col md:items-center">
-<span class="font-label-caps text-label-caps text-secondary font-bold">Verification</span>
-<span class="font-data-mono text-data-mono text-on-surface-variant text-xs">In Progress</span>
-</div>
-</div>
-<!-- Step 4 (Pending) -->
-<div class="flex md:flex-col items-center gap-4 md:gap-2 relative z-10">
-<!-- Mobile Connecting Line segment -->
-<div class="md:hidden absolute left-5 -top-8 w-0.5 h-8 bg-surface-container-high -z-10"></div>
-<div class="w-10 h-10 rounded-full bg-surface-container-lowest text-outline border-2 border-surface-container-high flex items-center justify-center">
-<span class="material-symbols-outlined text-sm">key</span>
-</div>
-<div class="flex flex-col md:items-center">
-<span class="font-label-caps text-label-caps text-outline">Approval</span>
-<span class="font-data-mono text-data-mono text-outline-variant text-xs">Pending</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-<!-- Left Column: Searches & Leases -->
-<div class="lg:col-span-8 flex flex-col gap-stack-lg mt-stack-md lg:mt-0">
-<!-- Active Rental Searches (Bento Grid) -->
-<div>
-<div class="flex justify-between items-end mb-stack-md">
-<h3 class="font-headline-md text-headline-md text-primary">Active Searches</h3>
-<button class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors flex items-center gap-1">
-                            View All <span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+<!-- CTA row -->
+<div class="flex flex-wrap items-center gap-3 pt-1">
+<button id="rentSearchBtn" type="button" class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">search</span>
+<span data-i18n="rent.searchCta">Search Rentals</span>
 </button>
-</div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-unit">
-<!-- Search Card 1 -->
-<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-stack-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer">
-<div class="flex items-start justify-between mb-2">
-<div class="bg-surface-container-low p-2 rounded-md">
-<span class="material-symbols-outlined text-primary">apartment</span>
-</div>
-<span class="bg-primary-fixed text-on-primary-fixed font-label-caps text-[10px] px-2 py-1 rounded-full">New Matches</span>
-</div>
-<div>
-<h4 class="font-body-md text-body-md font-medium text-primary">Downtown Penthouses</h4>
-<p class="font-data-mono text-data-mono text-on-surface-variant text-sm mt-1">3+ Beds • $5k-$8k/mo</p>
-</div>
-</div>
-<!-- Search Card 2 -->
-<div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-stack-sm flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer">
-<div class="flex items-start justify-between mb-2">
-<div class="bg-surface-container-low p-2 rounded-md">
-<span class="material-symbols-outlined text-primary">villa</span>
-</div>
-<span class="font-label-caps text-[10px] text-outline px-2 py-1">2d ago</span>
-</div>
-<div>
-<h4 class="font-body-md text-body-md font-medium text-primary">Suburban Villas</h4>
-<p class="font-data-mono text-data-mono text-on-surface-variant text-sm mt-1">Pool • Pet Friendly</p>
-</div>
-</div>
-</div>
-</div>
-<!-- Lease Agreements -->
-<div>
-<h3 class="font-headline-md text-headline-md text-primary mb-stack-md">Lease Documents</h3>
-<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden premium-shadow">
-<!-- Document Row 1 -->
-<div class="flex items-center justify-between p-stack-md border-b border-surface-container-high hover:bg-surface-container-low transition-colors cursor-pointer">
-<div class="flex items-center gap-4">
-<div class="w-10 h-10 rounded-lg bg-error-container text-on-error-container flex items-center justify-center">
-<span class="material-symbols-outlined">picture_as_pdf</span>
-</div>
-<div>
-<p class="font-body-md text-body-md font-medium text-primary">Draft_Lease_Agreement_Pearl.pdf</p>
-<p class="font-data-mono text-data-mono text-xs text-on-surface-variant">Requires Signature • Added Oct 14</p>
-</div>
-</div>
-<button class="text-secondary bg-secondary/10 px-4 py-2 rounded-md font-label-caps text-label-caps hover:bg-secondary/20 transition-colors">Sign Now</button>
-</div>
-<!-- Document Row 2 -->
-<div class="flex items-center justify-between p-stack-md hover:bg-surface-container-low transition-colors cursor-pointer">
-<div class="flex items-center gap-4">
-<div class="w-10 h-10 rounded-lg bg-surface-container-high text-on-surface-variant flex items-center justify-center">
-<span class="material-symbols-outlined">description</span>
-</div>
-<div>
-<p class="font-body-md text-body-md font-medium text-primary">Previous_Lease_Oakwood.pdf</p>
-<p class="font-data-mono text-data-mono text-xs text-on-surface-variant">Expired 2022 • Completed</p>
-</div>
-</div>
-<button class="text-on-surface-variant hover:text-primary transition-colors">
-<span class="material-symbols-outlined">download</span>
+<button id="rentAdvToggle" type="button" class="rent-adv-toggle hidden md:inline-flex items-center gap-1 font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" aria-expanded="false" aria-controls="rentFilterDrawer">
+<span data-i18n="rent.advancedFilters">Advanced Filters</span>
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">expand_more</span>
 </button>
+<button id="rentMobileFilterBtn" type="button" class="md:hidden inline-flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-controls="rentFilterDrawer">
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">tune</span>
+<span data-i18n="common.filters">Filters</span>
+</button>
+<select id="rentSortFilter" class="ms-auto bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 font-label-caps text-label-caps text-on-surface focus:ring-2 focus:ring-secondary" aria-label="Sort">
+<option value="default" data-i18n="buy.sortFeatured">Sort: Featured</option>
+<option value="price-asc" data-i18n="buy.priceLowHigh">Price: Low to High</option>
+<option value="price-desc" data-i18n="buy.priceHighLow">Price: High to Low</option>
+<option value="newest" data-i18n="buy.newest">Newest</option>
+</select>
 </div>
 </div>
 </div>
+
+<!-- Result count + Map CTA -->
+<div class="flex items-center justify-between gap-3 mt-stack-md mb-stack-sm">
+<p id="rentResultCount" class="font-data-mono text-data-mono text-on-surface-variant"></p>
+<a id="rentMapLink" class="flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors flex-none" href="buy-rent-map.html?deal=rent">
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">map</span> <span data-i18n="buy.viewOnMap">View on Map</span>
+</a>
 </div>
-<!-- Right Column: Saved Properties -->
-<div class="lg:col-span-4 mt-stack-md lg:mt-0">
-<h3 class="font-headline-md text-headline-md text-primary mb-stack-md flex items-center gap-2">
-<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">favorite</span>
-                    Saved Properties
-                </h3>
-<div class="flex flex-col gap-unit">
-<!-- Property Card 1 (Verified) -->
-<div class="bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant premium-shadow verified-border group cursor-pointer">
-<div class="h-32 w-full relative overflow-hidden">
-<div class="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-500" data-alt="Interior shot of a minimalist, high-end modern apartment living room with expansive floor-to-ceiling windows showing a bright city skyline. The room features a plush grey sofa, light oak floors, and a sleek marble coffee table. Natural light floods the space, creating a clean, pristine, and luxurious atmosphere typical of premium urban real estate." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAaK0Z3f-YFk8FyLUopFOuVWwEsiTNNZekKMbdYxOlpxt1o3x4leeINIEHl3S4CkCFn3EslZd38riWhvCzyWh-p5wfCjvbwSRI8DLa_gKCTFhbVCgioL-9vxhvxh5EdtElSLqPO5c5Ho2FFh7rtGPzEe5dBoS5PYwyQXuMc4L7Q1z817dcpO5qQs72m9ZVsTSp3lclMtFGhdTr7WhWqsEtiFUGxH4hhs3w4FehVQ7eAUj_zufH_BqaX')"></div>
-<div class="absolute top-2 right-2 bg-surface-container-lowest/90 backdrop-blur text-primary font-label-caps text-[10px] px-2 py-1 rounded flex items-center gap-1 shadow-sm">
-<span class="material-symbols-outlined text-[12px] text-on-tertiary-container" style="font-variation-settings: 'FILL' 1;">verified</span> Verified
-                            </div>
-</div>
-<div class="p-stack-sm">
-<div class="flex justify-between items-start mb-1">
-<h4 class="font-body-md text-body-md font-semibold text-primary truncate">The Horizon Suite</h4>
-<span class="font-data-mono text-data-mono text-primary font-bold">$4,200<span class="text-xs font-normal text-on-surface-variant">/mo</span></span>
-</div>
-<p class="font-body-md text-sm text-on-surface-variant mb-2 truncate">Downtown Financial District</p>
-<div class="flex items-center gap-3 text-on-surface-variant font-data-mono text-xs">
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">bed</span> 2</span>
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">shower</span> 2</span>
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">square_foot</span> 1200 sqft</span>
-</div>
-</div>
-</div>
-<!-- Property Card 2 -->
-<div class="bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant premium-shadow group cursor-pointer">
-<div class="h-32 w-full relative overflow-hidden">
-<div class="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-500" data-alt="A refined architectural rendering of a contemporary townhouse facade. The building features clean geometric lines, large dark-framed windows, and elegant wood cladding. It is set in a quiet, upscale neighborhood with manicured greenery. The lighting implies a bright, sunny afternoon, projecting a sense of serene, modern living suitable for high-income renters." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuB_EOn74jPzXWIeqhgjenf7iLrXSsBo-xdIqfZfu6StZF9ggHZWYb8XX67uP2LChTr4SQjlU_ROjT6sYFdmgv_whsi6unJLz8J47wU43W0OtYL0Nx4SoTgR-6Ct6R6NQQXezMdBSKLh_erGxYMp6mOap_fnz-jDUbS1IEHIiDxB8JNcNzywSZxwyIvTrb5a_BpEzHQ5hkh4EVRZfPLdHK-JNP1iFncrCPfyDP8q8EknYuaG1o17gMzg')"></div>
-</div>
-<div class="p-stack-sm">
-<div class="flex justify-between items-start mb-1">
-<h4 class="font-body-md text-body-md font-semibold text-primary truncate">Maplewood Terrace</h4>
-<span class="font-data-mono text-data-mono text-primary font-bold">$3,850<span class="text-xs font-normal text-on-surface-variant">/mo</span></span>
-</div>
-<p class="font-body-md text-sm text-on-surface-variant mb-2 truncate">Westside Suburbs</p>
-<div class="flex items-center gap-3 text-on-surface-variant font-data-mono text-xs">
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">bed</span> 3</span>
-<span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">shower</span> 2.5</span>
-</div>
-</div>
-</div>
-</div>
+
+<!-- Listings Grid -->
+<section id="rentListingsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-stack-lg" aria-live="polite"></section>
+
+<!-- Empty state -->
+<div id="rentEmptyState" class="ps-empty hidden">
+<span class="material-symbols-outlined text-[40px] text-outline mb-2" aria-hidden="true">key_off</span>
+<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="rent.emptyStateTitle">No rentals available right now</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-md mx-auto" data-i18n="rent.emptyStateBody">Check back soon — new rental listings are added regularly. In the meantime, try browsing homes for sale or explore the map.</p>
 </div>
 </div>
 </main>
+
+<!-- Advanced filters drawer (shared by the desktop "Advanced Filters" link and the mobile "Filters" button) -->
+<div id="rentFilterDrawer" class="hidden fixed inset-0 z-[70] bg-black/50 flex items-start justify-center pt-20 px-3">
+<div class="bg-surface-container-lowest rounded-2xl border border-outline-variant max-w-2xl w-full max-h-[80vh] overflow-y-auto p-5">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline-md text-headline-md text-on-surface" data-i18n="common.filters">Filters</h3>
+<button id="rentFilterCloseBtn" type="button" class="p-1.5 rounded-full hover:bg-surface-container" aria-label="Close"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div>
+<label for="rentBathsFilter" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.baths">Baths</label>
+<select id="rentBathsFilter" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
+<option value="0" data-i18n="map.any">Any</option><option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option>
+</select>
+</div>
+<div></div>
+<div>
+<label for="rentMinArea" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min Area (m²)</label>
+<input id="rentMinArea" type="number" min="0" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md"/>
+</div>
+<div>
+<label for="rentMaxArea" class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.maxArea">Max Area (m²)</label>
+<input id="rentMaxArea" type="number" min="0" class="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md"/>
+</div>
+<div class="sm:col-span-2 flex flex-wrap gap-4 pt-1">
+<label class="flex items-center gap-2 font-body-md text-body-md"><input type="checkbox" id="rentFurnished" class="rounded"/> <span data-i18n="rent.furnishedOnly">Furnished only</span></label>
+<label class="flex items-center gap-2 font-body-md text-body-md"><input type="checkbox" id="rentVerified" class="rounded"/> <span data-i18n="common.verified">Verified</span></label>
+</div>
+</div>
+<div class="flex gap-3 mt-5">
+<button id="rentFilterApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2.5 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
+<button id="rentFilterClearBtn" type="button" class="px-5 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
+</div>
+</div>
+</div>
+
+<div class="rent-toast" id="rentToast"></div>
+
+<script>
+// ---------------------------------------------------------------------
+// Real for-rent listings, loaded live from Firestore's `listings`
+// collection -- the same collection buy.html/buy-rent-map.html read.
+// firestore.rules only allows a public read when the query is
+// constrained to private==false AND status=='active' (isListingPubliclyVisible());
+// an unconstrained or under-constrained query is denied outright, and
+// hasSaneListingNumbers() plus the create/update field allowlists mean
+// there is no server-side concept of "monthlyPrice"/"furnished"/"deposit"
+// -- `price` is reused for whatever dealType the listing has (rent shows
+// it with a "/mo" suffix client-side, same convention as index.html's
+// featured-listings card and listing.html's own price formatter), and
+// "furnished" can only ever be a string inside the generic `amenities`
+// array. No rent-specific field is invented here that the schema
+// doesn't actually support.
+//
+// Query strategy: one bounded, single-shot getDocs() (not a realtime
+// listener) with three equality filters (private/status/dealType) and
+// limit(200) -- the exact same shape buy-rent-map.html already runs in
+// production for its own Rent toggle, so this needs no new Firestore
+// index. `projects` is fetched the same bounded way (limit 200) in
+// parallel via Promise.all, so a project/community name lookup never
+// costs a second network round-trip or a per-listing read. Every other
+// filter (city/neighborhood text, property type, beds, baths, price,
+// area, furnished, verified) and every sort option is then applied
+// client-side over that single already-fetched, already-bounded array --
+// there is no unbounded collection download and no per-filter-change
+// network request.
+// ---------------------------------------------------------------------
+const IMAGES = {
+  villa: "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
+  office: "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z",
+  apartment: "https://lh3.googleusercontent.com/aida-public/AB6AXuDii6xTkNXKTsc2msOvTgk_GQRcMSy050_Dub19-3hbsr_7hP2rG706xznOp3AeUptsrkRFQRdDAyRVv34ZC0SUkPNGIL-UJT7JD0cy09YlNtODFbsnXaEF8zJd8aCvsZTCEWBKPj1XViF2xaNk4S5ik9wCMk8rl0kk9lg4Fo1HxPTg6ko3xaad2_K6da2mIldQlUkjAAy1sB7EUWp2DDwZ3zv679mzelRkHr4tPHRSXmBA6Aq8Vhjs",
+  land: "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz",
+  renovated: "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
+};
+IMAGES.house = IMAGES.villa;
+IMAGES.building = IMAGES.office;
+IMAGES.shop = IMAGES.office;
+IMAGES.commercialProperty = IMAGES.office;
+
+let LISTINGS = [];
+let PROJECTS = {};
+let listingsLoaded = false;
+
+function tsMillis(t) {
+  if (!t) return 0;
+  if (typeof t.toMillis === 'function') return t.toMillis();
+  if (typeof t.seconds === 'number') return t.seconds * 1000;
+  return 0;
+}
+
+async function fetchListingsRaw() {
+  const [{ db, getDocs }, storeMod] = await Promise.all([
+    import('./js/firebase-init.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+  ]);
+  const { collection, query, where, limit } = storeMod;
+  const q = query(
+    collection(db, 'listings'),
+    where('private', '==', false),
+    where('status', '==', 'active'),
+    where('dealType', '==', 'rent'),
+    limit(200)
+  );
+  const snap = await getDocs(q);
+  const docs = [];
+  snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+  return docs;
+}
+
+async function fetchProjects() {
+  try {
+    const [{ db, getDocs }, storeMod] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    ]);
+    const { collection, query, limit } = storeMod;
+    const snap = await getDocs(query(collection(db, 'projects'), limit(200)));
+    const map = {};
+    snap.forEach(d => { map[d.id] = d.data(); });
+    return map;
+  } catch (e) {
+    return {};
+  }
+}
+
+async function loadAll() {
+  try {
+    const [rawListings, projects] = await Promise.all([fetchListingsRaw(), fetchProjects()]);
+    PROJECTS = projects;
+    LISTINGS = rawListings.map(d => ({
+      id: d.id,
+      title: d.title || d.address || 'Property',
+      city: d.city || '',
+      address: d.address || '',
+      type: d.propertyType || '',
+      price: Number(d.price) || 0,
+      beds: Number(d.beds) || 0,
+      baths: Number(d.baths) || 0,
+      sqft: Number(d.sqft) || 0,
+      img: d.img || IMAGES[d.propertyType] || IMAGES.villa,
+      verified: !!d.verified,
+      furnished: Array.isArray(d.amenities) && d.amenities.includes('furnished'),
+      createdAtMs: tsMillis(d.createdAt),
+      projectId: d.projectId || null,
+      projectName: (d.projectId && projects[d.projectId] && projects[d.projectId].name) || ''
+    }));
+  } catch (e) {
+    LISTINGS = [];
+  }
+  listingsLoaded = true;
+  render();
+}
+loadAll();
+
+// ---------------------------------------------------------------------
+// Favorites (Firebase). NOTE: every favorite doc across the whole site
+// (buy.html, map.html, listing.html) uses the 'buy-' + id prefix
+// regardless of dealType -- listing.html:349/370/377 hardcodes it for
+// BOTH sale and rent listings, since it's the single shared detail page
+// for both. Using a different prefix here ('rent-') would silently
+// desync a rental's favorite state between this page and listing.html
+// (two different subcollection docs for the same listing). Kept
+// identical to the existing convention on purpose, not a naming choice
+// made fresh for this page.
+// ---------------------------------------------------------------------
+let favAuth = null, favDb = null, favFns = null;
+let favoriteIds = new Set();
+
+function showToast(msg, icon) {
+  const el = document.getElementById('rentToast');
+  el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>`;
+  el.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+async function initFavorites() {
+  const [{ auth, db, getDocs, addDoc, setDoc, deleteDoc }, authMod, storeMod] = await Promise.all([
+    import('./js/firebase-init.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+  ]);
+  favAuth = auth; favDb = db;
+  favFns = { ...authMod, ...storeMod, getDocs, addDoc, setDoc, deleteDoc };
+  favFns.onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const snap = await favFns.getDocs(favFns.collection(db, 'users', user.uid, 'favorites'));
+      favoriteIds = new Set();
+      snap.forEach(d => favoriteIds.add(d.id));
+    } else {
+      favoriteIds = new Set();
+    }
+    render();
+  });
+}
+initFavorites();
+
+async function toggleFavorite(id) {
+  if (!favAuth || !favAuth.currentUser) {
+    showToast(tr('listing.loginToSave', 'Log in to save favorites'), 'favorite');
+    setTimeout(() => { window.location.href = 'login.html'; }, 900);
+    return;
+  }
+  const uid = favAuth.currentUser.uid;
+  const idStr = 'buy-' + id;
+  const l = LISTINGS.find(x => x.id === id);
+  const ref = favFns.doc(favDb, 'users', uid, 'favorites', idStr);
+  if (favoriteIds.has(idStr)) {
+    favoriteIds.delete(idStr);
+    await favFns.deleteDoc(ref);
+    showToast(tr('listing.removedFromFavorites', 'Removed from favorites'), 'favorite');
+  } else {
+    favoriteIds.add(idStr);
+    await favFns.setDoc(ref, {
+      listingId: idStr, address: l.address, city: l.city,
+      priceLabel: fmtPrice(l.price), img: l.img, savedAt: favFns.serverTimestamp()
+    });
+    showToast(tr('listing.savedToFavorites', 'Saved to favorites'), 'favorite');
+  }
+  render();
+}
+
+function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+function fmtPrice(p) { return "$" + p.toLocaleString() + "/mo"; }
+
+function card(l) {
+  const cityLabelText = (window.cityLabel && window.cityLabel(l.city)) || l.city || '';
+  const badge = l.verified ? `<div class="home-property-badge absolute top-4 end-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1 z-10">
+      <span class="material-symbols-outlined text-[14px]">verified</span>
+      <span class="font-label-caps text-label-caps text-[11px]">${tr('common.verified', 'Verified')}</span>
+    </div>` : '';
+  const favActive = favoriteIds.has('buy-' + l.id);
+  const favBtn = `<button type="button" onclick="event.preventDefault(); event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-3 start-3 w-8 h-8 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
+      <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
+    </button>`;
+  const project = l.projectName ? `<p class="home-property-meta font-data-mono text-data-mono text-[12px] mb-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">domain</span>${escapeHtml(l.projectName)}</p>` : '';
+  const img = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : IMAGES.villa;
+  return `
+  <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card relative overflow-hidden group block">
+    <div class="home-property-media relative h-48 w-full overflow-hidden">
+      <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title)}" loading="lazy" decoding="async"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+      <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">
+        <span class="material-symbols-outlined text-[32px]">home_work</span>
+      </div>
+      ${favBtn}
+      ${badge}
+    </div>
+    <div class="p-5">
+      ${project}
+      <h3 class="home-property-title font-headline-md text-[18px] leading-tight mb-1.5">${escapeHtml(l.title)}</h3>
+      <p class="home-property-meta font-body-md text-body-md mb-4 flex items-center gap-1.5">
+        <span class="material-symbols-outlined text-[16px]">location_on</span> ${l.address ? escapeHtml(l.address) + ', ' : ''}${escapeHtml(cityLabelText)}
+      </p>
+      <div class="home-property-divider flex justify-between items-center mb-4 pb-4 border-b">
+        <div class="home-property-meta flex gap-4">
+          <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">bed</span>${l.beds}</span>
+          <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">bathtub</span>${l.baths}</span>
+          <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">square_foot</span>${l.sqft}m²</span>
+          ${l.furnished ? `<span class="font-data-mono text-data-mono flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">chair</span></span>` : ''}
+        </div>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="home-property-price font-headline-md text-headline-md">${fmtPrice(l.price)}</span>
+        <span class="home-property-cta font-label-caps text-label-caps">${tr('common.details', 'Details')}</span>
+      </div>
+    </div>
+  </a>`;
+}
+
+function skeletonCard() {
+  return `<div class="rounded-xl overflow-hidden border border-outline-variant">
+    <div class="ps-skeleton h-48 w-full"></div>
+    <div class="p-5 space-y-2">
+      <div class="ps-skeleton h-4 w-3/4"></div>
+      <div class="ps-skeleton h-3 w-1/2"></div>
+      <div class="ps-skeleton h-3 w-full mt-3"></div>
+      <div class="ps-skeleton h-6 w-1/3 mt-3"></div>
+    </div>
+  </div>`;
+}
+
+function render() {
+  const grid = document.getElementById('rentListingsGrid');
+  const empty = document.getElementById('rentEmptyState');
+
+  if (!listingsLoaded) {
+    grid.innerHTML = Array.from({ length: 6 }).map(skeletonCard).join('');
+    document.getElementById('rentResultCount').textContent = tr('map.loadingListings', 'Loading listings…');
+    empty.classList.add('hidden');
+    return;
+  }
+
+  const q = document.getElementById('rentSearchInput').value.trim().toLowerCase();
+  const type = document.getElementById('rentTypeFilter').value;
+  const bedsMin = Number(document.getElementById('rentBedsFilter').value) || 0;
+  const bathsMin = Number(document.getElementById('rentBathsFilter').value) || 0;
+  const minPrice = Number(document.getElementById('rentMinPrice').value) || 0;
+  const maxPrice = Number(document.getElementById('rentMaxPrice').value) || 0;
+  const minArea = Number(document.getElementById('rentMinArea').value) || 0;
+  const maxArea = Number(document.getElementById('rentMaxArea').value) || 0;
+  const furnishedOnly = document.getElementById('rentFurnished').checked;
+  const verifiedOnly = document.getElementById('rentVerified').checked;
+  const sort = document.getElementById('rentSortFilter').value;
+
+  let list = LISTINGS.filter(l => {
+    if (q && !(l.city.toLowerCase().includes(q) || l.address.toLowerCase().includes(q) || l.title.toLowerCase().includes(q))) return false;
+    if (type !== 'all' && l.type !== type) return false;
+    if (bedsMin && l.beds < bedsMin) return false;
+    if (bathsMin && l.baths < bathsMin) return false;
+    if (minPrice && l.price < minPrice) return false;
+    if (maxPrice && l.price > maxPrice) return false;
+    if (minArea && l.sqft < minArea) return false;
+    if (maxArea && l.sqft > maxArea) return false;
+    if (furnishedOnly && !l.furnished) return false;
+    if (verifiedOnly && !l.verified) return false;
+    return true;
+  });
+
+  if (sort === 'price-asc') list = list.slice().sort((a, b) => a.price - b.price);
+  else if (sort === 'price-desc') list = list.slice().sort((a, b) => b.price - a.price);
+  else if (sort === 'newest') list = list.slice().sort((a, b) => b.createdAtMs - a.createdAtMs);
+
+  grid.innerHTML = list.map(card).join('');
+  document.getElementById('rentResultCount').textContent = `${list.length} ${tr('rent.propertiesFound', 'properties for rent')}`;
+  empty.classList.toggle('hidden', list.length > 0);
+}
+
+// Debounce the free-text search input specifically (the only high-
+// frequency input here); every other filter is a discrete select/
+// checkbox change and re-renders immediately.
+let searchDebounce;
+document.getElementById('rentSearchInput').addEventListener('input', () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(render, 250);
+});
+['rentTypeFilter', 'rentBedsFilter', 'rentMinPrice', 'rentMaxPrice', 'rentSortFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('input', render);
+});
+document.getElementById('rentSearchBtn').addEventListener('click', render);
+
+// Advanced filters drawer -- one drawer, two entry points (desktop
+// "Advanced Filters" link, mobile "Filters" button), mirroring
+// buy-rent-map.html's single drmFilterDrawer pattern rather than
+// building two separate filter UIs.
+function openDrawer() {
+  document.getElementById('rentFilterDrawer').classList.remove('hidden');
+  document.getElementById('rentAdvToggle').setAttribute('aria-expanded', 'true');
+}
+function closeDrawer() {
+  document.getElementById('rentFilterDrawer').classList.add('hidden');
+  document.getElementById('rentAdvToggle').setAttribute('aria-expanded', 'false');
+}
+document.getElementById('rentAdvToggle').addEventListener('click', openDrawer);
+document.getElementById('rentMobileFilterBtn').addEventListener('click', openDrawer);
+document.getElementById('rentFilterCloseBtn').addEventListener('click', closeDrawer);
+document.getElementById('rentFilterDrawer').addEventListener('click', (e) => {
+  if (e.target.id === 'rentFilterDrawer') closeDrawer();
+});
+document.getElementById('rentFilterApplyBtn').addEventListener('click', () => { closeDrawer(); render(); });
+document.getElementById('rentFilterClearBtn').addEventListener('click', () => {
+  document.getElementById('rentBathsFilter').value = '0';
+  document.getElementById('rentMinArea').value = '';
+  document.getElementById('rentMaxArea').value = '';
+  document.getElementById('rentFurnished').checked = false;
+  document.getElementById('rentVerified').checked = false;
+  render();
+});
+
+// URL prefill (?city=, ?type=) -- same convention buy.html supports, so
+// a future "browse this city" link can deep-link into Rent the same way.
+const urlParams = new URLSearchParams(window.location.search);
+const urlType = urlParams.get('type');
+if (urlType && ['house', 'villa', 'apartment', 'land', 'building', 'office', 'shop', 'commercialProperty'].includes(urlType)) {
+  document.getElementById('rentTypeFilter').value = urlType;
+}
+const urlCity = urlParams.get('city');
+if (urlCity) document.getElementById('rentSearchInput').value = urlCity;
+
+render();
+document.addEventListener('darwesh:langchange', render);
+</script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/escape-html.js"></script>
 <script src="./js/i18n.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
 </body></html>
