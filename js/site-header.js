@@ -1,15 +1,21 @@
 // Darwesh shared site header -- the ONE canonical top nav bar (flag
-// language selector, wordmark, Home / Buy / Rent / Properties Map /
-// Services / About / Profile / notifications) for every public
-// content page. There is deliberately ONE public property map
-// (map.html) -- the earlier "Buy/Rent Map" + "Explore Map" pairing
-// competed for the same job and has been consolidated; Buy/Rent are
-// now global nav actions that land on that same map already in the
-// matching mode (?type=sale / ?type=rent), not separate pages or a
-// second map. MAM is not a standalone nav destination -- it lives
-// inside this one map (js/mam-properties-map.js) instead, see
-// docs/MAM_V2_ARCHITECTURE.md section 21. Before this file existed, every
-// page hand-duplicated its
+// language selector, wordmark, Home / Properties Map / Services / About /
+// Profile / notifications) for every public content page. There is
+// deliberately ONE public property map (map.html) -- the earlier
+// "Buy/Rent Map" + "Explore Map" pairing competed for the same job and
+// was consolidated into one "Properties Map" link; a follow-up pass then
+// found that having Buy/Rent ALSO sit next to it as their own top-level
+// items recreated the same "three destinations" impression one level up
+// (three labels, one underlying page). Buy/Rent are now a small dropdown
+// hung off the Properties Map item itself (nav-map-toggle-btn/
+// nav-map-menu, same open/close/keyboard-nav shape as the language
+// selector's lang-toggle-btn/lang-menu, just not sharing its class names
+// since this is a different menu, not another language surface) -- there
+// is exactly one clickable nav LABEL for the map, with Buy/Rent reachable
+// as its two modes, never a second or third label. MAM is not a
+// standalone nav destination -- it lives inside this one map
+// (js/mam-properties-map.js) instead, see docs/MAM_V2_ARCHITECTURE.md
+// section 21. Before this file existed, every page hand-duplicated its
 // own <header> markup and they had drifted: different nav link sets,
 // different labels, and only some pages had the flag-based language
 // selector while others still had a plain globe icon. This is the single
@@ -33,14 +39,12 @@
 // tag on the page:
 //   <div id="siteHeader" data-active="propertiesMap"></div>
 //   <script src="./js/site-header.js"></script>
-// `data-active` is one of: home, buy, rent, propertiesMap, services, about
-// -- omit/leave blank on a page with no matching nav item (e.g.
-// mam-ai.html, listing.html), which then highlights nothing as current.
-// buy/rent are for buy.html/rent.html specifically (their own separate
-// browse pages, distinct from the map) -- map.html itself always
-// highlights as propertiesMap regardless of its own ?type= query param,
-// since Buy/Rent/Properties Map are three nav entries into that map, not
-// three different pages to distinguish by URL.
+// `data-active` is one of: home, propertiesMap, services, about -- omit/
+// leave blank on a page with no matching nav item (e.g. mam-ai.html,
+// listing.html), which then highlights nothing as current. map.html
+// itself always highlights as propertiesMap regardless of its own
+// ?type= query param -- Buy and Rent are modes of that one page, not
+// separate pages, so there is nothing else to distinguish by URL.
 //
 // No dynamic/user-supplied data is ever interpolated into this markup
 // (every string here is a fixed literal), so this file has no escaping
@@ -87,9 +91,16 @@
       '</div>' +
       '<nav class="hidden md:flex items-center gap-5" aria-label="Primary">' +
         '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home"' + ariaCurrent('home') + '>Home</a>' +
-        '<a class="' + navClass('buy') + '" href="map.html?type=sale" data-i18n="nav.buy"' + ariaCurrent('buy') + '>Buy</a>' +
-        '<a class="' + navClass('rent') + '" href="map.html?type=rent" data-i18n="nav.rent"' + ariaCurrent('rent') + '>Rent</a>' +
-        '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
+        '<div class="relative flex items-center gap-0.5">' +
+          '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
+          '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-primary dark:text-primary-fixed-dim' : 'text-on-surface-variant dark:text-on-surface-variant hover:text-primary') + ' transition-colors" type="button" aria-label="Buy or rent">' +
+            '<span class="material-symbols-outlined text-[18px]" aria-hidden="true">expand_more</span>' +
+          '</button>' +
+          '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-surface-bright dark:bg-surface-dim border border-outline-variant dark:border-outline rounded-xl shadow-lg py-1">' +
+            '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="map.html?type=sale" data-i18n="nav.buy">Buy</a>' +
+            '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="map.html?type=rent" data-i18n="nav.rent">Rent</a>' +
+          '</div>' +
+        '</div>' +
         '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
         '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
         '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html" data-i18n="nav.profile">Profile</a>' +
@@ -98,4 +109,53 @@
         '<span class="material-symbols-outlined" aria-hidden="true">notifications</span>' +
       '</button>' +
     '</header>';
+
+  // Buy/Rent dropdown wiring -- deliberately its own small implementation
+  // (own class names, own listeners) rather than reusing js/i18n.js's
+  // .lang-toggle-btn/.lang-menu wiring: that pair is specifically the
+  // language switcher (window.setLanguage() closes every .lang-menu on
+  // language change), and this is an unrelated menu -- reusing its class
+  // names would work by accident today but read as "this is a language
+  // control" to the next person searching the codebase. Same open/close/
+  // keyboard-nav shape by design, just not the same implementation.
+  var mapToggleBtn = mount.querySelector('.nav-map-toggle-btn');
+  var mapMenu = mount.querySelector('.nav-map-menu');
+  if (mapToggleBtn && mapMenu) {
+    mapToggleBtn.setAttribute('aria-haspopup', 'menu');
+    mapToggleBtn.setAttribute('aria-expanded', 'false');
+    mapMenu.setAttribute('role', 'menu');
+    var mapOptions = Array.prototype.slice.call(mapMenu.querySelectorAll('.nav-map-option'));
+    mapOptions.forEach(function (opt) { opt.setAttribute('role', 'menuitem'); });
+
+    var closeMapMenu = function (focusTrigger) {
+      mapMenu.classList.add('hidden');
+      mapToggleBtn.setAttribute('aria-expanded', 'false');
+      if (focusTrigger) mapToggleBtn.focus();
+    };
+    var openMapMenu = function () {
+      mapMenu.classList.remove('hidden');
+      mapToggleBtn.setAttribute('aria-expanded', 'true');
+      (mapOptions[0] || mapToggleBtn).focus();
+    };
+
+    mapToggleBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (mapMenu.classList.contains('hidden')) openMapMenu(); else closeMapMenu(false);
+    });
+    mapMenu.addEventListener('keydown', function (e) {
+      var i = mapOptions.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); closeMapMenu(true); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); mapOptions[(i + 1 + mapOptions.length) % mapOptions.length].focus(); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); mapOptions[(i - 1 + mapOptions.length) % mapOptions.length].focus(); }
+    });
+    mapMenu.addEventListener('focusout', function () {
+      requestAnimationFrame(function () {
+        if (!mapMenu.contains(document.activeElement) && document.activeElement !== mapToggleBtn) closeMapMenu(false);
+      });
+    });
+    document.addEventListener('click', function () { closeMapMenu(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !mapMenu.classList.contains('hidden')) closeMapMenu(false);
+    });
+  }
 })();

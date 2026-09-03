@@ -34,6 +34,28 @@ function fmtPrice(p, currency) {
 function getSessionId() { return sessionStorage.getItem(SESSION_KEY) || ''; }
 function setSessionId(id) { if (id) sessionStorage.setItem(SESSION_KEY, id); }
 
+// Structured context a visitor arrived with -- from the site-wide MAM
+// companion launcher (js/mam-companion-launcher.js) routing here from
+// another page, e.g. map.html?mam=1&page=property&listingId=xyz -- the
+// SAME URL-param contract mam-ai.html's own readPageContext() already
+// used, backend/app/mam/schemas.py's KNOWN_PAGES is the source of truth
+// for valid `page` values. Read once at load; every turn sent from this
+// page reuses it (never re-scraped, never trusted beyond these IDs --
+// see policy.py's server-side re-validation). Falls back to this page's
+// own identity ('properties_map') when nothing more specific was passed
+// in, exactly like the pre-existing behavior.
+function incomingPageContext() {
+  const p = new URLSearchParams(window.location.search);
+  const page = p.get('page');
+  if (!page) return { page: 'properties_map' };
+  const ctx = { page };
+  if (p.get('listingId')) ctx.listingId = p.get('listingId');
+  if (p.get('projectId')) ctx.projectId = p.get('projectId');
+  if (p.get('professionalId')) ctx.professionalId = p.get('professionalId');
+  if (p.get('serviceType')) ctx.serviceType = p.get('serviceType');
+  return ctx;
+}
+
 // ---- DOM refs --------------------------------------------------------
 const wrap = document.getElementById('drmAiWrap');
 const chipsEl = document.getElementById('drmAiChips');
@@ -56,7 +78,7 @@ if (!wrap || !form) {
 }
 
 function init() {
-  const companion = new MamCompanion({ getLanguage: currentLang });
+  const companion = new MamCompanion({ getLanguage: currentLang, interactive: true });
   // The companion is an ambient AI-availability indicator here, not a
   // launcher to a separate page (there is no standalone MAM page to
   // launch to anymore) -- clicking it just focuses/opens this page's own
@@ -238,7 +260,7 @@ function init() {
 
     try {
       const data = await sendMamChat(
-        { message: text, language: currentLang(), sessionId: getSessionId(), pageContext: { page: 'properties_map' } },
+        { message: text, language: currentLang(), sessionId: getSessionId(), pageContext: incomingPageContext() },
         { user: auth.currentUser, signal: thisController.signal }
       );
       if (thisController.signal.aborted) return;
@@ -318,7 +340,7 @@ function init() {
   // auto-sends it as the first message, exactly like the old standalone
   // mam-ai.html's own `?q=` handling did. --------------------------------
   const params = new URLSearchParams(window.location.search);
-  if (params.get('ai') === '1') openPanel();
+  if (params.get('ai') === '1' || params.get('mam') === '1') openPanel();
   const initialQuery = params.get('q');
   if (initialQuery) sendMessage(initialQuery);
 

@@ -38,8 +38,16 @@ export class MamCompanion {
    *   fixed to the viewport, so body is the natural default).
    * @param {() => string} [opts.getLanguage] Returns the current 'en'|'ar'|'ku'
    *   language code for the aria-label. Defaults to always 'en'.
+   * @param {boolean} [opts.interactive] When true, the orb is a real
+   *   keyboard-operable control (role="button", tabindex, Enter/Space
+   *   activation) instead of a pure status indicator (role="img", not
+   *   focusable) -- set this wherever the host page actually wires a
+   *   click handler onto the orb (see js/mam-properties-map.js and
+   *   js/mam-companion-launcher.js); leave it false on a page like
+   *   mam-ai.html where the orb is ambient status only and the page
+   *   itself is already the full interactive surface.
    */
-  constructor({ mountTarget, getLanguage } = {}) {
+  constructor({ mountTarget, getLanguage, interactive } = {}) {
     this._getLanguage = typeof getLanguage === 'function' ? getLanguage : () => 'en';
     this._state = 'idle';
     this._settleTimer = null;
@@ -49,8 +57,19 @@ export class MamCompanion {
 
     this._orb = document.createElement('div');
     this._orb.className = 'mamco-orb';
-    this._orb.setAttribute('role', 'img');
     this._orb.dataset.state = 'idle';
+    if (interactive) {
+      this._orb.setAttribute('role', 'button');
+      this._orb.setAttribute('tabindex', '0');
+      this._orb.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          this._orb.click();
+        }
+      });
+    } else {
+      this._orb.setAttribute('role', 'img');
+    }
 
     const core = document.createElement('div');
     core.className = 'mamco-core';
