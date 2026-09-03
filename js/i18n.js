@@ -206,7 +206,9 @@ const translations = {
     'map.legendVerifiedListing': 'پشتڕاستکراو و تۆمارکراو',
     'map.legendNeighborhood': 'گەڕەک',
     'map.legendAdminArea': 'ناوچەی کارگێڕی',
-    'map.all': 'هەموو',
+    'map.buyToggle': 'کڕین',
+    'map.rentToggle': 'کرێ',
+    'map.sellToggle': 'فرۆشتن',
 
     'buy.title': 'کڕینی خانووبەرە',
     'buy.subtitle': 'خانووبەرەی پشتڕاستکراو بۆ فرۆشتن لە سەرانسەری کوردستان، پشتگیریکراو بە دڵنیایی دەرەوش گروپ.',
@@ -1570,7 +1572,9 @@ const translations = {
     'map.legendVerifiedListing': 'موثّق ومسجّل',
     'map.legendNeighborhood': 'حي',
     'map.legendAdminArea': 'منطقة إدارية',
-    'map.all': 'الكل',
+    'map.buyToggle': 'شراء',
+    'map.rentToggle': 'إيجار',
+    'map.sellToggle': 'بيع',
 
     'buy.title': 'شراء عقار',
     'buy.subtitle': 'عقارات موثقة معروضة للبيع في جميع أنحاء كردستان، مدعومة بضمان الثقة من مجموعة درويش.',
