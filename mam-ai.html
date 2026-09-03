@@ -29,48 +29,157 @@ violation reporting. -->
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
-    .typing-dot { animation: typing-bounce 1.2s infinite; }
-    .typing-dot:nth-child(2) { animation-delay: 0.15s; }
-    .typing-dot:nth-child(3) { animation-delay: 0.3s; }
-    @keyframes typing-bounce {
-      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-      30% { transform: translateY(-4px); opacity: 1; }
+
+    /* ---- MAM visual identity (section 3) -------------------------------
+     * An architectural mark, not a robot avatar or a chat-bubble icon: a
+     * layered ring around a still core. State is expressed through the
+     * ring's motion/color, never a mascot expression. Built purely from
+     * the existing --ps-color-* cinematic tokens (Champagne/Antique Gold,
+     * Soft Ivory, Bronzed/Carbon/Obsidian). */
+    .mam-orb {
+      position: relative; width: 44px; height: 44px; flex: none; border-radius: 999px;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 35% 30%, var(--ps-color-surface-container-high), var(--ps-color-surface-container-lowest) 70%);
+      border: 1px solid var(--ps-color-outline-variant);
+      box-shadow: 0 0 0 0 rgba(184,154,99,0);
+      transition: box-shadow 320ms var(--ease-premium, ease), border-color 320ms var(--ease-premium, ease);
     }
-    #micBtn.mic-listening { background: #dc2626; border-color: #dc2626; color: #fff; }
-    #micBtn.mic-listening #micIcon { animation: mic-pulse 1.2s ease-in-out infinite; }
-    @keyframes mic-pulse {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.15); opacity: 0.75; }
+    .mam-orb::before {
+      content: ''; position: absolute; inset: -4px; border-radius: 999px;
+      border: 1.5px solid var(--ps-color-outline); opacity: 0.55;
+      transition: opacity 320ms var(--ease-premium, ease), transform 320ms var(--ease-premium, ease);
     }
-    .voice-panel {
-      position: fixed; z-index: 200; width: 280px; max-height: 70vh; overflow-y: auto;
-      background: #17150F; border: 1px solid #5D482B; border-radius: 14px;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.4); padding: 6px;
+    .mam-orb::after {
+      content: ''; width: 10px; height: 10px; border-radius: 999px;
+      background: var(--ps-color-secondary);
+      box-shadow: 0 0 10px 1px rgba(184,154,99,0.55);
+      transition: background 320ms var(--ease-premium, ease), transform 320ms var(--ease-premium, ease);
     }
-    .voice-panel-header {
-      font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 700;
-      letter-spacing: 0.03em; text-transform: uppercase; color: #A79F91;
-      padding: 8px 10px 6px;
+    .mam-orb[data-state="idle"]::after { animation: mam-breathe 4.5s ease-in-out infinite; }
+    .mam-orb[data-state="listening"] { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 4px rgba(184,154,99,0.14); }
+    .mam-orb[data-state="listening"]::before { opacity: 1; animation: mam-ring-pulse 1.2s ease-in-out infinite; }
+    .mam-orb[data-state="thinking"]::before { border-style: dashed; animation: mam-rotate 2.6s linear infinite; opacity: 0.85; }
+    .mam-orb[data-state="speaking"]::after { animation: mam-speak-pulse 0.9s ease-in-out infinite; }
+    .mam-orb[data-state="result-ready"] { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 5px rgba(184,154,99,0.18); }
+    .mam-orb[data-state="result-ready"]::after { background: var(--ps-color-secondary); transform: scale(1.25); }
+    .mam-orb[data-state="error"] { border-color: var(--ps-color-error); }
+    .mam-orb[data-state="error"]::after { background: var(--ps-color-error); box-shadow: 0 0 10px 1px rgba(229,120,122,0.5); }
+    @keyframes mam-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.82); opacity: 0.75; } }
+    @keyframes mam-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.55; } 50% { transform: scale(1.18); opacity: 1; } }
+    @keyframes mam-rotate { to { transform: rotate(360deg); } }
+    @keyframes mam-speak-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.35); } }
+    @media (prefers-reduced-motion: reduce) {
+      .mam-orb::before, .mam-orb::after { animation: none !important; }
+      .mam-orb[data-state="result-ready"]::after { transform: none; }
     }
-    .voice-row {
-      display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; cursor: pointer;
+    .mam-mini-orb {
+      width: 28px; height: 28px; flex: none; border-radius: 999px; margin-top: 2px;
+      background: radial-gradient(circle at 35% 30%, var(--ps-color-surface-container-high), var(--ps-color-surface-container-lowest) 70%);
+      border: 1px solid var(--ps-color-outline-variant); position: relative;
     }
-    .voice-row:hover { background: #221E15; }
-    .voice-row.selected { background: #221E15; box-shadow: inset 0 0 0 1px #8E7448; }
-    .voice-row-play {
-      flex: none; width: 30px; height: 30px; border-radius: 50%; border: none;
-      background: #221E15; color: #F2EEE5; display: flex; align-items: center; justify-content: center; cursor: pointer;
+    .mam-mini-orb::after {
+      content: ''; position: absolute; inset: 0; margin: auto; width: 6px; height: 6px; border-radius: 999px;
+      background: var(--ps-color-secondary);
     }
-    .voice-row-play:hover { background: #2A2418; }
-    .voice-row-label { flex: 1; min-width: 0; cursor: pointer; }
-    .voice-row-name { font-family: 'Inter', sans-serif; font-size: 13px; color: #F2EEE5; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .voice-row-lang { font-family: 'Inter', sans-serif; font-size: 11px; color: #A79F91; }
-    .voice-panel-empty { font-family: 'Inter', sans-serif; font-size: 12.5px; color: #A79F91; padding: 10px; text-align: center; }
-    .voice-panel-showall {
-      width: 100%; margin-top: 4px; padding: 8px; border: none; background: none; cursor: pointer;
-      font-family: 'Inter', sans-serif; font-size: 12px; color: #B89A63; text-align: center; border-top: 1px solid #5D482B;
+
+    /* ---- Message bubbles ------------------------------------------------ */
+    .mam-bubble { border-radius: 18px; padding: 12px 16px; max-width: 85%; box-shadow: var(--ps-shadow-3d-1, 0 1px 2px rgba(0,0,0,.15)); }
+    .mam-bubble-user { background: var(--ps-color-primary); color: var(--ps-color-on-primary); border-start-end-radius: 4px; }
+    .mam-bubble-assistant { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-start-start-radius: 4px; }
+    .mam-bubble-degraded { border-color: var(--ps-color-outline); }
+    .mam-bubble-error { border-color: var(--ps-color-error); }
+    .mam-retry-btn {
+      margin-top: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      color: var(--ps-color-secondary); background: none; border: 1px solid var(--ps-color-outline); border-radius: 999px;
+      padding: 6px 14px; cursor: pointer;
     }
-    .voice-panel-showall:hover { text-decoration: underline; }
+    .mam-retry-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .mam-retry-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+    .mam-thinking { display: flex; align-items: center; gap: 5px; padding: 14px 16px; }
+    .mam-thinking-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ps-color-outline); animation: mam-dot-bounce 1.2s infinite; }
+    .mam-thinking-dot:nth-child(2) { animation-delay: 0.15s; }
+    .mam-thinking-dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes mam-dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .mam-thinking-dot { animation: none; opacity: 0.8; } }
+
+    /* ---- Structured results: cards ---------------------------------------- */
+    .mam-inline-results { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .mam-card-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; scroll-snap-type: x proximity; }
+    .mam-card-row .mam-card { scroll-snap-align: start; }
+    .mam-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .mam-card {
+      flex: none; width: 168px; text-align: start; border-radius: var(--radius-md); overflow: hidden;
+      background: var(--ps-color-surface-container-low); border: 1px solid var(--ps-color-outline-variant);
+      cursor: pointer; transition: border-color 180ms var(--ease-premium, ease), transform 180ms var(--ease-premium, ease);
+    }
+    .mam-card-grid .mam-card { width: 100%; }
+    .mam-card:hover { border-color: var(--ps-color-secondary); transform: translateY(-1px); }
+    .mam-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+    .mam-card-media { position: relative; height: 84px; background: var(--ps-color-surface-container-high); display: flex; align-items: center; justify-content: center; color: var(--ps-color-outline); }
+    .mam-card-media img { width: 100%; height: 100%; object-fit: cover; }
+    .mam-card-media-round { border-radius: 999px; width: 44px; height: 44px; margin: 12px auto 0; }
+    .mam-card-badge {
+      position: absolute; inset-block-start: 6px; inset-inline-end: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em;
+      text-transform: uppercase; background: var(--ps-color-tertiary-container); color: var(--ps-color-on-tertiary-container);
+      padding: 2px 7px; border-radius: 999px;
+    }
+    .mam-card-badge-inline { position: static; display: inline-block; margin-top: 4px; }
+    .mam-card-body { padding: 8px 10px 10px; }
+    .mam-card-title { font-size: 12.5px; font-weight: 700; color: var(--ps-color-on-surface); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .mam-card-meta { font-size: 11px; color: var(--ps-color-on-surface-variant); margin-top: 3px; }
+    .mam-card-price { font-size: 12.5px; font-weight: 700; color: var(--ps-color-secondary); margin-top: 5px; }
+    .mam-card-professional .mam-card-body { text-align: center; }
+
+    .mam-stat-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mam-pill { display: flex; flex-direction: column; gap: 1px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--ps-color-surface-container-low); border: 1px solid var(--ps-color-outline-variant); }
+    .mam-pill-label { font-size: 10px; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ps-color-on-surface-variant); }
+    .mam-pill-value { font-size: 13px; font-weight: 700; color: var(--ps-color-on-surface); }
+    .mam-kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; }
+    .mam-kv dt { color: var(--ps-color-on-surface-variant); text-transform: capitalize; }
+    .mam-kv dd { color: var(--ps-color-on-surface); margin: 0; }
+
+    .mam-action-btn {
+      display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; text-decoration: none;
+      background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); border-radius: 999px;
+      padding: 8px 16px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      transition: filter 150ms ease;
+    }
+    .mam-action-btn:hover { filter: brightness(1.08); }
+    .mam-action-btn .material-symbols-outlined { font-size: 16px; }
+    .mam-sheet-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .mam-suggested-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .mam-action-chip {
+      text-decoration: none; font-size: 11.5px; font-weight: 600; color: var(--ps-color-on-surface);
+      border: 1px solid var(--ps-color-outline-variant); border-radius: 999px; padding: 6px 12px;
+    }
+    .mam-action-chip:hover { border-color: var(--ps-color-secondary); color: var(--ps-color-secondary); }
+
+    /* ---- Desktop workspace column ----------------------------------------- */
+    #mamWorkspace { border-inline-start: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low); }
+    #mamWorkspace .mam-card-grid { padding: 4px 2px; }
+
+    /* ---- Mobile detail/action bottom sheet -------------------------------- */
+    #mamSheetBackdrop { position: fixed; inset: 0; background: rgba(9,10,10,0.6); z-index: 210; }
+    #mamSheet {
+      position: fixed; inset-inline: 0; bottom: 0; z-index: 211; max-height: 82vh; overflow-y: auto;
+      background: var(--ps-color-surface-container-lowest); border-top: 1px solid var(--ps-color-outline-variant);
+      border-radius: 18px 18px 0 0; padding: 10px 18px 22px; transform: translateY(100%);
+      transition: transform 260ms var(--ease-exit, ease);
+    }
+    #mamSheet.mam-sheet-open { transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) { #mamSheet { transition: none; } }
+    .mam-sheet-handle { width: 36px; height: 4px; border-radius: 999px; background: var(--ps-color-outline-variant); margin: 8px auto 14px; }
+    .mam-sheet-close { position: absolute; inset-inline-end: 12px; inset-block-start: 10px; background: none; border: none; color: var(--ps-color-on-surface-variant); padding: 8px; border-radius: 999px; cursor: pointer; }
+    .mam-sheet-close:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+    @media (min-width: 768px) {
+      #mamSheet { inset-inline-start: auto; inset-inline-end: 24px; bottom: 24px; width: 360px; border-radius: var(--radius-md); }
+    }
+
+    .mic-listening { background: var(--ps-color-error); border-color: var(--ps-color-error); color: #fff; }
+    .mic-listening #micIcon { animation: mam-mic-pulse 1.2s ease-in-out infinite; }
+    @keyframes mam-mic-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.75; } }
+    @media (prefers-reduced-motion: reduce) { .mic-listening #micIcon { animation: none; } }
   </style>
   </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -80,47 +189,42 @@ violation reporting. -->
 <div id="siteMobileNav" data-active=""></div>
 <script src="./js/site-mobile-nav.js"></script>
 
-<!-- Chat Shell -->
-<main class="fixed top-16 bottom-24 md:bottom-0 left-0 w-full flex flex-col">
+<!-- MAM V2 Shell -->
+<main id="mamShell" class="fixed top-16 bottom-24 md:bottom-0 left-0 w-full flex flex-col md:flex-row">
+<!-- Conversation column -->
+<section class="flex flex-col flex-1 min-w-0 h-full">
 <!-- Chat Header -->
 <div class="flex-none bg-surface-container-lowest border-b border-outline-variant px-margin-mobile md:px-margin-desktop py-4">
 <div class="max-w-3xl mx-auto flex items-center gap-3">
-<div class="w-12 h-12 rounded-full bg-primary flex items-center justify-center flex-none shadow-[0_0_20px_rgba(119,90,25,0.2)]">
-<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-</div>
-<div class="flex-1">
-<p class="font-headline-md text-[18px] text-primary leading-tight">MAM AI</p>
+<div id="mamOrb" class="mam-orb" data-state="idle" role="img" aria-label="MAM is ready"></div>
+<div class="flex-1 min-w-0">
+<p class="font-headline-md text-[18px] text-primary leading-tight">MAM</p>
 <p class="font-data-mono text-data-mono text-on-tertiary-container flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-on-tertiary-container inline-block"></span> <span data-i18n="mamai.subtitle">Online · Darwesh Group Market Intelligence</span>
+<span class="w-1.5 h-1.5 rounded-full bg-on-tertiary-container inline-block"></span> <span data-i18n="mam.subtitle">Darwesh property intelligence</span>
                     </p>
 </div>
-<button id="voiceSettingsBtn" aria-label="Choose voice" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Choose voice" data-i18n-title="mamai.voiceSettingsTitle">
-<span class="material-symbols-outlined">tune</span>
-</button>
-<button id="voiceOutputToggle" aria-label="Toggle voice replies" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Voice replies">
+<button id="voiceOutputToggle" aria-label="Toggle voice replies" class="hidden p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant flex-none" type="button" title="Voice replies" aria-pressed="false">
 <span class="material-symbols-outlined" id="voiceOutputIcon">volume_up</span>
 </button>
 </div>
 </div>
 
 <!-- Message Area -->
-<div class="flex-1 overflow-y-auto hide-scrollbar" id="chatScroll">
+<div class="flex-1 overflow-y-auto hide-scrollbar" id="chatScroll" role="log" aria-live="polite" aria-label="Conversation with MAM">
 <div class="max-w-3xl mx-auto px-margin-mobile md:px-margin-desktop py-stack-md flex flex-col gap-4" id="chatLog">
-<!-- Initial AI Greeting -->
+<!-- Initial greeting -->
 <div class="flex items-start gap-3">
-<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-none">
-<span class="material-symbols-outlined text-secondary text-[16px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-</div>
-<div class="bg-surface-container-lowest border border-outline-variant rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] shadow-sm">
-<p class="font-body-md text-body-md text-on-surface" data-i18n="mamai.greeting">Hi, I'm MAM — your Darwesh Group market intelligence assistant. Ask me about property valuations, neighborhoods, or whether it's better to buy or rent right now.</p>
+<div class="mam-mini-orb" aria-hidden="true"></div>
+<div class="mam-bubble mam-bubble-assistant">
+<p class="font-body-md text-body-md text-on-surface" data-i18n="mam.greeting">Hi, I'm MAM. Ask me about Darwesh listings, projects, service providers, or market data for a city — I only answer from real, current Darwesh data.</p>
 </div>
 </div>
 <!-- Suggested Prompts -->
-<div class="flex flex-wrap gap-2 pl-11" id="suggestedPrompts">
-<button class="prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mamai.prompt1">What's my property worth?</button>
-<button class="prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mamai.prompt2">Best areas to invest in Erbil</button>
-<button class="prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mamai.prompt3">Should I buy or rent?</button>
-<button class="prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mamai.prompt4">Show me verified listings</button>
+<div class="flex flex-wrap gap-2 pl-11" id="mamSuggestedPrompts">
+<button class="mam-prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mam.prompt1">Show verified listings in Erbil</button>
+<button class="mam-prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mam.prompt2">What's the market like in Sulaymaniyah?</button>
+<button class="mam-prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mam.prompt3">Find an engineer in Duhok</button>
+<button class="mam-prompt-chip bg-surface-container border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-secondary-container hover:border-secondary transition-colors" data-i18n="mam.prompt4">Open the property map</button>
 </div>
 </div>
 </div>
@@ -129,810 +233,52 @@ violation reporting. -->
 <div class="flex-none bg-surface-container-lowest border-t border-outline-variant px-margin-mobile md:px-margin-desktop py-3">
 <form class="max-w-3xl mx-auto flex items-center gap-2" id="chatForm">
 <div class="flex-1 bg-surface-container rounded-full flex items-center px-4">
-<input autocomplete="off" class="flex-1 bg-transparent border-none focus:ring-0 text-on-surface font-body-md text-body-md py-3 placeholder-outline-variant" id="chatInput" placeholder="Ask MAM about the market..." type="text" data-i18n-placeholder="mamai.inputPlaceholder"/>
+<input autocomplete="off" maxlength="1000" class="flex-1 bg-transparent border-none focus:ring-0 text-on-surface font-body-md text-body-md py-3 placeholder-outline-variant" id="chatInput" placeholder="Ask MAM about the market..." type="text" data-i18n-placeholder="mam.inputPlaceholder" aria-label="Message MAM"/>
 </div>
 <button aria-label="Speak your question" id="micBtn" class="hidden bg-surface-container-lowest border border-outline-variant text-on-surface w-12 h-12 rounded-full items-center justify-center hover:bg-surface-container transition-colors flex-none" type="button">
 <span class="material-symbols-outlined" id="micIcon">mic</span>
 </button>
-<button aria-label="Send message" class="bg-primary text-on-primary w-12 h-12 rounded-full flex items-center justify-center hover:bg-primary-container transition-colors flex-none" type="submit">
+<button aria-label="Send message" id="mamSendBtn" class="ps-btn bg-primary text-on-primary w-12 h-12 rounded-full flex items-center justify-center hover:bg-primary-container transition-colors flex-none" type="submit">
 <span class="material-symbols-outlined">send</span>
 </button>
 </form>
 <p id="micStatus" class="hidden max-w-3xl mx-auto font-label-caps text-label-caps text-secondary text-center mt-2 flex items-center justify-center gap-1.5">
-<span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block" style="animation: mic-pulse 1s ease-in-out infinite;"></span>
-<span data-i18n="mamai.listening">Listening…</span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary inline-block" style="animation: mam-mic-pulse 1s ease-in-out infinite;"></span>
+<span data-i18n="mam.listening">Listening…</span>
 </p>
-<p class="max-w-3xl mx-auto font-body-md text-[11px] text-on-surface-variant text-center mt-2" data-i18n="mamai.disclaimer">MAM AI offers general guidance based on Darwesh Group data and may not reflect real-time prices. Confirm details with an agent.</p>
+<div class="max-w-3xl mx-auto flex items-center justify-center gap-3 mt-2">
+<label class="flex items-center gap-1.5 font-body-md text-[11px] text-on-surface-variant" for="mamSpeechRate">
+<span data-i18n="mam.speechSpeed">Speech speed</span>
+<input type="range" id="mamSpeechRate" min="0.75" max="1.25" step="0.05" value="1" class="align-middle" aria-label="Speech speed"/>
+</label>
 </div>
+<p id="mamSpeechFallbackNote" class="hidden max-w-3xl mx-auto font-body-md text-[11px] text-secondary text-center mt-2" role="status"></p>
+<p class="max-w-3xl mx-auto font-body-md text-[11px] text-on-surface-variant text-center mt-2" data-i18n="mam.disclaimer">MAM answers using Darwesh Group's real listings, projects, and market data. Full conversational AI reasoning is not enabled yet — confirm important details with an agent.</p>
+</div>
+</section>
+
+<!-- Workspace column (desktop only) -->
+<aside id="mamWorkspace" class="hidden md:flex md:flex-col md:w-[360px] md:flex-none h-full overflow-y-auto hide-scrollbar px-5 py-5" aria-label="MAM results workspace">
+<h2 class="font-label-caps text-label-caps text-on-surface-variant mb-3" data-i18n="mam.workspaceTitle">Results</h2>
+<div id="workspaceEmpty" class="ps-empty">
+<span class="material-symbols-outlined text-[32px] text-outline-variant">workspaces</span>
+<p class="font-body-md text-body-md mt-2" data-i18n="mam.workspaceEmpty">Ask MAM something — real listings, projects, and professionals will appear here.</p>
+</div>
+<div id="workspaceContent" class="hidden"></div>
+</aside>
 </main>
 
-<!-- BottomNavBar (Mobile Only) -->
-<script>
-// Safe for both text-node content and quoted attribute values -- see
-// js/escape-html.js's own comment (CLIENT-06,
-// CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
-// div.textContent-round-trip form of this function wasn't.
-function escapeHtml(str) {
-  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
+<!-- Mobile/desktop detail & action sheet -->
+<div id="mamSheetBackdrop" class="hidden" tabindex="-1"></div>
+<div id="mamSheet" class="hidden" role="dialog" aria-modal="true" aria-label="Details">
+<div class="mam-sheet-handle" aria-hidden="true"></div>
+<button id="mamSheetClose" class="mam-sheet-close" type="button" aria-label="Close">
+<span class="material-symbols-outlined">close</span>
+</button>
+<div id="mamSheetContent"></div>
+</div>
 
-function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
-function trf(key, fallback, vars) {
-  let s = tr(key, fallback);
-  if (vars) Object.keys(vars).forEach(k => { s = s.split('{' + k + '}').join(vars[k]); });
-  return s;
-}
-function fmtPrice(p) { return '$' + Math.round(p).toLocaleString(); }
-
-// --- Real, live market data (never fabricated) pulled from the same `listings`
-// collection every other page on the site reads from ---
-let marketStats = null; // { total, verified, byCity: { [city]: { count, saleCount, min, max, avg } } }
-let allListings = []; // Real listing docs, for the property-search intent below — never fabricated.
-
-async function loadMarketStats() {
-  try {
-    const [{ db, getDocs }, storeMod] = await Promise.all([
-      import('./js/firebase-init.js'),
-      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
-    ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
-    const snap = await getDocs(q);
-    const byCity = {};
-    let total = 0, verified = 0;
-    const docs = [];
-    snap.forEach(d => {
-      const l = d.data();
-      total++;
-      if (l.verified) verified++;
-      docs.push({
-        id: d.id,
-        title: l.title || l.address || 'Property',
-        city: l.city || '',
-        propertyType: l.propertyType || '',
-        dealType: l.dealType || '',
-        price: typeof l.price === 'number' ? l.price : Number(l.price) || 0,
-        beds: Number(l.beds) || 0,
-        verified: !!l.verified
-      });
-      if (!l.city) return;
-      const c = byCity[l.city] || (byCity[l.city] = { count: 0, saleCount: 0, prices: [] });
-      c.count++;
-      if (l.dealType === 'sale' && typeof l.price === 'number') { c.saleCount++; c.prices.push(l.price); }
-    });
-    Object.values(byCity).forEach(c => {
-      if (c.prices.length) { c.min = Math.min(...c.prices); c.max = Math.max(...c.prices); c.avg = c.prices.reduce((a, b) => a + b, 0) / c.prices.length; }
-      delete c.prices;
-    });
-    marketStats = { total, verified, byCity };
-    allListings = docs;
-  } catch (e) {
-    marketStats = null;
-    allListings = [];
-  }
-}
-loadMarketStats();
-
-// --- Kurdish/Arabic-aware text normalization --------------------------
-// Keyword matching only works if the visitor's actual spelling lines up
-// with our keyword lists. Arabic-script text typed on different keyboards
-// commonly mixes letter variants (ك vs ک, ي/ى vs ی), includes optional
-// diacritics, and uses Arabic-Indic digits (١٢٣) instead of Latin ones —
-// none of which should change what the message means to the matcher.
-function normalizeText(text) {
-  return text
-    .replace(/[ً-ْٰ]/g, '')
-    .replace(/[إأآا]/g, 'ا')
-    .replace(/ك/g, 'ک')
-    .replace(/[يى]/g, 'ی')
-    .replace(/ة/g, 'ه')
-    .replace(/ؤ/g, 'و')
-    .replace(/[‌‎‏]/g, ' ')
-    .replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
-    .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-const CITY_KEYWORDS = {
-  Erbil: ['erbil', 'هەولێر', 'اربیل', 'ھەولێر'],
-  Sulaymaniyah: ['sulaymaniyah', 'slemani', 'سلێمانی', 'سلیمانی', 'السلیمانیه'],
-  Duhok: ['duhok', 'dohuk', 'دهۆک', 'دهوک', 'دھۆک'],
-  Kirkuk: ['kirkuk', 'کەرکووک', 'کرکوک'],
-  Zakho: ['zakho', 'زاخۆ', 'زاخو'],
-  Soran: ['soran', 'سۆران', 'سوران'],
-  Koya: ['koya', 'کۆیە', 'کویه'],
-  Halabja: ['halabja', 'هەڵەبجە', 'حەلەبجە', 'حلبجه']
-};
-function detectCity(lower) {
-  for (const city of Object.keys(CITY_KEYWORDS)) {
-    if (CITY_KEYWORDS[city].some(k => lower.includes(k))) return city;
-  }
-  return null;
-}
-function mamCityLabel(city) { return (window.cityLabel && window.cityLabel(city)) || city; }
-
-// Tracks what the current user has actually asked about, so follow-up
-// questions ("what's it worth?" right after "tell me about Erbil") can be
-// answered using that same city's real data instead of a generic reply.
-let lastCity = null;
-
-function cityStatsReply(city) {
-  const label = mamCityLabel(city);
-  const stats = marketStats && marketStats.byCity[city];
-  if (!stats) return trf('mamai.replyCityNoData', "I don't see any active listings in {city} on Darwesh Group yet, but I can notify you as soon as new properties are added there.", { city: label });
-  if (stats.saleCount > 0) {
-    return trf('mamai.replyCityWithPrice', '{city} currently has {n} listings on Darwesh Group, with sale prices ranging from {min} to {max}.', { city: label, n: stats.count, min: fmtPrice(stats.min), max: fmtPrice(stats.max) });
-  }
-  return trf('mamai.replyCityNoPrice', "{city} currently has {n} listings on Darwesh Group, though none are listed for sale right now — I can let you know when new ones are added.", { city: label, n: stats.count });
-}
-
-function worthReply() {
-  const city = lastCity;
-  const stats = city && marketStats && marketStats.byCity[city];
-  if (stats && stats.saleCount > 0) {
-    return trf('mamai.reply1DataCity', "Since you were asking about {city}, here's what our current listings show: {n} for-sale properties ranging from {min} to {max} (average around {avg}). For an exact valuation of your property, I can connect you with an agent.",
-      { city: mamCityLabel(city), n: stats.saleCount, min: fmtPrice(stats.min), max: fmtPrice(stats.max), avg: fmtPrice(stats.avg) });
-  }
-  if (marketStats) {
-    const all = Object.values(marketStats.byCity).filter(c => c.saleCount > 0);
-    if (all.length) {
-      const min = Math.min(...all.map(c => c.min));
-      const max = Math.max(...all.map(c => c.max));
-      const totalSale = all.reduce((a, c) => a + c.saleCount, 0);
-      const avg = all.reduce((a, c) => a + c.avg * c.saleCount, 0) / totalSale;
-      return trf('mamai.reply1DataGeneral', 'Based on the {n} for-sale listings currently on Darwesh Group, prices range from {min} to {max}, averaging around {avg}. For an exact valuation of your property, I can connect you with an agent.',
-        { n: totalSale, min: fmtPrice(min), max: fmtPrice(max), avg: fmtPrice(avg) });
-    }
-  }
-  return tr('mamai.reply1NoData', "I don't have enough live listing data on Darwesh Group to estimate values right now, but I can connect you with an agent for an accurate valuation.");
-}
-
-function investReply() {
-  if (marketStats) {
-    const entries = Object.entries(marketStats.byCity).filter(([, c]) => c.count > 0).sort((a, b) => b[1].count - a[1].count);
-    if (entries.length) {
-      const [topCity, stats] = entries[0];
-      return trf('mamai.reply2DataCity', '{city} currently has the most active listings on Darwesh Group ({n} properties), which is often a good signal of buyer interest for investors.', { city: mamCityLabel(topCity), n: stats.count });
-    }
-  }
-  return tr('mamai.reply2NoData', "I don't have enough live listing data to point to a specific hotspot right now, but I can show you our current investment-ready listings.");
-}
-
-function listingsReply() {
-  if (marketStats && marketStats.total > 0) {
-    return trf('mamai.reply4Data', 'We currently have {total} listings on Darwesh Group, including {verified} verified by our trust and verification team.', { total: marketStats.total, verified: marketStats.verified });
-  }
-  return tr('mamai.reply4', 'Here are our currently verified listings across Erbil, Sulaymaniyah, Duhok, and beyond — all confirmed by our trust and verification team.');
-}
-
-// ---------------------------------------------------------------------
-// Property search — turns a specific request ("a house in Kirkuk under
-// 150 million") into a real filter over the live `listings` data loaded
-// above. Only ever returns actual listing docs or an honest "no match"
-// message — nothing here is invented.
-// ---------------------------------------------------------------------
-const PROPERTY_TYPE_KEYWORDS = {
-  house: ['house', 'خانوو', 'خانووی', 'منزل', 'بیت'],
-  villa: ['villa', 'ڤیلا', 'فيلا'],
-  apartment: ['apartment', 'flat', 'ئاپارتمان', 'شوقه', 'شقه'],
-  land: ['land', 'plot', 'زەوی', 'قطعه ارض', 'أرض', 'ارض'],
-  building: ['building', 'بینا', 'بنایە', 'مبنى', 'عمارة'],
-  office: ['office', 'ofîs', 'ئۆفیس', 'فەرمانگە', 'مکتب'],
-  shop: ['shop', 'store', 'دوکان', 'محل تجاري', 'متجر'],
-  commercialProperty: ['commercial property', 'خانووبەرەی بازرگانی', 'عقار تجاري']
-};
-function detectPropertyType(lower) {
-  for (const type of Object.keys(PROPERTY_TYPE_KEYWORDS)) {
-    if (PROPERTY_TYPE_KEYWORDS[type].some(k => lower.includes(k))) return type;
-  }
-  return null;
-}
-
-const DEAL_TYPE_RENT_KEYWORDS = ['rent', 'rental', 'renting', 'بەکرێدان', 'بکرێ', 'کرێ', 'ایجار', 'استئجار'];
-const DEAL_TYPE_SALE_KEYWORDS = ['buy', 'purchase', 'بکڕم', 'بۆ فرۆشتن', 'فرۆشتن', 'بیع', 'شراء'];
-function detectDealType(lower) {
-  if (DEAL_TYPE_RENT_KEYWORDS.some(k => lower.includes(k))) return 'rent';
-  if (DEAL_TYPE_SALE_KEYWORDS.some(k => lower.includes(k))) return 'sale';
-  return null;
-}
-
-// Approximate market rate, used only to interpret a spoken IQD amount
-// ("١٥٠ ملیۆن") into the same USD unit listings are stored/shown in —
-// never used to alter or invent a displayed price.
-const IQD_PER_USD = 1310;
-function extractPrice(lower) {
-  let value = null;
-  const magnitudeMatch = lower.match(/(\d+(?:\.\d+)?)\s*(ملیۆن|میلیون|مليون|million|هەزار|الف|ألف|thousand)/);
-  if (magnitudeMatch) {
-    value = parseFloat(magnitudeMatch[1]) * (/ملیۆن|میلیون|مليون|million/.test(magnitudeMatch[2]) ? 1000000 : 1000);
-  } else {
-    // No magnitude word ("million"/"thousand") — only treat a bare number
-    // as a price if the message clearly has price context (a currency
-    // word or an under/over qualifier), so a random 4+ digit number
-    // (a year, a phone fragment) never gets misread as a budget.
-    const hasCurrencyContext = /\$|dollar|دۆلار|دولار|usd|دینار|iqd|دينار/.test(lower) ||
-      MAX_PRICE_WORDS.some(w => lower.includes(w)) || MIN_PRICE_WORDS.some(w => lower.includes(w));
-    if (hasCurrencyContext) {
-      const bareMatch = lower.match(/\b(\d{4,})\b/);
-      if (bareMatch) value = parseFloat(bareMatch[1]);
-    }
-  }
-  if (!value) return null;
-  const mentionsDollars = /\$|dollar|دۆلار|دولار|usd/.test(lower);
-  const mentionsArabicScript = /[؀-ۿ]/.test(lower);
-  // Kurdish/Arabic speakers describing home prices almost always mean
-  // Iraqi Dinar even without saying so explicitly — only treat the number
-  // as USD if dollars were mentioned, or the message was typed in Latin.
-  const usdValue = (!mentionsDollars && mentionsArabicScript) ? value / IQD_PER_USD : value;
-  const isMax = MAX_PRICE_WORDS.some(w => lower.includes(w));
-  const isMin = !isMax && MIN_PRICE_WORDS.some(w => lower.includes(w));
-  return { usdValue, isMax, isMin };
-}
-const MAX_PRICE_WORDS = ['less than', 'under', 'below', 'up to', 'کەمتر', 'خوارتر', 'اقل من', 'أقل من'];
-const MIN_PRICE_WORDS = ['more than', 'over', 'above', 'at least', 'زیاتر', 'بەرزتر', 'اکثر من', 'أکثر من'];
-
-function extractBedrooms(lower) {
-  const match = lower.match(/(\d+)\s*(bedroom|bed|ژووری نوستن|ژوور|غرفه نوم|غرفه)/);
-  return match ? parseInt(match[1], 10) : null;
-}
-
-// Only treated as a real search when the message is specific enough
-// (a city plus at least one more constraint) — a bare city name still
-// goes through the existing city-overview reply below, unchanged.
-function extractSearchCriteria(lower) {
-  const city = detectCity(lower);
-  if (!city) return null;
-  const propertyType = detectPropertyType(lower);
-  const dealType = detectDealType(lower);
-  const price = extractPrice(lower);
-  const bedrooms = extractBedrooms(lower);
-  if (!propertyType && !dealType && !price && !bedrooms) return null;
-  return { city, propertyType, dealType, price, bedrooms };
-}
-
-function describeCriteria(c) {
-  const parts = [mamCityLabel(c.city)];
-  if (c.propertyType) parts.push(tr('mamai.type_' + c.propertyType, c.propertyType));
-  if (c.price) {
-    const p = fmtPrice(c.price.usdValue);
-    if (c.price.isMax) parts.push(trf('mamai.underPrice', 'under {p}', { p }));
-    else if (c.price.isMin) parts.push(trf('mamai.overPrice', 'over {p}', { p }));
-  }
-  return parts.join(', ');
-}
-
-function searchResultLine(l) {
-  const beds = l.beds ? trf('mamai.searchBeds', ' · {n} bd', { n: l.beds }) : '';
-  return trf('mamai.searchResultLine', '• {title} — {price}{beds}', { title: l.title, price: fmtPrice(l.price), beds });
-}
-
-function searchReply(criteria) {
-  if (marketStats === null) {
-    return { reply: tr('mamai.searchNoData', "I don't have live listing data loaded right now — please try again in a moment, or browse listings directly."), cta: { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' } };
-  }
-  let matches = allListings.filter(l => l.city === criteria.city);
-  if (criteria.propertyType) matches = matches.filter(l => l.propertyType === criteria.propertyType);
-  if (criteria.dealType) matches = matches.filter(l => l.dealType === criteria.dealType);
-  if (criteria.bedrooms) matches = matches.filter(l => l.beds === criteria.bedrooms);
-  if (criteria.price) {
-    if (criteria.price.isMax) matches = matches.filter(l => l.price && l.price <= criteria.price.usdValue);
-    else if (criteria.price.isMin) matches = matches.filter(l => l.price && l.price >= criteria.price.usdValue);
-  }
-
-  const cta = { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html?city=' + encodeURIComponent(criteria.city) };
-  if (!matches.length) {
-    return { reply: trf('mamai.searchNoMatches', "I don't see any listings on Darwesh Group right now matching {details} — I can let you know as soon as one is added.", { details: describeCriteria(criteria) }), cta };
-  }
-  const top = matches.slice(0, 3).map(searchResultLine).join('\n');
-  return { reply: trf('mamai.searchResults', 'I found {n} matching listing(s) on Darwesh Group:\n{lines}', { n: matches.length, lines: top }), cta };
-}
-
-const RESPONSES = [
-  {
-    keywords: ['worth', 'value', 'valuation', 'appraise', 'estimate', 'نرخی خانوو', 'هەڵسەنگاندنی خانوو', 'بەهای خانوو', 'چەند بەها هەیە', 'تقییم', 'قیمه منزل'],
-    get reply() { return worthReply(); },
-    get cta() { return { label: tr('mamai.cta1', 'Get a Free Valuation'), href: 'sell.html' }; }
-  },
-  {
-    keywords: ['invest', 'investment', 'roi', 'return', 'وەبەرهێنان', 'استثمار'],
-    get reply() { return investReply(); },
-    get cta() { return { label: tr('mamai.cta2', 'Browse Investment Properties'), href: 'buy.html' }; }
-  },
-  {
-    keywords: ['buy or rent', 'rent or buy', 'should i buy', 'should i rent', 'بکڕم یان بیکەمە کرێ', 'باشترە بکڕم یان کرێ بکەم', 'اشتری ام استاجر', 'اشتري أم أستأجر'],
-    get reply() { return tr('mamai.reply3', "It depends on your timeline. If you plan to stay 5+ years, buying typically breaks even against renting within 3-4 years given current Kurdistan Region price trends. Renting offers more flexibility if you expect to relocate sooner."); },
-    get cta() { return { label: tr('mamai.cta3', 'Compare Buy vs Rent'), href: 'buy.html' }; }
-  },
-  {
-    keywords: ['listing', 'listings', 'verified', 'available', 'properties', 'لیستی خانووەکان', 'خانووە بەردەستەکان', 'پشتڕاستکراوە', 'قوائم عقاریه', 'عقارات متاحه'],
-    get reply() { return listingsReply(); },
-    get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
-  },
-  {
-    keywords: ['sell', 'selling', 'list my', 'فرۆشتنی خانوو', 'دەمەوێت بیفرۆشم', 'بیع منزل', 'اریدبیع'],
-    get reply() { return tr('mamai.reply5', "I can help you get started selling. Darwesh Group offers verified buyer reach, MAM AI powered valuation, and a dedicated portfolio agent for every listing."); },
-    get cta() { return { label: tr('insights.listProperty', 'List Your Property'), href: 'sell.html' }; }
-  },
-  {
-    keywords: CITY_KEYWORDS.Erbil,
-    get reply() { return cityStatsReply('Erbil'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Sulaymaniyah,
-    get reply() { return cityStatsReply('Sulaymaniyah'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Duhok,
-    get reply() { return cityStatsReply('Duhok'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Kirkuk,
-    get reply() { return cityStatsReply('Kirkuk'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Zakho,
-    get reply() { return cityStatsReply('Zakho'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Soran,
-    get reply() { return cityStatsReply('Soran'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Koya,
-    get reply() { return cityStatsReply('Koya'); }
-  },
-  {
-    keywords: CITY_KEYWORDS.Halabja,
-    get reply() { return cityStatsReply('Halabja'); }
-  },
-  {
-    keywords: ['rent', 'rental', 'renting', 'بەکرێدان', 'خانووی کرێ', 'بۆ کرێ', 'ایجار', 'استئجار'],
-    get reply() { return tr('mamai.replyRent', "We have rental listings across Erbil, Sulaymaniyah, Duhok, and more. I can show you current rental options that match what you're looking for."); },
-    get cta() { return { label: tr('mamai.ctaRent', 'Browse Rentals'), href: 'rent.html' }; }
-  },
-  {
-    keywords: ['bedroom', 'bathroom', 'sqft', 'square feet', 'how big', 'ژووری نوستن', 'چەند ژوور', 'قەبارە', 'غرفه نوم', 'مساحه'],
-    get reply() { return tr('mamai.replySize', "Every listing on Darwesh Group shows exact bedrooms, bathrooms, and square footage on its details page, so you can filter down to exactly what fits your needs."); },
-    get cta() { return { label: tr('mamai.cta4', 'View Verified Listings'), href: 'buy.html' }; }
-  },
-  {
-    keywords: ['price', 'cheap', 'affordable', 'expensive', 'budget', 'هەرزان', 'گران', 'بودجە', 'رخیص', 'غالی'],
-    get reply() { return worthReply(); }
-  },
-  {
-    keywords: ['agent', 'contact', 'phone number', 'reach someone', 'ئەجێنت', 'پەیوەندی', 'دەلال', 'وکیل', 'تواصل'],
-    get reply() { return tr('mamai.replyAgent', "I can connect you directly with one of our agents — they can answer detailed questions and schedule a viewing for you."); },
-    get cta() { return { label: tr('mamai.ctaAgent', 'Contact an Agent'), href: 'buy.html' }; }
-  },
-  {
-    keywords: ['thank', 'سوپاس', 'شکرا'],
-    get reply() { return tr('mamai.replyThanks', "You're welcome! Let me know if there's anything else you'd like to know about the market."); }
-  },
-  {
-    keywords: ['bye', 'goodbye', 'بەخاترت', 'خوات لەگەڵ', 'مع السلامه'],
-    get reply() { return tr('mamai.replyBye', "Take care! Come back anytime you have more questions about buying, renting, or selling in the Kurdistan Region."); }
-  },
-  {
-    keywords: ['map', 'neighborhood', 'area', 'location', 'نەخشە', 'گەڕەک', 'ناوچە', 'خریطه', 'منطقه'],
-    get reply() { return tr('mamai.reply9', "I can show you a live map of verified properties across the Kurdistan Region with price markers you can filter by city and type."); },
-    get cta() { return { label: tr('mamai.cta6', 'Open the Map'), href: 'map.html' }; }
-  },
-  {
-    keywords: ['hello', 'hi', 'hey', 'سڵاو', 'چۆنیت', 'مرحبا', 'السلام علیکم'],
-    get reply() { return tr('mamai.reply10', "Hello! Ask me about property values, neighborhoods, or whether buying or renting makes more sense for your situation."); }
-  }
-];
-
-// A handful of varied fallback phrasings so an unmatched question doesn't
-// look like the exact same frozen reply every time — plus a live CTA to
-// whichever city currently has the most real listings, so it still points
-// somewhere useful on the actual site rather than being a dead end.
-const FALLBACK_KEYS = [
-  ['mamai.fallback', "That's a great question for one of our agents to dig into with you directly. In the meantime, I can help with property valuations, neighborhood insights, and buy vs. rent guidance — what would you like to know?"],
-  ['mamai.fallback2', "I don't have a direct answer for that yet. Try asking me about a property's value, a specific city like Erbil or Sulaymaniyah, renting vs. buying, or our verified listings."],
-  ['mamai.fallback3', "I'm still learning that one. I can help with valuations, verified and rental listings, or details about any city we operate in — what would you like to explore?"]
-];
-let fallbackIndex = 0;
-function fallbackReply() {
-  const [key, fallback] = FALLBACK_KEYS[fallbackIndex % FALLBACK_KEYS.length];
-  fallbackIndex++;
-  const reply = { reply: tr(key, fallback) };
-  if (marketStats) {
-    const top = Object.entries(marketStats.byCity).filter(([, c]) => c.count > 0).sort((a, b) => b[1].count - a[1].count)[0];
-    if (top) reply.cta = { label: trf('mamai.ctaExploreCity', 'See listings in {city}', { city: mamCityLabel(top[0]) }), href: 'buy.html?city=' + encodeURIComponent(top[0]) };
-  }
-  return reply;
-}
-
-function getResponse(text) {
-  const lower = normalizeText(text);
-  const mentioned = detectCity(lower);
-  if (mentioned) lastCity = mentioned;
-
-  const searchCriteria = extractSearchCriteria(lower);
-  if (searchCriteria) return searchReply(searchCriteria);
-
-  for (const r of RESPONSES) {
-    if (r.keywords.some(k => lower.includes(k))) return r;
-  }
-  return fallbackReply();
-}
-
-const chatLog = document.getElementById('chatLog');
-const chatScroll = document.getElementById('chatScroll');
-const chatForm = document.getElementById('chatForm');
-const chatInput = document.getElementById('chatInput');
-
-function scrollToBottom() {
-  chatScroll.scrollTop = chatScroll.scrollHeight;
-}
-
-function addUserMessage(text) {
-  const el = document.createElement('div');
-  el.className = 'flex justify-end';
-  el.innerHTML = `<div class="bg-primary text-on-primary rounded-2xl rounded-tr-sm px-4 py-3 max-w-[85%] shadow-sm">
-    <p class="font-body-md text-body-md">${escapeHtml(text)}</p>
-  </div>`;
-  chatLog.appendChild(el);
-  scrollToBottom();
-}
-
-function addAiMessage(response) {
-  const el = document.createElement('div');
-  el.className = 'flex items-start gap-3';
-  const cta = response.cta
-    ? `<a href="${response.cta.href}" class="inline-flex items-center gap-1 mt-3 bg-secondary text-on-secondary px-4 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors">${escapeHtml(response.cta.label)} <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>`
-    : '';
-  el.innerHTML = `<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-none">
-      <span class="material-symbols-outlined text-secondary text-[16px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-    </div>
-    <div class="bg-surface-container-lowest border border-outline-variant rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] shadow-sm">
-      <p class="font-body-md text-body-md text-on-surface">${escapeHtml(response.reply).split('\n').join('<br>')}</p>
-      ${cta}
-    </div>`;
-  chatLog.appendChild(el);
-  scrollToBottom();
-  speakReply(response.reply);
-}
-
-function showTyping() {
-  const el = document.createElement('div');
-  el.className = 'flex items-start gap-3';
-  el.id = 'typingIndicator';
-  el.innerHTML = `<div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-none">
-      <span class="material-symbols-outlined text-secondary text-[16px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-    </div>
-    <div class="bg-surface-container-lowest border border-outline-variant rounded-2xl rounded-tl-sm px-4 py-3.5 shadow-sm flex items-center gap-1">
-      <span class="typing-dot w-2 h-2 rounded-full bg-outline inline-block"></span>
-      <span class="typing-dot w-2 h-2 rounded-full bg-outline inline-block"></span>
-      <span class="typing-dot w-2 h-2 rounded-full bg-outline inline-block"></span>
-    </div>`;
-  chatLog.appendChild(el);
-  scrollToBottom();
-}
-
-function hideTyping() {
-  const el = document.getElementById('typingIndicator');
-  if (el) el.remove();
-}
-
-function sendMessage(text) {
-  const trimmed = text.trim();
-  if (!trimmed) return;
-  document.getElementById('suggestedPrompts')?.remove();
-  addUserMessage(trimmed);
-  chatInput.value = '';
-  showTyping();
-  const delay = 600 + Math.random() * 700;
-  setTimeout(() => {
-    hideTyping();
-    addAiMessage(getResponse(trimmed));
-  }, delay);
-}
-
-// --- Voice: speech-to-text input + text-to-speech replies ---
-const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
-const micBtn = document.getElementById('micBtn');
-const micIcon = document.getElementById('micIcon');
-const micStatus = document.getElementById('micStatus');
-const voiceOutputToggle = document.getElementById('voiceOutputToggle');
-const voiceOutputIcon = document.getElementById('voiceOutputIcon');
-
-// Full BCP-47 tag for speech RECOGNITION (network-based — doesn't depend on
-// what's installed locally, so a specific region tag is fine here).
-function speechLangTag() {
-  const lang = localStorage.getItem('darwesh_lang') || 'en';
-  if (lang === 'ar' || lang === 'ku') return 'ar-IQ';
-  return 'en-US';
-}
-
-// Ordered language-family candidates for picking an installed speech-
-// SYNTHESIS voice. Kurdish tries real Kurdish voices first (Sorani "ckb",
-// Kurmanji "kmr", generic "ku") in case the device actually has one
-// installed, and only falls back to an Arabic voice — which mispronounces
-// Kurdish text rather than truly speaking Kurdish — as a last resort so
-// something audible plays instead of silence.
-function speechVoiceLangCandidates() {
-  const lang = localStorage.getItem('darwesh_lang') || 'en';
-  if (lang === 'ku') return ['ku', 'ckb', 'kmr', 'ar'];
-  if (lang === 'ar') return ['ar'];
-  return ['en'];
-}
-
-// speechSynthesis.getVoices() is populated asynchronously in most browsers
-// (empty on first call until 'voiceschanged' fires) — cache and refresh it.
-let cachedVoices = [];
-function refreshVoices() { cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
-if (window.speechSynthesis) {
-  refreshVoices();
-  window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
-}
-
-const VOICE_QUALITY_HINTS = ['google', 'natural', 'neural', 'online', 'premium', 'enhanced', 'wavenet'];
-function voiceScore(v, primaryLang) {
-  let score = 0;
-  if (v.lang.toLowerCase().startsWith(primaryLang)) score += 10;
-  const name = v.name.toLowerCase();
-  if (VOICE_QUALITY_HINTS.some(h => name.includes(h))) score += 5;
-  if (!v.localService) score += 2; // network-served voices generally sound less robotic
-  return score;
-}
-// Picks the best-sounding installed voice, trying each language-family
-// prefix in order (e.g. real Kurdish before falling back to Arabic) rather
-// than one hardcoded region tag — a system with only "ar-SA" installed
-// still gets used for "ar-IQ" text.
-function pickVoice(langCandidates) {
-  if (!cachedVoices.length) return null;
-  for (const prefix of langCandidates) {
-    const matching = cachedVoices.filter(v => v.lang.toLowerCase().startsWith(prefix));
-    if (matching.length) return matching.slice().sort((a, b) => voiceScore(b, prefix) - voiceScore(a, prefix))[0];
-  }
-  const en = cachedVoices.filter(v => v.lang.toLowerCase().startsWith('en'));
-  if (!en.length) return null;
-  return en.slice().sort((a, b) => voiceScore(b, 'en') - voiceScore(a, 'en'))[0];
-}
-
-// A manually-chosen voice, one preference per UI language, so picking a
-// better-sounding Kurdish voice doesn't affect English/Arabic. Voice
-// objects aren't serializable/stable across reloads, so only name+lang
-// are stored and re-matched against cachedVoices each time.
-function voiceOverrideKey() { return 'mam_voice_override_' + (localStorage.getItem('darwesh_lang') || 'en'); }
-function getVoiceOverride() {
-  const stored = localStorage.getItem(voiceOverrideKey());
-  if (!stored) return null;
-  const sep = stored.lastIndexOf('|');
-  const name = stored.slice(0, sep), lang = stored.slice(sep + 1);
-  return cachedVoices.find(v => v.name === name && v.lang === lang) || null;
-}
-function setVoiceOverride(voice) {
-  if (voice) localStorage.setItem(voiceOverrideKey(), voice.name + '|' + voice.lang);
-  else localStorage.removeItem(voiceOverrideKey());
-}
-
-let voiceOutputEnabled = localStorage.getItem(VOICE_OUTPUT_KEY) === '1';
-
-function updateVoiceOutputIcon() {
-  voiceOutputIcon.textContent = voiceOutputEnabled ? 'volume_up' : 'volume_off';
-  voiceOutputToggle.classList.toggle('text-secondary', voiceOutputEnabled);
-  voiceOutputToggle.setAttribute('aria-pressed', String(voiceOutputEnabled));
-}
-
-function speakReply(text) {
-  if (!voiceOutputEnabled || !window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  const candidates = speechVoiceLangCandidates();
-  const voice = getVoiceOverride() || pickVoice(candidates);
-  if (voice) {
-    utterance.voice = voice;
-    utterance.lang = voice.lang;
-  } else {
-    utterance.lang = candidates[0] === 'en' ? 'en-US' : 'ar-IQ';
-  }
-  window.speechSynthesis.speak(utterance);
-}
-
-if (window.speechSynthesis) {
-  voiceOutputToggle.classList.remove('hidden');
-  updateVoiceOutputIcon();
-  voiceOutputToggle.addEventListener('click', () => {
-    voiceOutputEnabled = !voiceOutputEnabled;
-    localStorage.setItem(VOICE_OUTPUT_KEY, voiceOutputEnabled ? '1' : '0');
-    updateVoiceOutputIcon();
-    if (!voiceOutputEnabled) window.speechSynthesis.cancel();
-  });
-}
-
-// ---------------------------------------------------------------------
-// Voice picker — lets the visitor override the automatically-picked
-// voice with any voice actually installed on their device. Matters most
-// for Kurdish: most devices have no real Kurdish voice at all, so the
-// automatic pick falls back to Arabic, which mispronounces Kurdish text.
-// Letting the visitor browse what IS installed and pick whichever one
-// sounds best (or none, reverting to automatic) beats guessing for them.
-// ---------------------------------------------------------------------
-const VOICE_SAMPLE_TEXT = {
-  ku: 'سڵاو، ئەمە دەنگی منە بۆ وەڵامدانەوە.',
-  ar: 'مرحبًا، هذا هو صوتي في الرد على أسئلتك.',
-  en: "Hi, this is how I'll sound when I reply."
-};
-
-function previewVoice(voice) {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
-  const lang = localStorage.getItem('darwesh_lang') || 'en';
-  const utterance = new SpeechSynthesisUtterance(VOICE_SAMPLE_TEXT[lang] || VOICE_SAMPLE_TEXT.en);
-  utterance.voice = voice;
-  utterance.lang = voice.lang;
-  window.speechSynthesis.speak(utterance);
-}
-
-let voicePanelEl = null, voicePanelOutsideClick = null, voicePanelShowAll = false;
-
-function closeVoicePanel() {
-  if (voicePanelEl) { voicePanelEl.remove(); voicePanelEl = null; }
-  if (voicePanelOutsideClick) { document.removeEventListener('click', voicePanelOutsideClick, true); voicePanelOutsideClick = null; }
-}
-
-function voicesForPanel() {
-  const candidates = speechVoiceLangCandidates();
-  if (voicePanelShowAll) return cachedVoices.slice().sort((a, b) => a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name));
-  const seen = new Set();
-  const result = [];
-  candidates.forEach(prefix => {
-    cachedVoices.filter(v => v.lang.toLowerCase().startsWith(prefix)).forEach(v => {
-      if (!seen.has(v.name + '|' + v.lang)) { seen.add(v.name + '|' + v.lang); result.push(v); }
-    });
-  });
-  return result;
-}
-
-function renderVoicePanel() {
-  const current = getVoiceOverride();
-  const voices = voicesForPanel();
-  const rows = voices.map(v => {
-    const isSelected = current && current.name === v.name && current.lang === v.lang;
-    return `
-      <div class="voice-row${isSelected ? ' selected' : ''}" data-name="${v.name.replace(/"/g, '&quot;')}" data-lang="${v.lang}">
-        <button type="button" class="voice-row-play" aria-label="Preview" title="Preview">
-          <span class="material-symbols-outlined" style="font-size:18px;">play_arrow</span>
-        </button>
-        <div class="voice-row-label">
-          <p class="voice-row-name">${v.name}</p>
-          <p class="voice-row-lang">${v.lang}</p>
-        </div>
-        ${isSelected ? '<span class="material-symbols-outlined" style="font-size:18px; color:#B89A63;">check</span>' : ''}
-      </div>`;
-  }).join('');
-
-  voicePanelEl.innerHTML = `
-    <div class="voice-panel-header">${tr('mamai.voiceSettingsTitle', 'Choose a voice')}</div>
-    <div class="voice-row${current ? '' : ' selected'}" data-auto="1">
-      <span class="material-symbols-outlined voice-row-play" style="padding:6px;">auto_awesome</span>
-      <div class="voice-row-label"><p class="voice-row-name">${tr('mamai.voiceAuto', 'Auto (recommended)')}</p></div>
-      ${current ? '' : '<span class="material-symbols-outlined" style="font-size:18px; color:#B89A63;">check</span>'}
-    </div>
-    ${voices.length ? rows : `<p class="voice-panel-empty">${tr('mamai.voiceNoneFound', 'No voices found for this language on your device.')}</p>`}
-    <button type="button" class="voice-panel-showall">${voicePanelShowAll ? tr('mamai.voiceShowMatching', 'Show only matching voices') : tr('mamai.voiceShowAll', 'Show all installed voices')}</button>
-  `;
-
-  voicePanelEl.querySelector('[data-auto="1"]').addEventListener('click', () => {
-    setVoiceOverride(null);
-    renderVoicePanel();
-  });
-  voicePanelEl.querySelectorAll('.voice-row:not([data-auto])').forEach(row => {
-    const voice = cachedVoices.find(v => v.name === row.dataset.name && v.lang === row.dataset.lang);
-    if (!voice) return;
-    row.querySelector('.voice-row-play').addEventListener('click', (e) => { e.stopPropagation(); previewVoice(voice); });
-    row.querySelector('.voice-row-label').addEventListener('click', () => { setVoiceOverride(voice); renderVoicePanel(); });
-  });
-  voicePanelEl.querySelector('.voice-panel-showall').addEventListener('click', () => {
-    voicePanelShowAll = !voicePanelShowAll;
-    renderVoicePanel();
-  });
-}
-
-function openVoicePanel(btn) {
-  closeVoicePanel();
-  refreshVoices();
-  const panel = document.createElement('div');
-  panel.className = 'voice-panel';
-  document.body.appendChild(panel);
-  voicePanelEl = panel;
-  renderVoicePanel();
-
-  const rect = btn.getBoundingClientRect();
-  const w = 280;
-  panel.style.top = (rect.bottom + 8) + 'px';
-  let left = rect.right - w;
-  left = Math.min(Math.max(12, left), document.documentElement.clientWidth - w - 12);
-  panel.style.left = left + 'px';
-
-  setTimeout(() => {
-    // Capture phase, not bubble: a row click inside the panel re-renders
-    // the panel's own innerHTML (selecting a voice, toggling "show all"),
-    // which detaches the clicked element before a bubble-phase listener
-    // would ever see it — panel.contains(e.target) would wrongly read
-    // false and close the panel out from under its own click. Capture
-    // runs before that mutation happens, while the target is still real.
-    voicePanelOutsideClick = (e) => { if (!panel.contains(e.target) && e.target !== btn && !btn.contains(e.target)) closeVoicePanel(); };
-    document.addEventListener('click', voicePanelOutsideClick, true);
-  }, 0);
-}
-
-const voiceSettingsBtn = document.getElementById('voiceSettingsBtn');
-if (window.speechSynthesis && voiceSettingsBtn) {
-  voiceSettingsBtn.classList.remove('hidden');
-  voiceSettingsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (voicePanelEl) { closeVoicePanel(); return; }
-    openVoicePanel(voiceSettingsBtn);
-  });
-}
-
-const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (SpeechRecognitionCtor) {
-  const recognition = new SpeechRecognitionCtor();
-  recognition.continuous = false;
-  recognition.interimResults = false;
-  let listening = false;
-
-  function stopListening() {
-    listening = false;
-    micBtn.classList.remove('mic-listening');
-    micStatus.classList.add('hidden');
-  }
-
-  micBtn.classList.remove('hidden');
-  micBtn.classList.add('flex');
-
-  micBtn.addEventListener('click', () => {
-    if (listening) {
-      recognition.stop();
-      return;
-    }
-    // Stop any AI reply currently being read aloud first — otherwise the
-    // microphone can pick up that audio (speaker bleed) as if it were a
-    // new thing the user just said, which is what made the bot appear to
-    // "repeat" the previous turn back as the next answer.
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    recognition.lang = speechLangTag();
-    try {
-      recognition.start();
-      listening = true;
-      micBtn.classList.add('mic-listening');
-      micStatus.classList.remove('hidden');
-    } catch (err) {
-      stopListening();
-    }
-  });
-
-  recognition.addEventListener('result', (e) => {
-    const transcript = e.results[0][0].transcript;
-    stopListening();
-    if (transcript && transcript.trim()) sendMessage(transcript);
-  });
-
-  recognition.addEventListener('end', stopListening);
-  recognition.addEventListener('error', stopListening);
-}
-
-chatForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  sendMessage(chatInput.value);
-});
-
-document.querySelectorAll('.prompt-chip').forEach(btn => {
-  btn.addEventListener('click', () => sendMessage(btn.textContent));
-});
-
-const initialQuery = new URLSearchParams(window.location.search).get('q');
-if (initialQuery) sendMessage(initialQuery);
-</script>
+<script type="module" src="./js/mam-v2.js"></script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
 <script src="./js/i18n.js"></script>
