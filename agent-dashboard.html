@@ -143,21 +143,21 @@ change is not meant to make. -->
       <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="agentNameLabel"></span>
       <div class="relative">
 <button aria-label="Language" class="lang-toggle-btn text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13">EN</span>
-<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13">KU</span>
-<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13">AR</span>
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
 </button>
 <div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg z-50">
 <button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
-<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14"><span>کوردی</span>
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
 <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
 </button>
 <button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
-<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14"><span>العربية</span>
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
 <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
 </button>
 <button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
-<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14"><span>English</span>
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
 <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
 </button>
 </div>
@@ -173,7 +173,7 @@ change is not meant to make. -->
         <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
           <div id="agentPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
             <span class="material-symbols-outlined text-on-primary text-[44px]" id="agentPhotoIcon">badge</span>
-            <img id="agentPhotoImg" class="hidden w-full h-full object-cover"/>
+            <img id="agentPhotoImg" class="hidden w-full h-full object-cover" decoding="async"/>
           </div>
           <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
             <span class="material-symbols-outlined text-[16px]">photo_camera</span>
@@ -279,7 +279,7 @@ change is not meant to make. -->
               <span class="material-symbols-outlined" style="font-size:20px;">upload_file</span>
               <input id="fImgUpload" type="file" accept="image/*" class="hidden"/>
             </label>
-            <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;"/>
+            <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;" decoding="async"/>
           </div>
           <p id="fImgUploadStatus" class="hidden font-body-md text-[11.5px] mt-1" style="color:#8192a7;"></p>
         </div>
@@ -450,6 +450,12 @@ change is not meant to make. -->
     doc, collection, query, where, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, LISTING_IMAGE, PROFILE_IMAGE, createUploadGate } from './js/image-compress.js';
+
+  // One gate per input. Each upload mints its own Storage path, so two
+  // overlapping runs would orphan an object and race over the saved URL.
+  const listingImgGate = createUploadGate();
+  const agentPhotoGate = createUploadGate();
 
   function trDash(key, fallback) { return (window.t && window.t(key)) || fallback; }
   let currentUid = null;
@@ -728,6 +734,7 @@ change is not meant to make. -->
   document.getElementById('fImgUpload').addEventListener('change', async function () {
     const file = this.files[0];
     if (!file) return;
+    if (!listingImgGate.begin()) return;
     const statusEl = document.getElementById('fImgUploadStatus');
     statusEl.textContent = trDash('agentDash.uploadingPhoto', 'Uploading...');
     statusEl.classList.remove('hidden');
@@ -735,7 +742,10 @@ change is not meant to make. -->
       const token = crypto.randomUUID();
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const fileRef = storageRef(storage, `listing-photos/${token}/${safeName}`);
-      await withUploadTimeout(uploadBytes(fileRef, file));
+      // Listing photos keep the most detail of any preset -- they are the
+      // hero image on listing.html.
+      const upload = await compressImage(file, LISTING_IMAGE);
+      await withUploadTimeout(uploadBytes(fileRef, upload));
       const url = await withUploadTimeout(getDownloadURL(fileRef));
       document.getElementById('fImg').value = url;
       updateImgPreview();
@@ -743,6 +753,7 @@ change is not meant to make. -->
     } catch (err) {
       statusEl.textContent = trDash('agentDash.uploadFailed', 'Upload failed: ') + err.message;
     } finally {
+      listingImgGate.end();
       this.value = '';
     }
   });
@@ -762,13 +773,15 @@ change is not meant to make. -->
   document.getElementById('agentPhotoUpload').addEventListener('change', async function () {
     const file = this.files[0];
     if (!file || !currentUid) return;
+    if (!agentPhotoGate.begin()) return;
     const statusEl = document.getElementById('agentPhotoStatus');
     statusEl.textContent = trDash('agentDash.uploadingPhoto', 'Uploading...');
     statusEl.classList.remove('hidden');
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const fileRef = storageRef(storage, `agent-photos/${currentUid}/${Date.now()}-${safeName}`);
-      await withUploadTimeout(uploadBytes(fileRef, file));
+      const upload = await compressImage(file, PROFILE_IMAGE);
+      await withUploadTimeout(uploadBytes(fileRef, upload));
       const url = await withUploadTimeout(getDownloadURL(fileRef));
       await updateDoc(doc(db, 'users', currentUid), { photoURL: url });
       setAgentPhoto(url);
@@ -776,6 +789,7 @@ change is not meant to make. -->
     } catch (err) {
       statusEl.textContent = trDash('agentDash.uploadFailed', 'Upload failed: ') + err.message;
     } finally {
+      agentPhotoGate.end();
       this.value = '';
     }
   });

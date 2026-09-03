@@ -74,23 +74,23 @@
         <a href="index.html" class="font-headline-md text-headline-md font-bold text-primary lg:hidden">Darwesh Group</a>
         <div class="lang-select ms-auto">
           <button aria-label="Language" class="lang-toggle-btn" type="button">
-            <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">EN</span>
-            <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">KU</span>
-            <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">AR</span>
+            <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async">EN</span>
+            <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async">KU</span>
+            <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async">AR</span>
           </button>
           <div class="lang-menu hidden absolute end-0 top-full mt-2 z-50">
             <button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
-              <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">
+              <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async">
               <span>کوردی</span>
               <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
             </button>
             <button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
-              <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">
+              <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async">
               <span>العربية</span>
               <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
             </button>
             <button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
-              <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">
+              <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async">
               <span>English</span>
               <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
             </button>
@@ -208,7 +208,7 @@
         <label id="mediaTile" class="media-tile" tabindex="0" role="button" aria-label="Upload image">
           <span class="material-symbols-outlined text-[32px] text-on-surface-variant" aria-hidden="true" id="mediaTileIcon">add_photo_alternate</span>
           <span class="font-label-caps text-label-caps text-on-surface-variant text-center px-2" id="mediaTileLabel" data-i18n="auth.pro.uploadImage">Upload image</span>
-          <img id="mediaPreviewImg" class="hidden" alt=""/>
+          <img id="mediaPreviewImg" class="hidden" alt="" decoding="async"/>
           <input type="file" id="mediaFileInput" accept="image/*" class="hidden"/>
         </label>
         <p class="font-body-md text-[11px] text-on-surface-variant mt-2" data-i18n="auth.pro.mediaDragHint">Click, or drag and drop an image here.</p>
@@ -309,6 +309,7 @@
   import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc as fsDoc, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, LOGO_IMAGE } from './js/image-compress.js';
   import {
     sendEmailOtp, verifyEmailOtp, completeSignup, BackendUnavailableError, BackendResponseError,
     listMyCompanies, createCompany, listMyOrganizations, createOrganization
@@ -952,7 +953,7 @@
       + reviewRow(tr('auth.pro.contactEmail', 'Contact Email'), d.contactInfo?.email)
       + reviewRow(tr('auth.pro.contactWhatsapp', 'WhatsApp'), d.contactInfo?.whatsapp);
     const mediaRows = state.mediaFile
-      ? `<div class="flex items-center gap-3 py-1.5"><img src="${el('mediaPreviewImg').src}" alt="" style="width:44px;height:44px;border-radius:var(--radius-md);object-fit:cover;"/><span class="font-body-md text-[13px] text-on-surface">${state.mediaFile.name}</span></div>`
+      ? `<div class="flex items-center gap-3 py-1.5"><img src="${el('mediaPreviewImg').src}" alt="" style="width:44px;height:44px;border-radius:var(--radius-md);object-fit:cover;" decoding="async"/><span class="font-body-md text-[13px] text-on-surface">${state.mediaFile.name}</span></div>`
       : `<p class="font-body-md text-[12.5px] text-on-surface-variant py-1">${tr('auth.pro.noImageSelected', 'No image selected.')}</p>`;
 
     el('reviewContent').innerHTML =
@@ -1204,7 +1205,10 @@
           try {
             const safeName = state.mediaFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
             const fileRef = storageRef(storage, `company-logos/${companyId}/${Date.now()}-${safeName}`);
-            await withUploadTimeout(uploadBytes(fileRef, state.mediaFile));
+            // LOGO_IMAGE preserves the source type, so a transparent PNG
+            // logo keeps its alpha rather than gaining a solid backdrop.
+            const upload = await compressImage(state.mediaFile, LOGO_IMAGE);
+            await withUploadTimeout(uploadBytes(fileRef, upload));
             const url = await withUploadTimeout(getDownloadURL(fileRef));
             await updateDoc(fsDoc(db, 'companies', companyId), { logoUrl: url });
           } catch (uploadErr) {

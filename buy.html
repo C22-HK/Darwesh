@@ -149,8 +149,11 @@ async function loadListings() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const { collection, query, where, limit } = storeMod;
+    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
+    // Safety ceiling only -- this page filters client-side and needs the
+    // whole active set. See PUBLIC_LISTINGS_CAP for the behaviour note.
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
@@ -283,7 +286,7 @@ function card(l) {
   <a href="listing.html?id=${encodeURIComponent(l.id)}" class="block bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden group">
     <div class="absolute top-0 left-0 w-full h-1 bg-secondary z-20"></div>
     <div class="relative h-48 w-full overflow-hidden">
-      <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${isSafeHttpUrl(l.img) ? escapeHtml(l.img) : IMAGES.villa}"/>
+      <img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${isSafeHttpUrl(l.img) ? escapeHtml(l.img) : IMAGES.villa}" decoding="async"/>
       ${favBtn}
       ${badge}
     </div>
@@ -339,6 +342,13 @@ function render() {
   if (sort === 'price-desc') list = list.slice().sort((a, b) => b.price - a.price);
 
   document.getElementById('listingsGrid').innerHTML = list.map(card).join('');
+  // Delegated once on the container, so a re-render (sort/filter) never
+  // re-wires and never accumulates handlers. Warms listing.html's document
+  // on hover/tap/focus; the listing DATA is already seeded, so this adds
+  // no Firestore read.
+  import('./js/prefetch.js')
+    .then((m) => m.wirePrefetch(document.getElementById('listingsGrid'), 'a[href^="listing.html"]'))
+    .catch(() => { /* prefetch is an optimization; never break the grid over it */ });
   document.getElementById('resultCount').textContent = `${list.length} properties for sale`;
   document.getElementById('emptyState').classList.toggle('hidden', list.length > 0);
 }

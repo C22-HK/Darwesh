@@ -754,8 +754,11 @@ async function loadListings() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const { collection, query, where, limit } = storeMod;
+    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
+    // Safety ceiling only -- the map plots every marker client-side and
+    // needs the whole active set. See PUBLIC_LISTINGS_CAP.
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
@@ -1334,7 +1337,7 @@ function card(l) {
   const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
   const imageBlock = hidden ? `
     <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}"/>
+      <img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" decoding="async"/>
       ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex flex-col items-center justify-center gap-1 text-on-primary">
         <span class="material-symbols-outlined text-[26px]">lock</span>
@@ -1343,7 +1346,7 @@ function card(l) {
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
     </div>` : `
     <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover" src="${safeImg}"/>
+      <img class="w-full h-full object-cover" src="${safeImg}" decoding="async"/>
       ${favBtn}
       ${badge}
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
@@ -1406,14 +1409,14 @@ function wheelCard(l) {
 
   const media = hidden ? `
     <div class="relative flex-none w-24 md:w-28 overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt=""/>
+      <img loading="lazy" class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt="" decoding="async"/>
       ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex items-center justify-center text-on-primary">
         <span class="material-symbols-outlined text-[20px]">lock</span>
       </div>
     </div>` : `
     <div class="relative flex-none w-24 md:w-28 overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover" src="${safeImg}" alt=""/>
+      <img loading="lazy" class="w-full h-full object-cover" src="${safeImg}" alt="" decoding="async"/>
       ${favBtn}
     </div>`;
 

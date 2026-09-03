@@ -71,7 +71,7 @@
       <div class="ps-avatar" style="position:relative;z-index:1;">
         <div id="logoFrame" class="ps-avatar-frame">
           <span class="material-symbols-outlined text-on-secondary text-[36px]" id="logoIcon">business</span>
-          <img id="logoImg" class="hidden" alt=""/>
+          <img id="logoImg" class="hidden" alt="" decoding="async"/>
         </div>
         <label id="logoUploadLabel" class="ps-avatar-upload hidden" title="Change logo">
           <span class="material-symbols-outlined text-[15px]" aria-hidden="true">photo_camera</span>
@@ -219,6 +219,9 @@
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, LOGO_IMAGE, createUploadGate } from './js/image-compress.js';
+
+  const logoGate = createUploadGate();
   import {
     mountTabs, renderEmptyState, renderErrorState,
     withBusyButton, withUploadTimeout
@@ -518,10 +521,16 @@
     input.addEventListener('change', async function () {
       const file = this.files[0];
       if (!file) return;
+      if (!logoGate.begin()) return;
       try {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileRef = storageRef(storage, `company-logos/${companyId}/${Date.now()}-${safeName}`);
-        await withUploadTimeout(uploadBytes(fileRef, file));
+        // LOGO_IMAGE, not a photo preset: compressImage preserves the
+        // source type, so a transparent PNG logo stays a PNG and keeps its
+        // alpha. Re-encoding it to JPEG would put a solid box behind the
+        // logo everywhere it is composited.
+        const upload = await compressImage(file, LOGO_IMAGE);
+        await withUploadTimeout(uploadBytes(fileRef, upload));
         const url = await withUploadTimeout(getDownloadURL(fileRef));
         await updateDoc(doc(db, 'companies', companyId), { logoUrl: url, updatedAt: Date.now() / 1000 });
         companyData.logoUrl = url;
@@ -532,6 +541,7 @@
         // logo just doesn't change) -- no dedicated status element for
         // this one action to keep the hero visually calm.
       } finally {
+        logoGate.end();
         this.value = '';
       }
     });
@@ -577,7 +587,7 @@
         const price = typeof d.price === 'number' ? d.price.toLocaleString() : d.price;
         card.innerHTML = `
           <div style="aspect-ratio:4/3;background:#221E15;overflow:hidden;">
-            ${isSafeHttpUrl(d.img) ? `<img src="${esc(d.img)}" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy"/>` : ''}
+            ${isSafeHttpUrl(d.img) ? `<img src="${esc(d.img)}" alt="" style="width:100%;height:100%;object-fit:cover;" loading="lazy" decoding="async"/>` : ''}
           </div>
           <div class="p-3">
             <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${esc(d.title || '')}</p>

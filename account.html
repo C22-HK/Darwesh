@@ -51,21 +51,21 @@ violation reporting. -->
       <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.map">Map</a>
       <div class="relative">
         <button aria-label="Language" class="lang-toggle-btn" type="button">
-          <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13">EN</span>
-          <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13">KU</span>
-          <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13">AR</span>
+          <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+          <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+          <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
         </button>
         <div class="lang-menu hidden absolute end-0 top-full mt-2 z-50">
           <button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
-            <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14"><span>کوردی</span>
+            <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
             <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
           </button>
           <button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
-            <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14"><span>العربية</span>
+            <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
             <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
           </button>
           <button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
-            <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14"><span>English</span>
+            <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
             <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
           </button>
         </div>
@@ -83,7 +83,7 @@ violation reporting. -->
         <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
           <div id="acctPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
             <span class="material-symbols-outlined text-on-primary text-[44px]" id="acctPhotoIcon">person</span>
-            <img id="acctPhotoImg" class="hidden w-full h-full object-cover"/>
+            <img id="acctPhotoImg" class="hidden w-full h-full object-cover" decoding="async"/>
           </div>
           <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
             <span class="material-symbols-outlined text-[16px]">photo_camera</span>
@@ -195,6 +195,12 @@ violation reporting. -->
   import { onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, collection, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, PROFILE_IMAGE, createUploadGate } from './js/image-compress.js';
+
+  // Blocks a second pick while the first upload is still running -- each
+  // attempt mints its own Storage path, so overlapping runs would orphan
+  // an object and race over which URL lands on the user document.
+  const acctPhotoGate = createUploadGate();
 
   document.querySelectorAll('.acct-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -239,13 +245,17 @@ violation reporting. -->
     document.getElementById('acctPhotoUpload').addEventListener('change', async function () {
       const file = this.files[0];
       if (!file) return;
+      if (!acctPhotoGate.begin()) return;
       const statusEl = document.getElementById('acctPhotoStatus');
       statusEl.textContent = 'Uploading...';
       statusEl.classList.remove('hidden');
       try {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileRef = storageRef(storage, `customer-photos/${uid}/${Date.now()}-${safeName}`);
-        await withUploadTimeout(uploadBytes(fileRef, file));
+        // An avatar is never shown above a few hundred px; uploading a raw
+        // 12MP camera file for it is pure latency.
+        const upload = await compressImage(file, PROFILE_IMAGE);
+        await withUploadTimeout(uploadBytes(fileRef, upload));
         const url = await withUploadTimeout(getDownloadURL(fileRef));
         await updateDoc(doc(db, 'users', uid), { photoURL: url });
         setAcctPhoto(url);
@@ -253,6 +263,7 @@ violation reporting. -->
       } catch (err) {
         statusEl.textContent = 'Upload failed: ' + err.message;
       } finally {
+        acctPhotoGate.end();
         this.value = '';
       }
     });

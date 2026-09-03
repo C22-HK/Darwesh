@@ -163,8 +163,11 @@ async function loadCityApartmentCounts() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const { collection, query, where, limit } = storeMod;
+    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
+    // Safety ceiling only -- counts are computed client-side over the
+    // active set. See PUBLIC_LISTINGS_CAP.
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
     const snap = await getDocs(q);
     const counts = {};
     snap.forEach(d => {

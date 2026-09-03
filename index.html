@@ -421,8 +421,11 @@ function loadActiveListingsOnce() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const { collection, query, where, limit } = storeMod;
+    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
+    // Safety ceiling only -- this page filters client-side and needs the
+    // whole active set. See PUBLIC_LISTINGS_CAP for the behaviour note.
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
@@ -491,7 +494,7 @@ function featuredCard(l) {
   return `
     <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card flex-none w-[320px] md:w-[380px] snap-start relative overflow-hidden group block">
       <div class="home-property-media relative h-48 w-full overflow-hidden">
-        <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title || l.address || '')}" loading="lazy" decoding="async"
+        <img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title || l.address || '')}" loading="lazy" decoding="async"
           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
         <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">
           <span class="material-symbols-outlined text-[32px]">home_work</span>
@@ -520,6 +523,13 @@ function featuredCard(l) {
 
 function renderFeaturedGrid() {
   const grid = document.getElementById('featuredGrid');
+  // Warms listing.html's document on intent. Costs no Firestore read --
+  // the listing data itself is already seeded by loadActiveListingsOnce().
+  if (grid) {
+    import('./js/prefetch.js')
+      .then((m) => m.wirePrefetch(grid, 'a[href^="listing.html"]'))
+      .catch(() => { /* prefetch is an optimization; never break the grid over it */ });
+  }
   if (!grid) return;
 
   // Loading: skeleton cards rather than a blank strip, so the section reads

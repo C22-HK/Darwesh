@@ -394,21 +394,21 @@ change is not meant to make. -->
       <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="adminNameLabel"></span>
       <div class="relative">
 <button aria-label="Language" class="lang-toggle-btn text-on-surface-variant hover:text-primary transition-colors" type="button">
-<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13">EN</span>
-<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13">KU</span>
-<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13">AR</span>
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
 </button>
 <div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg z-50">
 <button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
-<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14"><span>کوردی</span>
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
 <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
 </button>
 <button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
-<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14"><span>العربية</span>
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
 <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
 </button>
 <button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
-<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14"><span>English</span>
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
 <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
 </button>
 </div>
@@ -772,7 +772,7 @@ change is not meant to make. -->
                 <span class="material-symbols-outlined" style="font-size:20px;">upload_file</span>
                 <input id="fImgUpload" type="file" accept="image/*" class="hidden"/>
               </label>
-              <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;"/>
+              <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;" decoding="async"/>
             </div>
             <p id="fImgUploadStatus" class="hidden font-body-md text-[11.5px] mt-1" style="color:#8192a7;"></p>
           </div>
@@ -1037,6 +1037,11 @@ import {
   doc, collection, serverTimestamp, getFirestore, runTransaction, query, where, limit
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+import { compressImage, LISTING_IMAGE, createUploadGate } from './js/image-compress.js';
+
+// Blocks a second pick while an upload is in flight -- each attempt mints
+// its own Storage path, so overlapping runs orphan an object.
+const adminListingImgGate = createUploadGate();
 import { isConfigured as mapsConfigured, initMap as initGoogleMap, createMarker as createGoogleMarker } from './js/maps-core.js';
 import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
 
@@ -1926,6 +1931,7 @@ function withUploadTimeout(promise) {
 document.getElementById('fImgUpload').addEventListener('change', async function () {
   const file = this.files[0];
   if (!file) return;
+  if (!adminListingImgGate.begin()) return;
   const statusEl = document.getElementById('fImgUploadStatus');
   statusEl.textContent = trAdmin('agentDash.uploadingPhoto', 'Uploading...');
   statusEl.classList.remove('hidden');
@@ -1933,7 +1939,8 @@ document.getElementById('fImgUpload').addEventListener('change', async function 
     const token = crypto.randomUUID();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileRef = storageRef(storage, `listing-photos/${token}/${safeName}`);
-    await withUploadTimeout(uploadBytes(fileRef, file));
+    const upload = await compressImage(file, LISTING_IMAGE);
+    await withUploadTimeout(uploadBytes(fileRef, upload));
     const url = await withUploadTimeout(getDownloadURL(fileRef));
     document.getElementById('fImg').value = url;
     updateImgPreview();
@@ -1941,6 +1948,7 @@ document.getElementById('fImgUpload').addEventListener('change', async function 
   } catch (err) {
     statusEl.textContent = trAdmin('agentDash.uploadFailed', 'Upload failed: ') + err.message;
   } finally {
+    adminListingImgGate.end();
     this.value = '';
   }
 });
@@ -2360,7 +2368,7 @@ function renderServicesRows() {
     const thumbUrlRaw = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
     const thumbUrl = isSafeHttpUrl(thumbUrlRaw) ? thumbUrlRaw : null;
     const thumb = thumbUrl
-      ? `<img src="${escapeAdmin(thumbUrl)}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
+      ? `<img loading="lazy" src="${escapeAdmin(thumbUrl)}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant" decoding="async"/>`
       : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
     const detailsText = isSell
       ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.title)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.address)}, ${escapeAdmin(s.city)}${s.price ? ' &middot; $' + Math.round(Number(s.price)).toLocaleString() : ''}</p>`
@@ -2549,7 +2557,7 @@ function renderVerificationPhotoArea(s) {
       const blob = new Blob([bytes], { type: 'image/jpeg' });
       verificationPhotoBlobUrl = URL.createObjectURL(blob);
       area.innerHTML = `
-        <img src="${verificationPhotoBlobUrl}" class="w-full max-w-[200px] mx-auto rounded-xl border border-outline-variant block"/>
+        <img src="${verificationPhotoBlobUrl}" class="w-full max-w-[200px] mx-auto rounded-xl border border-outline-variant block" decoding="async"/>
         <p class="font-body-md text-[11px] text-on-surface-variant text-center mt-2">${trAdmin('admin.verificationPhotoPrivateNote', 'Private — visible to admins only, never shown on the public listing.')}</p>
       `;
     } catch (err) {
@@ -2576,7 +2584,7 @@ function openRequestDetail(id) {
     photosWrap.classList.remove('hidden');
     photosWrap.innerHTML = photoUrls.map(url => `
       <a href="${escapeAdmin(url)}" target="_blank" rel="noopener" class="block aspect-square rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low">
-        <img src="${escapeAdmin(url)}" class="w-full h-full object-cover"/>
+        <img src="${escapeAdmin(url)}" class="w-full h-full object-cover" decoding="async"/>
       </a>`).join('');
   } else {
     photosWrap.classList.add('hidden');
@@ -3394,7 +3402,7 @@ async function renderAgentsTab() {
       <td>
         <div class="flex items-center gap-2.5">
           ${isSafeHttpUrl(a.photoURL)
-            ? `<img src="${escapeAdmin(a.photoURL)}" class="w-8 h-8 rounded-full object-cover flex-none"/>`
+            ? `<img loading="lazy" src="${escapeAdmin(a.photoURL)}" class="w-8 h-8 rounded-full object-cover flex-none" decoding="async"/>`
             : `<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
           <div class="min-w-0">
             <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
@@ -3430,7 +3438,7 @@ function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, bad
   if (dim) classes.push('dim');
   if (match) classes.push('match-ring');
   const circleInner = isSafeHttpUrl(photo)
-    ? `<img src="${escapeAdmin(photo)}" alt=""/>`
+    ? `<img src="${escapeAdmin(photo)}" alt="" decoding="async"/>`
     : `<span>${escapeAdmin(netInitials(tier === 'root' ? 'DG' : title))}</span>`;
   const badgeHtml = (typeof badge === 'number') ? `<span class="net-badge">${badge}</span>` : '';
   const tooltipText = tooltipExtra ? `${title} — ${tooltipExtra}` : (title || '');
@@ -3586,7 +3594,7 @@ function openNetAgentPopover(el, agent) {
   pop.innerHTML = `
     <div class="flex items-center gap-2 mb-2">
       ${isSafeHttpUrl(agent.photoURL)
-        ? `<img src="${escapeAdmin(agent.photoURL)}" class="w-9 h-9 rounded-full object-cover flex-none"/>`
+        ? `<img loading="lazy" src="${escapeAdmin(agent.photoURL)}" class="w-9 h-9 rounded-full object-cover flex-none" decoding="async"/>`
         : `<div class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
       <div class="min-w-0">
         <p class="font-medium truncate">${escapeAdmin(agent.displayName) || '(no name)'}</p>

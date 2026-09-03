@@ -64,6 +64,30 @@
 //     typeof v.toMillis === 'function' ? v.toMillis() : (v.seconds * 1000)
 // Verified at the time of writing: listing.html, the only swrDoc()
 // consumer, calls no Timestamp method on listing data at all.
+/**
+ * Hard ceiling on the "every active public listing" query that index.html,
+ * buy.html, map.html and services.html each issue.
+ *
+ * This is a SAFETY CAP, not pagination. Those four pages filter, sort and
+ * plot entirely client-side, so they genuinely need the whole result set
+ * -- a small limit would silently drop markers off the map and listings
+ * out of the grid, which is a correctness regression, not an
+ * optimization. The cap exists so an unbounded collection scan cannot
+ * grow without limit as the catalogue does.
+ *
+ * BEHAVIOUR NOTE, stated plainly: above 500 active public listings these
+ * pages will show only the first 500 the index returns. That is a real
+ * change, just not one today's data reaches. Before the catalogue
+ * approaches this number the pages need real server-side pagination or
+ * viewport-driven queries -- see the performance report's remaining-work
+ * section for the exact composite indexes each would require.
+ *
+ * Chosen so it needs NO new index: adding limit() to a query whose
+ * clauses are all equality filters does not change its index
+ * requirements, so this is safe to ship before any index work.
+ */
+export const PUBLIC_LISTINGS_CAP = 500;
+
 const SEED_KEY_PREFIX = 'dw:seed:';
 
 // 5 minutes. Long enough that a browse -> open -> back -> open-another

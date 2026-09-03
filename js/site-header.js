@@ -68,21 +68,21 @@
       '<div class="flex items-center gap-4">' +
         '<div class="relative">' +
           '<button aria-label="Language" class="lang-toggle-btn" type="button">' +
-            '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14">EN</span>' +
-            '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14">KU</span>' +
-            '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14">AR</span>' +
+            '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async">EN</span>' +
+            '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async">KU</span>' +
+            '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async">AR</span>' +
           '</button>' +
           '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50">' +
             '<button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
-              '<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14"><span>کوردی</span>' +
+              '<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>' +
               '<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>' +
             '</button>' +
             '<button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
-              '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14"><span>العربية</span>' +
+              '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>' +
               '<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>' +
             '</button>' +
             '<button class="lang-option" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
-              '<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14"><span>English</span>' +
+              '<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>' +
               '<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>' +
             '</button>' +
           '</div>' +
