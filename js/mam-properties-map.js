@@ -223,9 +223,16 @@ function init() {
   // module never filters/searches listings itself.
   function applyMapAction(mapAction) {
     if (!mapAction || mapAction.target !== 'map.html') return;
-    if (!mapAction.filters || !Object.keys(mapAction.filters).length) return;
-    if (window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function') {
+    if (mapAction.filters && Object.keys(mapAction.filters).length &&
+        window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function') {
       window.DarweshPropertiesMap.applyFilters(mapAction.filters);
+    }
+    // MAM identifying one specific property (not just filters) centers
+    // that real card in the property wheel -- reuses the same selection
+    // state a click/marker/keyboard move already uses, never a second,
+    // MAM-only card.
+    if (mapAction.focusListingId && window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.focusListing === 'function') {
+      window.DarweshPropertiesMap.focusListing(mapAction.focusListingId);
     }
   }
 

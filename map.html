@@ -119,9 +119,59 @@ violation reporting. -->
     .map-legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #F2EEE5; padding: 2px 0; }
     .map-legend-dot { width: 11px; height: 11px; border-radius: 999px; flex: none; }
     .map-legend-line { width: 16px; height: 0; border-top: 2.5px dashed #8b0000; flex: none; }
+    /* ---- Property Wheel -------------------------------------------------
+     * The listing column reads as a vertical picker, not a scrolling
+     * list -- one property centered/focused, its neighbors visible above
+     * and below at reduced scale/opacity. Motion reference only: an
+     * iPhone-timer-wheel FEEL (centered focus, snap-to-nearest, gentle
+     * depth), not Apple's visuals/assets/typography -- every value below
+     * is this page's own cinematic dark-luxury palette. Text never
+     * rotates; cards stay upright and fully readable at every position.
+     * Native CSS scroll-snap does the actual snapping (smooth, free,
+     * identical for wheel/trackpad/touch) -- JS only adds the continuous
+     * depth (scale/opacity) transform while scrolling and detects when a
+     * new card has settled into center (see renderList()/wireWheel()). */
+    #cardList {
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+      outline: none;
+    }
+    #cardList.wheel-instant-scroll { scroll-behavior: auto; }
+    .wheel-spacer { flex: none; scroll-snap-align: none; }
+    .listing-card {
+      /* A fixed, breakpoint-specific height (not just min-height) is
+         what makes the snap-centering math in wireWheel() exact --
+         every real card, in every language, must be the same height so
+         "distance from the container's vertical center" means the same
+         thing for every card. Content inside is deliberately kept to
+         fixed single-line rows (truncated, never wrapped) so this holds
+         regardless of how long a given language's price/address text is. */
+      height: 124px;
+      margin-block: 5px;
+      scroll-snap-align: center;
+      scroll-snap-stop: always;
+      flex: none;
+      transform-origin: center center;
+      /* transform/opacity are driven per-frame by JS while scrolling
+         (raw values, no CSS lag fighting a live scroll position) --
+         only the discrete "just became active" cues transition, so the
+         gold focus border/shadow eases in once a card actually settles
+         into center rather than flickering on every intersection tick. */
+      transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
+    }
     .listing-card.active {
       border-color: #B89A63;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+      box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    }
+    @media (min-width: 768px) {
+      .listing-card { height: 140px; margin-block: 6px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #cardList { scroll-behavior: auto; }
+      .listing-card { transition: none; transform: none !important; opacity: 1 !important; }
     }
     .leaflet-container { font-family: 'Inter', sans-serif; cursor: default; }
     .leaflet-container.draw-mode { cursor: crosshair; }
@@ -433,11 +483,15 @@ violation reporting. -->
 </div>
 <div class="map-toast" id="mapToast"></div>
 </div>
-<!-- List panel -->
-<div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full overflow-y-auto hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden md:block">
-<p class="font-headline-md text-headline-md text-on-surface mb-1" data-i18n="map.pageTitle">Kurdistan Region Listings</p>
-<p id="resultCountMobile" class="font-body-md text-body-md text-on-surface-variant mb-4"></p>
-<div id="cardList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-4"></div>
+<!-- List panel -- the property wheel lives in #cardList, its own fixed-
+     height scroll-snap container; #listPanel itself no longer scrolls
+     (it's a flex column: static title/count header + #cardList filling
+     the rest), so the wheel's spacer/centering math in wireWheel() has a
+     real, stable viewport height to measure against. -->
+<div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden flex flex-col md:flex">
+<p class="font-headline-md text-headline-md text-on-surface mb-1 flex-none" data-i18n="map.pageTitle">Kurdistan Region Listings</p>
+<p id="resultCountMobile" class="font-body-md text-body-md text-on-surface-variant mb-4 flex-none"></p>
+<div id="cardList" class="flex-1 min-h-0"></div>
 </div>
 </main>
 
@@ -839,7 +893,7 @@ function buildMarkers() {
     }
     visible.push(l);
     const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
-    marker.on('click', () => selectListing(l.id, true));
+    marker.on('click', () => selectListing(l.id, { scrollList: true }));
     marker.bindPopup(() => card(l), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
     marker.addTo(map);
     markers[l.id] = marker;
@@ -939,6 +993,79 @@ function card(l) {
   </article>`;
 }
 
+// wheelCard(l) -- the property-wheel's own compact card, deliberately a
+// SEPARATE function from card() above rather than a restyle of it: card()
+// is still what marker.bindPopup() renders inside a fixed 240px map
+// popup (untouched, unrelated to this redesign), and that vertical
+// image-on-top layout would not fit a short, fixed-height wheel slot.
+// Same real data, same private-hidden/verified/favorite/Request-Viewing/
+// Reveal-Location logic as card() -- just laid out horizontally at a
+// constant height so every card in the wheel is exactly the same size
+// (required for the scroll-snap centering math in wireWheel() below).
+// Every line uses Tailwind's logical (start/end) utilities instead of
+// left/right so RTL mirrors automatically, no page-scoped override.
+function wheelCard(l) {
+  const hidden = isPrivateHidden(l);
+  const active = l.id === activeId;
+  const favActive = favoriteIds.has('buy-' + l.id);
+  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-1.5 start-1.5 w-6 h-6 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
+      <span class="material-symbols-outlined text-[14px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
+    </button>`;
+  const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
+  const dealLabel = l.type === 'sale' ? tr('common.forSale', 'For Sale') : tr('common.forRent', 'For Rent');
+  const verifiedBadge = l.verified
+    ? `<span class="material-symbols-outlined text-[15px] text-tertiary flex-none" aria-label="${tr('common.verified', 'Verified')}" title="${tr('common.verified', 'Verified')}">verified</span>`
+    : '';
+
+  const media = hidden ? `
+    <div class="relative flex-none w-24 md:w-28 overflow-hidden">
+      <img loading="lazy" class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt=""/>
+      ${favBtn}
+      <div class="absolute inset-0 bg-primary/55 flex items-center justify-center text-on-primary">
+        <span class="material-symbols-outlined text-[20px]">lock</span>
+      </div>
+    </div>` : `
+    <div class="relative flex-none w-24 md:w-28 overflow-hidden">
+      <img loading="lazy" class="w-full h-full object-cover" src="${safeImg}" alt=""/>
+      ${favBtn}
+    </div>`;
+
+  const addressLine = hidden
+    ? `${tr('map.approximateArea', 'Approximate area')} &middot; ${escapeHtml(l.city)}`
+    : `${escapeHtml(l.address)}, ${escapeHtml(l.city)}`;
+
+  const revealBtn = hidden
+    ? `<button data-id="${l.id}" class="reveal-location-btn w-7 h-7 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors flex-none" aria-label="${tr('map.exactLocation', 'Exact Location')}" title="${tr('map.exactLocation', 'Exact Location')}">
+        <span class="material-symbols-outlined text-[15px]">lock_open</span>
+      </button>`
+    : '';
+
+  return `
+  <article data-id="${l.id}" role="option" aria-selected="${active}" tabindex="-1" class="listing-card${active ? ' active' : ''} cursor-pointer flex items-stretch bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden relative">
+    ${media}
+    <div class="flex-1 min-w-0 py-2 px-2.5 flex flex-col justify-center gap-1">
+      <div class="flex items-center justify-between gap-2">
+        <span class="font-label-caps text-label-caps text-[10px] text-on-surface-variant uppercase tracking-wide truncate">${dealLabel}</span>
+        <p class="font-headline-md text-[15px] text-primary flex-none">${hidden ? tr('map.priceOnRequest', 'Price on request') : l.priceLabel}</p>
+      </div>
+      <p class="font-body-md text-body-md text-on-surface text-[13px] truncate flex items-center gap-1">${verifiedBadge}<span class="truncate">${addressLine}</span></p>
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex gap-2.5 min-w-0">
+          <span class="font-data-mono text-data-mono text-on-surface-variant flex items-center gap-0.5 text-[11px]"><span class="material-symbols-outlined text-[13px] text-outline">bed</span>${l.beds}</span>
+          <span class="font-data-mono text-data-mono text-on-surface-variant flex items-center gap-0.5 text-[11px]"><span class="material-symbols-outlined text-[13px] text-outline">bathtub</span>${l.baths}</span>
+          <span class="font-data-mono text-data-mono text-on-surface-variant flex items-center gap-0.5 text-[11px]"><span class="material-symbols-outlined text-[13px] text-outline">square_foot</span>${l.sqft}m&sup2;</span>
+        </div>
+        <div class="flex items-center gap-1.5 flex-none">
+          ${revealBtn}
+          <button data-id="${l.id}" class="request-viewing-btn w-7 h-7 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors" aria-label="${tr('map.requestViewing', 'Request Viewing')}" title="${tr('map.requestViewing', 'Request Viewing')}">
+            <span class="material-symbols-outlined text-[15px]">calendar_month</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </article>`;
+}
+
 function renderList() {
   if (!listingsLoaded) {
     document.getElementById('cardList').innerHTML = `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.loadingListings','Loading listings…')}</p>`;
@@ -962,13 +1089,41 @@ function renderList() {
     return;
   }
   const list = filteredListings();
-  document.getElementById('cardList').innerHTML = list.length
-    ? list.map(card).join('')
-    : `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.noListingsYet','No listings match yet — check back soon or adjust your filters.')}</p>`;
+  const cardListEl = document.getElementById('cardList');
+  if (!list.length) {
+    // Honest empty state, never an empty wheel -- matches the pre-
+    // existing "0 matched" copy exactly, just no spacers/observer wired
+    // since there is nothing to center.
+    teardownWheel();
+    cardListEl.innerHTML = `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.noListingsYet','No listings match yet — check back soon or adjust your filters.')}</p>`;
+    document.getElementById('resultCount').textContent = '';
+    document.getElementById('resultCountMobile').textContent = '';
+    activeId = null;
+    return;
+  }
+  // Preserve the current active property across a filter/data refresh if
+  // it's still in the result set; otherwise focus the first valid
+  // result -- never a stale id pointing at a card that no longer exists.
+  if (!activeId || !list.some(l => l.id === activeId)) {
+    activeId = list[0].id;
+  }
+  cardListEl.innerHTML =
+    '<div class="wheel-spacer" id="wheelSpacerTop"></div>' +
+    list.map(wheelCard).join('') +
+    '<div class="wheel-spacer" id="wheelSpacerBottom"></div>';
   document.querySelectorAll('.listing-card').forEach(el => {
     el.addEventListener('click', (e) => {
       if (e.target.closest('button')) return;
-      selectListing(el.dataset.id, false);
+      if (el.dataset.id === activeId) {
+        // The already-centered/active card is the one clicking opens --
+        // reuses the existing real listing detail page (js/mam-v2.js and
+        // js/mam-properties-map.js's own reference cards already link
+        // here), never a second property-detail system. A NON-active
+        // card click below just brings it to center first instead.
+        window.location.href = 'listing.html?id=' + encodeURIComponent(el.dataset.id);
+        return;
+      }
+      selectListing(el.dataset.id, { scrollList: true });
     });
   });
   document.querySelectorAll('.request-viewing-btn').forEach(btn => {
@@ -985,6 +1140,7 @@ function renderList() {
   });
   document.getElementById('resultCount').textContent = `${list.length} homes in Kurdistan Region`;
   document.getElementById('resultCountMobile').textContent = `${list.length} homes found`;
+  wireWheel(cardListEl, list);
 }
 
 function revealListing(id) {
@@ -992,15 +1148,27 @@ function revealListing(id) {
   revealed.add(id);
   showToast('Exact location unlocked', 'lock_open');
   refresh();
-  selectListing(id, false);
+  selectListing(id, { scrollList: true });
 }
 
-function selectListing(id, fromMap) {
+// selectListing is the ONE place activeId ever changes -- the shared
+// state every entry point (card click, map marker click, keyboard,
+// wheel-scroll settling into a new center, MAM's focusListingId) goes
+// through, so the map/list/MAM surfaces can never disagree about which
+// property is "current." `opts.scrollList` is false only when the list
+// itself is what just triggered this call (a wheel-scroll settle) --
+// scrolling it again would fight the gesture that got here.
+function selectListing(id, opts) {
+  opts = opts || {};
   activeId = id;
   const l = LISTINGS.find(x => x.id === id);
   document.querySelectorAll('.listing-card').forEach(el => {
-    el.classList.toggle('active', el.dataset.id === id);
+    const isActive = el.dataset.id === id;
+    el.classList.toggle('active', isActive);
+    el.setAttribute('aria-selected', String(isActive));
   });
+  const cardListEl = document.getElementById('cardList');
+  if (cardListEl) cardListEl.setAttribute('aria-activedescendant', 'wheel-card-' + id);
   Object.entries(markers).forEach(([mid, marker]) => {
     if (!(marker instanceof L.Marker)) return;
     const listing = LISTINGS.find(x => x.id === mid);
@@ -1010,15 +1178,190 @@ function selectListing(id, fromMap) {
   if (l) {
     // Never move the camera toward a hidden private listing's real
     // coordinates — the map simply doesn't react to it until revealed.
-    if (!isPrivateHidden(l)) {
+    if (opts.panMap !== false && !isPrivateHidden(l)) {
       map.panTo([l.lat, l.lng]);
     }
-    if (!fromMap) {
+    if (opts.scrollList !== false) {
       const cardEl = document.querySelector(`.listing-card[data-id="${id}"]`);
-      if (cardEl) cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (cardEl) {
+        cardEl.scrollIntoView({
+          behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+          block: 'center',
+        });
+      }
     }
   }
 }
+
+// ---------------------------------------------------------------------
+// Property wheel motion controller. Native CSS scroll-snap (already set
+// on #cardList/.listing-card above) does the real snapping for wheel,
+// trackpad, and touch alike -- this only adds two things on top:
+//  1. A continuous depth transform (scale/opacity by distance from the
+//     container's vertical center) on the small set of cards currently
+//     intersecting the viewport, via a requestAnimationFrame loop that
+//     runs only while actively scrolling. IntersectionObserver is what
+//     keeps that set small regardless of how many total results there
+//     are -- the RAF loop never iterates the full list.
+//  2. Settle detection (native `scrollend` where supported, a short
+//     debounce elsewhere) that commits whichever card is now closest to
+//     center as the real selection via selectListing(), so map/marker
+//     state follows the wheel the same way it follows a click.
+// ---------------------------------------------------------------------
+let wheelObserver = null;
+let wheelVisibleCards = new Set();
+let wheelRafId = null;
+let wheelLastScrollAt = 0;
+let wheelSettleTimer = null;
+let wheelScrollHandler = null;
+let wheelScrollendHandler = null;
+let wheelKeydownHandler = null;
+const WHEEL_HAS_SCROLLEND = 'onscrollend' in window;
+
+function prefersReducedMotion() {
+  return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function teardownWheel() {
+  if (wheelObserver) { wheelObserver.disconnect(); wheelObserver = null; }
+  if (wheelRafId) { cancelAnimationFrame(wheelRafId); wheelRafId = null; }
+  clearTimeout(wheelSettleTimer);
+  const cardListEl = document.getElementById('cardList');
+  if (cardListEl) {
+    if (wheelScrollHandler) cardListEl.removeEventListener('scroll', wheelScrollHandler);
+    if (wheelScrollendHandler) cardListEl.removeEventListener('scrollend', wheelScrollendHandler);
+    if (wheelKeydownHandler) cardListEl.removeEventListener('keydown', wheelKeydownHandler);
+  }
+  wheelVisibleCards = new Set();
+}
+
+function styleWheelCard(el, container) {
+  const cRect = container.getBoundingClientRect();
+  const eRect = el.getBoundingClientRect();
+  const centerDist = Math.abs((eRect.top + eRect.height / 2) - (cRect.top + cRect.height / 2));
+  const maxDist = cRect.height / 2 + eRect.height / 2;
+  const t = Math.min(1, centerDist / Math.max(1, maxDist));
+  el.style.transform = `scale(${(1 - t * 0.14).toFixed(3)})`;
+  el.style.opacity = (1 - t * 0.55).toFixed(3);
+}
+
+function commitWheelSettle(container) {
+  if (!wheelVisibleCards.size) return;
+  const cRect = container.getBoundingClientRect();
+  const centerY = cRect.top + cRect.height / 2;
+  let closest = null;
+  let closestDist = Infinity;
+  wheelVisibleCards.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const d = Math.abs((r.top + r.height / 2) - centerY);
+    if (d < closestDist) { closestDist = d; closest = el; }
+  });
+  if (!closest) return;
+  if (closest.dataset.id !== activeId) {
+    selectListing(closest.dataset.id, { scrollList: false });
+  } else {
+    styleWheelCard(closest, container);
+  }
+}
+
+function wireWheel(container, list) {
+  teardownWheel();
+
+  // Spacer height = half the container's own height minus half a real
+  // card's rendered height, so the FIRST and LAST cards can still reach
+  // dead-center when snapped -- measured live off the actual rendered
+  // card rather than a hardcoded constant, so this never drifts out of
+  // sync with the CSS breakpoint heights above.
+  const firstCard = container.querySelector('.listing-card');
+  const spacerTop = document.getElementById('wheelSpacerTop');
+  const spacerBottom = document.getElementById('wheelSpacerBottom');
+  if (firstCard && spacerTop && spacerBottom) {
+    const cardOuterHeight = firstCard.getBoundingClientRect().height +
+      parseFloat(getComputedStyle(firstCard).marginBlockStart) +
+      parseFloat(getComputedStyle(firstCard).marginBlockEnd);
+    const spacerHeight = Math.max(0, (container.clientHeight - cardOuterHeight) / 2);
+    spacerTop.style.height = spacerBottom.style.height = spacerHeight + 'px';
+  }
+
+  container.setAttribute('role', 'listbox');
+  container.setAttribute('aria-label', tr('map.pageTitle', 'Kurdistan Region Listings'));
+  container.setAttribute('tabindex', '0');
+  document.querySelectorAll('.listing-card').forEach(el => { el.id = 'wheel-card-' + el.dataset.id; });
+
+  wheelObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) wheelVisibleCards.add(entry.target);
+      else wheelVisibleCards.delete(entry.target);
+    });
+  }, { root: container, threshold: 0 });
+  container.querySelectorAll('.listing-card').forEach(el => wheelObserver.observe(el));
+
+  // Instant initial positioning (no smooth-scroll animation on a fresh
+  // render/filter change -- that's a re-render, not a user gesture) plus
+  // one synchronous style pass so cards look correct before any scroll
+  // event has ever fired.
+  const activeCardEl = document.querySelector(`.listing-card[data-id="${activeId}"]`);
+  if (activeCardEl) activeCardEl.scrollIntoView({ behavior: 'auto', block: 'center' });
+  wheelVisibleCards.forEach(el => styleWheelCard(el, container));
+  if (!wheelVisibleCards.size) container.querySelectorAll('.listing-card').forEach(el => styleWheelCard(el, container));
+
+  const reduced = prefersReducedMotion();
+
+  wheelScrollHandler = () => {
+    wheelLastScrollAt = performance.now();
+    if (!reduced && wheelRafId == null) {
+      wheelRafId = requestAnimationFrame(function tick() {
+        wheelVisibleCards.forEach(el => styleWheelCard(el, container));
+        if (performance.now() - wheelLastScrollAt < 120) {
+          wheelRafId = requestAnimationFrame(tick);
+        } else {
+          wheelRafId = null;
+        }
+      });
+    }
+    if (!WHEEL_HAS_SCROLLEND) {
+      clearTimeout(wheelSettleTimer);
+      wheelSettleTimer = setTimeout(() => commitWheelSettle(container), 140);
+    }
+  };
+  container.addEventListener('scroll', wheelScrollHandler, { passive: true });
+
+  if (WHEEL_HAS_SCROLLEND) {
+    wheelScrollendHandler = () => commitWheelSettle(container);
+    container.addEventListener('scrollend', wheelScrollendHandler);
+  }
+
+  // Keyboard: usable with zero gestures. Up/Down move one property at a
+  // time, Page Up/Down jump by ~3 (a "page" of the wheel) -- both move
+  // through the SAME filteredListings() order the wheel itself renders,
+  // never trapping focus (Tab still leaves the widget normally).
+  wheelKeydownHandler = (e) => {
+    const key = e.key;
+    if (!['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(key)) return;
+    e.preventDefault();
+    const ids = list.map(l => l.id);
+    const idx = ids.indexOf(activeId);
+    const step = (key === 'PageUp' || key === 'PageDown') ? 3 : 1;
+    const dir = (key === 'ArrowDown' || key === 'PageDown') ? 1 : -1;
+    const nextIdx = Math.max(0, Math.min(ids.length - 1, (idx === -1 ? 0 : idx) + dir * step));
+    selectListing(ids[nextIdx], { scrollList: true });
+  };
+  container.addEventListener('keydown', wheelKeydownHandler);
+}
+
+window.addEventListener('resize', () => {
+  const container = document.getElementById('cardList');
+  const spacerTop = document.getElementById('wheelSpacerTop');
+  if (!container || !spacerTop) return;
+  const firstCard = container.querySelector('.listing-card');
+  const spacerBottom = document.getElementById('wheelSpacerBottom');
+  if (!firstCard) return;
+  const cardOuterHeight = firstCard.getBoundingClientRect().height +
+    parseFloat(getComputedStyle(firstCard).marginBlockStart) +
+    parseFloat(getComputedStyle(firstCard).marginBlockEnd);
+  const spacerHeight = Math.max(0, (container.clientHeight - cardOuterHeight) / 2);
+  spacerTop.style.height = spacerBottom.style.height = spacerHeight + 'px';
+});
 
 function refresh() {
   buildMarkers();
@@ -1429,6 +1772,17 @@ function applyAiFilters(filters) {
 }
 window.DarweshPropertiesMap = {
   applyFilters: applyAiFilters,
+  // MAM identifying/selecting a specific property (mapAction.
+  // focusListingId) centers it in the SAME wheel/map -- never a second,
+  // MAM-only card competing with these real ones. A no-op if the id
+  // isn't in the current filtered set (e.g. MAM's own filters haven't
+  // been applied yet); applyAiFilters already re-renders the wheel
+  // before this would ever be called for a fresh search result.
+  focusListing: (id) => {
+    if (!id || !listingsLoaded) return;
+    if (!filteredListings().some(l => l.id === id)) return;
+    selectListing(id, { scrollList: true });
+  },
   getState: () => ({ activeType, city: document.getElementById('citySearch').value, priceMin, priceMax, bedsMin, bathsMin, types: [...selectedHomeTypes] }),
   getVisibleCount: () => (listingsLoaded ? filteredListings().length : null),
   isReady: () => listingsLoaded,
