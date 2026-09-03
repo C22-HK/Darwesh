@@ -1,14 +1,18 @@
 # MAM Intelligence V2 — Architecture
 
-Status as of this document: **provider-independent**. No live AI provider
-(Gemini/Vertex AI, OpenAI, or Anthropic) is wired to a real network call
-anywhere in this codebase. Every architectural seam a real provider will
-eventually plug into already exists, is tested, and is described below —
-activating one is a small, contained change (see §11), not a redesign.
+Status as of this document: the **Gemini/Vertex AI adapter is real** —
+`backend/app/mam/providers/gemini.py` makes an actual, authenticated Vertex
+AI call (ADC via the Cloud Run runtime service account, no API key) — but
+**it is not deployed or activated anywhere yet** (`MAM_CHAT_PROVIDER` is
+still unset in production; see §18 for exactly what's required to flip it
+on, and why that hasn't been done). OpenAI and Anthropic remain validated
+placeholders (§3). No permanent decision to use Gemini in production has
+been made — that still waits on the real Sorani benchmark
+(`docs/MAM_SORANI_BENCHMARK.md`) this real adapter exists to make possible.
 
 ## 1. What MAM actually is today
 
-MAM is **not** a chatbot with an LLM behind it yet. It is:
+MAM's deterministic core does **not** depend on any AI model at all:
 
 1. A deterministic intent resolver (`backend/app/mam/intent_resolver.py`)
    that pattern-matches a visitor's message (English/Kurdish Sorani/Arabic)
@@ -20,13 +24,19 @@ MAM is **not** a chatbot with an LLM behind it yet. It is:
    `estates/*/publicTransactionSummary`, a signed-in user's own
    `favorites`) and return it in a typed, bounded shape.
 3. An orchestrator (`backend/app/mam/orchestrator.py`) that tries the
-   resolver first, would try a configured live provider second, and
-   returns an honest "AI reasoning is temporarily unavailable, but I can
-   still help with navigation" message third — never a fabricated answer.
+   resolver first, tries a configured live provider second (now capable of
+   a real multi-round tool-calling exchange with Gemini specifically — see
+   §3a), and returns an honest "AI reasoning is temporarily unavailable,
+   but I can still help with navigation" message third — never a
+   fabricated answer.
 
-Because no provider is configured, **every non-degraded response today
-comes from step 1/2** — real data, deterministically retrieved, never
-generated prose about facts. The frontend never claims otherwise (see §9).
+Because no provider is activated in production yet, **every non-degraded
+response in production today still comes from step 1/2** — real data,
+deterministically retrieved, never generated prose about facts. The
+frontend never claims otherwise (see §9). This will remain true even once
+Gemini activates for FAST/simple-lookup turns, since the deterministic
+resolver is tried first on every turn precisely so a live model call is
+never made when it isn't needed.
 
 ## 2. Request flow
 
@@ -79,17 +89,57 @@ provider choice is made: it reads `Config.mam_chat_provider` ("gemini" |
 `None`. `orchestrator.py`, `tools.py`, `policy.py`, and `routes.py` never
 import a provider SDK or branch on which one is active.
 
-### Why each adapter is a placeholder today
+### Adapter status
 
-| Adapter | File | Why it doesn't call out yet |
+| Adapter | File | Status |
 |---|---|---|
-| Gemini/Vertex AI | `providers/gemini.py` | Constructor validated (requires `project_id`/`location`/`model_flash`/`model_pro`), but no `google-genai` call is wired — pending the Sorani benchmark and the Vertex AI IAM grant (§11). |
-| OpenAI | `providers/openai.py` | Constructor validated (requires an API key), no `openai` SDK call wired — pending the Sorani benchmark. |
-| Anthropic | `providers/anthropic.py` | Same shape, requires an API key, pending the Sorani benchmark. |
+| Gemini/Vertex AI | `providers/gemini.py` | **Real.** Authenticates via ADC (the Cloud Run runtime service account `darwesh-backend-run@darwesh-group.iam.gserviceaccount.com`, granted `roles/aiplatform.user`), calls `google-genai`'s async Vertex AI client (`client.aio.models.generate_content`), supports real multi-round function calling (§3a), bounded 20s timeout, no retry. Not yet activated in production (`MAM_CHAT_PROVIDER` unset) — pending the Sorani benchmark result, see the top-of-document status line and §18. |
+| OpenAI | `providers/openai.py` | Still a validated placeholder — constructor requires an API key, `generate()` raises `ProviderNotConfiguredError`, no `openai` SDK call wired. |
+| Anthropic | `providers/anthropic.py` | Same placeholder shape, requires an API key, pending the Sorani benchmark. |
 
-Activating one later is: fill in that file's `generate()` body using the
+Activating OpenAI/Anthropic later follows the same pattern Gemini's
+activation just proved out: fill in that file's `generate()` body using the
 vendor's SDK, add the SDK to `backend/requirements.txt`, and set
-`MAM_CHAT_PROVIDER`. No other file in `app/mam/` needs to change.
+`MAM_CHAT_PROVIDER`. No other file in `app/mam/` needs to change for the
+provider swap itself — `orchestrator.py`'s tool-call loop (§3a) is already
+provider-agnostic.
+
+### 3a. The tool-call loop (`orchestrator.py`'s `_respond_from_provider`)
+
+Once a provider is configured, a turn the deterministic resolver doesn't
+confidently match goes through a real, bounded exchange:
+
+```
+system_instruction + session history  ──▶  provider.generate(tier=FAST)
+                                                   │
+                              tool_calls present?  │  no tool_calls
+                        ┌──────────────────────────┴───────────────────┐
+                        ▼                                              ▼
+     dispatch() each call through the SAME               return ChatResponse(message=text)
+     policy.require_auth()-checked path
+     _respond_from_intent uses (§4/§5) — a
+     denied/failed call feeds back {"error": ...},
+     never crashes the turn
+                        │
+                        ▼
+     append the model's tool-call request + each
+     real tool result to history, loop (generate() again)
+```
+
+Bounded by `_MAX_TOOL_ROUNDS = 4` — exhausting it without a final answer
+raises, and `handle_turn`'s existing generic-exception handling degrades
+the same honest way any other provider failure does. This path is
+**text-only today**: it returns the model's prose, not structured
+cards/comparison/map-action data (those remain exclusive to the
+deterministic path, §4) — a reasonable follow-up, not implemented this
+pass, since the immediate goal was making the Gemini leg real enough for
+the Sorani benchmark (a text-quality evaluation) to run against it.
+
+`ChatTurn` (`providers/base.py`) carries an optional `tool_calls` field
+specifically so an assistant turn that requested tools (rather than
+answering directly) can be replayed into the next `generate()` call's
+history — every provider adapter shares this same shape; a future
+OpenAI/Anthropic activation reuses it rather than inventing its own.
 
 ## 4. Deterministic tool layer
 
@@ -388,10 +438,10 @@ Read by `backend/app/config.py`, all optional, empty by default:
 
 | Variable | Purpose |
 |---|---|
-| `MAM_CHAT_PROVIDER` | `"gemini"` \| `"openai"` \| `"anthropic"` \| unset. Selects which adapter `app.main.build_mam_provider` constructs. Unset = deterministic-only (current state). |
-| `GEMINI_PROJECT_ID` | GCP project id Vertex AI calls would bill against. No default — never silently guessed. |
-| `GEMINI_LOCATION` | Vertex AI region (e.g. a `me-central1`/`us-central1`-style value — confirmed at activation time, see §11 of the PROVIDER CONFIGURATION report). |
-| `GEMINI_MODEL_FLASH` / `GEMINI_MODEL_PRO` | Concrete Vertex AI model ids for the FAST/REASONING tiers. Gemini model ids retire on a schedule — these must never be hardcoded into source. |
+| `MAM_CHAT_PROVIDER` | `"gemini"` \| `"openai"` \| `"anthropic"` \| unset. Selects which adapter `app.main.build_mam_provider` constructs. Unset = deterministic-only (current production state — Gemini's adapter is real and tested, §3, but not yet activated). |
+| `GEMINI_PROJECT_ID` | GCP project id Vertex AI calls would bill against. No default — never silently guessed. Recommended: `darwesh-group`. |
+| `GEMINI_LOCATION` | Vertex AI region. Recommended: `global` — verified against current Vertex AI docs (not inferred from Cloud Run's own `me-central1` region, which is unrelated): `gemini-3.7-flash` supports and recommends the global endpoint, and the current REASONING-tier candidate (`gemini-3.1-pro-preview`) is available on the global endpoint ONLY. Cloud Run staying in `me-central1` while Vertex AI calls route to `global` is a normal, supported cross-region pattern. |
+| `GEMINI_MODEL_FLASH` / `GEMINI_MODEL_PRO` | Concrete Vertex AI model ids for the FAST/REASONING tiers. Recommended: `gemini-3.7-flash` (GA, 2026-08-13) / `gemini-3.1-pro-preview` (Google's current most capable reasoning model — PREVIEW status, stated honestly, not GA). Gemini model ids retire on a schedule (`gemini-2.5-*` retires 2026-10-20) — these must never be hardcoded into source, and must be re-verified against current Vertex AI docs at activation time, not assumed from this table. |
 | `OPENAI_API_KEY` | Real secret. Sourced from Google Secret Manager via Cloud Run's secret-injection env vars in production — never hardcoded, never logged, never placed in a committed `.env` file. |
 | `ANTHROPIC_API_KEY` | Same handling as `OPENAI_API_KEY`. |
 
@@ -410,24 +460,37 @@ docstring.
    other backend endpoint's current state.
 2. `ALLOWED_ORIGINS` must include the real frontend origin(s) for the
    browser's CORS preflight to succeed.
-3. Activating a live chat provider additionally requires the exact
-   IAM/API/secret setup detailed in this phase's separate PROVIDER
-   CONFIGURATION report (not duplicated here — that report is the
-   single source of truth for exact `gcloud` commands and cost
-   implications, since those may change between when this document is
-   written and when a provider is actually activated).
-4. No change to `firestore.rules`/`storage.rules` is required by MAM V2
+3. Vertex AI's own requirements for the Gemini adapter specifically are
+   already satisfied: `aiplatform.googleapis.com` is enabled and
+   `roles/aiplatform.user` is granted to the real production runtime
+   identity, `darwesh-backend-run@darwesh-group.iam.gserviceaccount.com`
+   (confirmed by the person operating this GCP project — not something
+   this repository can verify or grant itself). What's still needed
+   before Gemini can actually answer a real visitor: (a) deploy this
+   backend with that service account attached (point 1 above), (b) set
+   `MAM_CHAT_PROVIDER=gemini` plus the `GEMINI_*` env vars (§17) on that
+   deployment, (c) run the Sorani benchmark and make the deliberate
+   decision to lock Gemini in (rather than OpenAI/Anthropic) — none of
+   which has happened yet.
+4. Activating OpenAI or Anthropic instead/in addition still requires the
+   IAM-free but secret-bearing setup (an API key in Secret Manager) from
+   this phase's separate PROVIDER CONFIGURATION report.
+5. No change to `firestore.rules`/`storage.rules` is required by MAM V2
    — every collection its tools read already has existing, unmodified,
    previously-audited rules (see §6).
 
 ## 19. Testing
 
-Backend: 96 new tests across `backend/tests/test_mam_*.py` (policy,
-schemas, intent resolver — including a real Unicode-range bug caught and
-fixed while writing these tests, see the commit introducing
-`backend/app/mam/`, session eviction, every tool against a fake
-in-memory Firestore, the orchestrator's fallback chain, and the route's
-full HTTP contract). Frontend: validated via `node scripts/ci-checks.js`
+Backend: 110 tests across `backend/tests/test_mam_*.py` (policy, schemas,
+intent resolver — including a real Unicode-range bug caught and fixed
+while writing these tests, see the commit introducing `backend/app/mam/`,
+session eviction, every tool against a fake in-memory Firestore, the
+orchestrator's fallback/tool-call-loop chain (§3a, 4 new tests), the
+route's full HTTP contract, and the real Gemini adapter against a mocked
+`google-genai` SDK (21 new tests) — normal completion, tool-call parsing,
+malformed/empty responses, timeout, provider exceptions never leaking raw
+details, cancellation propagation, and Kurdish/Arabic-Indic-digit
+passthrough). Frontend: validated via `node scripts/ci-checks.js`
 (inline script syntax, i18n key parity/coverage, no broken links, no
 duplicate ids) and manual Playwright-driven browser QA across desktop/
 mobile breakpoints, all three languages/RTL, reduced-motion, and the

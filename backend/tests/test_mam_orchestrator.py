@@ -4,9 +4,16 @@ import logging
 
 import pytest
 
-from app.mam.orchestrator import Orchestrator
+from app.mam.orchestrator import _MAX_TOOL_ROUNDS, Orchestrator
 from app.mam.policy import PUBLIC_CALLER
-from app.mam.providers.base import ChatTurn, ModelTier, ProviderNotConfiguredError, ProviderResponse, ToolSpec
+from app.mam.providers.base import (
+    ChatTurn,
+    ModelTier,
+    ProviderNotConfiguredError,
+    ProviderResponse,
+    ToolCallRequest,
+    ToolSpec,
+)
 from app.mam.schemas import ChatRequest, PageContext
 from app.mam.session import SessionStore
 from app.mam.tools import Tools
@@ -42,6 +49,28 @@ class FakeProvider:
         if self._raise_unexpected:
             raise RuntimeError("boom")
         return ProviderResponse(text=self._text)
+
+
+class FakeScriptedProvider:
+    """Returns each ProviderResponse in `responses` in order, one per
+    generate() call -- lets a test script a real multi-round tool-call
+    exchange (request tools -> receive results -> answer) the same way
+    orchestrator.py's loop actually drives a live provider, without
+    needing a real Gemini/OpenAI/Anthropic SDK."""
+
+    def __init__(self, responses: list[ProviderResponse]):
+        self._responses = responses
+        self.calls = 0
+        self.seen_history: list[list[ChatTurn]] = []
+
+    async def generate(
+        self, *, system_instruction: str, history: list[ChatTurn], tools: list[ToolSpec], tier: ModelTier,
+        max_output_tokens: int,
+    ) -> ProviderResponse:
+        self.seen_history.append(list(history))
+        response = self._responses[self.calls]
+        self.calls += 1
+        return response
 
 
 def make_orchestrator(*, provider=None) -> Orchestrator:
@@ -145,3 +174,110 @@ async def test_unauthenticated_caller_gets_sign_in_message_for_authenticated_onl
         PUBLIC_CALLER, ResolvedIntent(tool_name="save_property", arguments={"listing_id": "l1"}), "en"
     )
     assert "sign in" in response.message.lower()
+
+
+# ---------------------------------------------------------------------
+# Provider tool-call loop -- exercises the SAME dispatch()/authorization
+# path _respond_from_intent uses, but driven by a (fake) live provider's
+# tool_calls instead of the deterministic resolver. These are the tests
+# that prove Gemini's real function-calling round trip is wired
+# correctly end to end at the orchestrator layer, independent of the
+# real google-genai SDK (which test_mam_gemini_provider.py covers).
+# ---------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_provider_tool_call_is_dispatched_and_result_fed_back():
+    provider = FakeScriptedProvider(
+        [
+            ProviderResponse(
+                text=None,
+                tool_calls=[ToolCallRequest(call_id="c1", tool_name="search_properties", arguments={"city": "Erbil"})],
+                finish_reason="tool_calls",
+            ),
+            ProviderResponse(text="I found a villa in Erbil for you."),
+        ]
+    )
+    orch = make_orchestrator(provider=provider)
+    response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("qwertyuiop asdfghjkl"))
+
+    assert provider.calls == 2
+    assert response.message == "I found a villa in Erbil for you."
+    assert response.degraded is False
+
+    # The second generate() call's history must contain the real tool
+    # result (real listing "l1"), never a fabricated one -- this is what
+    # proves the model's eventual answer was actually grounded in a real
+    # dispatch() call rather than the model's own invention.
+    second_call_history = provider.seen_history[1]
+    tool_turns = [t for t in second_call_history if t.role == "tool"]
+    assert len(tool_turns) == 1
+    assert tool_turns[0].tool_name == "search_properties"
+    assert '"l1"' in tool_turns[0].content
+
+
+@pytest.mark.asyncio
+async def test_provider_multiple_tool_calls_in_one_round_are_all_dispatched():
+    provider = FakeScriptedProvider(
+        [
+            ProviderResponse(
+                text=None,
+                tool_calls=[
+                    ToolCallRequest(call_id="c1", tool_name="search_properties", arguments={"city": "Erbil"}),
+                    ToolCallRequest(call_id="c2", tool_name="get_market_summary", arguments={}),
+                ],
+                finish_reason="tool_calls",
+            ),
+            ProviderResponse(text="Here's what I found."),
+        ]
+    )
+    orch = make_orchestrator(provider=provider)
+    response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("qwertyuiop asdfghjkl"))
+
+    assert response.message == "Here's what I found."
+    second_call_history = provider.seen_history[1]
+    tool_names = {t.tool_name for t in second_call_history if t.role == "tool"}
+    assert tool_names == {"search_properties", "get_market_summary"}
+
+
+@pytest.mark.asyncio
+async def test_provider_tool_call_denied_by_authorization_feeds_back_error_not_crash():
+    provider = FakeScriptedProvider(
+        [
+            ProviderResponse(
+                text=None,
+                tool_calls=[ToolCallRequest(call_id="c1", tool_name="save_property", arguments={"listing_id": "l1"})],
+                finish_reason="tool_calls",
+            ),
+            ProviderResponse(text="You'll need to sign in to save that."),
+        ]
+    )
+    orch = make_orchestrator(provider=provider)
+    # PUBLIC_CALLER is not signed in -- save_property requires AUTHENTICATED.
+    response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("qwertyuiop asdfghjkl"))
+
+    assert provider.calls == 2
+    assert response.degraded is False
+    assert response.message == "You'll need to sign in to save that."
+    second_call_history = provider.seen_history[1]
+    tool_turn = next(t for t in second_call_history if t.role == "tool")
+    assert "not_authorized" in tool_turn.content
+
+
+@pytest.mark.asyncio
+async def test_provider_exhausting_tool_rounds_degrades_honestly():
+    # Every round keeps requesting a tool, never producing final text --
+    # must stop after _MAX_TOOL_ROUNDS, never loop forever.
+    responses = [
+        ProviderResponse(
+            text=None,
+            tool_calls=[ToolCallRequest(call_id=f"c{i}", tool_name="search_properties", arguments={})],
+            finish_reason="tool_calls",
+        )
+        for i in range(_MAX_TOOL_ROUNDS)
+    ]
+    provider = FakeScriptedProvider(responses)
+    orch = make_orchestrator(provider=provider)
+    response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("qwertyuiop asdfghjkl"))
+
+    assert provider.calls == _MAX_TOOL_ROUNDS
+    assert response.degraded is True

@@ -48,12 +48,23 @@ class ChatTurn:
     provider's chat API can represent. role is "user" | "assistant" |
     "tool". A tool-role turn carries tool_name/tool_call_id/content (the
     tool's own structured output, already authorized and fetched by
-    app.mam.tools -- never anything the model wrote itself)."""
+    app.mam.tools -- never anything the model wrote itself; content is
+    that result JSON-serialized, since this dataclass keeps a single
+    plain-str content field for every role).
+
+    An "assistant" turn that requested tool calls (rather than answering
+    directly) carries them in `tool_calls` with `content` left empty --
+    this is what lets orchestrator.py replay a model's own function-call
+    request back into the next generate() call's history so a provider
+    that needs multiple real API round trips (request tools -> receive
+    results -> answer) sees a coherent conversation, without any
+    provider adapter having to keep conversation state itself."""
 
     role: str
     content: str
     tool_name: str | None = None
     tool_call_id: str | None = None
+    tool_calls: tuple[ToolCallRequest, ...] = ()
 
 
 @dataclass(frozen=True)

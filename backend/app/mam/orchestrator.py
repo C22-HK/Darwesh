@@ -8,6 +8,7 @@
 # constructed.
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, replace
 from typing import Any
@@ -27,6 +28,15 @@ from app.mam.schemas import (
 )
 from app.mam.session import SessionStore
 from app.mam.tools import ToolExecutionError, Tools, build_tool_specs, dispatch
+
+# Bounds a single visitor turn's tool-call exchange with a live provider
+# to a small, fixed number of real API round trips -- never an infinite
+# loop chasing a model that keeps requesting tools instead of answering.
+# Exhausting this without a final answer is treated as a provider
+# failure (raises, caught by handle_turn's generic except below, same
+# honest degraded response as any other provider error) rather than
+# returning a half-finished answer.
+_MAX_TOOL_ROUNDS = 4
 
 _DEGRADED_MESSAGE = {
     "en": "MAM's AI reasoning is temporarily unavailable, but I can still help with navigation and basic lookups -- try asking to open the map, or name a city or service you're interested in.",
@@ -85,30 +95,51 @@ class Orchestrator:
         return _build_response(resolved.tool_name, result, language)
 
     async def _respond_from_provider(self, caller: MamCaller, request: ChatRequest, *, session_id: str) -> ChatResponse:
-        # Provider-driven turns are not exercised yet -- every adapter's
-        # generate() raises ProviderNotConfiguredError (see each
-        # providers/*.py module docstring), caught by handle_turn above.
-        # This method's shape (system instruction + bounded history +
-        # tool specs -> ProviderResponse -> dispatch any requested tool
-        # calls -> feed results back -> final text) is written now so
-        # activating a real provider later is filling in providers/*.py's
-        # generate() body, not redesigning this loop.
+        # ASK -> UNDERSTAND -> TOOLS -> ACT -> STRUCTURED RESULT, with a
+        # live provider: each round asks the model for a turn; if it
+        # requests tools, EVERY call goes through the exact same
+        # authorized, policy-checked app.mam.tools.dispatch() path
+        # _respond_from_intent uses above -- the model never touches
+        # Firestore, never decides authorization, and never sees a tool
+        # result the caller wasn't allowed to receive (a denied/failed
+        # call is fed back as a small {"error": ...} result, not raised
+        # past this method, so the model can react in its own final
+        # answer rather than the whole turn crashing over one bad call).
+        # Bounded by _MAX_TOOL_ROUNDS -- see its own docstring.
+        #
+        # This is a text-only response path today: it returns the
+        # model's final prose, not structured cards -- the deterministic
+        # path above remains the only source of card/comparison/map-
+        # action data. Populating those for an AI-driven answer too is a
+        # reasonable later enhancement, not implemented this pass.
         system_instruction = build_system_instruction(language=request.language)
         history = [ChatTurn(role=t.role, content=t.text) for t in self.sessions.get_or_create(session_id).turns]
         tool_specs = build_tool_specs()
-        provider_response = await self.provider.generate(  # type: ignore[union-attr]
-            system_instruction=system_instruction,
-            history=history,
-            tools=tool_specs,
-            tier=ModelTier.FAST,
-            max_output_tokens=800,
-        )
-        # A real implementation loops here while provider_response.tool_calls
-        # is non-empty, dispatching each via app.mam.tools.dispatch (with the
-        # SAME authorization checks _respond_from_intent uses above) and
-        # feeding results back as ChatTurn(role="tool", ...) until the model
-        # returns final text. Not implemented further this phase.
-        return ChatResponse(message=provider_response.text or "", language=request.language)
+
+        for _round in range(_MAX_TOOL_ROUNDS):
+            provider_response = await self.provider.generate(  # type: ignore[union-attr]
+                system_instruction=system_instruction,
+                history=history,
+                tools=tool_specs,
+                tier=ModelTier.FAST,
+                max_output_tokens=800,
+            )
+            if not provider_response.tool_calls:
+                return ChatResponse(message=provider_response.text or "", language=request.language)
+
+            history.append(ChatTurn(role="assistant", content="", tool_calls=tuple(provider_response.tool_calls)))
+            for call in provider_response.tool_calls:
+                try:
+                    result: dict[str, Any] = await dispatch(self.tools, caller, call.tool_name, call.arguments)
+                except ToolAuthorizationError:
+                    result = {"error": "not_authorized"}
+                except ToolExecutionError as exc:
+                    result = {"error": str(exc)}
+                history.append(
+                    ChatTurn(role="tool", content=json.dumps(result), tool_name=call.tool_name, tool_call_id=call.call_id)
+                )
+
+        raise RuntimeError(f"mam: provider did not produce a final answer within {_MAX_TOOL_ROUNDS} tool-call rounds")
 
 
 def _build_response(tool_name: str, result: dict, language: str) -> ChatResponse:
