@@ -567,21 +567,30 @@ let listingsLoaded = false;
 // ---------------------------------------------------------------------
 async function loadListings() {
   try {
-    const [{ db }, storeMod] = await Promise.all([
+    const [{ db }, storeMod, locMod] = await Promise.all([
       import('./js/firebase-init.js'),
-      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js'),
+      import('./js/listing-location.js')
     ]);
     const { collection, getDocs } = storeMod;
+    const { publicListingCoords } = locMod;
     const snap = await getDocs(collection(db, 'listings'));
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-    LISTINGS = docs.filter(d => d.lat != null && d.lng != null && d.status !== 'closed').map(d => {
+    // LOC-01: every point on this public map is the ~1.1 km rounded
+    // approximation, never the surveyed pin. `lat`/`lng` below are that
+    // approximation — the rest of this page (markers, neighbourhood
+    // grouping, Draw Area, the viewing-request payload) reads them from
+    // this normalized array, so it inherits the privacy guarantee without
+    // needing to know about it.
+    LISTINGS = docs.map(d => ({ ...d, _c: publicListingCoords(d) }))
+      .filter(d => d._c && d.status !== 'closed').map(d => {
       const price = Number(d.price) || 0;
       return {
         id: d.id,
         city: d.city || '',
         address: d.address || d.title || '',
-        lat: d.lat, lng: d.lng,
+        lat: d._c.lat, lng: d._c.lng,
         type: d.dealType === 'rent' ? 'rent' : 'sale',
         price,
         priceLabel: d.dealType === 'rent' ? ('$' + price.toLocaleString() + '/mo') : ('$' + price.toLocaleString()),

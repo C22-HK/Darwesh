@@ -53,8 +53,16 @@ if (failures === 0) ok(`inline script syntax valid across ${htmlFiles.length} pa
 // --- 2 & 3. i18n coverage -------------------------------------------
 const i18nPath = path.join(ROOT, 'js/i18n.js');
 const i18nSrc = fs.readFileSync(i18nPath, 'utf8');
-const kuMatch = i18nSrc.match(/ku:\s*\{([\s\S]*?)\n {2}\},\n {2}ar:/);
-const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\n {2}\}\s*\};/);
+// \r?\n, not \n: Git for Windows checks these files out with CRLF endings by
+// default (core.autocrlf=true), so on a Windows working copy the bytes at the
+// end of the ku block are `},\r\n  ar:`. A bare `\},\n` demands the newline
+// immediately after the comma and hits the \r instead, so the ku block fails
+// to match and this check reports "structure changed?" on a file that is
+// perfectly fine. The repository content is identical either way -- only the
+// checkout's line endings differ -- so the tolerance belongs here, in the
+// parser, not in js/i18n.js.
+const kuMatch = i18nSrc.match(/ku:\s*\{([\s\S]*?)\r?\n {2}\},\r?\n {2}ar:/);
+const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\r?\n {2}\}\s*\};/);
 if (!kuMatch || !arMatch) {
   fail('js/i18n.js: could not locate ku/ar dictionary blocks (structure changed?)');
 } else {
