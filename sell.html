@@ -124,9 +124,30 @@ own initLocationPicker()). -->
        reverted -- it reliably pinned Continue above the fold, but testing
        caught it also floating over a short step's own content, e.g.
        eating a tap meant for the Location map. A static margin has no
-       such overlap risk.) */
+       such overlap risk.)
+       BUG FIX (mobile Step 7 Submit not reachable): 96px was measured
+       against .home-bottomnav's height with NO safe-area inset (this
+       sandbox has none) -- .home-bottomnav's own real padding-bottom is
+       max(10px, env(safe-area-inset-bottom)), which is ~34px on any
+       actual notched iPhone (390x844 included), making its true on-device
+       height meaningfully taller than 96px covers with any real safety
+       margin. Confirmed via a real Playwright walk through all 7 steps at
+       390px: after scrolling the Submit button into view the normal way
+       (scrollIntoViewIfNeeded, standing in for how a mobile browser's own
+       "scroll a newly-revealed control into view" behavior works, e.g.
+       right after Step 7's camera UI or the captured-photo swap changes
+       the layout), the button's own box (top 800/bottom 844) sat entirely
+       INSIDE the bottom nav's box (top 774/bottom 844) -- a real, exact,
+       reproducible overlap, not a hunch. Raised to 140px (comfortably
+       past the worst realistic on-device bottom-nav height) and paired
+       with scroll-margin-bottom on the buttons themselves so ANY
+       programmatic/browser-driven scroll-into-view (not just a plain CSS
+       margin, which only affects layout position, never where a browser
+       decides scrolling has gone "far enough") stops clear of the dead
+       zone instead of landing a tap-target behind it. */
     @media (max-width: 767px) {
-      #wizardNav { margin-bottom: 96px !important; }
+      #wizardNav { margin-bottom: 140px !important; }
+      #nextBtn, #submitBtn, #backBtn { scroll-margin-bottom: 140px; }
     }
   </style>
   </head>
