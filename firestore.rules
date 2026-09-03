@@ -79,6 +79,58 @@ service cloud.firestore {
       }
     }
 
+    // ---- Listing location privacy (LOC-01) ----
+    // A listing document is `allow read: if true` (below), so EVERY field on
+    // it is readable by every anonymous visitor. Firestore rules are
+    // document-level for reads — a rule can deny the whole document, but it
+    // can never hand it back with one field removed. So the only way to stop
+    // publishing a property's exact, building-level coordinate is for that
+    // coordinate not to be on the public document at all:
+    //
+    //   listings/{id}                  -> publicLat/publicLng, rounded to
+    //                                     2 dp (~1.1 km) by
+    //                                     js/listing-location.js
+    //   listings/{id}/private/location -> the real lat/lng
+    //
+    // This is the invariant that actually closes LOC-01. It is applied to
+    // both create and update, OUTSIDE the per-role branches, so it binds the
+    // admin branch too — "no public listing document carries a
+    // building-level coordinate" is structural, not something each client is
+    // trusted to honour.
+    //
+    // Note this rule alone does NOT close the exposure: listings written
+    // before it still carry lat/lng until scripts/backfill-public-coords.mjs
+    // strips them. The rule stops the bleeding; the backfill cleans up.
+    function hasNoPreciseCoordFields() {
+      return !('lat' in request.resource.data) && !('lng' in request.resource.data);
+    }
+    function isValidPublicCoordPair(d) {
+      return (!('publicLat' in d) || ((d.publicLat is int || d.publicLat is float) && d.publicLat >= -90 && d.publicLat <= 90))
+          && (!('publicLng' in d) || ((d.publicLng is int || d.publicLng is float) && d.publicLng >= -180 && d.publicLng <= 180));
+    }
+    // Read/write gate for `listings/{id}/private/location`. Mirrors the
+    // parent listing's own update rule EXACTLY — owning agent, or admin —
+    // but reads the parent via get(), since `resource.data` inside a
+    // subcollection rule refers to the sub-document, not to the listing.
+    //
+    // Deliberately no companyId branch: on this platform a colleague at the
+    // same company cannot edit another agent's listing (see `allow update`
+    // below), so granting them the exact pin would WIDEN access beyond the
+    // current model rather than mirror it.
+    //
+    // Fails closed when the parent doesn't exist. That also forces the
+    // correct write ordering — create the listing first, then its location
+    // doc — since rules evaluate each write against pre-commit state, and it
+    // stops an orphan location document being created for a listing id that
+    // was never published.
+    function canAccessListingPreciseLocation(listingId) {
+      return exists(/databases/$(database)/documents/listings/$(listingId))
+          && (
+            isAdmin()
+            || (isAgent() && get(/databases/$(database)/documents/listings/$(listingId)).data.agentId == request.auth.uid)
+          );
+    }
+
     // ---- Listings ----
     // Publicly readable (Map/Buy show these to every visitor, logged in
     // or not) — this platform doesn't yet separate public browsing by
@@ -88,11 +140,36 @@ service cloud.firestore {
     // can edit/delete it.
     match /listings/{listingId} {
       allow read: if true;
-      allow create: if (isAgent()
+      allow create: if hasNoPreciseCoordFields()
+                    && isValidPublicCoordPair(request.resource.data)
+                    && ((isAgent()
                           && request.resource.data.agentId == request.auth.uid
                           && request.resource.data.companyId == myCompanyId())
-                    || isAdmin();
-      allow update, delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+                        || isAdmin());
+      allow update: if hasNoPreciseCoordFields()
+                    && isValidPublicCoordPair(request.resource.data)
+                    && ((isAgent() && resource.data.agentId == request.auth.uid) || isAdmin());
+      allow delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+
+      // The exact surveyed pin, split off the public document so it can be
+      // access-controlled at all. `match /listings/{listingId}` above is a
+      // single-segment match, so it does NOT cascade here — this
+      // subcollection is deny-by-default to everyone except the rule below,
+      // and a public visitor has no partial-read path to it.
+      match /private/location {
+        allow read: if canAccessListingPreciseLocation(listingId);
+        // Whoever may edit the parent listing may set its pin. The parent
+        // must already exist (see canAccessListingPreciseLocation), so the
+        // listing is written first and this second — which is exactly what
+        // admin.html and agent-dashboard.html do.
+        allow create, update: if canAccessListingPreciseLocation(listingId)
+                              && request.resource.data.keys().hasOnly(['lat', 'lng', 'updatedAt'])
+                              && (request.resource.data.lat is int || request.resource.data.lat is float)
+                              && (request.resource.data.lng is int || request.resource.data.lng is float)
+                              && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+                              && request.resource.data.lng >= -180 && request.resource.data.lng <= 180;
+        allow delete: if canAccessListingPreciseLocation(listingId);
+      }
     }
 
     // ---- Submissions (Sell form, viewing requests) ----

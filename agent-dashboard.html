@@ -392,9 +392,10 @@
 
 <script type="module">
   import { auth, db, storage } from './js/firebase-init.js';
+  import { publicCoordsFrom, publicListingCoords, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import {
-    doc, getDoc, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp
+    doc, getDoc, setDoc, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 
@@ -467,8 +468,13 @@
     const listings = [];
     snap.forEach(d => {
       const l = d.data();
-      if ((!l.companyId || l.companyId === currentCompanyId) && l.lat != null && l.lng != null) {
-        listings.push({ id: d.id, ...l });
+      // LOC-01: the Team Map plots the approximate public pair. A colleague
+      // cannot edit another agent's listing here, so they are not authorized
+      // for its exact pin either — and fetching one per listing would be an
+      // N+1 read per render. Team overview works at ~1.1 km resolution.
+      const c = publicListingCoords(l);
+      if ((!l.companyId || l.companyId === currentCompanyId) && c) {
+        listings.push({ id: d.id, ...l, _lat: c.lat, _lng: c.lng });
       }
     });
 
@@ -477,7 +483,7 @@
       const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
       const extraClasses = (isMine ? ' mine' : '') + (l.private ? ' private' : '');
       const priceLabel = '$' + Number(l.price).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
-      const marker = L.marker([l.lat, l.lng], {
+      const marker = L.marker([l._lat, l._lng], {
         icon: L.divIcon({
           className: '', iconSize: null, iconAnchor: [30, 15],
           html: `<div class="team-map-tag ${statusClass}${extraClasses}">${priceLabel}</div>`
@@ -499,7 +505,7 @@
     });
 
     if (listings.length) {
-      agentTeamMap.fitBounds(L.latLngBounds(listings.map(l => [l.lat, l.lng])).pad(0.25), { maxZoom: 13 });
+      agentTeamMap.fitBounds(L.latLngBounds(listings.map(l => [l._lat, l._lng])).pad(0.25), { maxZoom: 13 });
     }
   }
 
@@ -627,7 +633,10 @@
     const data = {
       title, address,
       city: document.getElementById('fCity').value,
-      lat: pinLat, lng: pinLng,
+      // LOC-01: the public document gets the ~1.1 km rounded pair only. The
+      // exact pin goes to listings/{id}/private/location, written separately
+      // below once the listing exists (the rules gate reads the parent).
+      ...publicCoordsFrom(pinLat, pinLng),
       dealType: document.getElementById('fDealType').value,
       propertyType: document.getElementById('fPropertyType').value,
       price,
@@ -645,13 +654,19 @@
     };
 
     try {
+      let savedListingId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'listings', editingId), data);
       } else {
         data.status = 'active';
         data.createdAt = serverTimestamp();
-        await addDoc(collection(db, 'listings'), data);
+        const created = await addDoc(collection(db, 'listings'), data);
+        savedListingId = created.id;
       }
+      // LOC-01: exact pin second, never in the same write as the listing —
+      // the rules gate on the location sub-document reads the parent
+      // listing, so it only passes once that listing actually exists.
+      await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
       resetForm();
       loadMyListings();
     } catch (err) {
@@ -678,8 +693,16 @@
     document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
     document.getElementById('fVerified').checked = !!l.verified;
     document.getElementById('fPrivate').checked = !!l.private;
-    setPin(l.lat, l.lng);
-    agentPinMap.setView([l.lat, l.lng], 13);
+    // LOC-01: the exact pin now lives in listings/{id}/private/location,
+    // which this listing's own agent is authorized to read. Fall back to the
+    // approximate public pair when it's absent — a listing saved before the
+    // migration, or one whose pin was never recorded; re-saving the form
+    // then re-records it properly.
+    const pin = (await fetchPreciseLocation({ doc, getDoc }, db, id)) || publicListingCoords(l);
+    if (pin) {
+      setPin(pin.lat, pin.lng);
+      agentPinMap.setView([pin.lat, pin.lng], 13);
+    }
     document.getElementById('formTitle').textContent = trDash('agentDash.editListing','Edit Listing');
     document.getElementById('formSubmitBtn').textContent = trDash('agentDash.updateListingBtn','Update Listing');
     document.getElementById('formCancelBtn').classList.remove('hidden');

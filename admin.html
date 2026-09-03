@@ -967,6 +967,7 @@
 
 <script type="module">
 import { auth, db, storage, firebaseConfig } from './js/firebase-init.js';
+import { publicCoordsFrom, publicListingCoords, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
@@ -1582,7 +1583,10 @@ async function onListingFormSubmit(e) {
   const data = {
     title, address,
     city: document.getElementById('fCity').value,
-    lat: pinLat, lng: pinLng,
+    // LOC-01: the public document gets the ~1.1 km rounded pair only. The
+    // exact pin goes to listings/{id}/private/location, written separately
+    // below once the listing exists (the rules gate reads the parent).
+    ...publicCoordsFrom(pinLat, pinLng),
     dealType: document.getElementById('fDealType').value,
     propertyType: document.getElementById('fPropertyType').value,
     price,
@@ -1597,6 +1601,7 @@ async function onListingFormSubmit(e) {
   };
 
   try {
+    let savedListingId = editingId;
     if (editingId) {
       await updateDoc(doc(db, 'listings', editingId), data);
     } else {
@@ -1605,8 +1610,13 @@ async function onListingFormSubmit(e) {
       data.companyId = null;
       data.status = 'active';
       data.createdAt = serverTimestamp();
-      await addDoc(collection(db, 'listings'), data);
+      const created = await addDoc(collection(db, 'listings'), data);
+      savedListingId = created.id;
     }
+    // LOC-01: exact pin second, never in the same write as the listing —
+    // the rules gate on the location sub-document reads the parent listing,
+    // so it only passes once that listing actually exists.
+    await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
     resetListingForm();
     renderListingsTable();
   } catch (err) {
@@ -1615,7 +1625,7 @@ async function onListingFormSubmit(e) {
   }
 }
 
-window.editListing = function (id) {
+window.editListing = async function (id) {
   const l = allListingsCache.find(x => x.id === id);
   if (!l) return;
   document.getElementById('editingId').value = l.id;
@@ -1635,8 +1645,17 @@ window.editListing = function (id) {
   document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
   document.getElementById('fVerified').checked = !!l.verified;
   document.getElementById('fPrivate').checked = !!l.private;
-  setAdminPin(l.lat, l.lng);
-  adminPinMap.setView([l.lat, l.lng], 13);
+  // LOC-01: the exact pin now lives in listings/{id}/private/location, which
+  // an admin is authorized to read. Fall back to the approximate public pair
+  // when it's absent — a listing saved before the migration, or one whose
+  // pin was never recorded; re-saving the form then re-records it properly.
+  // Resolved before pinning rather than pinning twice, because setAdminPin()
+  // kicks off an Overpass amenities lookup each time it's called.
+  const pin = (await fetchPreciseLocation({ doc, getDoc }, db, l.id)) || publicListingCoords(l);
+  if (pin) {
+    setAdminPin(pin.lat, pin.lng);
+    adminPinMap.setView([pin.lat, pin.lng], 13);
+  }
 
   document.getElementById('formTitle').textContent = trAdmin('agentDash.editListing','Edit Listing');
   document.getElementById('formSubmitBtn').textContent = trAdmin('agentDash.updateListingBtn','Update Listing');
@@ -2400,7 +2419,11 @@ function reqMapFiltered() {
   const q = (document.getElementById('reqMapSearch').value || '').trim().toLowerCase();
   const verifiedFilter = document.getElementById('reqMapVerifiedFilter').value;
   const listings = reqMapListings.filter(l => {
-    if (l.lat == null || l.lng == null) return false;
+    // LOC-01: this map plots the approximate public pair. Fetching each
+    // listing's exact pin would be an N+1 read per render, and the
+    // intelligence this view provides (where requests cluster, which
+    // neighbourhoods are hot) works fine at ~1.1 km resolution.
+    if (!publicListingCoords(l)) return false;
     if (q && !((l.city || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
     if (verifiedFilter === 'verified' && !l.verified) return false;
     if (verifiedFilter === 'unverified' && l.verified) return false;
@@ -2465,10 +2488,12 @@ function buildReqMapNeighborhoods(visibleListings) {
   const groups = {};
   visibleListings.forEach(l => {
     if (!l.address) return;
+    const c = publicListingCoords(l);
+    if (!c) return;
     const key = l.address + '|' + l.city;
     if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
-    groups[key].lats.push(l.lat);
-    groups[key].lngs.push(l.lng);
+    groups[key].lats.push(c.lat);
+    groups[key].lngs.push(c.lng);
   });
   Object.values(groups).forEach(g => {
     const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
@@ -2556,7 +2581,9 @@ function renderDashRequestsMap() {
 
   if (document.getElementById('reqLayerListings').checked) {
     listings.forEach(l => {
-      const latLng = [l.lat, l.lng];
+      const c = publicListingCoords(l);
+      if (!c) return;
+      const latLng = [c.lat, c.lng];
       const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
       const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
       const marker = L.marker(latLng, {

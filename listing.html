@@ -171,6 +171,10 @@
 <span class="material-symbols-outlined text-[15px]">lock</span>
 <span data-i18n="listing.privateLocationNote">Exact location is shared once an agent confirms your viewing request.</span>
 </p>
+<p id="listingMapApproxNote" class="hidden font-body-md text-[12.5px] text-on-surface-variant mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">location_searching</span>
+<span data-i18n="listing.approxLocationNote">Approximate area only — the exact address is shared by the agent.</span>
+</p>
 </div>
 </div>
 
@@ -272,6 +276,7 @@
   import { auth, db } from './js/firebase-init.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, getDoc, collection, addDoc, setDoc, deleteDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { publicListingCoords, PUBLIC_COORD_RADIUS_M } from './js/listing-location.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -353,9 +358,19 @@
       };
       const center = CITY_CENTERS[l.city] || [36.35, 44.3];
       map.setView(center, 11);
-    } else if (l.lat != null && l.lng != null) {
-      map.setView([l.lat, l.lng], 15);
-      L.marker([l.lat, l.lng]).addTo(map);
+    } else if (publicListingCoords(l)) {
+      // LOC-01: this page only ever has the ~1.1 km rounded pair — the exact
+      // pin lives in listings/{id}/private/location, which a public visitor
+      // cannot read. So show an area, not a point: a pin at zoom 15 would
+      // claim a precision this coordinate does not have. The circle is sized
+      // to the rounding grid so the shape is honest about it.
+      const c = publicListingCoords(l);
+      map.setView([c.lat, c.lng], 12);
+      L.circle([c.lat, c.lng], {
+        radius: PUBLIC_COORD_RADIUS_M,
+        color: '#c9a227', weight: 1.5, fillColor: '#c9a227', fillOpacity: 0.12
+      }).addTo(map);
+      document.getElementById('listingMapApproxNote').classList.remove('hidden');
     } else {
       map.setView([36.35, 44.3], 7);
     }
@@ -482,7 +497,14 @@
         type: 'viewing',
         listingId,
         address: listing.address || '', city: listing.city || '', priceLabel: fmtPrice(listing),
-        lat: listing.private ? null : (listing.lat ?? null), lng: listing.private ? null : (listing.lng ?? null),
+        // LOC-01: a viewing request carries the approximate area, which is
+        // all this page has. It is enough for the admin Requests map to show
+        // where demand is; the agent handling the request looks the exact
+        // pin up from the listing itself.
+        ...(listing.private ? { lat: null, lng: null } : (() => {
+          const c = publicListingCoords(listing);
+          return c ? { lat: c.lat, lng: c.lng } : { lat: null, lng: null };
+        })()),
         name, phone, email,
         uid: currentUser ? currentUser.uid : null,
         status: 'pending', createdAt: serverTimestamp()
