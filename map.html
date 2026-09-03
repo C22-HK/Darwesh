@@ -15,7 +15,7 @@ via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
 silently ignored when CSP is delivered via a meta tag (a browser spec rule,
 not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://server.arcgisonline.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -61,6 +61,14 @@ violation reporting. -->
     .price-pin.pin-unverified { background: #c62828; border-color: #8f1c1c; }
     .price-pin.pin-verified { background: #2e7d32; border-color: #1e5620; }
     .price-pin:hover { transform: scale(1.08); z-index: 1000 !important; }
+    /* Compact (zoomed-out) mode -- icon only, no price text, so a wide
+       view doesn't fill up with overlapping price labels. Same shell
+       family, colors and border as the full pin, just round. */
+    .price-pin.price-pin-compact {
+      width: 26px; height: 26px; padding: 0; border-radius: 999px;
+      justify-content: center;
+    }
+    .price-pin.price-pin-compact .price-pin-icon { font-size: 15px !important; }
     .price-pin.active {
       transform: scale(1.14);
       box-shadow: 0 0 0 3px rgba(4,22,39,0.9), 0 4px 10px rgba(4,22,39,0.3);
@@ -127,6 +135,8 @@ violation reporting. -->
     .map-legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #F2EEE5; padding: 2px 0; }
     .map-legend-dot { width: 11px; height: 11px; border-radius: 999px; flex: none; }
     .map-legend-line { width: 16px; height: 0; border-top: 2.5px dashed #8b0000; flex: none; }
+    .map-legend.collapsed #legendBody { display: none; }
+    .map-legend.collapsed .map-legend-title { margin-bottom: 0; }
     /* ---- Property Wheel -------------------------------------------------
      * The listing column reads as a vertical picker, not a scrolling
      * list -- one property centered/focused, its neighbors visible above
@@ -254,6 +264,57 @@ violation reporting. -->
       gap: 8px;
       cursor: pointer;
     }
+    /* Map type switch (Roadmap/Satellite/Hybrid) — a small floating
+       segmented control matching the same dark/gold overlay treatment as
+       .map-overlay-btn, so it reads as part of the same control cluster. */
+    .map-type-switch {
+      display: flex; background: #17150F; border: 1px solid #5D482B; border-radius: 999px;
+      padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,0.35); gap: 2px;
+    }
+    .map-type-btn {
+      font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+      color: #A79F91; background: transparent; border: none; border-radius: 999px;
+      padding: 6px 10px; cursor: pointer; white-space: nowrap; transition: background .15s ease, color .15s ease;
+    }
+    .map-type-btn.active { background: #B89A63; color: #090A0A; }
+    .map-type-btn:hover:not(.active) { color: #F2EEE5; }
+    /* Search-this-area chip — reuses .map-search-chip's shell but sits
+       top-center (distinct from the drawn-boundary chip, which stays
+       top-left) and only appears after a significant, debounced pan/zoom
+       -- never on every tiny map movement, per the "no continuous query"
+       requirement. */
+    .search-this-area-chip {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 1150; background: #B89A63; color: #090A0A; font-family: 'Inter', sans-serif;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      padding: 9px 16px; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      display: none; align-items: center; gap: 6px; cursor: pointer; border: none;
+    }
+    .search-this-area-chip.show { display: flex; }
+    /* Draw-area (polygon) — vertex points and the two contextual actions
+       (finish/undo) shown only while actively placing points. */
+    .draw-vertex-dot { width: 9px; height: 9px; border-radius: 999px; background: #B89A63; border: 2px solid #17150F; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
+    .draw-actions { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1150; display: none; gap: 8px; }
+    .draw-actions.show { display: flex; }
+    .draw-action-btn {
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+      padding: 9px 16px; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); border: none; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .draw-action-finish { background: #2e7d32; color: #fff; }
+    .draw-action-finish:disabled { opacity: .5; cursor: not-allowed; }
+    .draw-action-undo { background: #17150F; color: #F2EEE5; border: 1px solid #5D482B; }
+    /* Marker clusters — a lightweight, hand-rolled grid cluster (no
+       external clustering library) so many nearby price pins collapse
+       into one readable, on-brand badge instead of an unreadable pile;
+       no heavy animation, per the "no heavy animation" requirement. */
+    .price-cluster {
+      width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+      background: #17150F; border: 2px solid #B89A63; color: #F2EEE5; font-family: 'Inter', sans-serif;
+      font-weight: 700; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: pointer;
+      transition: transform .12s ease;
+    }
+    .price-cluster:hover { transform: scale(1.08); }
     .map-toast {
       position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
       background: #17150F; color: #F2EEE5; border: 1px solid #5D482B; padding: 10px 20px; border-radius: 999px;
@@ -462,6 +523,40 @@ violation reporting. -->
 </div>
 </div>
 </div>
+<div class="relative flex-none">
+<button id="moreFiltersBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
+                <span data-i18n="map.moreFilters">More</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<div id="moreFiltersMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:240px;">
+<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface mb-3"><input type="checkbox" id="verifiedOnlyCheck" class="rounded"/> <span data-i18n="map.verifiedOnly">Verified only</span></label>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min m²</label>
+<input id="areaMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="0"/>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.maxArea">Max m²</label>
+<input id="areaMaxInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" data-i18n-placeholder="map.any" placeholder="Any"/>
+</div>
+</div>
+<div class="flex gap-2">
+<button id="moreFiltersApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
+<button id="moreFiltersClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
+</div>
+</div>
+</div>
+<div class="relative flex-none">
+<button id="sortBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[16px]">swap_vert</span><span data-i18n="map.sortLabel">Sort</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+<div id="sortMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-2" style="width:200px;">
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="recommended" data-i18n="map.sortRecommended">Recommended</button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="newest" data-i18n="map.sortNewest">Newest</button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceAsc" data-i18n="map.sortPriceAsc">Price: Low to High</button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceDesc" data-i18n="map.sortPriceDesc">Price: High to Low</button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="areaDesc" data-i18n="map.sortArea">Largest Area</button>
+</div>
+</div>
 <button id="saveSearchBtn" type="button" class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors">
 <span class="material-symbols-outlined text-[16px]">bookmark_add</span><span data-i18n="map.saveSearch">Save Search</span>
 </button>
@@ -476,12 +571,41 @@ violation reporting. -->
 <div id="map" class="w-full h-full"></div>
 <!-- Map Overlay Controls -->
 <div class="map-overlay-controls">
-<button id="drawSearchBtn" title="Draw a circle on the map to search a neighborhood" class="map-overlay-btn map-overlay-btn-labeled">
+<div class="map-type-switch" id="mapTypeSwitch" role="group" aria-label="Map type">
+<button type="button" class="map-type-btn active" data-map-type="roadmap" data-i18n="drm.roadmap">Map</button>
+<button type="button" class="map-type-btn" data-map-type="satellite" data-i18n="drm.satellite">Satellite</button>
+<button type="button" class="map-type-btn" data-map-type="hybrid" data-i18n="drm.hybrid">Hybrid</button>
+</div>
+<button id="fullscreenBtn" title="Fullscreen" class="map-overlay-btn map-overlay-btn-icon" data-i18n-title="drm.fullscreen">
+<span class="material-symbols-outlined icon">fullscreen</span>
+</button>
+<button id="resetViewBtn" title="Reset view" class="map-overlay-btn map-overlay-btn-icon" data-i18n-title="map.resetView">
+<span class="material-symbols-outlined icon">restart_alt</span>
+</button>
+<button id="drawSearchBtn" title="Draw Area" class="map-overlay-btn map-overlay-btn-labeled" data-i18n-title="map.drawArea">
 <span class="material-symbols-outlined icon">edit</span>
 <span class="label" data-i18n="map.drawArea">Draw Area</span>
 </button>
 <button id="myLocationBtn" title="My Location" class="map-overlay-btn map-overlay-btn-icon" data-i18n-title="map.myLocation">
 <span class="material-symbols-outlined icon">my_location</span>
+</button>
+</div>
+<!-- Search-this-area chip -- appears only after a significant, debounced
+     pan/zoom; clicking it filters to the current viewport without any
+     continuous background querying. -->
+<button id="searchThisAreaBtn" class="search-this-area-chip">
+<span class="material-symbols-outlined" style="font-size:16px;">search</span>
+<span data-i18n="drm.searchThisArea">Search this area</span>
+</button>
+<!-- Draw-mode contextual actions -- shown only while actively placing a
+     boundary's points (mouse click or touch tap, both handled by
+     Leaflet's own click event). -->
+<div class="draw-actions" id="drawActions">
+<button type="button" id="drawUndoBtn" class="draw-action-btn draw-action-undo">
+<span class="material-symbols-outlined" style="font-size:16px;">undo</span><span data-i18n="map.undoPoint">Undo point</span>
+</button>
+<button type="button" id="drawFinishBtn" class="draw-action-btn draw-action-finish" disabled="">
+<span class="material-symbols-outlined" style="font-size:16px;">check</span><span data-i18n="map.finishArea">Finish</span>
 </button>
 </div>
 <!-- Clear Search Area chip -->
@@ -490,12 +614,19 @@ violation reporting. -->
 <span class="material-symbols-outlined" style="font-size:18px;">close</span>
 </button>
 <!-- Map Legend -->
-<div class="map-legend">
-<p class="map-legend-title" data-i18n="map.legendTitle">Map Key</p>
+<div class="map-legend" id="mapLegend">
+<button type="button" id="legendToggleBtn" class="map-legend-title flex items-center justify-between w-full" style="cursor:pointer; background:none; border:none; padding:0;" aria-expanded="true">
+<span data-i18n="map.legendTitle">Map Key</span>
+<span class="material-symbols-outlined" id="legendToggleIcon" style="font-size:16px;">expand_less</span>
+</button>
+<div id="legendBody">
 <div class="map-legend-item"><span class="map-legend-dot" style="background:#c62828;"></span><span data-i18n="map.legendAgentListing">Agent Listing</span></div>
 <div class="map-legend-item"><span class="map-legend-dot" style="background:#2e7d32;"></span><span data-i18n="map.legendVerifiedListing">Verified &amp; Registered</span></div>
+<div class="map-legend-item"><span class="material-symbols-outlined" style="font-size:14px;">home</span><span data-i18n="map.legendIcons">Icon shows property type</span></div>
 <div class="map-legend-item"><span class="map-legend-dot" style="background:#1565c0;"></span><span data-i18n="map.legendNeighborhood">Neighborhood</span></div>
+<div class="map-legend-item"><span class="price-cluster" style="width:18px;height:18px;font-size:9px;border-width:1.5px;">N</span><span data-i18n="map.legendCluster">Grouped nearby listings</span></div>
 <div class="map-legend-item"><span class="map-legend-line"></span><span data-i18n="map.legendAdminArea">Administrative Area</span></div>
+</div>
 </div>
 <div class="map-toast" id="mapToast"></div>
 </div>
@@ -514,7 +645,7 @@ violation reporting. -->
 <!-- Mobile List/Map toggle -->
 <button id="viewToggle" class="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-primary text-on-primary px-6 py-3 rounded-full shadow-lg font-label-caps text-label-caps flex items-center gap-2">
 <span class="material-symbols-outlined text-[18px]">format_list_bulleted</span>
-<span id="viewToggleLabel">List</span>
+<span id="viewToggleLabel" data-i18n="drm.listView">List</span>
 </button>
 
 <!-- BottomNavBar (Mobile Only) -->
@@ -643,7 +774,12 @@ async function loadListings() {
         propertyType: d.propertyType || '',
         img: d.img || IMAGES[0],
         verified: !!d.verified,
-        private: !!d.private
+        private: !!d.private,
+        // Real Firestore server timestamp when present (Timestamp
+        // objects expose toMillis()) -- used only for the "Newest" sort
+        // and Recommended's tie-break; falls back to 0 (sorts last) for
+        // any older/incomplete doc rather than fabricating a date.
+        createdAtMs: (d.createdAt && typeof d.createdAt.toMillis === 'function') ? d.createdAt.toMillis() : 0
       };
     });
   } catch (e) {
@@ -656,9 +792,20 @@ async function loadListings() {
 loadListings();
 
 const revealed = new Set();
-let searchCircle = null;
 let drawMode = false;
-let drawStart = null;
+// Polygon boundary the user hand-draws (click/tap to add each vertex).
+// searchPolygonPoints holds the FINALIZED boundary used for filtering;
+// drawPreviewPoints holds the in-progress vertices while still drawing.
+let searchPolygonPoints = null;
+let searchPolygonLayer = null;
+let drawPreviewPoints = [];
+let drawPreviewLayer = null;
+let drawVertexMarkers = [];
+// "Search this area" viewport-bounds snapshot -- mutually exclusive with
+// the drawn polygon (see spatialMatch()); set only when the user
+// explicitly clicks the debounced "Search this area" chip, never on
+// every pan/zoom.
+let viewportSearchBounds = null;
 
 // ---------------------------------------------------------------------
 // Favorites & saved searches (Firebase). Loaded via dynamic import so
@@ -691,7 +838,7 @@ initFavorites();
 
 async function toggleFavorite(id) {
   if (!favAuth || !favAuth.currentUser) {
-    showToast('Log in to save favorites', 'favorite');
+    showToast(tr('listing.loginToSave', 'Log in to save favorites'), 'favorite');
     setTimeout(() => { window.location.href = 'login.html'; }, 900);
     return;
   }
@@ -710,14 +857,14 @@ async function toggleFavorite(id) {
   if (favoriteIds.has(idStr)) {
     favoriteIds.delete(idStr);
     await favFns.deleteDoc(ref);
-    showToast('Removed from favorites', 'favorite');
+    showToast(tr('listing.removedFromFavorites', 'Removed from favorites'), 'favorite');
   } else {
     favoriteIds.add(idStr);
     await favFns.setDoc(ref, {
       listingId: idStr, address: l.address, city: l.city,
       priceLabel: l.priceLabel, img: l.img, savedAt: favFns.serverTimestamp()
     });
-    showToast('Saved to favorites', 'favorite');
+    showToast(tr('listing.savedToFavorites', 'Saved to favorites'), 'favorite');
   }
   refresh();
 }
@@ -787,17 +934,25 @@ document.getElementById('viewingRequestForm').addEventListener('submit', async (
 
 async function saveCurrentSearch() {
   if (!favAuth || !favAuth.currentUser) {
-    showToast('Log in to save searches', 'bookmark_add');
+    showToast(tr('map.loginToSaveSearch', 'Log in to save searches'), 'bookmark_add');
     setTimeout(() => { window.location.href = 'login.html'; }, 900);
     return;
   }
   const uid = favAuth.currentUser.uid;
   const cityVal = document.getElementById('citySearch').value.trim();
   const label = `${activeType === 'all' ? 'All types' : (activeType === 'sale' ? 'For Sale' : 'For Rent')}${cityVal ? ' in ' + cityVal : ' — Kurdistan Region'}`;
+  // The full current search -- deal type, city, price, beds/baths,
+  // property types, verified/area, sort -- travels as URL params (the
+  // exact same params updateUrlState()/readUrlStateIntoFilters() already
+  // use for shareable links), so reopening a saved search restores
+  // everything it captured, not just type+city. `filters` is kept too,
+  // for any older reader that still expects the plain {type,city} shape.
+  const params = buildStateParams();
+  const url = 'map.html' + (params.toString() ? '?' + params.toString() : '');
   await favFns.addDoc(favFns.collection(favDb, 'users', uid, 'savedSearches'), {
-    label, url: 'map.html', filters: { type: activeType, city: cityVal }, createdAt: favFns.serverTimestamp()
+    label, url, filters: { type: activeType, city: cityVal }, createdAt: favFns.serverTimestamp()
   });
-  showToast('Search saved to your account', 'check_circle');
+  showToast(tr('map.searchSavedToAccount', 'Search saved to your account'), 'check_circle');
 }
 document.getElementById('saveSearchBtn').addEventListener('click', saveCurrentSearch);
 
@@ -815,16 +970,60 @@ let markers = {};
 let priceMin = null, priceMax = null;
 let bedsMin = 0, bathsMin = 0;
 let selectedHomeTypes = new Set();
+let sortBy = 'recommended';
+let verifiedOnly = false;
+let areaMin = null, areaMax = null;
 // Capped well below street/building level (OSM building outlines
 // typically render from z16+) so no one can zoom in far enough to make
-// out an individual property, private listing or not.
+// out an individual property, private listing or not. The satellite/
+// hybrid basemap below is capped at the exact same zoom for the same
+// reason -- imagery reveals individual buildings even sooner than street
+// tiles do, so it must never be allowed to exceed this ceiling.
 const MAX_MAP_ZOOM = 15;
 const map = L.map('map', { zoomControl: false, maxZoom: MAX_MAP_ZOOM }).setView([36.35, 44.3], 8);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+// ---------------------------------------------------------------------
+// Map type (Roadmap/Satellite/Hybrid) -- Roadmap is the existing OSM
+// tile layer (kept as the default, unchanged). Satellite/Hybrid use Esri
+// World Imagery, a free, no-API-key tile service (no Darwesh billing
+// account, no Zillow assets) -- Hybrid overlays Esri's free reference
+// layer (roads/labels) on top of the same imagery. Choice persists for
+// the session only (sessionStorage), never requested/changed without an
+// explicit click.
+// ---------------------------------------------------------------------
+const roadmapLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
   maxZoom: MAX_MAP_ZOOM
-}).addTo(map);
+});
+const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; Esri',
+  maxZoom: MAX_MAP_ZOOM
+});
+const hybridLabelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: MAX_MAP_ZOOM,
+  pane: 'overlayPane'
+});
+let currentMapType = sessionStorage.getItem('darwesh_map_type') || 'roadmap';
+function applyMapType(type) {
+  [roadmapLayer, satelliteLayer, hybridLabelsLayer].forEach(l => { if (map.hasLayer(l)) map.removeLayer(l); });
+  if (type === 'satellite') {
+    satelliteLayer.addTo(map);
+  } else if (type === 'hybrid') {
+    satelliteLayer.addTo(map);
+    hybridLabelsLayer.addTo(map);
+  } else {
+    type = 'roadmap';
+    roadmapLayer.addTo(map);
+  }
+  currentMapType = type;
+  sessionStorage.setItem('darwesh_map_type', type);
+  document.querySelectorAll('.map-type-btn').forEach(b => b.classList.toggle('active', b.dataset.mapType === type));
+}
+applyMapType(currentMapType);
+document.querySelectorAll('.map-type-btn').forEach(btn => {
+  btn.addEventListener('click', () => applyMapType(btn.dataset.mapType));
+});
 
 function isPrivateHidden(l) {
   return !!l.private && !revealed.has(l.id);
@@ -859,9 +1058,25 @@ const PROPERTY_TYPE_ICONS = {
 };
 const PROPERTY_TYPE_ICON_FALLBACK = 'home';
 
+// Below this zoom, markers drop their price text and show only the
+// property-type icon (a compact dot-like pin) so a wide, zoomed-out view
+// doesn't fill up with overlapping price labels; at/above it, the full
+// icon+price pin (today's design) is shown. The active/selected marker
+// always gets the richer treatment regardless of zoom, per "selected ->
+// richer highlighted marker".
+const COMPACT_MARKER_MAX_ZOOM = 10;
 function priceIcon(listing, active) {
   const statusClass = listing.verified ? 'pin-verified' : 'pin-unverified';
   const glyph = PROPERTY_TYPE_ICONS[listing.propertyType] || PROPERTY_TYPE_ICON_FALLBACK;
+  const compact = !active && map.getZoom() <= COMPACT_MARKER_MAX_ZOOM;
+  if (compact) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="price-pin price-pin-compact ${statusClass}" data-id="${listing.id}"><span class="material-symbols-outlined price-pin-icon">${glyph}</span></div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+  }
   return L.divIcon({
     className: '',
     html: `<div class="price-pin ${statusClass}${active ? ' active' : ''}" data-id="${listing.id}"><span class="material-symbols-outlined price-pin-icon">${glyph}</span>${listing.priceLabel}</div>`,
@@ -870,10 +1085,47 @@ function priceIcon(listing, active) {
   });
 }
 
+// Lightweight, hand-rolled pixel-grid clustering -- no external
+// clustering library. Buckets visible (non-hidden) listings by their
+// on-screen container point at the CURRENT zoom into 56px cells; a cell
+// with 2+ listings collapses into one cluster badge instead of an
+// unreadable pile of overlapping pins. The active/selected listing is
+// always excluded so it stays individually visible. Re-run on every
+// buildMarkers() call (filter change, zoom, pan), so clusters always
+// reflect what's actually on screen right now.
+const CLUSTER_GRID_PX = 56;
+function clusterVisibleListings(visible) {
+  const cellOf = (l) => {
+    const pt = map.latLngToContainerPoint([l.lat, l.lng]);
+    return Math.round(pt.x / CLUSTER_GRID_PX) + ':' + Math.round(pt.y / CLUSTER_GRID_PX);
+  };
+  const cells = {};
+  visible.forEach(l => {
+    if (l.id === activeId) return; // never cluster the selected listing
+    const key = cellOf(l);
+    (cells[key] = cells[key] || []).push(l);
+  });
+  const clusters = [];
+  const solo = [];
+  Object.values(cells).forEach(group => {
+    if (group.length > 1) clusters.push(group);
+    else solo.push(group[0]);
+  });
+  return { clusters, solo };
+}
+function clusterIcon(count) {
+  return L.divIcon({
+    className: '',
+    html: `<div class="price-cluster">${count}</div>`,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20]
+  });
+}
+
 function cityBadgeIcon(count) {
   return L.divIcon({
     className: '',
-    html: `<div class="private-city-badge"><span class="material-symbols-outlined text-[14px]">lock</span><span>${count} Private</span></div>`,
+    html: `<div class="private-city-badge"><span class="material-symbols-outlined text-[14px]">lock</span><span>${trf('map.privateCount', '{n} Private', { n: count })}</span></div>`,
     iconSize: null,
     iconAnchor: [20, 14]
   });
@@ -919,17 +1171,47 @@ function buildMarkers() {
   // building for a hidden listing, only says "some are somewhere in here."
   const hiddenByCity = {};
   const visible = [];
+  const currentList = filteredListings();
+  const currentIds = new Set(currentList.map(l => l.id));
   LISTINGS.forEach(l => {
+    if (!currentIds.has(l.id)) return; // only markers for listings that pass the active filters
     if (isPrivateHidden(l)) {
       hiddenByCity[l.city] = (hiddenByCity[l.city] || 0) + 1;
       return;
     }
     visible.push(l);
+  });
+  const { clusters, solo } = clusterVisibleListings(visible);
+  solo.forEach(l => {
     const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
     marker.on('click', () => selectListing(l.id, { scrollList: true }));
     marker.bindPopup(() => card(l), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
     marker.addTo(map);
     markers[l.id] = marker;
+  });
+  if (activeId) {
+    const activeListing = visible.find(l => l.id === activeId);
+    if (activeListing) {
+      const marker = L.marker([activeListing.lat, activeListing.lng], { icon: priceIcon(activeListing, true) });
+      marker.on('click', () => selectListing(activeListing.id, { scrollList: true }));
+      marker.bindPopup(() => card(activeListing), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
+      marker.addTo(map);
+      markers[activeListing.id] = marker;
+    }
+  }
+  clusters.forEach((group, idx) => {
+    const avgLat = group.reduce((s, l) => s + l.lat, 0) / group.length;
+    const avgLng = group.reduce((s, l) => s + l.lng, 0) / group.length;
+    const badge = L.marker([avgLat, avgLng], { icon: clusterIcon(group.length), zIndexOffset: 400 });
+    badge.on('click', () => {
+      // Zoom/expand intelligently: fit the real bounds of this cluster's
+      // listings rather than a fixed zoom step, so a tight cluster opens
+      // just enough and a spread-out one opens further.
+      const bounds = L.latLngBounds(group.map(l => [l.lat, l.lng]));
+      map.fitBounds(bounds, { padding: [60, 60], maxZoom: MAX_MAP_ZOOM });
+    });
+    badge.addTo(map);
+    markers['cluster-' + idx] = badge;
   });
   Object.entries(hiddenByCity).forEach(([city, count]) => {
     const center = CITY_CENTERS[city];
@@ -938,7 +1220,7 @@ function buildMarkers() {
     badge.on('click', () => {
       document.getElementById('citySearch').value = city;
       refresh();
-      showToast(`${count} private listing${count > 1 ? 's' : ''} in ${city} — see the list`, 'lock');
+      showToast(trf('map.privateListingsInCity', '{n} private listings in {city} — see the list', { n: count, city }), 'lock');
     });
     badge.addTo(map);
     markers['city-' + city] = badge;
@@ -946,21 +1228,75 @@ function buildMarkers() {
   buildNeighborhoodMarkers(visible);
 }
 
+// Standard ray-casting point-in-polygon test (odd number of ray
+// crossings = inside). `point` is [lat,lng]; `poly` is an array of
+// [lat,lng] vertices -- exactly what the hand-drawn boundary and
+// `L.LatLng`s already are, no external geometry library needed.
+function pointInPolygon(point, poly) {
+  const [y, x] = point;
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const yi = poly[i][0], xi = poly[i][1];
+    const yj = poly[j][0], xj = poly[j][1];
+    const intersects = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+// Spatial region filter -- exactly one of a hand-drawn polygon boundary
+// OR a "search this area" viewport-bounds snapshot can be active at a
+// time (drawing a new boundary clears the viewport snapshot and vice
+// versa, see setDrawMode()/searchThisAreaBtn's handler), so this is a
+// single check rather than two independent ones.
+function spatialMatch(l) {
+  if (searchPolygonPoints && searchPolygonPoints.length >= 3) {
+    return pointInPolygon([l.lat, l.lng], searchPolygonPoints);
+  }
+  if (viewportSearchBounds) {
+    return viewportSearchBounds.contains([l.lat, l.lng]);
+  }
+  return true;
+}
+
 function filteredListings() {
   const q = document.getElementById('citySearch').value.trim().toLowerCase();
-  return LISTINGS.filter(l => {
+  const list = LISTINGS.filter(l => {
     const typeMatch = activeType === 'all' || l.type === activeType;
     const qMatch = !q || l.city.toLowerCase().includes(q) || l.address.toLowerCase().includes(q);
-    const areaMatch = !searchCircle || L.latLng(l.lat, l.lng).distanceTo(searchCircle.getLatLng()) <= searchCircle.getRadius();
     const priceMatch = (priceMin === null || l.price >= priceMin) && (priceMax === null || l.price <= priceMax);
     const bedsMatch = l.beds >= bedsMin;
     const bathsMatch = l.baths >= bathsMin;
     const homeTypeMatch = selectedHomeTypes.size === 0 || selectedHomeTypes.has(l.propertyType);
-    return typeMatch && qMatch && areaMatch && priceMatch && bedsMatch && bathsMatch && homeTypeMatch;
+    const verifiedMatch = !verifiedOnly || l.verified;
+    const areaMatch2 = (areaMin === null || l.sqft >= areaMin) && (areaMax === null || l.sqft <= areaMax);
+    return typeMatch && qMatch && spatialMatch(l) && priceMatch && bedsMatch && bathsMatch && homeTypeMatch && verifiedMatch && areaMatch2;
   });
+  return sortListings(list);
+}
+
+// Deterministic, explainable sorts only -- "Recommended" is verified-
+// first then newest (both real, visible signals already on the card),
+// never a fabricated relevance/AI score.
+function sortListings(list) {
+  const sorted = list.slice();
+  switch (sortBy) {
+    case 'priceAsc': return sorted.sort((a, b) => a.price - b.price);
+    case 'priceDesc': return sorted.sort((a, b) => b.price - a.price);
+    case 'areaDesc': return sorted.sort((a, b) => b.sqft - a.sqft);
+    case 'newest': return sorted.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
+    case 'recommended':
+    default:
+      return sorted.sort((a, b) => (b.verified - a.verified) || ((b.createdAtMs || 0) - (a.createdAtMs || 0)));
+  }
 }
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+function trf(key, fallback, vars) {
+  let s = tr(key, fallback);
+  if (vars) Object.keys(vars).forEach((k) => { s = s.split('{' + k + '}').join(String(vars[k])); });
+  return s;
+}
 function card(l) {
   const hidden = isPrivateHidden(l);
   const badge = l.verified ? `<div class="absolute top-3 right-3 bg-tertiary-container/90 backdrop-blur-sm text-on-tertiary-container px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
@@ -1171,15 +1507,15 @@ function renderList() {
       revealListing(btn.dataset.id);
     });
   });
-  document.getElementById('resultCount').textContent = `${list.length} homes in Kurdistan Region`;
-  document.getElementById('resultCountMobile').textContent = `${list.length} homes found`;
+  document.getElementById('resultCount').textContent = trf('map.homesInRegion', '{n} homes in Kurdistan Region', { n: list.length });
+  document.getElementById('resultCountMobile').textContent = trf('map.homesFound', '{n} homes found', { n: list.length });
   wireWheel(cardListEl, list);
 }
 
 function revealListing(id) {
   if (revealed.has(id)) return;
   revealed.add(id);
-  showToast('Exact location unlocked', 'lock_open');
+  showToast(tr('map.locationUnlocked', 'Exact location unlocked'), 'lock_open');
   refresh();
   selectListing(id, { scrollList: true });
 }
@@ -1202,12 +1538,12 @@ function selectListing(id, opts) {
   });
   const cardListEl = document.getElementById('cardList');
   if (cardListEl) cardListEl.setAttribute('aria-activedescendant', 'wheel-card-' + id);
-  Object.entries(markers).forEach(([mid, marker]) => {
-    if (!(marker instanceof L.Marker)) return;
-    const listing = LISTINGS.find(x => x.id === mid);
-    if (!listing) return;
-    marker.setIcon(priceIcon(listing, mid === id));
-  });
+  // A full marker rebuild (not just an icon-patch) is required here
+  // because the active listing is always excluded from clustering (see
+  // clusterVisibleListings()) -- a listing that was previously inside a
+  // cluster badge has no individual marker to patch an icon onto until
+  // it's promoted out of that cluster, which only buildMarkers() does.
+  buildMarkers();
   if (l) {
     // Never move the camera toward a hidden private listing's real
     // coordinates — the map simply doesn't react to it until revealed.
@@ -1399,6 +1735,12 @@ window.addEventListener('resize', () => {
 function refresh() {
   buildMarkers();
   renderList();
+  // Keeps the URL shareable/refreshable after every change (replaceState
+  // -- never spams history on its own); the specific handlers below that
+  // represent a real "search step" additionally call updateUrlState(true)
+  // just before this runs, turning that same moment into a real
+  // back/forward-able history entry instead.
+  if (typeof updateUrlState === 'function') updateUrlState(false);
 }
 
 // ---------------------------------------------------------------------
@@ -1441,6 +1783,7 @@ document.getElementById('priceApplyBtn').addEventListener('click', () => {
   priceMax = maxVal !== '' ? Number(maxVal) : null;
   document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
   closeAllFilterMenus();
+  updateUrlState(true);
   refresh();
 });
 document.getElementById('priceClearBtn').addEventListener('click', () => {
@@ -1449,6 +1792,7 @@ document.getElementById('priceClearBtn').addEventListener('click', () => {
   document.getElementById('priceMaxInput').value = '';
   document.getElementById('priceFilterBtn').classList.remove('active');
   closeAllFilterMenus();
+  updateUrlState(true);
   refresh();
 });
 
@@ -1457,6 +1801,7 @@ document.getElementById('bedsApplyBtn').addEventListener('click', () => {
   bathsMin = Number(document.getElementById('bathsMinSelect').value);
   document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
   closeAllFilterMenus();
+  updateUrlState(true);
   refresh();
 });
 document.getElementById('bedsClearBtn').addEventListener('click', () => {
@@ -1465,6 +1810,7 @@ document.getElementById('bedsClearBtn').addEventListener('click', () => {
   document.getElementById('bathsMinSelect').value = '0';
   document.getElementById('bedsFilterBtn').classList.remove('active');
   closeAllFilterMenus();
+  updateUrlState(true);
   refresh();
 });
 
@@ -1474,6 +1820,7 @@ document.getElementById('homeTypeApplyBtn').addEventListener('click', () => {
   );
   document.getElementById('homeTypeFilterBtn').classList.toggle('active', selectedHomeTypes.size > 0);
   closeAllFilterMenus();
+  updateUrlState(true);
   refresh();
 });
 document.getElementById('homeTypeClearBtn').addEventListener('click', () => {
@@ -1481,7 +1828,41 @@ document.getElementById('homeTypeClearBtn').addEventListener('click', () => {
   document.querySelectorAll('.home-type-check').forEach(cb => { cb.checked = false; });
   document.getElementById('homeTypeFilterBtn').classList.remove('active');
   closeAllFilterMenus();
+  updateUrlState(true);
   refresh();
+});
+
+document.getElementById('moreFiltersApplyBtn').addEventListener('click', () => {
+  verifiedOnly = document.getElementById('verifiedOnlyCheck').checked;
+  const minVal = document.getElementById('areaMinInput').value;
+  const maxVal = document.getElementById('areaMaxInput').value;
+  areaMin = minVal !== '' ? Number(minVal) : null;
+  areaMax = maxVal !== '' ? Number(maxVal) : null;
+  document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  closeAllFilterMenus();
+  updateUrlState(true);
+  refresh();
+});
+document.getElementById('moreFiltersClearBtn').addEventListener('click', () => {
+  verifiedOnly = false; areaMin = null; areaMax = null;
+  document.getElementById('verifiedOnlyCheck').checked = false;
+  document.getElementById('areaMinInput').value = '';
+  document.getElementById('areaMaxInput').value = '';
+  document.getElementById('moreFiltersBtn').classList.remove('active');
+  closeAllFilterMenus();
+  updateUrlState(true);
+  refresh();
+});
+
+document.querySelectorAll('.sort-option').forEach(btn => {
+  btn.addEventListener('click', () => {
+    sortBy = btn.dataset.sort;
+    document.querySelectorAll('.sort-option').forEach(b => b.classList.toggle('bg-surface-container', b === btn));
+    document.getElementById('sortBtn').classList.toggle('active', sortBy !== 'recommended');
+    closeAllFilterMenus();
+    updateUrlState(true);
+    refresh();
+  });
 });
 
 document.querySelectorAll('.type-toggle').forEach(btn => {
@@ -1493,6 +1874,7 @@ document.querySelectorAll('.type-toggle').forEach(btn => {
     });
     btn.classList.add('bg-primary', 'text-on-primary');
     btn.classList.remove('text-on-surface-variant');
+    updateUrlState(true);
     refresh();
   });
 });
@@ -1507,12 +1889,12 @@ viewToggle.addEventListener('click', () => {
   if (mobileView === 'list') {
     listPanel.classList.remove('hidden');
     mapPanel.classList.add('hidden');
-    document.getElementById('viewToggleLabel').textContent = 'Map';
+    document.getElementById('viewToggleLabel').textContent = tr('drm.mapView', 'Map');
     viewToggle.querySelector('.material-symbols-outlined').textContent = 'map';
   } else {
     listPanel.classList.add('hidden');
     mapPanel.classList.remove('hidden');
-    document.getElementById('viewToggleLabel').textContent = 'List';
+    document.getElementById('viewToggleLabel').textContent = tr('drm.listView', 'List');
     viewToggle.querySelector('.material-symbols-outlined').textContent = 'format_list_bulleted';
     setTimeout(() => map.invalidateSize(), 200);
   }
@@ -1521,101 +1903,165 @@ viewToggle.addEventListener('click', () => {
 const drawSearchBtn = document.getElementById('drawSearchBtn');
 const clearSearchAreaBtn = document.getElementById('clearSearchAreaBtn');
 const mapEl = document.getElementById('map');
+const drawActionsEl = document.getElementById('drawActions');
+const drawFinishBtn = document.getElementById('drawFinishBtn');
+const drawUndoBtn = document.getElementById('drawUndoBtn');
+
+// ---------------------------------------------------------------------
+// Draw Area -- a real freehand polygon boundary, not a fixed circle.
+// Works identically for mouse and touch: Leaflet's own 'click' event
+// already fires from a plain tap on touch devices (no separate
+// touchstart/touchmove/touchend wiring needed, unlike the old drag-based
+// circle tool this replaces), so one handler covers both input types.
+// Each click/tap adds one vertex; Finish closes the boundary (requires
+// >=3 points); Undo removes the last point while still drawing; the
+// existing "Clear Search Area" chip removes a finished boundary.
+// ---------------------------------------------------------------------
+function redrawPreview() {
+  if (drawPreviewLayer) { map.removeLayer(drawPreviewLayer); drawPreviewLayer = null; }
+  drawVertexMarkers.forEach(m => map.removeLayer(m));
+  drawVertexMarkers = [];
+  if (drawPreviewPoints.length >= 2) {
+    drawPreviewLayer = L.polygon(drawPreviewPoints, {
+      color: '#8E7448', weight: 2, dashArray: '6 4', fillColor: '#B89A63', fillOpacity: 0.15
+    }).addTo(map);
+  }
+  drawPreviewPoints.forEach(pt => {
+    const m = L.marker(pt, { icon: L.divIcon({ className: '', html: '<div class="draw-vertex-dot"></div>', iconSize: [9, 9], iconAnchor: [4, 4] }), interactive: false });
+    m.addTo(map);
+    drawVertexMarkers.push(m);
+  });
+  drawFinishBtn.disabled = drawPreviewPoints.length < 3;
+}
 
 function setDrawMode(on) {
   drawMode = on;
   mapEl.classList.toggle('draw-mode', drawMode);
   drawSearchBtn.classList.toggle('active', drawMode);
+  drawActionsEl.classList.toggle('show', drawMode);
   if (drawMode) {
-    map.dragging.disable();
-    showToast('Drag on the map to draw a search area', 'edit');
+    // Starting a new boundary replaces any previous one -- only one
+    // spatial filter (drawn polygon OR viewport snapshot) is ever
+    // active at a time.
+    if (searchPolygonLayer) { map.removeLayer(searchPolygonLayer); searchPolygonLayer = null; }
+    searchPolygonPoints = null;
+    viewportSearchBounds = null;
+    document.getElementById('searchThisAreaBtn').classList.remove('show');
+    clearSearchAreaBtn.style.display = 'none';
+    drawPreviewPoints = [];
+    redrawPreview();
+    showToast(tr('map.tapToAddPoint', 'Tap the map to add points, then Finish'), 'edit');
   } else {
-    map.dragging.enable();
+    drawPreviewPoints = [];
+    redrawPreview();
   }
 }
-
 drawSearchBtn.addEventListener('click', () => setDrawMode(!drawMode));
 
-function startDraw(latlng) {
+map.on('click', (e) => {
   if (!drawMode) return;
-  drawStart = latlng;
-  if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
-  searchCircle = L.circle(drawStart, {
-    radius: 1,
-    color: '#8E7448',
-    weight: 2,
-    dashArray: '6 4',
-    fillColor: '#B89A63',
-    fillOpacity: 0.2
+  drawPreviewPoints.push([e.latlng.lat, e.latlng.lng]);
+  redrawPreview();
+});
+
+drawUndoBtn.addEventListener('click', () => {
+  drawPreviewPoints.pop();
+  redrawPreview();
+});
+
+drawFinishBtn.addEventListener('click', () => {
+  if (drawPreviewPoints.length < 3) return;
+  searchPolygonPoints = drawPreviewPoints.slice();
+  if (searchPolygonLayer) { map.removeLayer(searchPolygonLayer); }
+  searchPolygonLayer = L.polygon(searchPolygonPoints, {
+    color: '#8E7448', weight: 2.5, fillColor: '#B89A63', fillOpacity: 0.12
   }).addTo(map);
-}
-
-function moveDraw(latlng) {
-  if (!drawMode || !drawStart || !searchCircle) return;
-  searchCircle.setRadius(drawStart.distanceTo(latlng));
-}
-
-function endDraw() {
-  if (!drawMode || !drawStart) return;
-  drawStart = null;
+  drawPreviewPoints = [];
+  redrawPreview();
   setDrawMode(false);
-  if (searchCircle && searchCircle.getRadius() < 500) {
-    map.removeLayer(searchCircle);
-    searchCircle = null;
-    showToast('Search area too small — try again', 'close');
-    return;
-  }
-  if (searchCircle) {
-    clearSearchAreaBtn.style.display = 'flex';
-    showToast('Search area applied', 'check_circle');
-    refresh();
-  }
-}
-
-map.on('mousedown', (e) => startDraw(e.latlng));
-map.on('mousemove', (e) => moveDraw(e.latlng));
-map.on('mouseup', endDraw);
-
-// Leaflet's map only synthesizes mouse events from simple taps, not
-// touch-drags — without these, drawing a search circle never worked
-// on phones/tablets since map.dragging.disable() (needed so the drag
-// draws instead of panning) leaves nothing else listening to touch.
-function touchToLatLng(e) {
-  const touch = e.touches[0] || e.changedTouches[0];
-  return touch ? map.mouseEventToLatLng(touch) : null;
-}
-mapEl.addEventListener('touchstart', (e) => {
-  if (!drawMode) return;
-  e.preventDefault();
-  const latlng = touchToLatLng(e);
-  if (latlng) startDraw(latlng);
-}, { passive: false });
-mapEl.addEventListener('touchmove', (e) => {
-  if (!drawMode || !drawStart) return;
-  e.preventDefault();
-  const latlng = touchToLatLng(e);
-  if (latlng) moveDraw(latlng);
-}, { passive: false });
-mapEl.addEventListener('touchend', (e) => {
-  if (!drawMode || !drawStart) return;
-  e.preventDefault();
-  endDraw();
-}, { passive: false });
+  clearSearchAreaBtn.style.display = 'flex';
+  showToast(tr('map.searchAreaApplied', 'Search area applied'), 'check_circle');
+  updateUrlState(true);
+  refresh();
+});
 
 clearSearchAreaBtn.addEventListener('click', () => {
-  if (searchCircle) { map.removeLayer(searchCircle); searchCircle = null; }
+  if (searchPolygonLayer) { map.removeLayer(searchPolygonLayer); searchPolygonLayer = null; }
+  searchPolygonPoints = null;
+  viewportSearchBounds = null;
+  lastFilteredBounds = null;
   clearSearchAreaBtn.style.display = 'none';
-  showToast('Search area cleared', 'close');
+  showToast(tr('map.searchAreaCleared', 'Search area cleared'), 'close');
+  updateUrlState(true);
   refresh();
+});
+
+// ---------------------------------------------------------------------
+// "Search this area" -- appears only after a significant, debounced
+// pan/zoom (never queries continuously on every tiny movement); clicking
+// it snapshots the current viewport bounds as the active spatial filter.
+// Purely a client-side refilter of the already-loaded listings today
+// (see loadListings()) -- it does not yet reduce Firestore reads, since
+// this codebase has no bounds-aware backend query to send it to (see the
+// final report's "Viewport data loading" limitation).
+// ---------------------------------------------------------------------
+const searchThisAreaBtn = document.getElementById('searchThisAreaBtn');
+let lastFilteredBounds = null;
+let moveDebounceTimer = null;
+map.on('moveend zoomend', () => {
+  if (drawMode) return;
+  buildMarkers(); // re-cluster/re-adapt marker density for the new zoom/viewport
+  clearTimeout(moveDebounceTimer);
+  moveDebounceTimer = setTimeout(() => {
+    if (searchPolygonPoints) return; // a drawn boundary takes precedence -- no viewport chip while one is active
+    const bounds = map.getBounds();
+    if (lastFilteredBounds && lastFilteredBounds.contains(bounds.getCenter()) &&
+        Math.abs(lastFilteredBounds.getNorth() - bounds.getNorth()) < 0.02) {
+      return; // movement too small to be worth prompting for
+    }
+    searchThisAreaBtn.classList.add('show');
+  }, 500);
+});
+searchThisAreaBtn.addEventListener('click', () => {
+  viewportSearchBounds = map.getBounds();
+  lastFilteredBounds = viewportSearchBounds;
+  searchThisAreaBtn.classList.remove('show');
+  clearSearchAreaBtn.style.display = 'flex';
+  refresh();
+});
+
+// ---------------------------------------------------------------------
+// Fullscreen + reset view controls.
+// ---------------------------------------------------------------------
+document.getElementById('fullscreenBtn').addEventListener('click', () => {
+  const wrap = document.getElementById('mapPanel');
+  if (!document.fullscreenElement) {
+    wrap.requestFullscreen?.().then(() => setTimeout(() => map.invalidateSize(), 150)).catch(() => {
+      showToast(tr('map.fullscreenUnavailable', 'Fullscreen is not available on this device'), 'fullscreen');
+    });
+  } else {
+    document.exitFullscreen?.().then(() => setTimeout(() => map.invalidateSize(), 150));
+  }
+});
+document.getElementById('resetViewBtn').addEventListener('click', () => {
+  map.setView([36.35, 44.3], 8);
+});
+
+// Legend -- collapsible/minimal, per the "compact optional Map Key" requirement.
+const legendEl = document.getElementById('mapLegend');
+document.getElementById('legendToggleBtn').addEventListener('click', () => {
+  const collapsed = legendEl.classList.toggle('collapsed');
+  document.getElementById('legendToggleBtn').setAttribute('aria-expanded', String(!collapsed));
+  document.getElementById('legendToggleIcon').textContent = collapsed ? 'expand_more' : 'expand_less';
 });
 
 let myLocationMarker = null;
 document.getElementById('myLocationBtn').addEventListener('click', () => {
   if (!navigator.geolocation) {
-    showToast('Location services are not available on this device', 'location_off');
+    showToast(tr('map.locationUnavailable', 'Location services are not available on this device'), 'location_off');
     return;
   }
-  showToast('Finding your location…', 'my_location');
+  showToast(tr('map.findingLocation', 'Finding your location…'), 'my_location');
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       const { latitude, longitude } = pos.coords;
@@ -1629,9 +2075,9 @@ document.getElementById('myLocationBtn').addEventListener('click', () => {
           iconAnchor: [8, 8]
         })
       }).addTo(map);
-      showToast('Location found', 'check_circle');
+      showToast(tr('map.locationFound', 'Location found'), 'check_circle');
     },
-    () => showToast('Could not access your location — check permissions', 'location_off'),
+    () => showToast(tr('map.locationError', 'Could not access your location — check permissions'), 'location_off'),
     { enableHighAccuracy: true, timeout: 8000 }
   );
 });
@@ -1753,17 +2199,92 @@ function setActiveTypeFromUrl(type) {
     btn.classList.remove('text-on-surface-variant');
   }
 }
-const urlParams = new URLSearchParams(window.location.search);
-const urlCity = urlParams.get('city');
-const urlType = urlParams.get('type');
-if (urlCity) {
-  document.getElementById('citySearch').value = urlCity;
+
+// ---------------------------------------------------------------------
+// URL state -- the search itself (deal type, city, price, beds/baths,
+// property types, verified/area, sort, and the centered listing) is
+// reflected in the URL so a refresh, a shared link, or a browser
+// back/forward step restores the same search. Never includes a
+// listing's exact lat/lng or any private/hidden-listing information --
+// only the same filter values already visible in the filter bar's own
+// controls, plus a listing id (a public identifier, not a coordinate).
+// ---------------------------------------------------------------------
+function buildStateParams() {
+  const p = new URLSearchParams();
+  if (activeType !== 'sale') p.set('type', activeType);
+  const cityVal = document.getElementById('citySearch').value.trim();
+  if (cityVal) p.set('city', cityVal);
+  if (priceMin !== null) p.set('priceMin', String(priceMin));
+  if (priceMax !== null) p.set('priceMax', String(priceMax));
+  if (bedsMin > 0) p.set('beds', String(bedsMin));
+  if (bathsMin > 0) p.set('baths', String(bathsMin));
+  if (selectedHomeTypes.size) p.set('types', [...selectedHomeTypes].join(','));
+  if (verifiedOnly) p.set('verified', '1');
+  if (areaMin !== null) p.set('areaMin', String(areaMin));
+  if (areaMax !== null) p.set('areaMax', String(areaMax));
+  if (sortBy !== 'recommended') p.set('sort', sortBy);
+  if (activeId) p.set('listing', activeId);
+  return p;
 }
-if (urlType === 'all' || urlCity) {
-  setActiveTypeFromUrl('all');
-} else if (urlType === 'rent') {
-  setActiveTypeFromUrl('rent');
+function updateUrlState(push) {
+  const params = buildStateParams();
+  const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+  const currentUrl = window.location.pathname + window.location.search;
+  if (newUrl === currentUrl) return;
+  if (push) history.pushState(null, '', newUrl);
+  else history.replaceState(null, '', newUrl);
 }
+function readUrlStateIntoFilters() {
+  const p = new URLSearchParams(window.location.search);
+  const urlCity = p.get('city');
+  const urlType = p.get('type');
+  if (urlCity) document.getElementById('citySearch').value = urlCity;
+  if (urlType === 'all' || (urlCity && !urlType)) setActiveTypeFromUrl('all');
+  else if (urlType === 'rent') setActiveTypeFromUrl('rent');
+  else if (urlType === 'sale' || !urlType) setActiveTypeFromUrl(urlType || 'sale');
+
+  const pMin = p.get('priceMin'), pMax = p.get('priceMax');
+  priceMin = pMin !== null ? Number(pMin) : null;
+  priceMax = pMax !== null ? Number(pMax) : null;
+  document.getElementById('priceMinInput').value = priceMin ?? '';
+  document.getElementById('priceMaxInput').value = priceMax ?? '';
+  document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
+
+  bedsMin = Number(p.get('beds')) || 0;
+  bathsMin = Number(p.get('baths')) || 0;
+  document.getElementById('bedsMinSelect').value = String(bedsMin);
+  document.getElementById('bathsMinSelect').value = String(bathsMin);
+  document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
+
+  const typesParam = p.get('types');
+  selectedHomeTypes = new Set(typesParam ? typesParam.split(',').filter(Boolean) : []);
+  document.querySelectorAll('.home-type-check').forEach(cb => { cb.checked = selectedHomeTypes.has(cb.value); });
+  document.getElementById('homeTypeFilterBtn').classList.toggle('active', selectedHomeTypes.size > 0);
+
+  verifiedOnly = p.get('verified') === '1';
+  const aMin = p.get('areaMin'), aMax = p.get('areaMax');
+  areaMin = aMin !== null ? Number(aMin) : null;
+  areaMax = aMax !== null ? Number(aMax) : null;
+  document.getElementById('verifiedOnlyCheck').checked = verifiedOnly;
+  document.getElementById('areaMinInput').value = areaMin ?? '';
+  document.getElementById('areaMaxInput').value = areaMax ?? '';
+  document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+
+  sortBy = p.get('sort') || 'recommended';
+  document.getElementById('sortBtn').classList.toggle('active', sortBy !== 'recommended');
+
+  const urlListing = p.get('listing');
+  if (urlListing) activeId = urlListing;
+}
+readUrlStateIntoFilters();
+// Browser back/forward -- re-read whatever URL the browser just navigated
+// to and re-render to match it. Never scrolls/pans on this path (opts
+// left default) so a rapid sequence of back/forward doesn't fight the
+// user with camera motion; the map/list state itself is what changes.
+window.addEventListener('popstate', () => {
+  readUrlStateIntoFilters();
+  refresh();
+});
 
 // ---------------------------------------------------------------------
 // MAM AI hook (js/mam-properties-map.js). The ONE way the AI module is
@@ -1800,6 +2321,7 @@ function applyAiFilters(filters) {
     document.getElementById('bedsMinSelect').value = String(bedsMin);
     document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
   }
+  updateUrlState(true);
   refresh();
   document.dispatchEvent(new CustomEvent('darwesh:mam-ai-filters-applied'));
 }
