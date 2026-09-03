@@ -49,6 +49,14 @@ violation reporting. -->
       transition: all .15s ease;
       cursor: pointer;
       color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .price-pin .price-pin-icon {
+      font-size: 13px !important;
+      line-height: 1;
+      flex-shrink: 0;
     }
     .price-pin.pin-unverified { background: #c62828; border-color: #8f1c1c; }
     .price-pin.pin-verified { background: #2e7d32; border-color: #1e5620; }
@@ -272,13 +280,21 @@ violation reporting. -->
       pointer-events: none;
     }
     #drmAiWrap > * { pointer-events: auto; }
-    .drm-ai-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .drm-ai-chips {
+      display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-start;
+      overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      padding: 0 2px; scroll-padding: 0 2px;
+    }
+    .drm-ai-chips::-webkit-scrollbar { display: none; }
+    @media (min-width: 768px) { .drm-ai-chips { justify-content: center; } }
     .drm-ai-chip {
       font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
       background: #17150Fcc; backdrop-filter: blur(6px); color: #F2EEE5; border: 1px solid #5D482B;
-      border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap;
+      border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap; flex: none;
+      scroll-snap-align: start;
     }
     .drm-ai-chip:hover { border-color: #B89A63; }
+    .drm-ai-chips { scroll-snap-type: x proximity; }
     .drm-ai-bar {
       display: flex; align-items: center; gap: 8px;
       background: #17150Ff2; backdrop-filter: blur(10px); border: 1px solid #5D482B;
@@ -827,11 +843,28 @@ const CITY_CENTERS = {
   "Kirkuk": [35.4681, 44.3922]
 };
 
+// Property-type -> Material Symbols glyph shown inside the existing price
+// pin (same pill shell/colors/size for every type — only this glyph
+// changes). Keys are the canonical `propertyType` values sellers choose
+// in sell.html's typeSelect, never inferred from a listing's title.
+const PROPERTY_TYPE_ICONS = {
+  house: 'home',
+  villa: 'villa',
+  apartment: 'apartment',
+  land: 'landscape',
+  building: 'domain',
+  office: 'business_center',
+  shop: 'storefront',
+  commercialProperty: 'corporate_fare'
+};
+const PROPERTY_TYPE_ICON_FALLBACK = 'home';
+
 function priceIcon(listing, active) {
   const statusClass = listing.verified ? 'pin-verified' : 'pin-unverified';
+  const glyph = PROPERTY_TYPE_ICONS[listing.propertyType] || PROPERTY_TYPE_ICON_FALLBACK;
   return L.divIcon({
     className: '',
-    html: `<div class="price-pin ${statusClass}${active ? ' active' : ''}" data-id="${listing.id}">${listing.priceLabel}</div>`,
+    html: `<div class="price-pin ${statusClass}${active ? ' active' : ''}" data-id="${listing.id}"><span class="material-symbols-outlined price-pin-icon">${glyph}</span>${listing.priceLabel}</div>`,
     iconSize: null,
     iconAnchor: [30, 15]
   });

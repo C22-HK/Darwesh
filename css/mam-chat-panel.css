@@ -1,0 +1,93 @@
+/* MAM site-wide chat panel -- the ONE local, non-navigating conversation
+ * surface opened by js/mam-companion-launcher.js's orb on every public
+ * page other than map.html (which keeps its own richer dock, see
+ * js/mam-properties-map.js). Self-contained like css/mam-companion.css:
+ * reuses the same --mamco-* custom properties (falls back to the same
+ * literal values when they aren't defined) so this file never requires
+ * cinematic.css or any other page-level stylesheet to be present.
+ */
+.mamcp-panel {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  max-width: calc(100vw - 20px);
+  max-height: 70vh;
+  right: 104px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--mamco-surface, #17150F)f5;
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--mamco-outline, #5D482B);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+}
+.mamcp-panel[hidden] { display: none; }
+
+.mamcp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--mamco-outline, #5D482B); flex: none; }
+.mamcp-title-wrap { display: flex; flex-direction: column; min-width: 0; }
+.mamcp-title { font-weight: 700; font-size: 12px; color: var(--mamco-glow, #F2EEE5); letter-spacing: .04em; text-transform: uppercase; }
+.mamcp-subtitle { font-size: 10.5px; color: #A79F91; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mamcp-header-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.mamcp-icon-btn { background: none; border: none; color: #A79F91; cursor: pointer; padding: 5px; border-radius: 999px; display: flex; }
+.mamcp-icon-btn:hover { color: var(--mamco-glow, #F2EEE5); }
+.mamcp-icon-btn[aria-pressed="true"] { color: var(--mamco-accent, #B89A63); }
+
+.mamcp-log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+.mamcp-empty { font-size: 12.5px; color: #A79F91; line-height: 1.5; padding: 4px 2px; }
+.mamcp-bubble { border-radius: 16px; padding: 9px 13px; max-width: 90%; font-size: 13px; line-height: 1.45; }
+.mamcp-bubble-user { align-self: flex-end; background: var(--mamco-accent, #B89A63); color: #090A0A; border-end-end-radius: 4px; }
+.mamcp-bubble-assistant { align-self: flex-start; background: var(--mamco-surface-high, #221E15); color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-start-start-radius: 4px; }
+.mamcp-bubble-error { border-color: var(--mamco-error, #E5787A); }
+.mamcp-retry { margin-top: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--mamco-accent, #B89A63); background: none; border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.mamcp-fallback-note { font-size: 10.5px; color: #A79F91; line-height: 1.4; padding: 2px 2px 0; }
+
+.mamcp-thinking { display: flex; gap: 4px; padding: 9px 13px; }
+.mamcp-dot { width: 6px; height: 6px; border-radius: 999px; background: #8E7448; animation: mamcp-dot-bounce 1.2s infinite; }
+.mamcp-dot:nth-child(2) { animation-delay: .15s; }
+.mamcp-dot:nth-child(3) { animation-delay: .3s; }
+@keyframes mamcp-dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+.mamcp-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mamcp-action-chip { font-size: 11px; font-weight: 600; background: #17150Fcc; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+.mamcp-action-chip:hover { border-color: var(--mamco-accent, #B89A63); }
+
+.mamcp-ref-cards { display: flex; gap: 8px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
+.mamcp-ref-card { flex: none; width: 128px; border-radius: 12px; overflow: hidden; background: #1C1912; border: 1px solid var(--mamco-outline, #5D482B); text-align: start; cursor: pointer; text-decoration: none; display: block; }
+.mamcp-ref-card-media { height: 64px; background: var(--mamco-surface-high, #221E15); }
+.mamcp-ref-card-media img { width: 100%; height: 100%; object-fit: cover; }
+.mamcp-ref-card-body { padding: 6px 8px 8px; }
+.mamcp-ref-card-title { font-size: 10.5px; font-weight: 700; color: var(--mamco-glow, #F2EEE5); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mamcp-ref-card-price { font-size: 10.5px; font-weight: 700; color: var(--mamco-accent, #B89A63); margin-top: 3px; }
+
+.mamcp-chips { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0 14px 10px; flex: none; }
+.mamcp-chips::-webkit-scrollbar { display: none; }
+.mamcp-chips:empty { display: none; }
+.mamcp-chip { font-size: 11.5px; font-weight: 600; background: #17150Fcc; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; flex: none; }
+.mamcp-chip:hover { border-color: var(--mamco-accent, #B89A63); }
+
+.mamcp-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--mamco-outline, #5D482B); flex: none; }
+.mamcp-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--mamco-glow, #F2EEE5); font-family: 'Inter', sans-serif; font-size: 13.5px; }
+.mamcp-input::placeholder { color: #A79F91; }
+.mamcp-bar-btn { flex: none; width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+.mamcp-send { background: var(--mamco-accent, #B89A63); color: #090A0A; }
+.mamcp-send:disabled { opacity: .5; cursor: not-allowed; }
+.mamcp-mic { background: transparent; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); }
+.mamcp-mic.mic-listening { background: var(--mamco-error, #E5787A); border-color: var(--mamco-error, #E5787A); color: #090A0A; }
+.mamcp-mic[hidden] { display: none; }
+
+@media (max-width: 767px) {
+  .mamcp-panel {
+    right: 10px; left: 10px; top: auto;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    transform: none; width: auto; max-width: none; max-height: 68vh;
+    border-radius: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mamcp-dot { animation: none; opacity: .8; }
+}
