@@ -367,7 +367,7 @@ async function fetchListingsRaw() {
 }
 function enrichListings(docs) {
   return docs
-    .filter((d) => typeof d.lat === 'number' && typeof d.lng === 'number')
+    .filter((d) => (typeof d.publicLat === 'number' || typeof d.lat === 'number') && (typeof d.publicLng === 'number' || typeof d.lng === 'number'))
     .map((d) => {
       const project = d.projectId ? PROJECTS_BY_ID.get(d.projectId) : null;
       return {
@@ -377,7 +377,9 @@ function enrichListings(docs) {
         type: d.propertyType || '',
         price: Number(d.price) || 0,
         beds: Number(d.beds) || 0, baths: Number(d.baths) || 0, sqft: Number(d.sqft) || 0,
-        lat: d.lat, lng: d.lng,
+        // LOC-01: public pages plot the rounded public pair; the d.lat
+      // fallback only covers legacy, not-yet-backfilled documents.
+      lat: (typeof d.publicLat === 'number') ? d.publicLat : d.lat, lng: (typeof d.publicLng === 'number') ? d.publicLng : d.lng,
         img: d.img || '',
         verified: !!d.verified,
         furnished: Array.isArray(d.amenities) && d.amenities.includes('furnished'),

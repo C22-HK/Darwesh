@@ -432,7 +432,18 @@ change is not meant to make. -->
 </div>
 
 <script type="module">
-  import { auth, db, storage, getDoc, addDoc, updateDoc, deleteDoc, getDocs } from './js/firebase-init.js';
+  import { auth, db, storage, getDoc, setDoc, addDoc, updateDoc, deleteDoc, getDocs } from './js/firebase-init.js';
+  import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
+
+  // LOC-01: which coordinate the Team Map plots. The bulk view uses the
+  // ~111 m public pair (fetching each listing's precise sub-document
+  // would be an N+1 read per render); the `l.lat` branch keeps
+  // not-yet-backfilled legacy documents rendering during the migration.
+  function teamMapCoords(l) {
+    const lat = (typeof l.lat === 'number') ? l.lat : l.publicLat;
+    const lng = (typeof l.lng === 'number') ? l.lng : l.publicLng;
+    return (typeof lat === 'number' && typeof lng === 'number') ? { lat, lng } : null;
+  }
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import {
     doc, collection, query, where, serverTimestamp
@@ -642,7 +653,8 @@ change is not meant to make. -->
     ownSnap.forEach(d => byId.set(d.id, d.data()));
     const listings = [];
     byId.forEach((l, id) => {
-      if (l.lat != null && l.lng != null) listings.push({ id, ...l });
+      const c = teamMapCoords(l);
+      if (c) listings.push({ id, ...l, _mapLat: c.lat, _mapLng: c.lng });
     });
 
     listings.forEach(l => {
@@ -662,10 +674,10 @@ change is not meant to make. -->
           ${badges ? `<div style="margin-top:4px;">${badges}</div>` : ''}
         </div>
       `;
-      engine.addMarker(l.lat, l.lng, statusClass + extraClasses, priceLabel, popupHtml);
+      engine.addMarker(l._mapLat, l._mapLng, statusClass + extraClasses, priceLabel, popupHtml);
     });
 
-    engine.fitToMarkers(listings.map(l => [l.lat, l.lng]));
+    engine.fitToMarkers(listings.map(l => [l._mapLat, l._mapLng]));
   }
 
   function setPin(lat, lng) {
@@ -791,7 +803,10 @@ change is not meant to make. -->
     const data = {
       title, address,
       city: document.getElementById('fCity').value,
-      lat: pinLat, lng: pinLng,
+      // LOC-01: only the ~111 m rounded pair goes on the publicly-readable
+      // listing document; the real pin is written to
+      // listings/{id}/private/location right after this save succeeds.
+      ...publicCoordsFrom(pinLat, pinLng),
       dealType: document.getElementById('fDealType').value,
       propertyType: document.getElementById('fPropertyType').value,
       price,
@@ -808,12 +823,20 @@ change is not meant to make. -->
     };
 
     try {
+      // LOC-01: precise pin written after the listing exists -- the rules
+      // resolve ownership by reading the parent listing, so a location
+      // write that precedes it is denied by design.
+      let savedListingId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'listings', editingId), data);
       } else {
         data.status = 'active';
         data.createdAt = serverTimestamp();
-        await addDoc(collection(db, 'listings'), data);
+        const created = await addDoc(collection(db, 'listings'), data);
+        savedListingId = created.id;
+      }
+      if (savedListingId) {
+        await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
       }
       resetForm();
       loadMyListings();
@@ -840,8 +863,18 @@ change is not meant to make. -->
     updateImgPreview();
     document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
     document.getElementById('fPrivate').checked = !!l.private;
-    setPin(l.lat, l.lng);
-    if (pinMapEngine) pinMapEngine.panZoom(l.lat, l.lng, 13);
+    // LOC-01: start from the approximate public pin, then upgrade to the
+    // agent's own precise stored pin (one read, for one listing, that only
+    // this listing's agent/admin is allowed to make) so re-saving never
+    // silently degrades an existing listing's location.
+    const approx = teamMapCoords(l);
+    if (approx) { setPin(approx.lat, approx.lng); if (pinMapEngine) pinMapEngine.panZoom(approx.lat, approx.lng, 13); }
+    fetchPreciseLocation({ doc, getDoc }, db, l.id).then((precise) => {
+      if (!precise) return;
+      if (document.getElementById('editingId').value !== l.id) return;
+      setPin(precise.lat, precise.lng);
+      if (pinMapEngine) pinMapEngine.panZoom(precise.lat, precise.lng, 15);
+    });
     document.getElementById('formTitle').textContent = trDash('agentDash.editListing','Edit Listing');
     document.getElementById('formSubmitBtn').textContent = trDash('agentDash.updateListingBtn','Update Listing');
     document.getElementById('formCancelBtn').classList.remove('hidden');

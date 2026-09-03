@@ -129,6 +129,10 @@ violation reporting. -->
 <span class="material-symbols-outlined text-[15px]">lock</span>
 <span data-i18n="listing.privateLocationNote">Exact location is shared once an agent confirms your viewing request.</span>
 </p>
+<p id="listingMapApproxNote" class="hidden font-body-md text-[12.5px] text-on-surface-variant mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px]">my_location</span>
+<span data-i18n="listing.approxLocationNote">Approximate area shown. The exact address is confirmed with the agent.</span>
+</p>
 </div>
 </div>
 
@@ -276,6 +280,16 @@ violation reporting. -->
 
   let mapInitialized = false;
 
+  // LOC-01: the coordinate a PUBLIC page is allowed to plot. Prefers the
+  // rounded public pair; the l.lat branch only keeps legacy documents
+  // (not yet processed by scripts/backfill-public-coords.mjs) rendering
+  // during the migration window.
+  function publicListingCoords(l) {
+    const lat = (typeof l.publicLat === 'number') ? l.publicLat : l.lat;
+    const lng = (typeof l.publicLng === 'number') ? l.publicLng : l.lng;
+    return (typeof lat === 'number' && typeof lng === 'number') ? { lat, lng } : null;
+  }
+
   function initMap(l) {
     const map = L.map('listingMap', { zoomControl: false });
     L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -290,9 +304,19 @@ violation reporting. -->
       };
       const center = CITY_CENTERS[l.city] || [36.35, 44.3];
       map.setView(center, 11);
-    } else if (l.lat != null && l.lng != null) {
-      map.setView([l.lat, l.lng], 15);
-      L.marker([l.lat, l.lng]).addTo(map);
+    } else if (publicListingCoords(l)) {
+      // LOC-01: this public page plots the ~111 m rounded pair the listing
+      // document now carries -- the exact surveyed pin lives in
+      // listings/{id}/private/location, which only the listing's own
+      // agent/admin may read. Zoom 14 rather than 15 so the view matches
+      // the precision actually being shown instead of implying a
+      // building-level fix the data no longer supports.
+      const c = publicListingCoords(l);
+      map.setView([c.lat, c.lng], 14);
+      L.circle([c.lat, c.lng], {
+        radius: 140, color: '#8E7448', weight: 2, fillColor: '#B89A63', fillOpacity: 0.18
+      }).addTo(map);
+      document.getElementById('listingMapApproxNote')?.classList.remove('hidden');
     } else {
       map.setView([36.35, 44.3], 7);
     }
@@ -419,7 +443,12 @@ violation reporting. -->
         type: 'viewing',
         listingId,
         address: listing.address || '', city: listing.city || '', priceLabel: fmtPrice(listing),
-        lat: listing.private ? null : (listing.lat ?? null), lng: listing.private ? null : (listing.lng ?? null),
+        // LOC-01: a viewing request carries only the approximate public
+      // point -- this public page has no access to the precise pin, and
+      // copying one into a second collection would reopen the exposure.
+      // Admin's Requests Map resolves the exact location from the
+      // listing's own private/location document when it needs it.
+      lat: listing.private ? null : (publicListingCoords(listing)?.lat ?? null), lng: listing.private ? null : (publicListingCoords(listing)?.lng ?? null),
         name, phone, email,
         uid: currentUser ? currentUser.uid : null,
         status: 'pending', createdAt: serverTimestamp()

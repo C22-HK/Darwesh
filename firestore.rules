@@ -475,6 +475,61 @@ service cloud.firestore {
           || (isAgent() && resource.data.agentId == request.auth.uid)
           || (isOrgMember(resource.data.publisherOrgId) && hasOrgPermission(resource.data.publisherOrgId, 'publish_unit_listing'));
     }
+    // ---- Public-map location privacy (LOC-01) --------------------------
+    // Firestore rules are DOCUMENT-level for reads: a rule can allow or
+    // deny reading a listing, but it can never return that listing with
+    // one field stripped out. So a public listing doc simply must not
+    // contain a coordinate precise enough to point at a specific
+    // building -- there is no rule that could hide it afterwards.
+    //
+    // The split: `listings/{id}` carries only `publicLat`/`publicLng`
+    // (rounded to 3 decimal places, ~111 m -- an "approximate area", the
+    // same precision level the public map is allowed to draw), and the
+    // real surveyed pin lives in `listings/{id}/private/location`, a
+    // separate document whose own read rule is the owner/admin check
+    // below. Admin's intelligence/requests maps and an agent's own team
+    // map keep full precision by reading that sub-document under their
+    // existing authorization; the public map never can.
+    //
+    // NOTE: the rounding itself is enforced in the write paths
+    // (admin.html, agent-dashboard.html and the backfill script), not
+    // here -- a rules-layer float-equality check on rounded values is
+    // fragile enough to risk rejecting legitimate writes, and an agent
+    // over-sharing their OWN listing's position is not the exposure this
+    // control exists to close (that is: every public listing's exact pin
+    // being readable by every anonymous visitor).
+    // The invariant that actually closes LOC-01: a publicly-readable
+    // listing document must never contain a building-level coordinate,
+    // whoever is writing it. Enforced on both create and update, outside
+    // the per-role branches (so the unrestricted admin branch is covered
+    // too). Legacy documents written before this rule still carry lat/lng
+    // until the backfill script strips them -- shipping this rule alone
+    // does NOT close the exposure; the data migration is what does.
+    function hasNoPreciseCoordFields() {
+      return !('lat' in request.resource.data) && !('lng' in request.resource.data);
+    }
+    function isValidPublicCoordPair(d) {
+      return (!('publicLat' in d) || ((d.publicLat is int || d.publicLat is float) && d.publicLat >= -90 && d.publicLat <= 90))
+          && (!('publicLng' in d) || ((d.publicLng is int || d.publicLng is float) && d.publicLng >= -180 && d.publicLng <= 180));
+    }
+    // Read/write gate for `listings/{id}/private/location`. Mirrors
+    // isListingOwnerOrAdmin() exactly, but reads the PARENT listing via
+    // get() since `resource.data` inside a subcollection rule refers to
+    // the sub-document, not the listing. Fails closed when the parent
+    // doesn't exist -- which also forces the correct write ordering
+    // (create the listing first, then its location doc), since rules
+    // evaluate each write in a batch against pre-commit state.
+    function canAccessListingPreciseLocation(listingId) {
+      return exists(/databases/$(database)/documents/listings/$(listingId))
+          && (
+            isAdmin()
+            || (isAgent() && get(/databases/$(database)/documents/listings/$(listingId)).data.agentId == request.auth.uid)
+            || (
+              isOrgMember(get(/databases/$(database)/documents/listings/$(listingId)).data.get('publisherOrgId', ''))
+              && hasOrgPermission(get(/databases/$(database)/documents/listings/$(listingId)).data.get('publisherOrgId', ''), 'publish_unit_listing')
+            )
+          );
+    }
     // BL-05 fix (BUSINESS_LOGIC_REMEDIATION.md): when admin.html converts
     // a sell submission into a real listing, the new doc carries a
     // sourceSubmissionId -- this re-enforces, at the rules layer, that
@@ -569,7 +624,19 @@ service cloud.firestore {
       // before this phase -- every existing listing, and every future
       // agent/admin-authored one, is completely unaffected by the new
       // third branch.
-      allow create: if (isAdmin() && isValidSourceSubmissionOrNone() && hasSaneListingNumbers())
+      // LOC-01: a listing document may never carry a precise `lat`/`lng`
+      // again -- not from an agent, not from an org member, and not from
+      // an admin either. This is deliberately OUTSIDE the per-role
+      // branches below (which an admin would otherwise bypass entirely,
+      // since the admin branch carries no field allowlist), making "the
+      // public document contains no building-level coordinate" a
+      // structural invariant of the collection rather than something
+      // each client is trusted to honour. The precise pin goes to
+      // listings/{id}/private/location instead.
+      allow create: if hasNoPreciseCoordFields()
+                    && isValidPublicCoordPair(request.resource.data)
+                    && (
+                    (isAdmin() && isValidSourceSubmissionOrNone() && hasSaneListingNumbers())
                     || (isAgent()
                           && request.resource.data.agentId == request.auth.uid
                           && request.resource.data.companyId == myCompanyId()
@@ -579,7 +646,7 @@ service cloud.firestore {
                           && hasSaneListingNumbers()
                           && isValidOptionalEstateRef(request.resource.data)
                           && request.resource.data.keys().hasOnly([
-                               'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                               'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
                                'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
                                'agentId', 'agentName', 'companyId', 'status', 'estateId', 'createdAt'
                              ]))
@@ -594,10 +661,10 @@ service cloud.firestore {
                           && hasSaneListingNumbers()
                           && isValidOptionalEstateRef(request.resource.data)
                           && request.resource.data.keys().hasOnly([
-                               'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                               'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
                                'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
                                'unitId', 'projectId', 'publisherOrgId', 'status', 'estateId', 'createdAt'
-                             ]));
+                             ])));
       // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an agent
       // may change any of the normal listing fields on their own
       // listing, but NOT who it's attributed to (BL-01 fix,
@@ -644,7 +711,13 @@ service cloud.firestore {
       // it, via the unrestricted admin branch above. A Listing created
       // before this field existed simply has no estateId, and
       // .get(...,null) on both sides makes that unaffected by this check.
-      allow update: if isAdmin()
+      // LOC-01: same structural invariant as create -- no update from any
+      // role, admin included, may (re)introduce a precise lat/lng onto
+      // the publicly-readable listing document.
+      allow update: if hasNoPreciseCoordFields()
+                    && isValidPublicCoordPair(request.resource.data)
+                    && (
+                    isAdmin()
                     || (isAgent()
                           && hasSaneListingNumbers()
                           && resource.data.agentId == request.auth.uid
@@ -657,7 +730,7 @@ service cloud.firestore {
                           && request.resource.data.get('estateId', null) == resource.data.get('estateId', null)
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly([
-                                 'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                                 'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
                                  'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
                                  'status', 'updatedAt'
                                ]))
@@ -673,11 +746,34 @@ service cloud.firestore {
                           && unitBackedListingCanBeActive(request.resource.data, listingId)
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly([
-                                 'title', 'address', 'city', 'lat', 'lng', 'dealType', 'propertyType',
+                                 'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
                                  'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
                                  'status', 'updatedAt'
-                               ]));
+                               ])));
       allow delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+
+      // ---- LOC-01: the real surveyed pin -----------------------------
+      // Separate document precisely because Firestore reads are
+      // document-level: this is the only way to let the owner/admin see
+      // a building-level coordinate while the public listing document
+      // (readable by every anonymous visitor) carries only the ~111 m
+      // rounded approximation. Read access mirrors isListingOwnerOrAdmin()
+      // via the parent listing; a public visitor is denied outright, with
+      // no partial-read path.
+      match /private/location {
+        allow read: if canAccessListingPreciseLocation(listingId);
+        // Whoever may create/update the parent listing may set its pin.
+        // The parent must already exist (see canAccessListingPreciseLocation),
+        // so the listing has to be written first and this second -- which
+        // is exactly what admin.html/agent-dashboard.html now do.
+        allow create, update: if canAccessListingPreciseLocation(listingId)
+                              && request.resource.data.keys().hasOnly(['lat', 'lng', 'updatedAt'])
+                              && (request.resource.data.lat is int || request.resource.data.lat is float)
+                              && (request.resource.data.lng is int || request.resource.data.lng is float)
+                              && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+                              && request.resource.data.lng >= -180 && request.resource.data.lng <= 180;
+        allow delete: if canAccessListingPreciseLocation(listingId);
+      }
     }
 
     // ---- Submissions (Sell form, viewing requests) ----

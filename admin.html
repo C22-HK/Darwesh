@@ -1037,6 +1037,36 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 import { isConfigured as mapsConfigured, initMap as initGoogleMap, createMarker as createGoogleMarker } from './js/maps-core.js';
+import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
+
+// LOC-01: what coordinate a BULK admin map view plots for a listing.
+// Bulk views (intelligence map, requests map — hundreds of listings at a
+// time) deliberately use the ~111 m public pair rather than fetching each
+// listing's precise sub-document, which would be an N+1 read per render.
+// At market-overview zoom that is visually identical; where the exact pin
+// actually matters — opening one property, or re-seeding the edit form —
+// fetchPreciseLocation() pulls the real one for that single listing under
+// the admin's own authorization. The `l.lat` branch keeps legacy
+// documents (not yet processed by scripts/backfill-public-coords.mjs)
+// rendering correctly during the migration window.
+function listingMapCoords(l) {
+  const lat = (typeof l.lat === 'number') ? l.lat : l.publicLat;
+  const lng = (typeof l.lng === 'number') ? l.lng : l.publicLng;
+  return (typeof lat === 'number' && typeof lng === 'number') ? { lat, lng } : null;
+}
+
+// LOC-01: how a listing's coordinate reads in a synchronously-rendered
+// detail panel. Marked "approx." because it is the rounded public pair --
+// the exact surveyed pin is loaded (asynchronously, under the admin's own
+// authorization) by the Edit Listing form, which is where an admin
+// actually needs it. Never silently presents a rounded value as if it
+// were the precise one.
+function listingCoordLabel(l) {
+  const c = listingMapCoords(l);
+  if (!c) return '—';
+  const approx = (typeof l.lat !== 'number'); // legacy docs still carry the real pair
+  return (approx ? '≈ ' : '') + c.lat + ', ' + c.lng + (approx ? ' (approx.)' : '');
+}
 
 function trAdmin(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -1168,7 +1198,7 @@ async function makeGoogleEiEngine() {
       eiDrawnCircle = circle;
       eiDrawingManager.setDrawingMode(null);
       const center = circle.getCenter(), radius = circle.getRadius();
-      eiAreaFilter = (l) => google.maps.geometry?.spherical?.computeDistanceBetween(new google.maps.LatLng(l.lat, l.lng), center) <= radius;
+      eiAreaFilter = (l) => { const c = listingMapCoords(l); return !!c && google.maps.geometry?.spherical?.computeDistanceBetween(new google.maps.LatLng(c.lat, c.lng), center) <= radius; };
       document.getElementById('eiResetAreaBtn').classList.remove('hidden');
       renderEiMarkers();
     });
@@ -1187,7 +1217,8 @@ async function makeGoogleEiEngine() {
         draw() {
           const proj = this.getProjection();
           if (!proj) return;
-          const point = proj.fromLatLngToDivPixel(new google.maps.LatLng(l.lat, l.lng));
+          const c = listingMapCoords(l);
+          const point = c && proj.fromLatLngToDivPixel(new google.maps.LatLng(c.lat, c.lng));
           if (point) { el.style.position = 'absolute'; el.style.left = point.x + 'px'; el.style.top = point.y + 'px'; }
         }
         onRemove() { el.remove(); }
@@ -1240,7 +1271,7 @@ async function renderEiMarkers() {
   const engine = window.estateIntelEngine;
   if (!engine) return;
   engine.clearMarkers();
-  const visible = eiAllListings.filter((l) => typeof l.lat === 'number' && typeof l.lng === 'number' && eiPassesFilters(l));
+  const visible = eiAllListings.filter((l) => !!listingMapCoords(l) && eiPassesFilters(l));
   visible.forEach((l) => engine.addMarker(l));
   document.getElementById('eiResultCount').textContent = visible.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
 }
@@ -1334,7 +1365,7 @@ document.getElementById('eiSearchAreaBtn')?.addEventListener('click', () => {
   if (!engine) return;
   const bounds = engine.map.getBounds();
   if (!bounds) return;
-  eiAreaFilter = (l) => bounds.contains({ lat: l.lat, lng: l.lng });
+  eiAreaFilter = (l) => { const c = listingMapCoords(l); return !!c && bounds.contains({ lat: c.lat, lng: c.lng }); };
   document.getElementById('eiResetAreaBtn').classList.remove('hidden');
   renderEiMarkers();
 });
@@ -1508,8 +1539,8 @@ async function renderEdRecord({ estate, estateId, anchorListing }) {
     [trAdmin('sell.city','City'), escapeAdmin(estate.city || '—')],
     [trAdmin('admin.ei.office','District'), escapeAdmin(estate.district || '—')],
     [trAdmin('sell.neighborhoodAddress','Address'), escapeAdmin(estate.formattedAddress || '—')],
-    ['Lat/Lng', estate.location ? escapeAdmin(estate.location.lat + ', ' + estate.location.lng) : (currentListing ? escapeAdmin(currentListing.lat + ', ' + currentListing.lng) : '—')],
-  ]) : (currentListing ? kv([[trAdmin('sell.city','City'), escapeAdmin(currentListing.city || '—')], ['Lat/Lng', escapeAdmin(currentListing.lat + ', ' + currentListing.lng)]]) : `<p class="text-[13px] text-on-surface-variant">—</p>`);
+    ['Lat/Lng', estate.location ? escapeAdmin(estate.location.lat + ', ' + estate.location.lng) : (currentListing ? escapeAdmin(listingCoordLabel(currentListing)) : '—')],
+  ]) : (currentListing ? kv([[trAdmin('sell.city','City'), escapeAdmin(currentListing.city || '—')], ['Lat/Lng', escapeAdmin(listingCoordLabel(currentListing))]]) : `<p class="text-[13px] text-on-surface-variant">—</p>`);
 
   const projectHtml = estate && (estate.projectId || estate.buildingId || estate.unitId) ? kv([
     [trAdmin('admin.ei.currentAsking','Project ID').replace('Current Asking','Project ID'), escapeAdmin(estate.projectId || '—')],
@@ -2089,7 +2120,10 @@ async function onListingFormSubmit(e) {
   const data = {
     title, address,
     city: document.getElementById('fCity').value,
-    lat: pinLat, lng: pinLng,
+    // LOC-01: only the ~111 m rounded pair goes on the publicly-readable
+    // listing document. The real surveyed pin is written separately, to
+    // listings/{id}/private/location, right after this save succeeds.
+    ...publicCoordsFrom(pinLat, pinLng),
     dealType: document.getElementById('fDealType').value,
     propertyType: document.getElementById('fPropertyType').value,
     price, beds, baths, sqft,
@@ -2101,6 +2135,11 @@ async function onListingFormSubmit(e) {
   };
 
   try {
+    // LOC-01: the precise pin is written to listings/{id}/private/location
+    // AFTER the listing itself exists -- the rules check ownership by
+    // reading the parent listing, so a location write that precedes it
+    // (or shares a batch with it) is denied by design.
+    let savedListingId = editingId;
     if (editingId) {
       await updateDoc(doc(db, 'listings', editingId), data);
     } else {
@@ -2134,9 +2173,14 @@ async function onListingFormSubmit(e) {
           tx.set(newListingRef, data);
           tx.update(submissionRef, { convertedListingId: newListingRef.id });
         });
+        savedListingId = newListingRef.id;
       } else {
-        await addDoc(collection(db, 'listings'), data);
+        const created = await addDoc(collection(db, 'listings'), data);
+        savedListingId = created.id;
       }
+    }
+    if (savedListingId) {
+      await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
     }
     resetListingForm();
     renderListingsTable();
@@ -2166,8 +2210,20 @@ window.editListing = function (id) {
   document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
   document.getElementById('fVerified').checked = !!l.verified;
   document.getElementById('fPrivate').checked = !!l.private;
-  setAdminPin(l.lat, l.lng);
-  adminPinMap.setView([l.lat, l.lng], 13);
+  // LOC-01: seed the edit pin from the REAL stored location (one extra
+  // read, for one listing, by an authorized admin) so re-saving an
+  // existing listing never silently degrades its pin to the rounded
+  // public point. Falls back to the public pair for any listing whose
+  // precise document is missing (e.g. not yet backfilled).
+  const approxLat = l.publicLat ?? null, approxLng = l.publicLng ?? null;
+  setAdminPin(approxLat, approxLng);
+  if (approxLat != null) adminPinMap.setView([approxLat, approxLng], 13);
+  fetchPreciseLocation({ doc, getDoc }, db, l.id).then((precise) => {
+    if (!precise) return;
+    if (document.getElementById('editingId').value !== l.id) return; // form moved on
+    setAdminPin(precise.lat, precise.lng);
+    adminPinMap.setView([precise.lat, precise.lng], 15);
+  });
 
   document.getElementById('formTitle').textContent = trAdmin('agentDash.editListing','Edit Listing');
   document.getElementById('formSubmitBtn').textContent = trAdmin('agentDash.updateListingBtn','Update Listing');
@@ -2984,7 +3040,7 @@ function reqMapFiltered() {
   const q = (document.getElementById('reqMapSearch').value || '').trim().toLowerCase();
   const verifiedFilter = document.getElementById('reqMapVerifiedFilter').value;
   const listings = reqMapListings.filter(l => {
-    if (l.lat == null || l.lng == null) return false;
+    if (!listingMapCoords(l)) return false;
     if (q && !((l.city || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
     if (verifiedFilter === 'verified' && !l.verified) return false;
     if (verifiedFilter === 'unverified' && l.verified) return false;
@@ -3049,10 +3105,12 @@ function buildReqMapNeighborhoods(visibleListings) {
   const groups = {};
   visibleListings.forEach(l => {
     if (!l.address) return;
+    const c = listingMapCoords(l);
+    if (!c) return;
     const key = l.address + '|' + l.city;
     if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
-    groups[key].lats.push(l.lat);
-    groups[key].lngs.push(l.lng);
+    groups[key].lats.push(c.lat);
+    groups[key].lngs.push(c.lng);
   });
   Object.values(groups).forEach(g => {
     const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
@@ -3140,7 +3198,8 @@ function renderDashRequestsMap() {
 
   if (document.getElementById('reqLayerListings').checked) {
     listings.forEach(l => {
-      const latLng = [l.lat, l.lng];
+      const c = listingMapCoords(l); if (!c) return;
+      const latLng = [c.lat, c.lng];
       const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
       const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
       const marker = L.marker(latLng, {
