@@ -61,6 +61,22 @@ SERVICE_CATALOG = (
 _VALID_SERVICE_TYPES = frozenset(s["service_type"] for s in SERVICE_CATALOG)
 
 
+def _created_at_sort_key(d: dict) -> float:
+    """A document's real `createdAt` (a Firestore Timestamp) sorts newest
+    first; anything else -- missing, None, or a value some other write
+    path stored in a different shape (a plain string, a number, ...) --
+    sorts as if it had no date, rather than raising and taking the whole
+    search down with it. See search_properties's own comment for why this
+    exists as a named, defensive helper instead of an inline expression."""
+    value = d.get("createdAt")
+    if value is None:
+        return 0.0
+    try:
+        return value.timestamp()
+    except AttributeError:
+        return 0.0
+
+
 @dataclass
 class Tools:
     db: Any  # firebase_admin.firestore.Client -- the Admin SDK client, same one every other app.access.*_ops.py holds
@@ -75,6 +91,7 @@ class Tools:
         deal_type: str | None = None,
         property_type: str | None = None,
         max_price: float | None = None,
+        min_price: float | None = None,
         min_beds: int | None = None,
         verified_only: bool = False,
         limit: int = MAX_RESULTS,
@@ -102,13 +119,25 @@ class Tools:
                 docs = [d for d in docs if str(d.get("city", "")).lower() == city.lower()]
             if max_price is not None:
                 docs = [d for d in docs if isinstance(d.get("price"), (int, float)) and d["price"] <= max_price]
+            if min_price is not None:
+                docs = [d for d in docs if isinstance(d.get("price"), (int, float)) and d["price"] >= min_price]
             if min_beds is not None:
                 docs = [d for d in docs if isinstance(d.get("beds"), (int, float)) and d["beds"] >= min_beds]
             if verified_only:
                 docs = [d for d in docs if d.get("verified") is True]
             # Verified-first, then newest -- same ordering buy.html's own
             # featured-grid sort already uses, not a new invented ranking.
-            docs.sort(key=lambda d: (not d.get("verified", False), -(d.get("createdAt").timestamp() if d.get("createdAt") else 0)))
+            # _created_at_sort_key never raises: a document written by
+            # something other than the normal listing-creation path (a
+            # seed/test script storing createdAt as a plain string, or
+            # omitting it) previously made THIS ONE bad document crash
+            # .timestamp() and take the entire search down with it --
+            # every real, well-formed listing included -- caught only by
+            # routes.py's top-level handler as a generic 500, with no
+            # indication anywhere that a single malformed document was the
+            # cause. A document like that now just sorts as if it had no
+            # date, instead of breaking the search for everyone.
+            docs.sort(key=lambda d: (not d.get("verified", False), -_created_at_sort_key(d)))
             return docs[:limit]
 
         docs = await asyncio.to_thread(_op)
@@ -350,12 +379,19 @@ class Tools:
         self, caller: MamCaller, *, deal_type: str | None = None, city: str | None = None, listing_id: str | None = None
     ) -> dict:
         require_auth(caller, AuthRequirement.PUBLIC)
+        # Same filter-key vocabulary as _search_filters_action
+        # (orchestrator.py) -- map.html's own applyFilters() hook is the
+        # one, single consumer of every MapAction this backend ever
+        # produces, so both tools that build one agree on what its keys
+        # mean rather than each inventing its own shape. 'sale' is
+        # map.html's own default state, so (matching that same
+        # convention) it's only ever sent explicitly as 'rent'.
         filters: dict[str, Any] = {}
-        if deal_type:
-            filters["dealType"] = deal_type
+        if deal_type == "rent":
+            filters["deal"] = "rent"
         if city:
-            filters["city"] = city
-        return {"target": "buy-rent-map.html", "filters": filters, "focusListingId": listing_id}
+            filters["q"] = city
+        return {"target": "map.html", "filters": filters, "focusListingId": listing_id}
 
     # ---- get_saved_properties / save_property / remove_saved_property ---
     async def get_saved_properties(self, caller: MamCaller) -> dict:
@@ -435,6 +471,7 @@ def build_tool_specs() -> list[ToolSpec]:
                     "dealType": {"type": "string", "enum": ["sale", "rent"]},
                     "propertyType": {"type": "string"},
                     "maxPrice": {"type": "number"},
+                    "minPrice": {"type": "number"},
                     "minBeds": {"type": "integer"},
                     "verifiedOnly": {"type": "boolean"},
                 },
@@ -552,6 +589,7 @@ def _coerce_arguments(name: str, arguments: dict) -> dict:
         "dealType": "deal_type",
         "propertyType": "property_type",
         "maxPrice": "max_price",
+        "minPrice": "min_price",
         "minBeds": "min_beds",
         "verifiedOnly": "verified_only",
         "listingId": "listing_id",

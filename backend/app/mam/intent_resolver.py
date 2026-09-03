@@ -89,7 +89,7 @@ PROPERTY_TYPE_KEYWORDS = {
 DEAL_TYPE_RENT_KEYWORDS = ["rent", "rental", "renting", "بەکرێدان", "بکرێ", "کرێ", "ایجار", "استئجار"]
 DEAL_TYPE_SALE_KEYWORDS = ["buy", "purchase", "بکڕم", "بۆ فرۆشتن", "فرۆشتن", "بیع", "شراء"]
 MAX_PRICE_WORDS = ["less than", "under", "below", "up to", "کەمتر", "خوارتر", "اقل من", "أقل من"]
-MIN_PRICE_WORDS = ["more than", "over", "above", "at least", "زیاتر", "بەرزتر", "اکثر من", "أکثر من"]
+MIN_PRICE_WORDS = ["more than", "over", "above", "at least", "زیاتر", "بەرزتر", "لە سەر", "اکثر من", "أکثر من"]
 IQD_PER_USD = 1310  # approximate conversion only, for interpreting a spoken IQD amount -- never for pricing itself
 
 MAP_KEYWORDS = ["map", "neighborhood", "area", "location", "نەخشە", "گەڕەک", "ناوچە", "خریطه", "منطقه"]
@@ -195,6 +195,8 @@ def resolve_intent(message: str) -> ResolvedIntent | None:
             args["dealType"] = deal_type
         if price and price["isMax"]:
             args["maxPrice"] = price["usdValue"]
+        elif price and price["isMin"]:
+            args["minPrice"] = price["usdValue"]
         if bedrooms:
             args["minBeds"] = bedrooms
         return ResolvedIntent(tool_name="search_properties", arguments=args)

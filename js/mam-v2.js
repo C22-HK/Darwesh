@@ -377,8 +377,14 @@ function buildComparisonBlock(comparison) {
 function buildMapActionButton(mapAction) {
   if (!mapAction) return null;
   const params = new URLSearchParams();
-  if (mapAction.filters && mapAction.filters.dealType === 'rent') params.set('deal', 'rent');
-  if (mapAction.filters && mapAction.filters.city) params.set('q', mapAction.filters.city);
+  // mapAction.filters uses the shared deal/q/types/maxPrice/beds/verified
+  // vocabulary (backend/app/mam/orchestrator.py's _search_filters_action
+  // and Tools.open_on_map both build it) -- translated here into
+  // map.html's own actual URL param names (?type=/?city=) since this is
+  // the one consumer that navigates via a real link rather than applying
+  // filters to an already-open page in place.
+  if (mapAction.filters && mapAction.filters.deal === 'rent') params.set('type', 'rent');
+  if (mapAction.filters && mapAction.filters.q) params.set('city', mapAction.filters.q);
   const btn = document.createElement('a');
   btn.className = 'mam-action-btn';
   btn.href = mapAction.target + (params.toString() ? '?' + params.toString() : '');
@@ -399,7 +405,7 @@ function buildMapActionButton(mapAction) {
 // aid, not a content claim that must always be shown.
 function resolveActionHref(a) {
   if (a.action === 'open_url' && a.payload && typeof a.payload.url === 'string') return a.payload.url;
-  if (a.action === 'open_map') return 'buy-rent-map.html';
+  if (a.action === 'open_map') return 'map.html';
   if (a.action === 'open_listing' && a.payload && a.payload.listingId) return 'listing.html?id=' + encodeURIComponent(a.payload.listingId);
   return null;
 }
@@ -494,9 +500,9 @@ function openPropertySheet(card) {
     const actions = [{ label: tr('mam.viewListing', 'View full listing'), href: 'listing.html?id=' + encodeURIComponent(card.listingId) }];
     if (card.city) {
       const p = new URLSearchParams();
-      if (card.dealType === 'rent') p.set('deal', 'rent');
-      p.set('q', card.city);
-      actions.push({ label: tr('mam.openMap', 'Open on the map'), href: 'buy-rent-map.html?' + p.toString() });
+      if (card.dealType === 'rent') p.set('type', 'rent');
+      p.set('city', card.city);
+      actions.push({ label: tr('mam.openMap', 'Open on the map'), href: 'map.html?' + p.toString() });
     }
     wrap.appendChild(sheetActionRow(actions));
     return wrap;
@@ -508,8 +514,8 @@ function openProjectSheet(card) {
     wrap.appendChild(buildProjectCard(card));
     const actions = [];
     if (card.city) {
-      const p = new URLSearchParams(); p.set('q', card.city);
-      actions.push({ label: tr('mam.openMap', 'Open on the map'), href: 'buy-rent-map.html?' + p.toString() });
+      const p = new URLSearchParams(); p.set('city', card.city);
+      actions.push({ label: tr('mam.openMap', 'Open on the map'), href: 'map.html?' + p.toString() });
     }
     if (actions.length) wrap.appendChild(sheetActionRow(actions));
     return wrap;

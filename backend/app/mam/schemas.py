@@ -102,7 +102,7 @@ class MapAction:
     frontend is responsible for actually rendering the map; MAM only ever
     tells it where to go and with what filters."""
 
-    target: str  # "buy-rent-map.html"
+    target: str  # "map.html" -- the one public Properties Map
     filters: dict[str, Any] = field(default_factory=dict)
     focus_listing_id: str | None = None
 

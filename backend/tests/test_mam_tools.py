@@ -71,6 +71,24 @@ async def test_search_properties_never_leaks_private_fields():
 
 
 @pytest.mark.asyncio
+async def test_search_properties_survives_a_malformed_createdAt():
+    # Regression: the sort key used to call .timestamp() on createdAt
+    # unconditionally whenever the field was present -- a document
+    # written by anything other than the normal listing-creation path
+    # (e.g. a seed/test script storing createdAt as a plain string) made
+    # that ONE document crash the sort, taking the entire search down
+    # with it (caught only by routes.py's generic 500, indistinguishable
+    # from a real outage to every visitor searching that city/type).
+    tools, db = make_tools()
+    seed_listing(db, "good1", city="Kirkuk", createdAt="not-a-real-timestamp")
+    seed_listing(db, "good2", city="Kirkuk")
+
+    result = await tools.search_properties(PUBLIC_CALLER, city="Kirkuk")
+    ids = {r["listingId"] for r in result["results"]}
+    assert ids == {"good1", "good2"}
+
+
+@pytest.mark.asyncio
 async def test_search_properties_respects_result_cap():
     tools, db = make_tools()
     for i in range(MAX_RESULTS + 5):
@@ -171,7 +189,7 @@ async def test_search_services_returns_static_catalog():
 async def test_open_on_map_is_pure_action_never_a_data_claim():
     tools, _ = make_tools()
     result = await tools.open_on_map(PUBLIC_CALLER, deal_type="rent", city="Erbil")
-    assert result == {"target": "buy-rent-map.html", "filters": {"dealType": "rent", "city": "Erbil"}, "focusListingId": None}
+    assert result == {"target": "map.html", "filters": {"deal": "rent", "q": "Erbil"}, "focusListingId": None}
 
 
 @pytest.mark.asyncio

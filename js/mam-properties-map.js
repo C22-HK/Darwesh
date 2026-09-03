@@ -1,12 +1,14 @@
-// MAM Buy/Rent AI -- the ONLY user-facing MAM surface now (mam-ai.html is
-// no longer linked from public navigation, see js/site-header.js). This
-// module never re-implements property search: every reply comes from the
-// exact same backend endpoint/tools mam-v2.js already used
-// (POST /api/v1/mam/chat via js/mam-api.js), and the ONLY way a reply
-// changes what's on screen is by calling window.DarweshBuyRentMap
-// (defined in buy-rent-map.html's own inline script) with the same
-// filter keys that page's own filter drawer/URL state already use --
-// there is no second, AI-only search implementation here.
+// MAM AI -- the ONLY user-facing MAM surface now (mam-ai.html is no
+// longer linked from public navigation, see js/site-header.js), living
+// on the ONE public Properties Map (map.html) rather than a map of its
+// own. This module never re-implements property search: every reply
+// comes from the exact same backend endpoint/tools mam-v2.js already
+// used (POST /api/v1/mam/chat via js/mam-api.js), and the ONLY way a
+// reply changes what's on screen is by calling window.DarweshPropertiesMap
+// (defined in map.html's own inline script) with the same deal/q/types/
+// minPrice/maxPrice/beds filter keys backend/app/mam/orchestrator.py's
+// _search_filters_action and Tools.open_on_map both already use -- there
+// is no second, AI-only search implementation here.
 //
 // Like mam-v2.js, rendering never inserts backend/model text as HTML --
 // every dynamic value reaches the DOM via textContent/element properties.
@@ -15,7 +17,7 @@ import { sendMamChat, BackendUnavailableError, BackendResponseError } from './ma
 import { MamCompanion } from './mam-companion.js';
 
 const MAX_MESSAGE_LENGTH = 1000;
-const SESSION_KEY = 'darwesh_mam_buyrent_session_id';
+const SESSION_KEY = 'darwesh_mam_properties_session_id';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 function trf(key, fallback, vars) {
@@ -45,10 +47,10 @@ const micBtn = document.getElementById('drmAiMicBtn');
 const micIcon = document.getElementById('drmAiMicIcon');
 
 if (!wrap || !form) {
-  // Defensive -- this module is only ever loaded from buy-rent-map.html,
-  // which always has this markup, but never crash a page over a missing
+  // Defensive -- this module is only ever loaded from map.html, which
+  // always has this markup, but never crash a page over a missing
   // optional widget.
-  console.error('[mam-buyrent] expected DOM not found -- AI dock disabled');
+  console.error('[mam-properties-map] expected DOM not found -- AI dock disabled');
 } else {
   init();
 }
@@ -58,9 +60,9 @@ function init() {
   // The companion is an ambient AI-availability indicator here, not a
   // launcher to a separate page (there is no standalone MAM page to
   // launch to anymore) -- clicking it just focuses/opens this page's own
-  // AI dock, per its stated role for this pass. mam-companion.js doesn't
-  // expose its DOM node, so this queries for the one instance this page
-  // ever mounts, the same way any host page would.
+  // AI dock. mam-companion.js doesn't expose its DOM node, so this
+  // queries for the one instance this page ever mounts, the same way
+  // any host page would.
   const companionOrb = document.querySelector('.mamco-orb');
   if (companionOrb) {
     companionOrb.style.cursor = 'pointer';
@@ -73,7 +75,6 @@ function init() {
     ['drm.ai.chip2', 'Apartments for rent in Kirkuk'],
     ['drm.ai.chip3', 'Under 150 million'],
     ['drm.ai.chip4', '3 bedrooms'],
-    ['drm.ai.chip5', 'Near a school'],
   ];
   CHIPS.forEach(([key, fallback]) => {
     const btn = document.createElement('button');
@@ -136,7 +137,7 @@ function init() {
       return a;
     }
     if (card.kind === 'project') {
-      a.href = 'buy-rent-map.html?q=' + encodeURIComponent(card.city || '');
+      a.href = 'map.html?city=' + encodeURIComponent(card.city || '');
       const body = document.createElement('div');
       body.className = 'drm-ai-ref-card-body';
       const title = document.createElement('p');
@@ -196,13 +197,13 @@ function init() {
   }
 
   // ---- Applying MAM's reply onto the REAL page state -------------------
-  // The single integration point with buy-rent-map.html's own script --
-  // this module never filters/searches listings itself.
+  // The single integration point with map.html's own script -- this
+  // module never filters/searches listings itself.
   function applyMapAction(mapAction) {
-    if (!mapAction || mapAction.target !== 'buy-rent-map.html') return;
+    if (!mapAction || mapAction.target !== 'map.html') return;
     if (!mapAction.filters || !Object.keys(mapAction.filters).length) return;
-    if (window.DarweshBuyRentMap && typeof window.DarweshBuyRentMap.applyFilters === 'function') {
-      window.DarweshBuyRentMap.applyFilters(mapAction.filters);
+    if (window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function') {
+      window.DarweshPropertiesMap.applyFilters(mapAction.filters);
     }
   }
 

@@ -104,7 +104,7 @@ async def test_deterministic_search_properties_reports_real_filters_used_for_buy
     # Proves the natural-language -> real-filter translation the Buy/Rent
     # AI integration depends on: the returned mapAction.filters must be
     # built from the SAME arguments that produced the returned cards, in
-    # buy-rent-map.html's own filter key vocabulary (deal/q/types/
+    # map.html's own filter key vocabulary (deal/q/types/
     # maxPrice/beds) -- never a second, independently-guessed filter set.
     orch = make_orchestrator(provider=None)
     response = await orch.handle_turn(
@@ -112,7 +112,7 @@ async def test_deterministic_search_properties_reports_real_filters_used_for_buy
     )
     assert len(response.cards) == 1
     assert response.map_action is not None
-    assert response.map_action.target == "buy-rent-map.html"
+    assert response.map_action.target == "map.html"
     assert response.map_action.filters.get("q") == "Erbil"
     assert response.map_action.filters.get("types") == ["villa"]
     assert "deal" not in response.map_action.filters  # sale is the default, never sent explicitly
@@ -189,7 +189,7 @@ async def test_map_intent_produces_map_action_never_a_data_claim():
     orch = make_orchestrator(provider=None)
     response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("open the map"))
     assert response.map_action is not None
-    assert response.map_action.target == "buy-rent-map.html"
+    assert response.map_action.target == "map.html"
 
 
 @pytest.mark.asyncio

@@ -1,10 +1,16 @@
 // Darwesh shared public mobile bottom navigation -- the ONE canonical
-// bottom nav bar (Home, Buy/Rent Map, Explore Map, Services, Profile) for
-// every public content page at mobile widths. Reuses the exact
-// .home-bottomnav / .home-bottomnav-item classes and cine-scope design
-// tokens already proven on index.html rather than inventing new styling
-// -- see css/cinematic.css's own .home-bottomnav* rules (including the
-// safe-area-aware bottom padding added alongside this file).
+// bottom nav bar (Home, Properties Map, Services, Profile) for every
+// public content page at mobile widths. Just ONE map item, matching
+// js/site-header.js's own consolidation (see that file's header comment)
+// -- a bottom tab bar has no room for Buy/Rent as separate icons too, and
+// doesn't need them: map.html opens straight into Buy mode by default,
+// its own in-page Buy/Rent/All toggle switches modes in one tap, and the
+// MAM AI dock on that page understands "show me rentals" just as well.
+// Reuses the exact .home-bottomnav / .home-bottomnav-item classes and
+// cine-scope design tokens already proven on index.html rather than
+// inventing new styling -- see css/cinematic.css's own .home-bottomnav*
+// rules (including the safe-area-aware bottom padding added alongside
+// this file).
 //
 // Same classic-script, early-mount-point contract as js/site-header.js
 // (see that file's own header comment for the full reasoning): this must
@@ -15,10 +21,10 @@
 //
 // Usage, immediately after the site-header mount+script and before any
 // other script tag on the page:
-//   <div id="siteMobileNav" data-active="buyRentMap"></div>
+//   <div id="siteMobileNav" data-active="propertiesMap"></div>
 //   <script src="./js/site-mobile-nav.js"></script>
 // `data-active` uses the same keys as js/site-header.js: home,
-// buyRentMap, exploreMap, services -- omit/leave blank for a page with no
+// propertiesMap, services -- omit/leave blank for a page with no
 // matching destination. There is no separate "profile" key: Profile's
 // real destination is decided dynamically by js/nav-auth.js (which page
 // a signed-in user actually lands on), so it never shows as "current".
@@ -41,13 +47,9 @@
         '<span class="material-symbols-outlined" aria-hidden="true">home</span>' +
         '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.home">Home</span>' +
       '</a>' +
-      '<a class="' + itemClass('buyRentMap') + '" href="buy-rent-map.html"' + ariaCurrent('buyRentMap') + '>' +
+      '<a class="' + itemClass('propertiesMap') + '" href="map.html"' + ariaCurrent('propertiesMap') + '>' +
         '<span class="material-symbols-outlined" aria-hidden="true">map</span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="drm.navLabel">Buy/Rent Map</span>' +
-      '</a>' +
-      '<a class="' + itemClass('exploreMap') + '" href="map.html"' + ariaCurrent('exploreMap') + '>' +
-        '<span class="material-symbols-outlined" aria-hidden="true">travel_explore</span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.exploreMap">Explore Map</span>' +
+        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.propertiesMap">Properties Map</span>' +
       '</a>' +
       '<a class="' + itemClass('services') + '" href="services.html"' + ariaCurrent('services') + '>' +
         '<span class="material-symbols-outlined" aria-hidden="true">business_center</span>' +

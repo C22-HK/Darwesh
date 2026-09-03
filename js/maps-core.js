@@ -7,9 +7,12 @@
 // <script> injection / key handling -- that duplication is exactly what
 // this file exists to prevent.
 //
-// WIRED INTO: buy-rent-map.html (the public Buy/Rent discovery map,
-// Google-only, no Leaflet fallback needed since it has no pre-existing
-// implementation to preserve), the Admin Estate Intelligence Map and
+// WIRED INTO: buy-rent-map.html (Google-only, no Leaflet fallback needed
+// since it had no pre-existing implementation to preserve -- no longer
+// linked from public navigation as of the map consolidation that made
+// map.html the one public Properties Map, see
+// docs/MAM_V2_ARCHITECTURE.md section 21, but still functional and still
+// wired through this module), the Admin Estate Intelligence Map and
 // Admin Estate Data tabs in admin.html, and -- as a DUAL-ENGINE
 // migration, not a replacement -- the location pickers in sell.html and
 // agent-dashboard.html, where the original Leaflet + OpenStreetMap/

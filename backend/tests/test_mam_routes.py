@@ -180,7 +180,7 @@ def test_response_serialization_shape():
                 property_type="villa", beds=4, verified=True, image_url="https://example.com/x.jpg",
             ),
         ),
-        map_action=MapAction(target="buy-rent-map.html", filters={"city": "Erbil"}, focus_listing_id="l1"),
+        map_action=MapAction(target="map.html", filters={"q": "Erbil"}, focus_listing_id="l1"),
         suggested_actions=(SuggestedAction(label_key="k", label_fallback="Open map", action="open_map", payload={}),),
         session_id="s1",
     )

@@ -194,17 +194,19 @@ def _build_response(tool_name: str, arguments: dict, result: dict, language: str
 
 
 # Translates a resolved search_properties call's own arguments -- never a
-# fresh guess at the user's words -- into the exact filter keys
-# buy-rent-map.html's own client-side state already uses (state.dealType/
-# q/types/maxPrice/beds -- see that file's readStateFromUrl()). Reuses the
-# existing MapAction shape (section 4: "a deterministic navigation
-# instruction... MAM only ever tells it where to go and with what
-# filters") rather than inventing a second structured-filter field --
-# buy-rent-map.html's own frontend script decides whether "target" means
-# "navigate there" or, when already on that page, "apply these filters to
-# the live view in place." Only ever built from arguments the deterministic
-# resolver (or a provider's own tool call) already used to run the REAL
-# query -- so the filters shown always match the cards actually returned.
+# fresh guess at the user's words -- into the exact filter keys map.html's
+# own client-side state already uses (activeType/citySearch/selectedHome
+# Types/priceMax/bedsMin). Reuses the existing MapAction shape (section 4:
+# "a deterministic navigation instruction... MAM only ever tells it where
+# to go and with what filters") rather than inventing a second
+# structured-filter field -- map.html's own frontend script decides
+# whether "target" means "navigate there" or, when already on that page,
+# "apply these filters to the live view in place." Only ever built from
+# arguments the deterministic resolver (or a provider's own tool call)
+# already used to run the REAL query -- so the filters shown always match
+# the cards actually returned. Same deal/q/types/minPrice/maxPrice/beds/
+# verified vocabulary Tools.open_on_map's own filters use -- the two tools that can
+# ever produce a MapAction agree on one shape, not two.
 def _search_filters_action(arguments: dict) -> MapAction | None:
     filters: dict[str, Any] = {}
     if arguments.get("dealType") == "rent":
@@ -215,13 +217,15 @@ def _search_filters_action(arguments: dict) -> MapAction | None:
         filters["types"] = [arguments["propertyType"]]
     if arguments.get("maxPrice") is not None:
         filters["maxPrice"] = arguments["maxPrice"]
+    if arguments.get("minPrice") is not None:
+        filters["minPrice"] = arguments["minPrice"]
     if arguments.get("minBeds") is not None:
         filters["beds"] = arguments["minBeds"]
     if arguments.get("verifiedOnly"):
         filters["verified"] = True
     if not filters:
         return None
-    return MapAction(target="buy-rent-map.html", filters=filters)
+    return MapAction(target="map.html", filters=filters)
 
 
 def _property_card(r: dict) -> PropertyCard:

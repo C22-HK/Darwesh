@@ -499,6 +499,14 @@ the exact matrix run and results — real browser QA, not simulated).
 
 ## 20. Public surface: MAM lives inside Buy/Rent, not a standalone page
 
+> **Superseded by §21.** This section describes the state after MAM was
+> first pulled off `mam-ai.html` and into `buy-rent-map.html`. That page
+> turned out to be the *wrong* host — a newer, duplicate map next to the
+> site's real, older Properties Map (`map.html`) — so §21 moved MAM again,
+> this time onto `map.html`, and `buy-rent-map.html` was unlinked from
+> public navigation in turn. Kept here for the historical record of *why*
+> the intermediate step happened; §21 is the current architecture.
+
 **Product decision, not an architecture change to the intelligence
 layer**: `mam-ai.html` is no longer linked from any public navigation,
 CTA, or footer (`js/site-header.js`, `index.html`, `services.html`,
@@ -523,3 +531,108 @@ applyFilters(filters)` — which updates the same real `state`/URL/
 Firestore-backed list and map this page's own filter drawer already
 drives. Neither side re-implements search: the backend still owns
 "what matches," the frontend still owns "how it's shown."
+
+## 21. Map consolidation: one public Properties Map, MAM lives on it
+
+**The correction this section documents**: §20 put MAM's AI dock on
+`buy-rent-map.html` (created 2026-09-01, Google-Maps-based). That page
+was a *duplicate* of an older, more established public map,
+`map.html` (created 2026-08-21, Leaflet/OpenStreetMap-based, no API key
+required) — confirmed by reading each page's own git history rather than
+by name or assumption. `map.html` already had real favorites, "Request
+Viewing" → `submissions`, "Save Search" → `savedSearches`, and the
+private-listing city-rollup/reveal-exact-location flow that
+`buy-rent-map.html` never had. Shipping two public property maps, one of
+which happens to host the AI, was the actual product bug — not a
+tooling gap. This section moves MAM onto the real one and finishes
+un-duplicating the public map surface.
+
+**What moved, and what didn't**:
+
+- `map.html` is now the platform's one public Properties Map. It gained
+  the AI dock (`#drmAiWrap`/`#drmAiPanel`, `js/mam-properties-map.js`,
+  the migrated companion CSS) exactly as §20 built it for
+  `buy-rent-map.html` — the same component, same backend contract, same
+  "AI never re-implements search" rule, just re-hosted. `map.html`
+  exposes `window.DarweshPropertiesMap = {applyFilters, getState,
+  getVisibleCount, isReady}`, the direct successor to §20's
+  `window.DarweshBuyRentMap` — it manipulates `map.html`'s own
+  pre-existing module-scope filter state (`activeType`, `priceMin`,
+  `priceMax`, `bedsMin`, `citySearch`, `selectedHomeTypes`) and calls its
+  own pre-existing `refresh()`, never a second search implementation.
+- `buy-rent-map.html` had its AI dock, companion CSS, and
+  `js/mam-buyrent.js` script tag removed entirely (`js/mam-buyrent.js`
+  itself was deleted, confirmed unreferenced anywhere else first). It is
+  **not deleted** — it still renders and its own map/list/filter
+  functionality still works if visited directly — but it is unlinked
+  from every public nav, footer, and CTA site-wide, matching how
+  `mam-ai.html` was handled in §20: kept for internal/manual use, never
+  a second public destination.
+- Every site-wide link that pointed at `buy-rent-map.html`
+  (`index.html`, `account.html`, `services.html`, `buy.html`,
+  `rent.html`, `insights.html`, `profile.html`, `about.html`) now points
+  at `map.html`, preserving each link's existing query-string intent
+  (`?type=rent`, `?ai=1`, a search query, etc.) rather than dropping it.
+- The Admin Real Estate Intelligence Map (`admin.html`, §G in the prior
+  Google-Maps-migration report) is a separate, privileged, unrelated
+  surface — untouched by this section.
+
+**Nav consolidation**: the shared header (`js/site-header.js`) and
+mobile nav (`js/site-mobile-nav.js`) previously offered both a "Buy/Rent
+Map" and an "Explore Map" entry — two competing names for two different
+map pages. Both collapse into one **Properties Map** entry pointing at
+`map.html`, plus direct **Buy** (`map.html?type=sale`) and **Rent**
+(`map.html?type=rent`) entries so a global buy/rent intent lands
+straight in the matching mode on the one map, without a page detour.
+Final public nav order: Home, Buy, Rent, Properties Map, Professional
+Work, Services, About, Profile. MAM AI does not reappear as a standalone
+nav item — it remains reachable only as the ambient dock on `map.html`,
+per §20's original decision.
+
+**`MapAction.filters` vocabulary, unified**: §20 introduced this
+vocabulary (`deal`/`q`/`types`/`maxPrice`/`beds`/`verified`) for
+`_search_filters_action`, but `Tools.open_on_map` had independently grown
+its own, incompatible shape (`dealType`/`city`) that `js/mam-v2.js`'s
+map-link builders were the only consumer of. Both tools now emit the
+same vocabulary — `deal`/`q`/`types`/`minPrice`/`maxPrice`/`beds`/
+`verified` — and both target `map.html`. `js/mam-v2.js`,
+`js/mam-properties-map.js`, and `map.html`'s own `applyAiFilters` each
+translate that one shared vocabulary into their own real state/URL-param
+names (`map.html`'s real URL params are `type`/`city`, a third, distinct
+naming layer, unchanged by this section) — there is still exactly one
+shared wire vocabulary and N page-local translations, never two wire
+vocabularies.
+
+**Real bug found and fixed during this migration** (not merely a
+naming/routing change): `search_properties`'s result sort called
+`.timestamp()` unconditionally on any listing's `createdAt`. A single
+document whose `createdAt` was not a real Firestore Timestamp (e.g. a
+seed/test-script write, or the visibly malformed-looking listings a user
+screenshot showed alongside a repeated "That didn't go through" MAM
+error) crashed the *entire* search — every well-formed listing included
+— caught only by `routes.py`'s generic top-level 500 handler, with
+nothing pointing at the one bad document as the cause. Fixed with a
+defensive `_created_at_sort_key()` helper (`app/mam/tools.py`) that
+treats anything other than a real Timestamp as "no date" instead of
+raising; regression test added
+(`test_search_properties_survives_a_malformed_createdAt`). No Firestore
+data was modified, deleted, or fabricated to make this fix work — the
+malformed document(s), if any still exist in production, are left
+exactly as they are; only the code that used to crash on them was
+changed.
+
+**Sorani (Kurdish) `minPrice` gap closed**: the deterministic resolver
+(`app/mam/intent_resolver.py`) already computed `extract_price()`'s
+`isMin` flag for phrases like "زیاتر لە" / "لە سەر" ("more than X" /
+"over X") but never used it — only the max-price branch was wired to
+`search_properties`. `resolve_intent()` now sets `minPrice` on the
+`isMin` branch, `Tools.search_properties` gained a matching `min_price`
+parameter/filter, and `_search_filters_action` carries `minPrice`
+through to `MapAction.filters` for the live-provider tool-call path too
+— minimum-price Sorani phrasing now produces a real, filtered result on
+both the deterministic-fallback and live-provider paths, not just the
+maximum-price side. See `backend/tests/test_mam_sorani_benchmark.py` for
+the real phrases this is verified against, including two honestly
+recorded gaps (an unlisted district name, a fully currency-word-free
+colloquial price) that remain unresolved by design rather than being
+silently mis-guessed.
