@@ -57,6 +57,45 @@ class Config:
     # must never run in production -- see build_email_otp_handlers).
     otp_hmac_secret: str = ""
 
+    # --- MAM Intelligence V2 ---
+    # Every field below is optional and empty by default. The /api/v1/mam/*
+    # routes register unconditionally (same reasoning as /healthz -- their
+    # deterministic-only fallback path, app.mam.intent_resolver, needs no
+    # credential at all), but the LLM-backed reasoning tier only activates
+    # once mam_chat_provider names a configured provider. An unset or
+    # unrecognized value means "no live model" -- MAM still works for
+    # navigation/simple lookups, it just never claims to reason.
+    #
+    # mam_chat_provider selects which app.mam.providers adapter the
+    # orchestrator constructs: "gemini" | "openai" | "anthropic" | ""
+    # (empty = deterministic-fallback-only, the safe default). This is the
+    # ONLY place a provider choice is wired in -- see app.mam.providers.base
+    # for why nothing else in the mam package imports a provider SDK
+    # directly.
+    mam_chat_provider: str = ""
+
+    # Gemini/Vertex AI. Deliberately no API-key field: the intended
+    # production path authenticates via the Cloud Run service account's
+    # Application Default Credentials against Vertex AI (no secret to
+    # store at all), matching this backend's existing ADC pattern for
+    # Firebase Admin in production. gemini_project_id/location are not
+    # secrets -- see .env.example for why the Firebase project id is
+    # already public -- but have no default, since "which GCP project/
+    # region to bill" must never silently fall back to a guess.
+    gemini_project_id: str = ""
+    gemini_location: str = ""
+    gemini_model_flash: str = ""
+    gemini_model_pro: str = ""
+
+    # OpenAI/Anthropic direct-API adapters (evaluation-only today, per
+    # app.mam.providers.openai/anthropic's own docstrings -- neither makes
+    # a live call yet). Real secrets, sourced from Google Secret Manager
+    # via Cloud Run's secret-injection env vars in production, same as
+    # every other credential in this file -- never hardcoded, never
+    # logged.
+    openai_api_key: str = ""
+    anthropic_api_key: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.env == "production"
@@ -83,4 +122,11 @@ def load() -> Config:
         resend_api_key=os.environ.get("RESEND_API_KEY", ""),
         reset_email_from=os.environ.get("RESET_EMAIL_FROM", ""),
         otp_hmac_secret=os.environ.get("OTP_HMAC_SECRET", ""),
+        mam_chat_provider=os.environ.get("MAM_CHAT_PROVIDER", ""),
+        gemini_project_id=os.environ.get("GEMINI_PROJECT_ID", ""),
+        gemini_location=os.environ.get("GEMINI_LOCATION", ""),
+        gemini_model_flash=os.environ.get("GEMINI_MODEL_FLASH", ""),
+        gemini_model_pro=os.environ.get("GEMINI_MODEL_PRO", ""),
+        openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
+        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
     )

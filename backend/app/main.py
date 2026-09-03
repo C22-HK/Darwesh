@@ -25,6 +25,13 @@ from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import FirestoreRateLimiter, Handler, InMemoryRateLimiter
 from app.config import Config, load
+from app.mam.firebase_clients import MamFirebaseClients
+from app.mam.orchestrator import Orchestrator
+from app.mam.providers.base import ChatProvider
+from app.mam.rate_limit import build_mam_rate_limiters
+from app.mam.routes import MamHandler
+from app.mam.session import SessionStore
+from app.mam.tools import Tools
 from app.otp.email_handler import EmailOtpSendHandler, EmailOtpVerifyHandler, SignupCompleteHandler
 from app.otp.email_sender import MockEmailSender, ResendOtpEmailSender
 from app.otp.firebase_admin_ops import EmailUidResolver, FirebaseAccountOps
@@ -293,6 +300,84 @@ def build_access_handlers(
     )
 
 
+def build_mam_provider(cfg: Config) -> ChatProvider | None:
+    """Constructs the configured MAM chat provider adapter, or None (safe
+    default: deterministic-fallback-only, see intent_resolver.py). Every
+    adapter's constructor validates its own required settings and raises
+    ValueError if incomplete -- caught here the same way build_auth_handler
+    treats a misconfigured dependency: log and fall back, never crash
+    startup over an optional feature. No adapter makes a live call yet
+    (see each providers/*.py module docstring) -- this only decides WHICH
+    validated placeholder, if any, orchestrator.py holds."""
+    provider_name = cfg.mam_chat_provider.strip().lower()
+    if not provider_name:
+        return None
+    try:
+        if provider_name == "gemini":
+            from app.mam.providers.gemini import GeminiProvider
+
+            return GeminiProvider(
+                project_id=cfg.gemini_project_id,
+                location=cfg.gemini_location,
+                model_flash=cfg.gemini_model_flash,
+                model_pro=cfg.gemini_model_pro,
+            )
+        if provider_name == "openai":
+            from app.mam.providers.openai import OpenAIProvider
+
+            return OpenAIProvider(api_key=cfg.openai_api_key)
+        if provider_name == "anthropic":
+            from app.mam.providers.anthropic import AnthropicProvider
+
+            return AnthropicProvider(api_key=cfg.anthropic_api_key)
+        logger.error("MAM_CHAT_PROVIDER=%r is not a recognized provider -- ignoring", provider_name)
+        return None
+    except ValueError as exc:
+        logger.error("MAM chat provider misconfigured, falling back to deterministic-only", extra={"error": str(exc)})
+        return None
+
+
+def build_mam_handler(cfg: Config) -> MamHandler | None:
+    """Wires up POST /api/v1/mam/chat. Gated on the same Firebase Admin
+    credential check as every other Firebase-backed feature in this file
+    (_has_firebase_credential) -- unlike the OTP/access endpoints, MAM's
+    OWN chat semantics are explicitly public (a visitor never needs to
+    sign in to talk to MAM), but its deterministic tools (search_properties,
+    get_market_summary, etc. -- app.mam.tools.Tools) still read real data
+    from Firestore, so there is no meaningful MAM endpoint to register at
+    all without a Firestore client to back it. mam_chat_provider/the
+    Gemini/OpenAI/Anthropic secrets are independently optional on top of
+    that -- see build_mam_provider above; their absence only means MAM
+    never reasons beyond intent_resolver's deterministic patterns, not
+    that the route doesn't exist."""
+    if not _has_firebase_credential(cfg):
+        logger.info(
+            "MAM endpoint not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or deploy with "
+            "APP_ENV=production to use Application Default Credentials -- to enable it)"
+        )
+        return None
+
+    try:
+        clients = MamFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id)
+    except ValueError as exc:
+        logger.error("MAM endpoint misconfigured, skipping", extra={"error": str(exc)})
+        return None
+
+    db = clients.firestore_client
+    auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
+    provider = build_mam_provider(cfg)
+    orchestrator = Orchestrator(
+        tools=Tools(db=db, logger=logger),
+        sessions=SessionStore(),
+        provider=provider,
+        logger=logger,
+    )
+    rate_limiters = build_mam_rate_limiters(db=db, is_production=cfg.is_production)
+
+    logger.info("MAM endpoint enabled", extra={"provider": provider.__class__.__name__ if provider else "none"})
+    return MamHandler(orchestrator=orchestrator, auth=auth_gate, rate_limiters=rate_limiters, logger=logger)
+
+
 def create_configured_app():
     cfg = load()
     logging.basicConfig(
@@ -305,6 +390,7 @@ def create_configured_app():
         build_email_otp_handlers(cfg)
     )
     organization_handler, permission_admin_handler, company_handler = build_access_handlers(cfg)
+    mam_handler = build_mam_handler(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -315,6 +401,7 @@ def create_configured_app():
         organization_handler,
         permission_admin_handler,
         company_handler,
+        mam_handler,
     )
 
 

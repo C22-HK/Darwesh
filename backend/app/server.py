@@ -27,6 +27,7 @@ def create_app(
     organization_handler: object | None = None,
     permission_admin_handler: object | None = None,
     company_handler: object | None = None,
+    mam_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -43,7 +44,11 @@ def create_app(
     app.main.build_access_handlers, gated on the same Firebase Admin
     credential check). company_handler backs Phase 3's additive real
     estate office (`companies`) employee-membership endpoints -- gated on
-    the same credential check, registered alongside organization_handler."""
+    the same credential check, registered alongside organization_handler.
+    mam_handler backs MAM Intelligence V2's single chat endpoint (see
+    app.mam.routes) -- gated on the same Firebase Admin credential check
+    (MAM's own tools read real Firestore data), independent of whether a
+    live chat provider is configured (see app.main.build_mam_handler)."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -202,6 +207,8 @@ def create_app(
         app.add_api_route(
             "/api/v1/access/me/permissions", permission_admin_handler.get_my_permissions, methods=["GET"]
         )
+    if mam_handler is not None:
+        app.add_api_route("/api/v1/mam/chat", mam_handler.chat, methods=["POST"])
 
     return app
 
