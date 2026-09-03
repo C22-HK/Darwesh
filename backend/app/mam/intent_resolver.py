@@ -80,7 +80,17 @@ CITY_KEYWORDS = {
 PROPERTY_TYPE_KEYWORDS = {
     "house": ["house", "خانوو", "خانووی", "منزل", "بیت"],
     "villa": ["villa", "ڤیلا", "فيلا"],
-    "apartment": ["apartment", "flat", "ئاپارتمان", "شوقه", "شقه"],
+    # "شوقه" (Arabic-script heh, U+0647) and "شوقە" (native Sorani AE,
+    # U+06D5) are two real spellings of the same word -- ه/ە are distinct
+    # Kurdish letters (a consonant vs. a vowel), not a keyboard variant
+    # normalize_text() can safely conflate the way it already does ك->ک
+    # or ي/ى->ی (that would risk mismatching unrelated words), so both
+    # spellings are listed explicitly here instead. Only "شوقه" was
+    # present before -- a live Sorani speaker typing the native "شوقە"
+    # spelling (see backend/tests/test_mam_sorani_benchmark.py) never
+    # matched, so propertyType silently stayed unset for a real, common
+    # apartment-rental phrase.
+    "apartment": ["apartment", "flat", "ئاپارتمان", "شوقه", "شوقە", "شقه"],
     "land": ["land", "plot", "زەوی", "قطعه ارض", "أرض", "ارض"],
     "building": ["building", "بینا", "بنایە", "مبنى", "عمارة"],
     "office": ["office", "ofîs", "ئۆفیس", "فەرمانگە", "مکتب"],
@@ -183,12 +193,20 @@ def resolve_intent(message: str) -> ResolvedIntent | None:
     price = extract_price(norm)
     bedrooms = extract_bedrooms(norm)
 
-    # A specific enough search (city + at least one more constraint) goes
-    # straight to search_properties -- the same "only treat as a real
-    # search when specific enough" rule mam-ai.html's
-    # extractSearchCriteria already used.
-    if city and (property_type or deal_type or price or bedrooms):
-        args: dict = {"city": city}
+    # A specific enough search goes straight to search_properties -- the
+    # same "only treat as a real search when specific enough" rule
+    # mam-ai.html's extractSearchCriteria already used, extended to also
+    # cover a message with NO city but at least two other real
+    # constraints (e.g. "شوقەی ٢ ژوور بۆ کرێ" -- apartment + rent +
+    # bedrooms, a completely ordinary real query with no location filter).
+    # City alone was standing in for "specific enough" before; requiring
+    # two signals in its absence keeps the same specificity bar rather
+    # than resolving on a single loose keyword.
+    other_signal_count = sum(1 for s in (property_type, deal_type, price, bedrooms) if s)
+    if (city and other_signal_count >= 1) or (not city and other_signal_count >= 2):
+        args: dict = {}
+        if city:
+            args["city"] = city
         if property_type:
             args["propertyType"] = property_type
         if deal_type:

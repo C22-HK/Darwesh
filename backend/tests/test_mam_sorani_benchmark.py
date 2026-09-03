@@ -131,6 +131,45 @@ def test_sorani_city_alt_spelling_kirkuk_variant():
     assert intent.arguments.get("propertyType") == "villa"
 
 
+# ---- Native Sorani "شوقە" (apartment) spelling, U+06D5 AE not U+0647 heh --
+# Found live: a real deployed request for "شوقە بۆ کرێ لە کەرکووک" returned
+# deal=rent/q=Kirkuk but no types=["apartment"] in mapAction -- the keyword
+# list only had the Arabic-script "شوقه" (heh) spelling, never the native
+# Sorani "شوقە" (AE) one a real Sorani speaker actually typed.
+def test_sorani_apartment_native_spelling_rent_kirkuk():
+    intent = resolve_intent("شوقە بۆ کرێ لە کەرکووک")
+    assert intent is not None
+    assert intent.tool_name == "search_properties"
+    assert intent.arguments == {"city": "Kirkuk", "propertyType": "apartment", "dealType": "rent"}
+
+
+def test_sorani_apartment_native_spelling_sale_erbil():
+    intent = resolve_intent("شوقە بۆ فرۆشتن لە هەولێر")
+    assert intent is not None
+    assert intent.arguments.get("propertyType") == "apartment"
+    assert intent.arguments.get("city") == "Erbil"
+    assert intent.arguments.get("dealType") == "sale"
+
+
+def test_sorani_apartment_native_spelling_with_bedrooms_rent():
+    intent = resolve_intent("شوقەی ٢ ژوور بۆ کرێ")
+    assert intent is not None
+    assert intent.arguments.get("propertyType") == "apartment"
+    assert intent.arguments.get("minBeds") == 2
+    assert intent.arguments.get("dealType") == "rent"
+
+
+def test_sorani_apartment_native_spelling_produces_map_action_types():
+    # End-to-end proof this reaches the actual MapAction.filters shape the
+    # live bug was reported against, not just resolve_intent()'s own args.
+    from app.mam.orchestrator import _search_filters_action
+
+    intent = resolve_intent("شوقە بۆ کرێ لە کەرکووک")
+    action = _search_filters_action(intent.arguments)
+    assert action is not None
+    assert action.filters.get("types") == ["apartment"]
+
+
 # ---- Mixed English/Kurdish -------------------------------------------------
 def test_sorani_mixed_english_kurdish():
     intent = resolve_intent("house بۆ فرۆشتن لە Erbil")
