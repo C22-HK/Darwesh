@@ -92,7 +92,7 @@ class Orchestrator:
             )
         except ToolExecutionError as exc:
             return ChatResponse(message=str(exc), language=language)
-        return _build_response(resolved.tool_name, result, language)
+        return _build_response(resolved.tool_name, resolved.arguments, result, language)
 
     async def _respond_from_provider(self, caller: MamCaller, request: ChatRequest, *, session_id: str) -> ChatResponse:
         # ASK -> UNDERSTAND -> TOOLS -> ACT -> STRUCTURED RESULT, with a
@@ -142,11 +142,11 @@ class Orchestrator:
         raise RuntimeError(f"mam: provider did not produce a final answer within {_MAX_TOOL_ROUNDS} tool-call rounds")
 
 
-def _build_response(tool_name: str, result: dict, language: str) -> ChatResponse:
+def _build_response(tool_name: str, arguments: dict, result: dict, language: str) -> ChatResponse:
     if tool_name == "search_properties":
         cards = tuple(_property_card(r) for r in result.get("results", []))
         msg = _count_message(len(cards), language)
-        return ChatResponse(message=msg, language=language, cards=cards)
+        return ChatResponse(message=msg, language=language, cards=cards, map_action=_search_filters_action(arguments))
 
     if tool_name == "get_property":
         if not result.get("found"):
@@ -191,6 +191,37 @@ def _build_response(tool_name: str, result: dict, language: str) -> ChatResponse
     # via `comparison` (a generic structured-data slot) rather than a card,
     # since these don't map to a listing/project/professional card shape.
     return ChatResponse(message="", language=language, comparison={tool_name: result})
+
+
+# Translates a resolved search_properties call's own arguments -- never a
+# fresh guess at the user's words -- into the exact filter keys
+# buy-rent-map.html's own client-side state already uses (state.dealType/
+# q/types/maxPrice/beds -- see that file's readStateFromUrl()). Reuses the
+# existing MapAction shape (section 4: "a deterministic navigation
+# instruction... MAM only ever tells it where to go and with what
+# filters") rather than inventing a second structured-filter field --
+# buy-rent-map.html's own frontend script decides whether "target" means
+# "navigate there" or, when already on that page, "apply these filters to
+# the live view in place." Only ever built from arguments the deterministic
+# resolver (or a provider's own tool call) already used to run the REAL
+# query -- so the filters shown always match the cards actually returned.
+def _search_filters_action(arguments: dict) -> MapAction | None:
+    filters: dict[str, Any] = {}
+    if arguments.get("dealType") == "rent":
+        filters["deal"] = "rent"
+    if arguments.get("city"):
+        filters["q"] = arguments["city"]
+    if arguments.get("propertyType"):
+        filters["types"] = [arguments["propertyType"]]
+    if arguments.get("maxPrice") is not None:
+        filters["maxPrice"] = arguments["maxPrice"]
+    if arguments.get("minBeds") is not None:
+        filters["beds"] = arguments["minBeds"]
+    if arguments.get("verifiedOnly"):
+        filters["verified"] = True
+    if not filters:
+        return None
+    return MapAction(target="buy-rent-map.html", filters=filters)
 
 
 def _property_card(r: dict) -> PropertyCard:

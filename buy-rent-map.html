@@ -60,6 +60,7 @@ gracefully (see js/maps-core.js). -->
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/mam-companion.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -98,6 +99,105 @@ gracefully (see js/maps-core.js). -->
     .drm-map-btn.active { background: #C89A4A; color: #17150F; }
     .drm-mobile-toggle { position: fixed; bottom: calc(6.5rem + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 60; }
     @media (min-width: 768px) { .drm-mobile-toggle { display: none; } }
+
+    /* ---- MAM Buy/Rent AI ---------------------------------------------
+     * A floating assistant dock layered OVER the live map/results -- an
+     * original Darwesh implementation. The interaction shape (a compact
+     * search bar that expands into a conversation panel, both staying on
+     * top of the real search behind them) is the only thing taken as
+     * reference from Zillow's own AI search UX; every asset, string, and
+     * pixel value below is this codebase's own cinematic dark-luxury
+     * palette (see css/cinematic.css), not copied markup/CSS. */
+    #drmAiWrap {
+      position: fixed; z-index: 65; left: 50%; transform: translateX(-50%);
+      bottom: 20px; width: min(92vw, 640px);
+      display: flex; flex-direction: column; gap: 10px; align-items: stretch;
+      pointer-events: none;
+    }
+    #drmAiWrap > * { pointer-events: auto; }
+    .drm-ai-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+    .drm-ai-chip {
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+      background: #17150Fcc; backdrop-filter: blur(6px); color: #F2EEE5; border: 1px solid #5D482B;
+      border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap;
+    }
+    .drm-ai-chip:hover { border-color: #B89A63; }
+    .drm-ai-bar {
+      display: flex; align-items: center; gap: 8px;
+      background: #17150Ff2; backdrop-filter: blur(10px); border: 1px solid #5D482B;
+      border-radius: 999px; padding: 7px 7px 7px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.4);
+    }
+    .drm-ai-mark {
+      width: 22px; height: 22px; border-radius: 999px; flex: none; position: relative;
+      background: radial-gradient(circle at 35% 30%, #221E15, #17150F 70%); border: 1px solid #5D482B;
+    }
+    .drm-ai-mark::after { content: ''; position: absolute; inset: 0; margin: auto; width: 6px; height: 6px; border-radius: 999px; background: #B89A63; }
+    #drmAiInput { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #F2EEE5; font-family: 'Inter', sans-serif; font-size: 14px; }
+    #drmAiInput::placeholder { color: #A79F91; }
+    .drm-ai-icon-btn { flex: none; width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+    .drm-ai-send { background: #B89A63; color: #090A0A; }
+    .drm-ai-send:disabled { opacity: .5; cursor: not-allowed; }
+    .drm-ai-mic { background: transparent; color: #F2EEE5; border: 1px solid #5D482B; }
+    .drm-ai-mic.mic-listening { background: #E5787A; border-color: #E5787A; color: #090A0A; }
+
+    #drmAiPanel {
+      display: flex; flex-direction: column; background: #17150Ff5; backdrop-filter: blur(10px);
+      border: 1px solid #5D482B; border-radius: 20px; box-shadow: 0 12px 40px rgba(0,0,0,.45);
+      max-height: 56vh; overflow: hidden;
+    }
+    .drm-ai-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #5D482B; flex: none; }
+    .drm-ai-panel-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; color: #F2EEE5; letter-spacing: .04em; text-transform: uppercase; }
+    .drm-ai-close { background: none; border: none; color: #A79F91; cursor: pointer; padding: 4px; border-radius: 999px; display: flex; }
+    .drm-ai-close:hover { color: #F2EEE5; }
+    #drmAiLog { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+    .drm-ai-bubble { border-radius: 16px; padding: 10px 14px; max-width: 88%; font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.45; }
+    .drm-ai-bubble-user { align-self: flex-end; background: #B89A63; color: #090A0A; border-end-end-radius: 4px; }
+    .drm-ai-bubble-assistant { align-self: flex-start; background: #221E15; color: #F2EEE5; border: 1px solid #5D482B; border-start-start-radius: 4px; }
+    .drm-ai-bubble-error { border-color: #E5787A; }
+    .drm-ai-retry { margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #B89A63; background: none; border: 1px solid #5D482B; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+    .drm-ai-thinking { display: flex; gap: 4px; padding: 10px 14px; }
+    .drm-ai-dot { width: 6px; height: 6px; border-radius: 999px; background: #8E7448; animation: drm-ai-dot-bounce 1.2s infinite; }
+    .drm-ai-dot:nth-child(2) { animation-delay: .15s; }
+    .drm-ai-dot:nth-child(3) { animation-delay: .3s; }
+    @keyframes drm-ai-dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .drm-ai-dot { animation: none; opacity: .8; } }
+
+    .drm-ai-ref-cards { display: flex; gap: 8px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
+    .drm-ai-ref-card { flex: none; width: 132px; border-radius: 12px; overflow: hidden; background: #1C1912; border: 1px solid #5D482B; text-align: start; cursor: pointer; text-decoration: none; display: block; }
+    .drm-ai-ref-card-media { height: 68px; background: #221E15; }
+    .drm-ai-ref-card-media img { width: 100%; height: 100%; object-fit: cover; }
+    .drm-ai-ref-card-body { padding: 6px 8px 8px; }
+    .drm-ai-ref-card-title { font-size: 11px; font-weight: 700; color: #F2EEE5; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .drm-ai-ref-card-price { font-size: 11px; font-weight: 700; color: #B89A63; margin-top: 3px; }
+
+    @media (max-width: 767px) {
+      #drmAiWrap { bottom: calc(6.5rem + 62px + env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
+      #drmAiPanel { max-height: 62vh; }
+    }
+    /* #drmAiPanel/.drm-ai-chips set their own `display` above -- both an
+       ID selector and a same-specificity-as-.hidden class selector that
+       happens to be defined AFTER css/tailwind.css in the cascade, either
+       of which would otherwise beat Tailwind's plain `.hidden{display:
+       none}` utility and leave the panel visible while "closed." This is
+       the one, explicit place that guarantees `hidden` always wins. */
+    #drmAiPanel.hidden, .drm-ai-chips.hidden { display: none !important; }
+    /* The AI dock floats fixed over the bottom of the list panel (by
+       design, matching the layered "assistant over live results" shape
+       this is inspired by) -- this reserves enough scroll room that the
+       last real card can still be scrolled fully clear of it, rather
+       than staying permanently obscured. */
+    #drmListPanel { padding-bottom: 180px; }
+    @media (min-width: 768px) { #drmListPanel { padding-bottom: 96px; } }
+    /* css/mam-companion.css deliberately docks to the same PHYSICAL edge
+       in both directions (see its own comment) -- the right choice on a
+       page with nothing competing for that edge. Here, though, the list
+       panel itself moves to the right in RTL (matching reading
+       direction), which would put the companion right on top of it.
+       This page-scoped override keeps the companion over the map side
+       instead, in both directions -- a host page restyling the shared
+       module for its own layout, not a change to the module's default. */
+    html[dir="rtl"] .mamco-root { right: auto; left: 20px; }
+    @media (max-width: 767px) { html[dir="rtl"] .mamco-root { left: 10px; right: auto; } }
   </style>
   </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -233,6 +333,34 @@ gracefully (see js/maps-core.js). -->
 <button id="drmMobileListBtn" type="button" class="px-4 py-2 rounded-full font-label-caps text-label-caps bg-on-primary/20" data-i18n="drm.listView">List</button>
 <button id="drmMobileMapBtn" type="button" class="px-4 py-2 rounded-full font-label-caps text-label-caps" data-i18n="drm.mapView">Map</button>
 </div>
+
+<!-- MAM Buy/Rent AI -- floating dock over the live map/results (js/mam-buyrent.js).
+     Never a separate page: applies real filters to the state above and
+     shows real result cards, staying on this page throughout. -->
+<div id="drmAiWrap">
+<div id="drmAiPanel" class="hidden" role="log" aria-live="polite" aria-label="MAM conversation">
+<div class="drm-ai-panel-header">
+<span class="drm-ai-panel-title">MAM</span>
+<button id="drmAiCloseBtn" type="button" class="drm-ai-close" aria-label="Close">
+<span class="material-symbols-outlined" style="font-size:20px;">close</span>
+</button>
+</div>
+<div id="drmAiLog"></div>
+</div>
+<div id="drmAiChips" class="drm-ai-chips"></div>
+<form id="drmAiForm" class="drm-ai-bar">
+<span class="drm-ai-mark" aria-hidden="true"></span>
+<input id="drmAiInput" type="text" autocomplete="off" maxlength="1000" data-i18n-placeholder="drm.ai.placeholder" placeholder="Ask MAM about properties…" aria-label="Ask MAM about properties"/>
+<button id="drmAiMicBtn" type="button" class="drm-ai-icon-btn drm-ai-mic hidden" aria-label="Speak your question">
+<span class="material-symbols-outlined" id="drmAiMicIcon" style="font-size:18px;">mic</span>
+</button>
+<button id="drmAiSendBtn" type="submit" class="drm-ai-icon-btn drm-ai-send" aria-label="Send message">
+<span class="material-symbols-outlined" style="font-size:18px;">send</span>
+</button>
+</form>
+</div>
+
+<script type="module" src="./js/mam-buyrent.js"></script>
 
 <script type="module">
 import { db, getDocs } from './js/firebase-init.js';
@@ -737,6 +865,12 @@ document.getElementById('drmLocationInput').addEventListener('input', (e) => { s
 
 document.getElementById('drmMoreFiltersBtn').addEventListener('click', () => document.getElementById('drmFilterDrawer').classList.remove('hidden'));
 document.getElementById('drmFilterCloseBtn').addEventListener('click', () => document.getElementById('drmFilterDrawer').classList.add('hidden'));
+function updateFilterCountBadge() {
+  const activeCount = [state.minPrice, state.maxPrice, state.beds, state.baths, state.minArea, state.maxArea, state.types.length, state.readiness !== 'any' ? 1 : 0, state.projectId, state.furnished, state.verified, state.installment].filter(Boolean).length;
+  const badge = document.getElementById('drmFilterCount');
+  badge.textContent = String(activeCount);
+  badge.classList.toggle('hidden', activeCount === 0);
+}
 document.getElementById('drmFilterApplyBtn').addEventListener('click', () => {
   state.minPrice = Number(document.getElementById('drmMinPrice').value) || null;
   state.maxPrice = Number(document.getElementById('drmMaxPrice').value) || null;
@@ -751,10 +885,7 @@ document.getElementById('drmFilterApplyBtn').addEventListener('click', () => {
   state.verified = document.getElementById('drmVerified').checked;
   state.installment = document.getElementById('drmInstallment').checked;
   document.getElementById('drmFilterDrawer').classList.add('hidden');
-  const activeCount = [state.minPrice, state.maxPrice, state.beds, state.baths, state.minArea, state.maxArea, state.types.length, state.readiness !== 'any' ? 1 : 0, state.projectId, state.furnished, state.verified, state.installment].filter(Boolean).length;
-  const badge = document.getElementById('drmFilterCount');
-  badge.textContent = String(activeCount);
-  badge.classList.toggle('hidden', activeCount === 0);
+  updateFilterCountBadge();
   writeStateToUrl();
   render();
 });
@@ -793,22 +924,61 @@ document.getElementById('drmMobileMapBtn').addEventListener('click', () => {
   }
 });
 
-// Prefill drawer inputs from URL-restored state, so a shared link
-// reopens with the same filters visibly applied, not just silently
-// active.
-document.getElementById('drmMinPrice').value = state.minPrice || '';
-document.getElementById('drmMaxPrice').value = state.maxPrice || '';
-document.getElementById('drmBeds').value = String(state.beds);
-document.getElementById('drmBaths').value = String(state.baths);
-document.getElementById('drmMinArea').value = state.minArea || '';
-document.getElementById('drmMaxArea').value = state.maxArea || '';
-document.querySelectorAll('.drm-type-check').forEach((c) => { c.checked = state.types.includes(c.value); });
-document.getElementById('drmReadiness').value = state.readiness;
-document.getElementById('drmFurnished').checked = state.furnished;
-document.getElementById('drmVerified').checked = state.verified;
-document.getElementById('drmInstallment').checked = state.installment;
+// Prefill drawer inputs from URL-restored (or AI-applied, see
+// applyAiFilters below) state, so a shared link -- or an AI-driven
+// filter change -- reopens/redraws with the same filters visibly
+// applied, not just silently active.
+function syncFilterInputsFromState() {
+  document.getElementById('drmMinPrice').value = state.minPrice || '';
+  document.getElementById('drmMaxPrice').value = state.maxPrice || '';
+  document.getElementById('drmBeds').value = String(state.beds);
+  document.getElementById('drmBaths').value = String(state.baths);
+  document.getElementById('drmMinArea').value = state.minArea || '';
+  document.getElementById('drmMaxArea').value = state.maxArea || '';
+  document.querySelectorAll('.drm-type-check').forEach((c) => { c.checked = state.types.includes(c.value); });
+  document.getElementById('drmReadiness').value = state.readiness;
+  document.getElementById('drmFurnished').checked = state.furnished;
+  document.getElementById('drmVerified').checked = state.verified;
+  document.getElementById('drmInstallment').checked = state.installment;
+  document.getElementById('drmLocationInput').value = state.q;
+  updateDealToggle();
+  updateFilterCountBadge();
+}
+syncFilterInputsFromState();
 
-updateDealToggle();
+// ---------------------------------------------------------------------
+// MAM Buy/Rent AI hook (js/mam-buyrent.js). The ONE way the AI module is
+// allowed to touch this page's real search state -- it never re-
+// implements filtering itself, it only ever calls this with the exact
+// filter keys this page's own URL/state already use (see
+// backend/app/mam/orchestrator.py's _search_filters_action, which builds
+// its `filters` dict in this same vocabulary on purpose). A dealType
+// change requires a fresh Firestore read (loadListings()); every other
+// filter is applied client-side over the already-fetched set (render()).
+// ---------------------------------------------------------------------
+function applyAiFilters(filters) {
+  if (!filters || typeof filters !== 'object') return;
+  const nextDealType = filters.deal === 'rent' ? 'rent' : 'sale';
+  const dealChanged = filters.deal !== undefined && nextDealType !== state.dealType;
+  if (filters.deal !== undefined) state.dealType = nextDealType;
+  if (typeof filters.q === 'string') state.q = filters.q;
+  if (Array.isArray(filters.types)) state.types = filters.types.filter((t) => typeof t === 'string' && t);
+  if (filters.maxPrice !== undefined) state.maxPrice = Number(filters.maxPrice) || null;
+  if (filters.minPrice !== undefined) state.minPrice = Number(filters.minPrice) || null;
+  if (filters.beds !== undefined) state.beds = Number(filters.beds) || 0;
+  if (filters.verified !== undefined) state.verified = !!filters.verified;
+  syncFilterInputsFromState();
+  writeStateToUrl();
+  if (dealChanged) loadListings().then(() => document.dispatchEvent(new CustomEvent('darwesh:drm-ai-filters-applied')));
+  else { render(); document.dispatchEvent(new CustomEvent('darwesh:drm-ai-filters-applied')); }
+}
+window.DarweshBuyRentMap = {
+  applyFilters: applyAiFilters,
+  getState: () => ({ ...state }),
+  getVisibleCount: () => (listingsLoaded ? ALL_LISTINGS.filter(passesFilters).length : null),
+  isReady: () => listingsLoaded,
+};
+
 initDrmMap();
 // Map init (above), the projects read, and the listings read all start
 // concurrently -- none of the three blocks either of the others. Listings

@@ -496,3 +496,30 @@ duplicate ids) and manual Playwright-driven browser QA across desktop/
 mobile breakpoints, all three languages/RTL, reduced-motion, and the
 provider-unconfigured degraded state (see this phase's final report for
 the exact matrix run and results — real browser QA, not simulated).
+
+## 20. Public surface: MAM lives inside Buy/Rent, not a standalone page
+
+**Product decision, not an architecture change to the intelligence
+layer**: `mam-ai.html` is no longer linked from any public navigation,
+CTA, or footer (`js/site-header.js`, `index.html`, `services.html`,
+`about.html`, `map.html`, `profile.html`) — it still exists (dev/manual
+testing only) and every backend endpoint/tool/provider it talks to is
+completely unchanged. The real, user-facing MAM experience is now a
+floating AI dock on `buy-rent-map.html` (`js/mam-buyrent.js` +
+`css`/markup inline in that page), reusing `js/mam-api.js` and
+`js/mam-companion.js` unmodified — it is a second *consumer* of the same
+backend contract this document describes, not a second implementation of
+it.
+
+**The one backend addition this required**: `search_properties`
+responses now also carry a `mapAction` (reusing the existing MapAction
+shape from §8/§3 — "a deterministic navigation instruction... never a
+data claim") built from the *exact arguments that produced the returned
+cards* (`orchestrator.py`'s `_search_filters_action`), translated into
+`buy-rent-map.html`'s own filter-key vocabulary (`deal`/`q`/`types`/
+`maxPrice`/`beds`). `buy-rent-map.html`'s own inline script exposes the
+one function this is ever fed into — `window.DarweshBuyRentMap.
+applyFilters(filters)` — which updates the same real `state`/URL/
+Firestore-backed list and map this page's own filter drawer already
+drives. Neither side re-implements search: the backend still owns
+"what matches," the frontend still owns "how it's shown."

@@ -100,6 +100,36 @@ async def test_deterministic_intent_produces_real_property_cards_without_calling
 
 
 @pytest.mark.asyncio
+async def test_deterministic_search_properties_reports_real_filters_used_for_buy_rent_map():
+    # Proves the natural-language -> real-filter translation the Buy/Rent
+    # AI integration depends on: the returned mapAction.filters must be
+    # built from the SAME arguments that produced the returned cards, in
+    # buy-rent-map.html's own filter key vocabulary (deal/q/types/
+    # maxPrice/beds) -- never a second, independently-guessed filter set.
+    orch = make_orchestrator(provider=None)
+    response = await orch.handle_turn(
+        caller=PUBLIC_CALLER, request=make_request("villa for sale in Erbil under 3 bedrooms")
+    )
+    assert len(response.cards) == 1
+    assert response.map_action is not None
+    assert response.map_action.target == "buy-rent-map.html"
+    assert response.map_action.filters.get("q") == "Erbil"
+    assert response.map_action.filters.get("types") == ["villa"]
+    assert "deal" not in response.map_action.filters  # sale is the default, never sent explicitly
+
+
+@pytest.mark.asyncio
+async def test_deterministic_search_properties_rent_and_price_map_to_real_filter_keys():
+    orch = make_orchestrator(provider=None)
+    response = await orch.handle_turn(
+        caller=PUBLIC_CALLER, request=make_request("apartment for rent in Erbil under 5000 dollar")
+    )
+    assert response.map_action is not None
+    assert response.map_action.filters.get("deal") == "rent"
+    assert response.map_action.filters.get("maxPrice") == 5000.0
+
+
+@pytest.mark.asyncio
 async def test_greeting_returns_navigational_reply_with_no_data_claim():
     orch = make_orchestrator(provider=None)
     response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("hello"))

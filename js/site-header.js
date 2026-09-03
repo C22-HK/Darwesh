@@ -1,7 +1,10 @@
 // Darwesh shared site header -- the ONE canonical top nav bar (flag
 // language selector, wordmark, Home / Buy-Rent Map / Explore Map /
-// Services / About / Profile / MAM AI / notifications) for every public
-// content page. Before this file existed, every page hand-duplicated its
+// Services / About / Profile / notifications) for every public
+// content page. MAM is not a standalone nav destination -- it lives inside
+// the Buy/Rent Map experience (js/mam-buyrent.js) instead, see
+// docs/MAM_V2_ARCHITECTURE.md section 20. Before this file existed, every
+// page hand-duplicated its
 // own <header> markup and they had drifted: different nav link sets,
 // different labels, and only some pages had the flag-based language
 // selector while others still had a plain globe icon. This is the single
@@ -79,7 +82,6 @@
         '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
         '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
         '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html" data-i18n="nav.profile">Profile</a>' +
-        '<a class="inline-flex items-center gap-1.5 bg-secondary text-on-secondary px-[18px] py-[9px] rounded-lg font-label-caps text-label-caps hover:opacity-90 transition-opacity" href="mam-ai.html">MAM AI</a>' +
       '</nav>' +
       '<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">' +
         '<span class="material-symbols-outlined" aria-hidden="true">notifications</span>' +
