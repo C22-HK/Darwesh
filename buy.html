@@ -154,6 +154,14 @@ async function loadListings() {
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    // Every card on this page is backed by a document already downloaded
+    // here. Seeding them lets listing.html paint the moment it opens
+    // instead of re-fetching what this page just had -- and costs no
+    // additional Firestore read, because the data is already in hand.
+    try {
+      const { seedQuerySnapshot } = await import('./js/data-cache.js');
+      seedQuerySnapshot('listings', snap);
+    } catch { /* seeding is an optimization, never a reason to fail a render */ }
     LISTINGS = docs.filter(d => d.dealType === 'sale').map(d => ({
       id: d.id,
       title: d.title || d.address || 'Property',

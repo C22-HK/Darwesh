@@ -401,8 +401,22 @@ function renderCityBrowseGrid() {
   }).join('');
 }
 
-async function loadCityApartmentCounts() {
-  try {
+// ONE shared read of the active public listings for this whole page.
+//
+// The city-apartment counts and the featured-properties grid both need
+// the same set of documents, and until this existed each built its own
+// identical unbounded query and awaited it separately -- two downloads of
+// the entire active listings collection on every single home-page load,
+// for one render. They now share one Promise, so the second consumer
+// costs nothing at all.
+//
+// Deliberately a lazily-created shared Promise rather than a fetch kicked
+// off at module scope: if a future edit removes one of the two consumers,
+// this simply stops running instead of becoming an orphaned read.
+let activeListingsPromise = null;
+function loadActiveListingsOnce() {
+  if (activeListingsPromise) return activeListingsPromise;
+  activeListingsPromise = (async () => {
     const [{ db, getDocs }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
@@ -410,9 +424,25 @@ async function loadCityApartmentCounts() {
     const { collection, query, where } = storeMod;
     const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
     const snap = await getDocs(q);
+    const docs = [];
+    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    // Hand every card's document to the seed store so opening any of them
+    // paints instantly on listing.html. These documents are already in
+    // memory here -- seeding them costs no extra Firestore read.
+    try {
+      const { seedQuerySnapshot } = await import('./js/data-cache.js');
+      seedQuerySnapshot('listings', snap);
+    } catch { /* seeding is an optimization, never a reason to fail a render */ }
+    return docs;
+  })();
+  return activeListingsPromise;
+}
+
+async function loadCityApartmentCounts() {
+  try {
+    const docs = await loadActiveListingsOnce();
     const counts = {};
-    snap.forEach(d => {
-      const l = d.data();
+    docs.forEach(l => {
       if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
     });
     cityApartmentCounts = counts;
@@ -532,15 +562,9 @@ function renderFeaturedGrid() {
 
 async function loadFeaturedListings() {
   try {
-    const [{ db, getDocs }, storeMod] = await Promise.all([
-      import('./js/firebase-init.js'),
-      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
-    ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
-    const snap = await getDocs(q);
-    const docs = [];
-    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    // Shares loadCityApartmentCounts()' single read -- see
+    // loadActiveListingsOnce() above.
+    const docs = await loadActiveListingsOnce();
     featuredListings = docs
       .sort((a, b) => (b.verified === a.verified ? 0 : (b.verified ? 1 : -1)) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
       .slice(0, 6);

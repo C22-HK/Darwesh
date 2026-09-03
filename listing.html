@@ -212,6 +212,11 @@ violation reporting. -->
 <script src="./js/i18n.js"></script>
 <script type="module">
   import { auth, db, getDoc, addDoc, setDoc, deleteDoc, getDocs } from './js/firebase-init.js';
+  // Static, not dynamic: the cached first paint below must not be gated on
+  // fetching this module. As a static import it loads in parallel with the
+  // rest of the page's module graph instead of adding a round trip in
+  // front of the very render it exists to make instant.
+  import { swrDoc } from './js/data-cache.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
@@ -344,27 +349,51 @@ violation reporting. -->
     }
   }
 
+  // Stale-while-revalidate. Arriving here from buy.html, map.html or the
+  // home page means this exact document was downloaded moments ago and
+  // seeded by that page, so the first paint happens synchronously with no
+  // network at all -- the click feels instant instead of showing a
+  // skeleton for a round trip. The server read still happens immediately
+  // afterwards, and the UI is re-rendered only if something actually
+  // changed, so a stale price can never persist on screen and a needless
+  // re-render never causes a flicker.
+  //
+  // Opening listing.html cold (a shared link, a new tab) has no seed and
+  // behaves exactly as before: skeleton, then render on the server
+  // response.
   async function loadListing() {
     if (!listingId) {
       document.getElementById('listingLoading').classList.add('hidden');
       document.getElementById('listingNotFound').classList.remove('hidden');
       return;
     }
-    try {
-      const snap = await getDoc(doc(db, 'listings', listingId));
-      if (!snap.exists()) {
-        document.getElementById('listingLoading').classList.add('hidden');
-        document.getElementById('listingNotFound').classList.remove('hidden');
-        return;
-      }
-      listing = { id: snap.id, ...snap.data() };
-      renderListing(listing);
-      if (!mapInitialized) { mapInitialized = true; initMap(listing); }
-      if (listing.agentId) loadAgentPhoto(listing.agentId);
-    } catch (e) {
+    const showNotFound = () => {
       document.getElementById('listingLoading').classList.add('hidden');
       document.getElementById('listingNotFound').classList.remove('hidden');
-    }
+    };
+    await swrDoc({
+      path: 'listings/' + listingId,
+      fetchDoc: async () => {
+        const snap = await getDoc(doc(db, 'listings', listingId));
+        return snap.exists() ? snap.data() : null;
+      },
+      render: (data) => {
+        listing = { id: listingId, ...data };
+        renderListing(listing);
+        if (!mapInitialized) { mapInitialized = true; initMap(listing); }
+        if (listing.agentId) loadAgentPhoto(listing.agentId);
+      },
+      // No onMiss handler is needed: #listingLoading is visible in the
+      // markup by default and renderListing() is what hides it, so a
+      // cache miss already shows the skeleton and a cache hit removes it
+      // on the first synchronous paint.
+      //
+      // swrDoc resolves to null for both "no such listing" and "the fetch
+      // failed with nothing on screen" -- the same outcome this page has
+      // always shown for either. When a seed WAS painted and only the
+      // revalidation failed, it resolves to that painted data instead, so
+      // a network blip never blanks out a listing already being read.
+    }).then((data) => { if (data === null) showNotFound(); });
   }
   loadListing();
 

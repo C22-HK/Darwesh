@@ -759,6 +759,16 @@ async function loadListings() {
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    // Seeds the public listing documents this page already downloaded so
+    // opening one paints instantly on listing.html. No extra Firestore
+    // read. LOC-01 is unaffected: what gets seeded is exactly the public
+    // document, which carries only the rounded publicLat/publicLng --
+    // js/data-cache.js structurally cannot seed the private/location
+    // subcollection, since it accepts only two-segment paths.
+    try {
+      const { seedQuerySnapshot } = await import('./js/data-cache.js');
+      seedQuerySnapshot('listings', snap);
+    } catch { /* seeding is an optimization, never a reason to fail a render */ }
     // LOC-01: the public map plots the ~1.1 km rounded pair the listing
     // document is now allowed to carry. A precise lat/lng is no longer
     // present on a public listing at all (see firestore.rules'
