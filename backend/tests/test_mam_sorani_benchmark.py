@@ -113,7 +113,11 @@ def test_sorani_bedrooms_arabic_indic_digit():
 def test_sorani_rent_apartment_in_duhok():
     intent = resolve_intent("شوقه بۆ کرێ لە دهۆک")
     assert intent is not None
-    assert intent.arguments == {"city": "Duhok", "propertyType": "apartment", "dealType": "rent"}
+    assert intent.arguments == {
+        "city": "Duhok",
+        "propertyType": "apartment",
+        "dealType": "rent",
+    }
 
 
 # ---- City / district spelling variation -----------------------------------
@@ -140,7 +144,11 @@ def test_sorani_apartment_native_spelling_rent_kirkuk():
     intent = resolve_intent("شوقە بۆ کرێ لە کەرکووک")
     assert intent is not None
     assert intent.tool_name == "search_properties"
-    assert intent.arguments == {"city": "Kirkuk", "propertyType": "apartment", "dealType": "rent"}
+    assert intent.arguments == {
+        "city": "Kirkuk",
+        "propertyType": "apartment",
+        "dealType": "rent",
+    }
 
 
 def test_sorani_apartment_native_spelling_sale_erbil():
