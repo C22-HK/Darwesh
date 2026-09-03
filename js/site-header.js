@@ -40,7 +40,7 @@
 //   <div id="siteHeader" data-active="propertiesMap"></div>
 //   <script src="./js/site-header.js"></script>
 // `data-active` is one of: home, propertiesMap, services, about -- omit/
-// leave blank on a page with no matching nav item (e.g. mam-ai.html,
+// leave blank on a page with no matching nav item (e.g. a detail page,
 // listing.html), which then highlights nothing as current. map.html
 // itself always highlights as propertiesMap regardless of its own
 // ?type= query param -- Buy and Rent are modes of that one page, not
@@ -101,6 +101,11 @@
             '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="map.html?type=rent" data-i18n="nav.rent">Rent</a>' +
           '</div>' +
         '</div>' +
+        // Sell is a top-level destination, not a map mode. Buy and Rent are
+        // two views of map.html (see the dropdown above), but selling starts
+        // a different funnel entirely -- sell.html -- and until now that
+        // 1900-line funnel had no entry point in the global nav at all.
+        '<a class="' + navClass('sell') + '" href="sell.html" data-i18n="nav.sell"' + ariaCurrent('sell') + '>Sell</a>' +
         '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
         '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
         '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html" data-i18n="nav.profile">Profile</a>' +

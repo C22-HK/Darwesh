@@ -7,7 +7,7 @@
 // <script> injection / key handling -- that duplication is exactly what
 // this file exists to prevent.
 //
-// WIRED INTO: buy-rent-map.html (Google-only, no Leaflet fallback needed
+// WIRED INTO: admin.html's Estate Intelligence Map (Google-only, no Leaflet fallback needed
 // since it had no pre-existing implementation to preserve -- no longer
 // linked from public navigation as of the map consolidation that made
 // map.html the one public Properties Map, see
@@ -114,7 +114,7 @@ if (typeof document !== 'undefined') {
 // Logged exactly once per page load, from whichever of
 // isConfigured()/loadGoogleMaps() a caller happens to reach first --
 // critically, this means the diagnostic fires even on pages
-// (buy-rent-map.html, admin.html's Estate Intelligence Map) that check
+// (admin.html's Estate Intelligence Map) that check
 // isConfigured() themselves and never call loadGoogleMaps() at all when
 // it's false. Without this being in BOTH functions, the exact "map
 // isn't showing" scenario this diagnostic exists to help debug would be
