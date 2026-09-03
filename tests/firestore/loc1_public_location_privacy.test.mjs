@@ -11,7 +11,7 @@
 // document.
 //
 // The split proven here:
-//   listings/{id}                   -> publicLat/publicLng only (~111 m)
+//   listings/{id}                   -> publicLat/publicLng only (~1.1 km)
 //   listings/{id}/private/location  -> the real lat/lng, owner/admin only
 //
 // Two independent guarantees are tested: (1) the precise sub-document is
@@ -24,6 +24,7 @@ import assert from 'node:assert/strict';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
 import { makeTestEnv, seed, dbFor } from './helpers.mjs';
+import { publicCoordsFrom, PUBLIC_COORD_DECIMALS } from '../../js/listing-location.js';
 
 let testEnv;
 
@@ -61,9 +62,10 @@ const ADMIN = 'admin-1';
 const CUSTOMER = 'customer-1';
 
 // The real surveyed pin (Erbil, 5 dp as sell.html/admin.html store it) and
-// the ~111 m rounded value the public document is allowed to carry.
+// the 2 dp value the public document is allowed to carry -- a ~1.1 km grid
+// cell, i.e. an approximate area rather than a building.
 const PRECISE = { lat: 36.19113, lng: 44.00934 };
-const PUBLIC_COORDS = { publicLat: 36.191, publicLng: 44.009 };
+const PUBLIC_COORDS = { publicLat: 36.19, publicLng: 44.01 };
 
 function publicListing(overrides = {}) {
   return {
@@ -121,7 +123,7 @@ describe('LOC-01 — a public listing document can never carry a precise coordin
   it('an agent can move the approximate pin (publicLat/publicLng stay editable)', async () => {
     await seedListing('l1', publicListing());
     const db = dbFor(testEnv, AGENT);
-    await assertSucceeds(updateDoc(doc(db, 'listings', 'l1'), { publicLat: 36.192, publicLng: 44.01, updatedAt: 2 }));
+    await assertSucceeds(updateDoc(doc(db, 'listings', 'l1'), { publicLat: 36.2, publicLng: 44.02, updatedAt: 2 }));
   });
 
   it('an out-of-range publicLat is rejected', async () => {
@@ -141,8 +143,8 @@ describe('LOC-01 — a public listing document can never carry a precise coordin
     const snap = await getDoc(doc(db, 'listings', 'l1'));
     assert.equal(snap.exists(), true, 'the public listing itself is still publicly readable');
     const data = snap.data();
-    assert.equal(data.publicLat, 36.191);
-    assert.equal(data.publicLng, 44.009);
+    assert.equal(data.publicLat, 36.19);
+    assert.equal(data.publicLng, 44.01);
     assert.equal('lat' in data, false, 'no precise lat reaches the public payload');
     assert.equal('lng' in data, false, 'no precise lng reaches the public payload');
   });
@@ -212,5 +214,56 @@ describe('LOC-01 — the location document cannot outlive or precede its listing
   it('reading a location document for a listing that does not exist is denied rather than erroring open', async () => {
     const db = dbFor(testEnv, ADMIN);
     await assertFails(getDoc(doc(db, 'listings', 'ghost', 'private', 'location')));
+  });
+});
+
+// The precision contract itself. These are pure-function checks (no
+// emulator needed) but they live here because they are the other half of
+// the same guarantee: the rules stop a precise value reaching the public
+// document, and this is what decides how coarse the value that DOES reach
+// it must be. If PUBLIC_COORD_DECIMALS is ever changed, these fail loudly
+// rather than the privacy posture quietly shifting.
+describe('LOC-01 — public coordinate precision is 2 dp, deterministic, and jitter-free', () => {
+  it('rounds to exactly 2 decimal places', () => {
+    assert.equal(PUBLIC_COORD_DECIMALS, 2);
+    assert.deepEqual(publicCoordsFrom(36.19113, 44.00934), { publicLat: 36.19, publicLng: 44.01 });
+    assert.deepEqual(publicCoordsFrom(35.56081, 45.43472), { publicLat: 35.56, publicLng: 45.43 });
+  });
+
+  it('is deterministic — the same input always yields the same public point', () => {
+    // The anti-jitter guarantee. Random per-render jitter can be averaged
+    // out over repeated reads to recover the true location; a fixed grid
+    // cannot, and re-running the backfill stays idempotent.
+    const first = publicCoordsFrom(36.19113, 44.00934);
+    for (let i = 0; i < 50; i++) {
+      assert.deepEqual(publicCoordsFrom(36.19113, 44.00934), first);
+    }
+  });
+
+  it('never leaves the public point more than ~715 m from the real one at Kurdistan latitudes', () => {
+    // Worst case is a point sitting exactly on a cell corner: half a cell
+    // in each axis. At lat ~36: 0.005 deg lat = ~555 m, 0.005 deg lng =
+    // ~450 m, so the diagonal bound is ~715 m.
+    const R = 6371000, toRad = (d) => (d * Math.PI) / 180;
+    const metres = (aLat, aLng, bLat, bLng) => {
+      const dLat = toRad(bLat - aLat), dLng = toRad(bLng - aLng);
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+    let worst = 0;
+    for (let i = 0; i < 2000; i++) {
+      const lat = 35 + Math.random() * 2;      // Kurdistan Region band
+      const lng = 42 + Math.random() * 4;
+      const p = publicCoordsFrom(lat, lng);
+      worst = Math.max(worst, metres(lat, lng, p.publicLat, p.publicLng));
+    }
+    assert.ok(worst <= 715, `worst-case displacement ${Math.round(worst)} m exceeded the 715 m bound`);
+    assert.ok(worst > 400, `expected a real spread; worst case was only ${Math.round(worst)} m`);
+  });
+
+  it('returns no coordinate pair at all for unusable input', () => {
+    assert.deepEqual(publicCoordsFrom('not-a-number', 44), {});
+    assert.deepEqual(publicCoordsFrom(36.19, null), {});
+    assert.deepEqual(publicCoordsFrom(undefined, undefined), {});
   });
 });

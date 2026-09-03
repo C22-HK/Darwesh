@@ -305,16 +305,20 @@ violation reporting. -->
       const center = CITY_CENTERS[l.city] || [36.35, 44.3];
       map.setView(center, 11);
     } else if (publicListingCoords(l)) {
-      // LOC-01: this public page plots the ~111 m rounded pair the listing
+      // LOC-01: this public page plots the ~1.1 km rounded pair the listing
       // document now carries -- the exact surveyed pin lives in
       // listings/{id}/private/location, which only the listing's own
-      // agent/admin may read. Zoom 14 rather than 15 so the view matches
-      // the precision actually being shown instead of implying a
-      // building-level fix the data no longer supports.
+      // agent/admin may read. Both the circle and the zoom are sized to
+      // the real grid cell (2 dp ~= 1.11 km N-S, ~0.90 km E-W at this
+      // latitude): a ~600 m radius covers where the property actually is,
+      // and zoom 12 frames that area without implying a street-level fix
+      // the stored data no longer supports. Showing a tight circle over a
+      // coarse value would be a false precision claim, not a privacy
+      // control.
       const c = publicListingCoords(l);
-      map.setView([c.lat, c.lng], 14);
+      map.setView([c.lat, c.lng], 12);
       L.circle([c.lat, c.lng], {
-        radius: 140, color: '#8E7448', weight: 2, fillColor: '#B89A63', fillOpacity: 0.18
+        radius: 600, color: '#8E7448', weight: 2, fillColor: '#B89A63', fillOpacity: 0.18
       }).addTo(map);
       document.getElementById('listingMapApproxNote')?.classList.remove('hidden');
     } else {

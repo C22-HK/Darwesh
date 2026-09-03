@@ -9,7 +9,7 @@
 // visitor can read. THIS SCRIPT is what actually removes them.
 //
 // For each listing it:
-//   1. computes publicLat/publicLng (rounded to ~111 m, via the same
+//   1. computes publicLat/publicLng (rounded to a ~1.1 km grid, via the same
 //      js/listing-location.js helper the app's write paths use, so the
 //      rounding can never drift between them),
 //   2. writes the real pair to listings/{id}/private/location,
@@ -23,11 +23,13 @@
 // required here, since the rules deliberately forbid the very
 // lat/lng-carrying documents this script is cleaning up.
 //
-// Usage:
-//   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json \
+// Usage — no downloaded key needed, just sign in with the gcloud CLI:
+//   gcloud auth application-default login
+//   gcloud auth application-default set-quota-project <projectId>
 //   node scripts/backfill-public-coords.mjs --project <projectId> [--apply]
 //
-// Without --apply it runs as a DRY RUN and only reports what it would do.
+// Without --apply it runs as a DRY RUN: it only reads, prints the exact
+// per-listing plan, and writes nothing.
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { publicCoordsFrom } from '../js/listing-location.js';
@@ -42,18 +44,39 @@ if (!PROJECT_ID) {
   process.exit(1);
 }
 
-// Against the emulator (FIRESTORE_EMULATOR_HOST set) the Admin SDK needs no
-// real credential; against production it uses Application Default
-// Credentials, i.e. GOOGLE_APPLICATION_CREDENTIALS pointing at a service
-// account key with Firestore access.
+// Credentials. Against the emulator (FIRESTORE_EMULATOR_HOST set) the
+// Admin SDK needs none at all. Against production it uses Application
+// Default Credentials, which resolve in this order:
+//
+//   1. GOOGLE_APPLICATION_CREDENTIALS -> a service-account key file, if
+//      you happen to have one (NOT required),
+//   2. the local gcloud user credential written by
+//      `gcloud auth application-default login` — the normal path, no
+//      downloaded key, no long-lived secret sitting on disk,
+//   3. the metadata server, when running on GCP.
+//
+// (2) is the intended way to run this. A downloaded service-account key
+// is a long-lived credential that is easy to leak and awkward to rotate;
+// requiring one for a migration a human runs by hand would be a worse
+// security posture than the exposure being fixed.
 const USING_EMULATOR = !!process.env.FIRESTORE_EMULATOR_HOST;
-if (!USING_EMULATOR && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error('No credentials: set GOOGLE_APPLICATION_CREDENTIALS to a service-account key');
-  console.error('(or FIRESTORE_EMULATOR_HOST to run against a local emulator).');
-  process.exit(1);
+let credential;
+if (!USING_EMULATOR) {
+  try {
+    credential = applicationDefault();
+  } catch (err) {
+    console.error('Could not resolve Google Application Default Credentials.\n');
+    console.error('Sign in with the gcloud CLI (no key file needed):');
+    console.error('    gcloud auth application-default login');
+    console.error(`    gcloud auth application-default set-quota-project ${PROJECT_ID}\n`);
+    console.error('Or point GOOGLE_APPLICATION_CREDENTIALS at a service-account key,');
+    console.error('or set FIRESTORE_EMULATOR_HOST to rehearse against a local emulator.\n');
+    console.error(`(underlying error: ${err.message})`);
+    process.exit(1);
+  }
 }
 initializeApp({
-  ...(USING_EMULATOR ? {} : { credential: applicationDefault() }),
+  ...(credential ? { credential } : {}),
   projectId: PROJECT_ID,
 });
 const db = getFirestore();

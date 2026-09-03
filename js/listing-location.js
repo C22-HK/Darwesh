@@ -8,7 +8,8 @@
 // document simply must not contain a building-level coordinate — there
 // is no rule that could hide it after the fact. Instead:
 //
-//   listings/{id}                  -> publicLat/publicLng, rounded (~111 m)
+//   listings/{id}                  -> publicLat/publicLng, rounded to a
+//                                     ~1.1 km grid (see below)
 //   listings/{id}/private/location -> { lat, lng }, the real surveyed pin,
 //                                     readable only by the listing's own
 //                                     agent, an authorized org member, or
@@ -19,20 +20,48 @@
 // and by scripts/backfill-public-coords.mjs, so the rounding rule can
 // never drift between them.
 
-// 3 decimal places ≈ 111 m at the equator, and less than that in latitude
-// terms this far north — enough to place a listing in its neighbourhood
-// and street block, not enough to point at one building. Deliberately
-// plain rounding rather than random jitter: it is deterministic (the same
-// input always yields the same public point, so re-running the backfill
-// is idempotent) and it collapses near-neighbours onto a shared grid
-// point, which the map's clustering already renders sensibly.
-export const PUBLIC_COORD_DECIMALS = 3;
+// 2 decimal places. Across the Kurdistan Region (~lat 35-37°) that is a
+// grid cell of roughly 1.11 km north-south by 0.90 km east-west, so a
+// public point can sit up to ~715 m from the real one and averages a few
+// hundred metres out. That is an APPROXIMATE AREA — a district or a
+// neighbourhood — never a building, which is the whole point: the public
+// map is a discovery surface, and the exact address is something a buyer
+// gets from the agent, not from an anonymous page scrape.
+//
+// (For reference, the 3 dp this started at was a ~111 m cell — still
+// tight enough to single out a building on most streets, which is why it
+// was widened.)
+//
+// Deliberately plain rounding, never random jitter:
+//   - Deterministic. The same input always yields the same public point,
+//     so the backfill is idempotent and re-running it is safe.
+//   - Structural. The guarantee comes from the value that gets STORED,
+//     not from anything the client does at render time — a jittered
+//     display over a precise stored value would leak the moment someone
+//     read the document directly, which is exactly the bug being fixed.
+//   - Averaging-resistant. Jitter re-rolled per read can be averaged out
+//     across repeated reads to recover the true point; a fixed grid
+//     cannot.
+// The cost is that near-neighbours collapse onto a shared grid point,
+// which the map's clustering already renders sensibly.
+export const PUBLIC_COORD_DECIMALS = 2;
 
 const FACTOR = Math.pow(10, PUBLIC_COORD_DECIMALS);
 
-/** Round one coordinate to the public precision. Returns null for junk. */
+/**
+ * Round one coordinate to the public precision. Returns null for junk.
+ *
+ * Deliberately NOT a bare Number() coercion: Number(null), Number(''),
+ * Number(false) and Number([]) are all 0, which would turn a listing with
+ * a missing coordinate into a public pin at 0,0 — a real point in the
+ * Gulf of Guinea — instead of being reported as unusable. Only real
+ * numbers, and strings that actually parse as numbers (sell.html stores
+ * its pin as a .toFixed(5) string), are accepted.
+ */
 export function toPublicCoord(value) {
-  const n = Number(value);
+  const n = (typeof value === 'number') ? value
+    : (typeof value === 'string' && value.trim() !== '') ? Number(value)
+    : NaN;
   if (!Number.isFinite(n)) return null;
   return Math.round(n * FACTOR) / FACTOR;
 }
