@@ -17,6 +17,7 @@
 // of in the first place.
 import { auth } from './firebase-init.js';
 import { sendMamChat, BackendUnavailableError, BackendResponseError } from './mam-api.js';
+import { MamCompanion } from './mam-companion.js';
 
 // ---- Constants -------------------------------------------------------
 const MAX_MESSAGE_LENGTH = 1000; // mirrors backend/app/mam/schemas.py MAX_MESSAGE_LENGTH
@@ -44,9 +45,6 @@ const chatScroll = document.getElementById('chatScroll');
 const chatForm = document.getElementById('chatForm');
 const chatInput = document.getElementById('chatInput');
 const sendBtn = document.getElementById('mamSendBtn');
-const mamOrb = document.getElementById('mamOrb');
-const workspaceEmpty = document.getElementById('workspaceEmpty');
-const workspaceContent = document.getElementById('workspaceContent');
 const mamSheet = document.getElementById('mamSheet');
 const mamSheetBackdrop = document.getElementById('mamSheetBackdrop');
 const mamSheetContent = document.getElementById('mamSheetContent');
@@ -81,25 +79,11 @@ function readPageContext() {
 
 // ---- MAM visual identity (section 3) --------------------------------------
 // idle | listening | thinking | speaking | result-ready | error
-function setMamState(state) {
-  if (!mamOrb) return;
-  mamOrb.dataset.state = state;
-  const label = {
-    idle: tr('mam.orbIdle', 'MAM is ready'),
-    listening: tr('mam.orbListening', 'MAM is listening'),
-    thinking: tr('mam.orbThinking', 'MAM is thinking'),
-    speaking: tr('mam.orbSpeaking', 'MAM is speaking'),
-    'result-ready': tr('mam.orbResultReady', 'MAM has an answer'),
-    error: tr('mam.orbError', 'MAM ran into a problem')
-  }[state] || '';
-  mamOrb.setAttribute('aria-label', label);
-  // result-ready/error are momentary accents, not sticky states -- they
-  // settle back to idle so the identity doesn't look "stuck."
-  if (state === 'result-ready' || state === 'error') {
-    clearTimeout(setMamState._t);
-    setMamState._t = setTimeout(() => { if (mamOrb.dataset.state === state) mamOrb.dataset.state = 'idle'; }, 2200);
-  }
-}
+// The companion is a decoupled module (js/mam-companion.js + css/mam-
+// companion.css) -- this page just owns telling it what state to be in,
+// exactly as any future page mounting the same module would.
+const mamCompanion = new MamCompanion({ getLanguage: currentLang });
+function setMamState(state) { mamCompanion.setState(state); }
 
 // ---- Chat log rendering ----------------------------------------------------
 function scrollToBottom() { chatScroll.scrollTop = chatScroll.scrollHeight; }
@@ -156,7 +140,6 @@ function addAssistantMessage(data, { failed = false, retryText = null } = {}) {
     inline.className = 'mam-inline-results';
     renderResultsInto(inline, data, { compact: true });
     bubble.appendChild(inline);
-    renderWorkspace(data);
     setMamState('result-ready');
   }
 
@@ -458,13 +441,6 @@ function renderResultsInto(container, data, { compact }) {
   if (suggested) container.appendChild(suggested);
 }
 
-function renderWorkspace(data) {
-  if (!workspaceContent || !workspaceEmpty) return;
-  renderResultsInto(workspaceContent, data, { compact: false });
-  workspaceContent.classList.remove('hidden');
-  workspaceEmpty.classList.add('hidden');
-}
-
 // ---- Detail bottom sheet (mobile-first, useful at any width) --------------
 let sheetTrigger = null;
 function openSheet(buildContent) {
@@ -599,7 +575,11 @@ async function sendMessage(rawText) {
     if (err instanceof BackendResponseError && err.status === 429) {
       addAssistantMessage({ message: tr('mam.rateLimited', "You're sending messages a little fast -- please wait a moment and try again."), language: currentLang() }, { failed: true, retryText: text });
     } else if (err instanceof BackendResponseError) {
-      addAssistantMessage({ message: err.message || tr('mam.genericError', "That didn't go through. Please try again."), language: currentLang() }, { failed: true, retryText: text });
+      // Never surface err.message here -- it's the raw backend string
+      // (often literally "Request failed."), not translated, user-facing
+      // copy. Always use the translated generic message instead, exactly
+      // like every other branch in this catch block.
+      addAssistantMessage({ message: tr('mam.genericError', "That didn't go through. Please try again."), language: currentLang() }, { failed: true, retryText: text });
     } else if (err && err.name === 'AbortError') {
       addAssistantMessage({ message: tr('mam.timeout', 'That took too long to answer. Please try again.'), language: currentLang() }, { failed: true, retryText: text });
     } else if (err instanceof BackendUnavailableError) {
@@ -728,7 +708,7 @@ if (SpeechRecognitionCtor && micBtn) {
     listening = false;
     micBtn.classList.remove('mic-listening');
     micStatus.classList.add('hidden');
-    if (mamOrb.dataset.state === 'listening') setMamState('idle');
+    if (mamCompanion.getState() === 'listening') setMamState('idle');
   }
 
   micBtn.classList.remove('hidden');

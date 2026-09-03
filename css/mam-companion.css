@@ -1,0 +1,106 @@
+/* MAM Companion -- self-contained styling (section: js/mam-companion.js).
+ * Deliberately does NOT depend on .cine-scope or any other page-level
+ * class being present -- every value below has a hardcoded fallback taken
+ * from the same Darwesh cinematic dark-luxury palette already used across
+ * the site (css/cinematic.css: Obsidian/Carbon surfaces, Champagne/Antique
+ * Gold accent, Soft Ivory glow, Rose error), expressed as local custom
+ * properties so a host page can still override them, but never requiring
+ * it to. This is what makes the module portable to a future page that
+ * never loads cinematic.css.
+ */
+:root {
+  --mamco-surface: #17150F;
+  --mamco-surface-high: #221E15;
+  --mamco-accent: #B89A63;
+  --mamco-glow: #F2EEE5;
+  --mamco-outline: #5D482B;
+  --mamco-error: #E5787A;
+}
+
+.mamco-root {
+  position: fixed;
+  z-index: 45;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: right 240ms ease, top 240ms ease, transform 240ms ease;
+}
+
+.mamco-orb {
+  pointer-events: auto;
+  position: relative;
+  width: 68px;
+  height: 68px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 34% 28%, var(--mamco-surface-high), var(--mamco-surface) 72%);
+  border: 1px solid var(--mamco-outline);
+  box-shadow: 0 8px 28px rgba(9, 10, 10, 0.35);
+  transition: box-shadow 320ms ease, border-color 320ms ease;
+}
+.mamco-orb::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--mamco-accent);
+  opacity: 0.5;
+  transition: opacity 320ms ease, transform 320ms ease;
+}
+.mamco-core {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--mamco-accent);
+  box-shadow: 0 0 14px 2px rgba(184, 154, 99, 0.55);
+  transition: background 320ms ease, transform 320ms ease, box-shadow 320ms ease;
+}
+
+.mamco-orb[data-state="idle"] .mamco-core { animation: mamco-breathe 4.5s ease-in-out infinite; }
+
+.mamco-orb[data-state="listening"] { border-color: var(--mamco-accent); box-shadow: 0 0 0 6px rgba(184, 154, 99, 0.16), 0 8px 28px rgba(9, 10, 10, 0.35); }
+.mamco-orb[data-state="listening"]::before { opacity: 1; animation: mamco-ring-pulse 1.2s ease-in-out infinite; }
+
+.mamco-orb[data-state="thinking"]::before { border-style: dashed; opacity: 0.9; animation: mamco-rotate 2.4s linear infinite; }
+.mamco-orb[data-state="thinking"] .mamco-core { animation: mamco-breathe 1.6s ease-in-out infinite; }
+
+.mamco-orb[data-state="speaking"] .mamco-core { animation: mamco-speak-pulse 0.85s ease-in-out infinite; }
+
+.mamco-orb[data-state="result-ready"] { border-color: var(--mamco-accent); box-shadow: 0 0 0 7px rgba(184, 154, 99, 0.2), 0 8px 28px rgba(9, 10, 10, 0.35); }
+.mamco-orb[data-state="result-ready"] .mamco-core { transform: scale(1.3); }
+
+.mamco-orb[data-state="error"] { border-color: var(--mamco-error); }
+.mamco-orb[data-state="error"] .mamco-core { background: var(--mamco-error); box-shadow: 0 0 14px 2px rgba(229, 120, 122, 0.5); }
+
+@keyframes mamco-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.8); opacity: 0.75; } }
+@keyframes mamco-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.16); opacity: 1; } }
+@keyframes mamco-rotate { to { transform: rotate(360deg); } }
+@keyframes mamco-speak-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .mamco-orb::before, .mamco-core { animation: none !important; }
+  .mamco-orb[data-state="result-ready"] .mamco-core { transform: none; }
+}
+
+/* Much simpler mobile presence: a small, top-anchored mark near the
+ * header instead of a large vertically-centered edge companion -- a
+ * floating element pinned mid-viewport competes with the keyboard and
+ * the conversation on a small screen, so it shrinks and moves out of the
+ * way rather than staying a centerpiece. */
+@media (max-width: 767px) {
+  /* Clears the fixed site header + MAM chat header (title, subtitle,
+     voice-replies toggle) stacked above the conversation on small
+     screens -- verified against real rendered header heights, not a
+     guess, so the companion never sits on top of another control. */
+  .mamco-root { right: 10px; top: 148px; transform: none; }
+  .mamco-orb { width: 34px; height: 34px; }
+  .mamco-core { width: 7px; height: 7px; }
+}
+
+/* This page renders inside dir="rtl" for ku/ar -- the companion stays
+ * visually docked to the same physical (not logical) screen edge in
+ * both directions, matching where a viewer's eye already expects an
+ * ambient assistant mark regardless of reading direction. */

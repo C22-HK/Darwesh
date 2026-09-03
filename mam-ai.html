@@ -23,6 +23,7 @@ violation reporting. -->
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/mam-companion.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
@@ -30,48 +31,10 @@ violation reporting. -->
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
 
-    /* ---- MAM visual identity (section 3) -------------------------------
-     * An architectural mark, not a robot avatar or a chat-bubble icon: a
-     * layered ring around a still core. State is expressed through the
-     * ring's motion/color, never a mascot expression. Built purely from
-     * the existing --ps-color-* cinematic tokens (Champagne/Antique Gold,
-     * Soft Ivory, Bronzed/Carbon/Obsidian). */
-    .mam-orb {
-      position: relative; width: 44px; height: 44px; flex: none; border-radius: 999px;
-      display: flex; align-items: center; justify-content: center;
-      background: radial-gradient(circle at 35% 30%, var(--ps-color-surface-container-high), var(--ps-color-surface-container-lowest) 70%);
-      border: 1px solid var(--ps-color-outline-variant);
-      box-shadow: 0 0 0 0 rgba(184,154,99,0);
-      transition: box-shadow 320ms var(--ease-premium, ease), border-color 320ms var(--ease-premium, ease);
-    }
-    .mam-orb::before {
-      content: ''; position: absolute; inset: -4px; border-radius: 999px;
-      border: 1.5px solid var(--ps-color-outline); opacity: 0.55;
-      transition: opacity 320ms var(--ease-premium, ease), transform 320ms var(--ease-premium, ease);
-    }
-    .mam-orb::after {
-      content: ''; width: 10px; height: 10px; border-radius: 999px;
-      background: var(--ps-color-secondary);
-      box-shadow: 0 0 10px 1px rgba(184,154,99,0.55);
-      transition: background 320ms var(--ease-premium, ease), transform 320ms var(--ease-premium, ease);
-    }
-    .mam-orb[data-state="idle"]::after { animation: mam-breathe 4.5s ease-in-out infinite; }
-    .mam-orb[data-state="listening"] { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 4px rgba(184,154,99,0.14); }
-    .mam-orb[data-state="listening"]::before { opacity: 1; animation: mam-ring-pulse 1.2s ease-in-out infinite; }
-    .mam-orb[data-state="thinking"]::before { border-style: dashed; animation: mam-rotate 2.6s linear infinite; opacity: 0.85; }
-    .mam-orb[data-state="speaking"]::after { animation: mam-speak-pulse 0.9s ease-in-out infinite; }
-    .mam-orb[data-state="result-ready"] { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 5px rgba(184,154,99,0.18); }
-    .mam-orb[data-state="result-ready"]::after { background: var(--ps-color-secondary); transform: scale(1.25); }
-    .mam-orb[data-state="error"] { border-color: var(--ps-color-error); }
-    .mam-orb[data-state="error"]::after { background: var(--ps-color-error); box-shadow: 0 0 10px 1px rgba(229,120,122,0.5); }
-    @keyframes mam-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.82); opacity: 0.75; } }
-    @keyframes mam-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.55; } 50% { transform: scale(1.18); opacity: 1; } }
-    @keyframes mam-rotate { to { transform: rotate(360deg); } }
-    @keyframes mam-speak-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.35); } }
-    @media (prefers-reduced-motion: reduce) {
-      .mam-orb::before, .mam-orb::after { animation: none !important; }
-      .mam-orb[data-state="result-ready"]::after { transform: none; }
-    }
+    /* ---- MAM per-message avatar mark -------------------------------------
+     * A tiny static echo of the companion mark (css/mam-companion.css owns
+     * the real, stateful companion identity) used only to anchor each
+     * assistant bubble in the log -- not a second state machine. */
     .mam-mini-orb {
       width: 28px; height: 28px; flex: none; border-radius: 999px; margin-top: 2px;
       background: radial-gradient(circle at 35% 30%, var(--ps-color-surface-container-high), var(--ps-color-surface-container-lowest) 70%);
@@ -155,10 +118,6 @@ violation reporting. -->
     }
     .mam-action-chip:hover { border-color: var(--ps-color-secondary); color: var(--ps-color-secondary); }
 
-    /* ---- Desktop workspace column ----------------------------------------- */
-    #mamWorkspace { border-inline-start: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low); }
-    #mamWorkspace .mam-card-grid { padding: 4px 2px; }
-
     /* ---- Mobile detail/action bottom sheet -------------------------------- */
     #mamSheetBackdrop { position: fixed; inset: 0; background: rgba(9,10,10,0.6); z-index: 210; }
     #mamSheet {
@@ -189,14 +148,16 @@ violation reporting. -->
 <div id="siteMobileNav" data-active=""></div>
 <script src="./js/site-mobile-nav.js"></script>
 
-<!-- MAM V2 Shell -->
-<main id="mamShell" class="fixed top-16 bottom-24 md:bottom-0 left-0 w-full flex flex-col md:flex-row">
-<!-- Conversation column -->
+<!-- MAM V2 Shell -- a single centered conversation column. Results are
+     never shown in a separate panel: they render inline, directly under
+     MAM's own reply, so the whole experience stays a conversation, not a
+     dashboard. The companion (js/mam-companion.js) lives docked to the
+     viewport edge, independent of this layout. -->
+<main id="mamShell" class="fixed top-16 bottom-24 md:bottom-0 left-0 w-full flex flex-col">
 <section class="flex flex-col flex-1 min-w-0 h-full">
 <!-- Chat Header -->
 <div class="flex-none bg-surface-container-lowest border-b border-outline-variant px-margin-mobile md:px-margin-desktop py-4">
 <div class="max-w-3xl mx-auto flex items-center gap-3">
-<div id="mamOrb" class="mam-orb" data-state="idle" role="img" aria-label="MAM is ready"></div>
 <div class="flex-1 min-w-0">
 <p class="font-headline-md text-[18px] text-primary leading-tight">MAM</p>
 <p class="font-data-mono text-data-mono text-on-tertiary-container flex items-center gap-1">
@@ -256,16 +217,6 @@ violation reporting. -->
 <p class="max-w-3xl mx-auto font-body-md text-[11px] text-on-surface-variant text-center mt-2" data-i18n="mam.disclaimer">MAM answers using Darwesh Group's real listings, projects, and market data. Full conversational AI reasoning is not enabled yet — confirm important details with an agent.</p>
 </div>
 </section>
-
-<!-- Workspace column (desktop only) -->
-<aside id="mamWorkspace" class="hidden md:flex md:flex-col md:w-[360px] md:flex-none h-full overflow-y-auto hide-scrollbar px-5 py-5" aria-label="MAM results workspace">
-<h2 class="font-label-caps text-label-caps text-on-surface-variant mb-3" data-i18n="mam.workspaceTitle">Results</h2>
-<div id="workspaceEmpty" class="ps-empty">
-<span class="material-symbols-outlined text-[32px] text-outline-variant">workspaces</span>
-<p class="font-body-md text-body-md mt-2" data-i18n="mam.workspaceEmpty">Ask MAM something — real listings, projects, and professionals will appear here.</p>
-</div>
-<div id="workspaceContent" class="hidden"></div>
-</aside>
 </main>
 
 <!-- Mobile/desktop detail & action sheet -->
