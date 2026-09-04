@@ -24,7 +24,6 @@ from app.mam.schemas import (
     ProfessionalCard,
     ProjectCard,
     PropertyCard,
-    SuggestedAction,
 )
 from app.mam.session import SessionStore
 from app.mam.tools import ToolExecutionError, Tools, build_tool_specs, dispatch

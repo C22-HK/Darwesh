@@ -23,7 +23,6 @@ from typing import Any
 from app.mam.policy import (
     AuthRequirement,
     MamCaller,
-    ToolAuthorizationError,
     project_public_listing_fields,
     require_auth,
     wrap_untrusted,
@@ -234,7 +233,15 @@ class Tools:
             listing = listing_snap.to_dict()
             estate_id = listing.get("estateId")
             asking_price = listing.get("price")
-            currency = listing.get("dealType")  # listings store USD by convention site-wide
+            # NOTE: a `currency` local used to be assigned here from
+            # listing["dealType"] -- a copy-paste error, since dealType is
+            # 'sale'/'rent', not a currency. It was never read, so it had no
+            # runtime effect, and it is removed rather than "used": wiring it
+            # into the return value would change this tool's response shape,
+            # which is an API decision, not a lint fix. Listings store price
+            # in USD by site-wide convention (sell.html and admin.html both
+            # normalise to USD), so a currency field would be a constant
+            # today anyway.
             if not estate_id:
                 return {
                     "available": False,

@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from app.access.caller_context import CallerContext
 from app.mam.policy import PUBLIC_CALLER, MamCaller
-from app.mam.rate_limit import MamRateLimiters
 from app.mam.routes import MamHandler
 from app.mam.schemas import ChatResponse, MapAction, PropertyCard, SuggestedAction
 from app.server import create_app
