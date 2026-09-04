@@ -1,7 +1,12 @@
 // MAM site-wide chat panel -- the ONE local, non-navigating conversation
 // surface, mounted by js/mam-companion-launcher.js next to the shared
 // compact dock (js/mam-dock.js, which carries the orb from
-// js/mam-companion.js) on EVERY public page, map.html included.
+// js/mam-companion.js) on EVERY public page, map.html included. This
+// panel and the compact dock are two states of ONE surface: opening it
+// MORPHS the dock into the conversation, anchored to wherever the dock
+// currently is (see computeAnchoredPosition() below), and closing it
+// shrinks back to exactly that spot -- never a detached panel that pops
+// up somewhere unrelated to where the visitor tapped.
 //
 // map.html used to be the exception: it ran its own parallel
 // implementation (the removed js/mam-properties-map.js) with its own
@@ -24,6 +29,17 @@
 // textContent/element properties.
 import { auth } from './firebase-init.js';
 import { sendMamChat, BackendUnavailableError, BackendResponseError } from './mam-api.js';
+
+// Below this width the panel gives up trying to sit beside the dock and
+// becomes a near-full-width sheet instead -- there simply is not enough
+// room on a phone for "360px wide, anchored to one edge" to mean
+// anything. It keeps the SAME vertical anchor logic as wide viewports
+// (still grows from wherever the dock is, up or down), so it is still
+// the dock expanding in place, just full-width while it does it.
+const NARROW_VIEWPORT_PX = 480;
+const PANEL_MARGIN_PX = 12;
+const PANEL_WIDTH_PX = 360;
+const PANEL_MAX_HEIGHT_PX = 560;
 
 const MAX_MESSAGE_LENGTH = 1000;
 const SESSION_KEY = 'darwesh_mam_companion_session_id';
@@ -137,11 +153,16 @@ export function isMamMounted() { return mounted; }
  * @param {Element} opts.orbEl The orb itself -- this module wires its
  *   click/keyboard activation to open/toggle the panel; the caller
  *   never has to do that itself.
+ * @param {Element} [opts.dockEl] The compact dock's OWN root element
+ *   (js/mam-dock.js's `root`). Its live position is what the panel
+ *   anchors to and morphs from/to on every open and close -- without it
+ *   the panel falls back to a fixed centred position, which is only ever
+ *   used defensively (every real caller passes this).
  * @param {Element[]} [opts.micEls] Extra mic buttons outside the panel
  *   (the dock's) to drive from the SAME voice state as the panel's own.
  * @param {import('./mam-companion.js').MamCompanion} opts.companion
  * @param {() => string} [opts.getLanguage]
- * @param {(state: {handsFree: boolean, listening: boolean}) => void} [opts.onVoiceUi]
+ * @param {(state: {handsFree: boolean, listening: boolean, wakeEnabled: boolean, wakeListening: boolean}) => void} [opts.onVoiceUi]
  * @param {(text: string|null) => void} [opts.onResumeHint]
  * @param {(isOpen: boolean) => void} [opts.onOpenState] Told whenever the
  *   overlay opens/closes, so the caller can collapse the compact dock
@@ -150,7 +171,7 @@ export function isMamMounted() { return mounted; }
  *   scraped DOM) -- same shape as backend/app/mam/schemas.py's
  *   PageContext: {page, listingId?, projectId?, professionalId?, serviceType?}.
  */
-export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, pageContext, onVoiceUi, onResumeHint, onOpenState }) {
+export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLanguage, pageContext, onVoiceUi, onResumeHint, onOpenState }) {
   if (mounted) {
     console.warn('[mam-chat-panel] already mounted on this page -- ignoring the second mount');
     return null;
@@ -164,7 +185,13 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'false');
   panel.setAttribute('aria-label', 'MAM');
-  panel.hidden = true;
+  // Closed by default. Visibility/interactivity/animation are all driven
+  // by the `.is-open` class (css/mam-chat-panel.css) rather than the
+  // `hidden` attribute now -- `hidden` forces `display:none`, which
+  // cannot be transitioned, and an animated "grow from the dock" open is
+  // exactly what this panel needs to not look detached (see
+  // computeAnchoredPosition() below).
+  panel.setAttribute('aria-hidden', 'true');
 
   const header = document.createElement('div');
   header.className = 'mamcp-header';
@@ -250,10 +277,71 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
   // make it the containing block for any `position: fixed` descendant
   // and silently break this panel's viewport-relative positioning/
   // stacking. Positioning it independently, the same way map.html's own
-  // #drmAiWrap is a direct child of <body>, keeps it reliably on top of
-  // page content regardless of where the orb's own root happens to sit
-  // in the DOM.
+  // #drmAiWrap used to be a direct child of <body>, keeps it reliably on
+  // top of page content regardless of where the orb's own root happens to
+  // sit in the DOM.
   document.body.appendChild(panel);
+
+  // ---- anchoring the panel to the dock's CURRENT position --------------
+  // This is the whole fix for "MAM jumps to a detached right-side panel":
+  // the panel's position is computed fresh, every time, from where the
+  // dock ACTUALLY is on screen right now -- never a fixed CSS position
+  // independent of it. Measured and applied BEFORE the caller collapses
+  // the dock (see open() below), so this always reads the dock's real,
+  // uncollapsed layout position, not a slightly-transformed one.
+  let lastAnchor = null;   // reused by close() so it shrinks back to the exact spot it grew from
+  function computeAnchoredPosition() {
+    if (!dockEl) return null;
+    const r = dockEl.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return null;   // dock not laid out yet -- fall back to CSS defaults
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const narrow = vw < NARROW_VIEWPORT_PX;
+
+    // Horizontal anchor: whichever side of the viewport the dock's centre
+    // is nearer to is the edge the panel grows from too -- docked right,
+    // it expands leftward/inward; docked left, rightward/inward.
+    const anchorRight = (r.left + r.width / 2) > vw / 2;
+    // Vertical anchor: same idea. A dock sitting in the bottom half (the
+    // map's own bottom-safe dock) makes the panel grow UPWARD from it;
+    // one in the top half grows downward.
+    const anchorBottom = (r.top + r.height / 2) > vh / 2;
+
+    const style = {};
+    if (narrow) {
+      // Full-width-minus-margins: there is no meaningful "grow sideways"
+      // on a phone screen, so only the vertical anchor still does real
+      // work here.
+      style.left = PANEL_MARGIN_PX + 'px';
+      style.right = PANEL_MARGIN_PX + 'px';
+      style.width = 'auto';
+    } else {
+      const w = Math.min(PANEL_WIDTH_PX, vw - 2 * PANEL_MARGIN_PX);
+      style.width = w + 'px';
+      if (anchorRight) {
+        style.right = Math.max(PANEL_MARGIN_PX, vw - r.right) + 'px';
+        style.left = 'auto';
+      } else {
+        style.left = Math.max(PANEL_MARGIN_PX, r.left) + 'px';
+        style.right = 'auto';
+      }
+    }
+    if (anchorBottom) {
+      style.bottom = Math.max(PANEL_MARGIN_PX, vh - r.bottom) + 'px';
+      style.top = 'auto';
+      style.maxHeight = Math.min(PANEL_MAX_HEIGHT_PX, r.top - PANEL_MARGIN_PX) + 'px';
+    } else {
+      style.top = Math.max(PANEL_MARGIN_PX, r.top) + 'px';
+      style.bottom = 'auto';
+      style.maxHeight = Math.min(PANEL_MAX_HEIGHT_PX, vh - r.bottom - PANEL_MARGIN_PX) + 'px';
+    }
+    const transformOrigin = (narrow ? '50%' : (anchorRight ? '100%' : '0%')) + ' ' + (anchorBottom ? '100%' : '0%');
+    return { style, transformOrigin };
+  }
+  function applyAnchor(anchor) {
+    if (!anchor) return;
+    Object.assign(panel.style, anchor.style);
+    panel.style.transformOrigin = anchor.transformOrigin;
+  }
 
   // ---- open/close -- panel state is never destroyed, only hidden;
   // conversation/session survive close/reopen for the whole page visit,
@@ -266,15 +354,44 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
   // for the dock -- which is exactly what happened before this). The
   // caller is told which state we are in and collapses the dock while the
   // overlay is up; the overlay's own close button brings it back.
-  function setOpenState(isOpen) {
-    panel.hidden = !isOpen;
+  let isOpen = false;
+  function setOpenState(nextOpen) {
+    if (nextOpen === isOpen) return;
+    isOpen = nextOpen;
+    if (isOpen) {
+      // Measure and position FIRST, while the dock is still in its normal
+      // (uncollapsed) layout position -- onOpenState below is what
+      // collapses it, and must run after this.
+      lastAnchor = computeAnchoredPosition();
+      applyAnchor(lastAnchor);
+    } else if (lastAnchor) {
+      // Shrink back to the exact spot it grew from, not wherever the dock
+      // happens to measure right now (it's invisible/collapsed at this
+      // point, so re-measuring it would be measuring a moving target).
+      applyAnchor(lastAnchor);
+    }
+    panel.classList.toggle('is-open', isOpen);
+    panel.setAttribute('aria-hidden', String(!isOpen));
     if (onOpenState) onOpenState(isOpen);
   }
   function open() { setOpenState(true); }
   function close() { setOpenState(false); }
-  function toggle() { if (panel.hidden) { open(); input.focus(); } else close(); }
+  function toggle() { if (!isOpen) { open(); input.focus(); } else close(); }
   closeBtn.addEventListener('click', close);
   if (orbEl) orbEl.addEventListener('click', toggle);
+
+  // A resize/rotation while the panel is OPEN must keep it correctly
+  // anchored and clamped. The dock is collapsed (invisible) at this point
+  // but stays in normal layout, so re-measuring it still gives a usable
+  // rect -- and js/mam-dock.js re-places the dock itself on the same kind
+  // of debounce, so by the time this settles the dock's own position has
+  // already caught up with the new viewport too.
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (!isOpen) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (isOpen && dockEl) { lastAnchor = computeAnchoredPosition() || lastAnchor; applyAnchor(lastAnchor); } }, 120);
+  });
 
   function scrollLogToBottom() { log.scrollTop = log.scrollHeight; }
   function clearEmptyState() { if (emptyState.parentNode) emptyState.remove(); }
@@ -623,48 +740,94 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
   // "unsupported" is a fact it can read rather than guess at.
   const voiceApi = { isSupported: false, toggleHandsFree: () => {} };
 
+  // ---- the wake phrase, "MAM AI" ----------------------------------------
+  // Whether the visitor wants MAM listening for the phrase is a STANDING
+  // preference -- set once, the first time they explicitly turn voice on,
+  // and remembered in localStorage (not sessionStorage: it is meant to
+  // survive well past one tab/visit, exactly like "remember that the user
+  // wants wake mode enabled" asks for) -- not a per-turn or per-session
+  // flag. It is also what auto-resumes wake-listening on the next page
+  // (see the bottom of this block) and what a real mic failure clears, so
+  // a permanently denied/missing microphone does not keep silently
+  // retrying on every future navigation.
+  const WAKE_ENABLED_KEY = 'darwesh_mam_wake_enabled';
+  let wakeEnabled = false;
+  try { wakeEnabled = localStorage.getItem(WAKE_ENABLED_KEY) === '1'; } catch { /* storage disabled */ }
+  function persistWakeEnabled(on) {
+    wakeEnabled = on;
+    try { if (on) localStorage.setItem(WAKE_ENABLED_KEY, '1'); else localStorage.removeItem(WAKE_ENABLED_KEY); } catch { /* storage disabled */ }
+  }
+
+  // Loose, not exact-match: SpeechRecognition transcribes "MAM AI" as
+  // whatever its language model thinks it heard, and that varies by
+  // accent/engine ("mam ai", "mom eye", "mamai"...). Normalizing case,
+  // punctuation and collapsing whitespace before testing keeps the match
+  // forgiving without turning it into a fuzzy-match rabbit hole. The
+  // Arabic-script Kurdish/Arabic spelling the product asked for is
+  // matched on the ORIGINAL transcript (Arabic script has no case, and
+  // \p{L} normalization is what already strips the diacritics/punctuation
+  // that would otherwise break a literal substring match).
+  function normalizeForPhraseMatch(s) {
+    return (s || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  }
+  const WAKE_PATTERNS = [/\bmam\s*a+\s*i\b/, /\bmamai\b/, /مام\s*ا[يی]/, /مام\s*آی/];
+  function heardWakePhrase(transcript) {
+    const norm = normalizeForPhraseMatch(transcript);
+    return WAKE_PATTERNS.some((re) => re.test(norm));
+  }
+  const STOP_PATTERNS = [/\bstop\s*mam\b/, /\bmam\s*stop\b/, /وەستە\s*مام/, /مام\s*وەستە/, /توقف\s*مام/, /مام\s*توقف/];
+  function heardStopPhrase(transcript) {
+    const norm = normalizeForPhraseMatch(transcript);
+    return STOP_PATTERNS.some((re) => re.test(norm));
+  }
+
   function clearVoiceIntent() {
+    // Legacy key from before wakeEnabled existed -- still cleared so a
+    // browser that carries an old value from a previous deploy doesn't
+    // resurrect stale resume logic. Not written anywhere any more.
     try { sessionStorage.removeItem(VOICE_INTENT_KEY); } catch { /* storage disabled */ }
   }
 
   if (!SpeechRecognitionCtor) {
     // No recognition in this browser. The mic controls stay hidden rather
-    // than showing a button that would pretend to listen -- and a voice
-    // intent carried from a browser that DID have it is dropped, so no
-    // page offers to resume something it cannot do.
+    // than showing a button that would pretend to listen -- and a wake
+    // preference carried from a browser that DID have it is dropped, so
+    // no page offers to resume something it cannot do.
     allMicEls.forEach((el) => { el.hidden = true; });
     clearVoiceIntent();
+    persistWakeEnabled(false);
     if (onResumeHint) onResumeHint(null);
   } else {
-    // ONE instance for the life of the page. A second one would compete
-    // for the same microphone and deliver the same utterance twice.
+    // ONE instance for the life of the page, shared by BOTH the passive
+    // wake loop and the active conversation loop -- never two recognition
+    // objects competing for one microphone. `recogMode` records which
+    // purpose the CURRENTLY RUNNING session serves, since `result` and
+    // `end` both need to know that to decide what happens next.
     const recognition = new SpeechRecognitionCtor();
-    // `continuous` stays FALSE on purpose. The browser's own continuous
-    // mode keeps the microphone stream open straight through MAM's spoken
-    // reply and transcribes that reply back as the next question -- the
-    // assistant ends up talking to itself. Capturing one utterance at a
-    // time and reopening the mic only after speaking has finished is what
-    // keeps the two voices apart.
+    // `continuous` stays FALSE on purpose, for both modes. The browser's
+    // own continuous mode keeps the microphone stream open straight
+    // through MAM's spoken reply and transcribes that reply back as the
+    // next question -- the assistant ends up talking to itself. Capturing
+    // one utterance at a time and reopening the mic only when it is
+    // actually safe to (never while MAM is speaking) is what keeps the
+    // two voices apart, and is also exactly what lets ONE instance serve
+    // both a passive wake loop and an active conversation loop in turn.
     recognition.continuous = false;
     recognition.interimResults = false;
 
-    // HANDS-FREE IS A MODE, NOT A CAPTURE.
-    //
-    // One click starts a conversation and it runs on its own:
-    //
-    //   listening -> processing -> speaking -> listening -> ...
-    //
-    // A second click ends it. The mic is never push-to-talk: nothing has
-    // to be held, released, or pressed again between sentences.
-    let listening = false;
-    let handsFree = false;
+    let recogMode = null;       // 'wake' | 'conversation' | null -- purpose of the running session
+    let listening = false;      // conversation recognition currently open
+    let wakeListening = false;  // wake recognition currently open
+    let handsFree = false;      // an active, multi-turn conversation loop is running
     // Set between calling recognition.start() and the browser confirming
     // it. Without it, a fast end->restart can call start() twice before
     // the first has taken effect, which throws InvalidStateError and (on
     // some builds) leaves two capture sessions running.
     let starting = false;
-    // A run of silences ends the mode instead of holding the microphone
-    // open forever -- someone who walked away should not leave it live.
+    // A run of silences ends a CONVERSATION turn instead of holding the
+    // microphone open forever -- someone who walked away should not leave
+    // it capturing. It does not turn wake mode off; see
+    // naturalConversationEnd() below.
     let silentRounds = 0;
     const MAX_SILENT_ROUNDS = 3;
     // Engines can deliver the same final result twice (a `result` event
@@ -673,6 +836,15 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
     let lastTranscript = '';
     let lastTranscriptAt = 0;
     const DUPLICATE_WINDOW_MS = 2500;
+    // Decided inside `result` (while `recognition` may still technically
+    // be finishing its current session) and acted on inside `end` --
+    // calling recognition.start() again before the browser has actually
+    // finished the previous session throws InvalidStateError, so every
+    // transition waits for `end`, exactly like the original hands-free
+    // loop already did for its own restart decisions.
+    let pendingWakeToConversation = false;
+    let pendingStopCommand = false;
+    let pendingSendText = null;
 
     function speechLangTag() {
       const lang = currentLang();
@@ -685,12 +857,19 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
         el.classList.toggle('is-listening', listening);
         el.classList.toggle('mic-handsfree', handsFree);
         el.classList.toggle('is-handsfree', handsFree);
-        el.setAttribute('aria-pressed', String(handsFree));
+        el.classList.toggle('is-wake', wakeListening || (wakeEnabled && !handsFree));
+        // Not a strict boolean once wake mode exists, but aria-pressed only
+        // takes true/false/mixed -- "engaged in any form" is what a screen
+        // reader needs to know before it reads the label below, which is
+        // where the actual distinction (off vs. waiting vs. talking) lives.
+        el.setAttribute('aria-pressed', String(handsFree || wakeEnabled));
         el.setAttribute('aria-label', handsFree
           ? tr('mam.handsFreeStop', 'Stop the voice conversation')
-          : tr('mam.handsFreeStart', 'Start a hands-free voice conversation'));
+          : (wakeEnabled
+            ? tr('mam.wakeModeOn', 'Voice on — say “MAM AI” to talk, or tap to turn it off')
+            : tr('mam.handsFreeStart', 'Start a hands-free voice conversation')));
       });
-      if (onVoiceUi) onVoiceUi({ handsFree, listening });
+      if (onVoiceUi) onVoiceUi({ handsFree, listening, wakeEnabled, wakeListening });
     }
 
     function voiceProblem(messageKey, fallback) {
@@ -698,24 +877,25 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
       addAssistantBubble({ message: tr(messageKey, fallback) }, { failed: true });
     }
 
+    // Begins/continues one CONVERSATION turn -- the active, "capture a
+    // real question" mode. Unchanged in spirit from the original
+    // hands-free loop; only now it also hands off cleanly from wake mode.
     function startListening() {
       if (listening || starting) return;
-      // Never listen while MAM is still speaking, or its own voice becomes
-      // the next question.
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       recognition.lang = speechLangTag();
       starting = true;
       try {
         recognition.start();
+        recogMode = 'conversation';
         listening = true;
         companion.setState('listening');
         open();
       } catch {
         // Already started, or the mic was refused: drop the mode rather
         // than leaving a button that claims to be listening.
-        listening = false;
-        starting = false;
-        endHandsFree();
+        listening = false; starting = false; recogMode = null;
+        naturalConversationEnd();
         return;
       }
       starting = false;
@@ -728,25 +908,83 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
       updateMicUI();
     }
 
-    function endHandsFree() {
+    // Begins the PASSIVE wake loop -- listening only for "MAM AI", never
+    // open()-ing the panel or touching the log. Requires wakeEnabled: it
+    // is never armed on its own initiative.
+    function startWakeListening() {
+      if (listening || wakeListening || starting || handsFree || !wakeEnabled) return;
+      recognition.lang = speechLangTag();
+      starting = true;
+      try {
+        recognition.start();
+        recogMode = 'wake';
+        wakeListening = true;
+        companion.setState('wake-listening');
+      } catch {
+        // Most likely: the browser is refusing to start recognition
+        // without a fresh gesture on THIS document (see the resume
+        // handling below). wakeEnabled itself is left alone -- this is a
+        // "not right now" refusal, not the visitor asking for voice off.
+        wakeListening = false; starting = false; recogMode = null;
+        if (onResumeHint) onResumeHint(tr('mam.voiceResume', 'Voice mode is paused — tap the microphone to continue talking.'));
+        updateMicUI();
+        return;
+      }
+      starting = false;
+      updateMicUI();
+    }
+
+    function stopWakeListening() {
+      wakeListening = false;
+      if (companion.getState() === 'wake-listening') companion.setState('idle');
+      updateMicUI();
+    }
+
+    // A conversation turn ending on its OWN (silence timeout, a failed
+    // backend call) -- as opposed to the visitor explicitly asking for
+    // quiet. The standing wake preference is not touched: if it is still
+    // on, listening does not truly stop, it drops back to passively
+    // waiting for "MAM AI" so the next question needs no button press.
+    function naturalConversationEnd() {
       handsFree = false;
       silentRounds = 0;
-      clearVoiceIntent();
-      if (onResumeHint) onResumeHint(null);
+      stopListening();
+      if (wakeEnabled) startWakeListening();
+    }
+
+    // The one, total, explicit stop -- the mic/voice button while
+    // anything is on, or the "Stop MAM" / "MAM stop" voice command.
+    // Turns the WHOLE system off, including the standing wake preference,
+    // and does not restart itself.
+    function disableVoiceCompletely() {
+      persistWakeEnabled(false);
+      handsFree = false; silentRounds = 0;
+      pendingWakeToConversation = false; pendingStopCommand = false; pendingSendText = null;
       // abort(), not stop(): stop() still delivers whatever it heard, so
       // an explicit Stop could be followed by one more question the
       // visitor never meant to ask.
       try { recognition.abort(); } catch { /* not running */ }
+      recogMode = null;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (onResumeHint) onResumeHint(null);
       stopListening();
+      stopWakeListening();
     }
 
-    function beginHandsFree() {
+    // `viaWake`: true when a heard wake phrase is what started this turn,
+    // as opposed to the visitor pressing the mic button themselves. Only
+    // the explicit-click path counts as the "enable voice once" gesture
+    // that persists the standing preference -- a wake-triggered turn
+    // requires wakeEnabled to already be true to have been listening for
+    // the phrase at all, so re-persisting it there is redundant, not
+    // wrong, but skipping it keeps the intent of the flag legible: it
+    // means "the visitor asked for this," not "a turn happened."
+    function beginHandsFree({ viaWake = false } = {}) {
       if (handsFree) return;
       handsFree = true;
       silentRounds = 0;
       if (onResumeHint) onResumeHint(null);
-      try { sessionStorage.setItem(VOICE_INTENT_KEY, '1'); } catch { /* storage disabled */ }
+      if (!viaWake) persistWakeEnabled(true);
       // The point of the mode is a spoken conversation, so replies are
       // read aloud while it is on even if the visitor had voice output
       // switched off for typing. The stored preference is left alone --
@@ -758,62 +996,109 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
       startListening();
     }
 
-    function toggleHandsFree() {
-      if (handsFree) { endHandsFree(); return; }
+    // ONE predictable on/off switch for the mic/voice button: anything
+    // currently on (an active conversation, the standing wake preference,
+    // or the passive loop that preference drives) turns EVERYTHING off;
+    // otherwise this both persists the standing preference (the required
+    // "explicit enable" gesture) and starts talking immediately, so the
+    // very first use does not require the visitor to already know and say
+    // the wake phrase.
+    function toggleMicButton() {
+      if (handsFree || wakeEnabled || wakeListening) { disableVoiceCompletely(); return; }
       beginHandsFree();
     }
     voiceApi.isSupported = true;
-    voiceApi.toggleHandsFree = toggleHandsFree;
+    voiceApi.toggleHandsFree = toggleMicButton;
 
     allMicEls.forEach((el) => {
       el.hidden = false;
-      el.addEventListener('click', toggleHandsFree);
+      el.addEventListener('click', toggleMicButton);
     });
     updateMicUI();
 
     recognition.addEventListener('result', (e) => {
       const transcript = (e.results[0][0].transcript || '').trim();
-      stopListening();
-      if (!transcript) return;
-      const now = Date.now();
-      if (transcript === lastTranscript && now - lastTranscriptAt < DUPLICATE_WINDOW_MS) return;
-      lastTranscript = transcript;
-      lastTranscriptAt = now;
-      silentRounds = 0;
-      sendMessage(transcript, {
-        viaVoice: true,
-        // Chained off the end of the spoken reply, so the next turn opens
-        // the mic exactly when MAM stops talking -- never while it is
-        // still speaking, which is what would feed its own voice back in.
-        onReplySpoken: () => { if (handsFree) startListening(); },
-        // A failed turn ends the mode: looping on an error would just
-        // re-ask into a broken connection.
-        onFailed: () => { if (handsFree) endHandsFree(); }
-      });
+      if (recogMode === 'wake') {
+        // Wake mode is a trigger, not a transcription service: anything
+        // that isn't the phrase is simply not acted on. The restart (or
+        // the hand-off into a real conversation) happens uniformly in
+        // 'end' below, once the browser has actually finished this
+        // session -- starting a new one from here would race it.
+        if (transcript && heardWakePhrase(transcript)) pendingWakeToConversation = true;
+        return;
+      }
+      if (recogMode === 'conversation') {
+        if (!transcript) return;
+        if (heardStopPhrase(transcript)) { pendingStopCommand = true; return; }
+        const now = Date.now();
+        if (transcript === lastTranscript && now - lastTranscriptAt < DUPLICATE_WINDOW_MS) return;
+        lastTranscript = transcript;
+        lastTranscriptAt = now;
+        silentRounds = 0;
+        pendingSendText = transcript;
+      }
     });
 
     recognition.addEventListener('end', () => {
-      const wasListening = listening;
-      stopListening();
-      // Reached with no result = silence. Reopen the mic a few times, then
-      // give up rather than listening indefinitely.
-      if (!handsFree || !wasListening || sending) return;
-      silentRounds += 1;
-      if (silentRounds >= MAX_SILENT_ROUNDS) { endHandsFree(); return; }
-      startListening();
+      const mode = recogMode;
+      recogMode = null;
+      if (mode === 'wake') {
+        stopWakeListening();
+        if (pendingWakeToConversation) {
+          pendingWakeToConversation = false;
+          beginHandsFree({ viaWake: true });
+        } else if (wakeEnabled && !handsFree) {
+          startWakeListening();   // heard nothing useful -- keep waiting for the phrase
+        }
+        return;
+      }
+      if (mode === 'conversation') {
+        const wasListening = listening;
+        stopListening();
+        if (pendingStopCommand) { pendingStopCommand = false; disableVoiceCompletely(); return; }
+        if (pendingSendText) {
+          const text = pendingSendText;
+          pendingSendText = null;
+          sendMessage(text, {
+            viaVoice: true,
+            // Chained off the end of the spoken reply, so the next turn
+            // opens the mic exactly when MAM stops talking -- never while
+            // it is still speaking, which is what would feed its own
+            // voice back in.
+            onReplySpoken: () => { if (handsFree) startListening(); },
+            // A failed turn ends the conversation loop (not the standing
+            // wake preference): looping on an error would just re-ask
+            // into a broken connection.
+            onFailed: () => { naturalConversationEnd(); }
+          });
+          return;
+        }
+        // Reached with no result = silence. Reopen the mic a few times,
+        // then give up (dropping to wake-listening if that preference is
+        // still on) rather than capturing indefinitely.
+        if (!handsFree || !wasListening || sending) return;
+        silentRounds += 1;
+        if (silentRounds >= MAX_SILENT_ROUNDS) { naturalConversationEnd(); return; }
+        startListening();
+      }
     });
 
     recognition.addEventListener('error', (e) => {
       const kind = (e && e.error) || '';
-      // 'no-speech' is ordinary silence and is handled by the end handler
-      // that follows it -- not a failure worth telling anyone about.
-      if (kind === 'no-speech') { stopListening(); return; }
-      // 'aborted' is this module's own endHandsFree() calling abort();
-      // reporting it would mean an error bubble on every deliberate stop.
-      if (kind === 'aborted') { stopListening(); return; }
-      endHandsFree();
-      // Everything else is a real, distinct condition the visitor can act
-      // on -- never a generic "voice failed".
+      // 'no-speech' is ordinary silence, handled by the 'end' handler
+      // that follows it -- not a failure worth telling anyone about, in
+      // either mode.
+      if (kind === 'no-speech') { return; }
+      // 'aborted' is this module's own disableVoiceCompletely() calling
+      // abort(); reporting it would mean an error bubble on every
+      // deliberate stop.
+      if (kind === 'aborted') { return; }
+      // A real failure. Disabling outright (rather than letting 'end'
+      // run its normal restart/wake-drop-back logic) matters most for
+      // 'not-allowed'/'audio-capture': retrying those would just fail
+      // again, silently, forever, on every future page.
+      pendingWakeToConversation = false; pendingStopCommand = false; pendingSendText = null;
+      disableVoiceCompletely();
       if (kind === 'not-allowed' || kind === 'service-not-allowed') {
         voiceProblem('mam.micDenied', 'Microphone access is blocked. Allow the microphone for this site in your browser settings, then try voice again.');
       } else if (kind === 'audio-capture') {
@@ -825,22 +1110,24 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
       }
     });
 
-    // ---- resuming voice after a page navigation (section J) -----------
+    // ---- resuming wake mode after a page navigation (section 7) -------
     // The browser destroyed the previous page's microphone stream and its
     // SpeechRecognition object along with the document -- nothing can
     // carry those across, and this module does not pretend otherwise.
-    // What did survive is the session, the conversation and the INTENT.
+    // What survives is `wakeEnabled` itself (localStorage, so it outlives
+    // this one tab/session, not just this page).
     //
-    // Autostarting from that intent alone would be wrong twice over: most
-    // browsers refuse to open a microphone without a user gesture on the
-    // new document, and silently reopening a mic on a page the visitor
-    // merely navigated to is not something to do behind their back. So
-    // the dock says voice is paused and one tap resumes it.
-    let carriedVoiceIntent = false;
-    try { carriedVoiceIntent = sessionStorage.getItem(VOICE_INTENT_KEY) === '1'; } catch { /* storage disabled */ }
-    if (carriedVoiceIntent && onResumeHint) {
-      onResumeHint(tr('mam.voiceResume', 'Voice mode is paused — tap the microphone to continue talking.'));
-    }
+    // Unlike TTS autoplay, most browsers do NOT require a fresh user
+    // gesture to call SpeechRecognition.start() once microphone
+    // permission has already been granted for the origin -- permission is
+    // an origin-level grant, not a per-navigation one. So this actually
+    // ATTEMPTS to resume (the "strongest reliable web behaviour" this was
+    // asked to implement), rather than only ever showing a static "tap to
+    // resume" hint: startWakeListening()'s own catch above is what falls
+    // back to that hint on the (real, still-possible) browsers/situations
+    // that do refuse it.
+    clearVoiceIntent();
+    if (wakeEnabled) startWakeListening();
   }
 
   // ---- suggested prompts ----------------------------------------------
@@ -871,6 +1158,13 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
     renderChips();
   });
 
+  // Whether a real conversation already exists is decided ONCE, before
+  // replaying it below adds bubbles to the log -- callers (the map's
+  // first-time greeting) need to know "was there already a conversation
+  // when this page loaded," not "is the log non-empty right now," which
+  // replaying would otherwise make trivially true.
+  const hadExistingConversation = readTranscript().length > 0;
+
   // Redraw whatever was said before this page loaded. Runs last so every
   // helper it uses exists and the log is still empty; a failed turn was
   // never recorded, so nothing here can resurrect an error bubble.
@@ -899,7 +1193,9 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
     open, close, toggle, sendMessage,
     /** Present only where the browser really has speech recognition. */
     toggleHandsFree: voiceApi.toggleHandsFree,
-    isVoiceSupported: voiceApi.isSupported
+    isVoiceSupported: voiceApi.isSupported,
+    /** True if a conversation was already carried in when this page loaded. */
+    hasExistingConversation: hadExistingConversation
   };
 }
 

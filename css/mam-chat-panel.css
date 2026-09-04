@@ -1,22 +1,27 @@
 /* MAM site-wide chat panel -- the ONE local, non-navigating conversation
- * surface opened by js/mam-companion-launcher.js's orb on every public
- * page other than map.html (which keeps its own richer dock, see
- * js/mam-properties-map.js). Self-contained like css/mam-companion.css:
- * reuses the same --mamco-* custom properties (falls back to the same
- * literal values when they aren't defined) so this file never requires
- * cinematic.css or any other page-level stylesheet to be present.
+ * surface, the SAME surface as the compact dock (js/mam-dock.js) just
+ * expanded, opened by js/mam-companion-launcher.js on every public page.
+ * Self-contained like css/mam-companion.css: reuses the same --mamco-*
+ * custom properties (falls back to the same literal values when they
+ * aren't defined) so this file never requires cinematic.css or any other
+ * page-level stylesheet to be present.
+ *
+ * Position is NOT fixed in this file. It used to be hardcoded here
+ * (`right: 104px; top: 50%`), which is what made the panel look like a
+ * second, detached surface: wherever the compact dock actually was --
+ * dragged to the left, sitting at the map's bottom edge -- the
+ * conversation always popped up in that one fixed spot instead. Now
+ * left/right/top/bottom/max-height/transform-origin are all set inline by
+ * js/mam-chat-panel.js's computeAnchoredPosition(), measured from the
+ * dock's OWN current position each time it opens, so the panel always
+ * grows from wherever the dock is and shrinks back to exactly that spot
+ * on close -- this file owns only the chrome and the open/close motion.
  */
 .mamcp-panel {
   position: fixed;
   z-index: 1200;
   display: flex;
   flex-direction: column;
-  width: 360px;
-  max-width: calc(100vw - 20px);
-  max-height: 70vh;
-  right: 104px;
-  top: 50%;
-  transform: translateY(-50%);
   background: var(--mamco-surface, #17150F)f5;
   backdrop-filter: blur(10px);
   border: 1px solid var(--mamco-outline, #5D482B);
@@ -24,8 +29,24 @@
   box-shadow: 0 12px 40px rgba(0,0,0,.45);
   overflow: hidden;
   font-family: 'Inter', sans-serif;
+  /* Closed: scaled down toward the dock (transform-origin is set inline
+     to whichever corner the dock sits at) and invisible/non-interactive.
+     `visibility` is delayed on the way OUT so the shrink is still seen,
+     but applied immediately on the way IN so the panel is interactive
+     the instant it starts growing. */
+  opacity: 0;
+  transform: scale(0.06);
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 260ms cubic-bezier(.22,.61,.36,1), opacity 200ms ease, visibility 0s linear 260ms;
 }
-.mamcp-panel[hidden] { display: none; }
+.mamcp-panel.is-open {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  visibility: visible;
+  transition: transform 260ms cubic-bezier(.22,.61,.36,1), opacity 200ms ease, visibility 0s linear 0s;
+}
 
 .mamcp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--mamco-outline, #5D482B); flex: none; }
 .mamcp-title-wrap { display: flex; flex-direction: column; min-width: 0; }
@@ -77,17 +98,26 @@
 .mamcp-send:disabled { opacity: .5; cursor: not-allowed; }
 .mamcp-mic { background: transparent; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); }
 .mamcp-mic.mic-listening { background: var(--mamco-error, #E5787A); border-color: var(--mamco-error, #E5787A); color: #090A0A; }
-.mamcp-mic[hidden] { display: none; }
-
-@media (max-width: 767px) {
-  .mamcp-panel {
-    right: 10px; left: 10px; top: auto;
-    bottom: calc(10px + env(safe-area-inset-bottom));
-    transform: none; width: auto; max-width: none; max-height: 68vh;
-    border-radius: 20px;
-  }
+/* Passively listening for "MAM AI" -- the same calmer treatment as the
+   dock's own mic (css/mam-dock.css), kept visually consistent since both
+   drive the exact same voice state. */
+.mamcp-mic.is-wake:not(.mic-listening) {
+  border-color: rgba(184, 154, 99, 0.55);
+  color: var(--mamco-accent, #B89A63);
+  animation: mamcp-mic-wake-pulse 3.6s ease-in-out infinite;
 }
+@keyframes mamcp-mic-wake-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184, 154, 99, 0.28); }
+  50%      { box-shadow: 0 0 0 4px rgba(184, 154, 99, 0); }
+}
+.mamcp-mic[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .mamcp-dot { animation: none; opacity: .8; }
+  .mamcp-mic.is-wake { animation: none; }
+  .mamcp-panel {
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
+    transform: none !important;
+  }
+  .mamcp-panel.is-open { transition: opacity 120ms ease; }
 }

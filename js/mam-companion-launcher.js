@@ -15,8 +15,19 @@
 // host page supplies structured context and layout hints only.
 //
 // Clicking the dock NEVER navigates the visitor away from the current
-// page -- it opens/toggles the overlay in place. Dragging it moves it and
-// deliberately does not open anything (see js/mam-dock.js's threshold).
+// page -- it opens/toggles the overlay in place, MORPHING from wherever
+// the dock currently is (js/mam-chat-panel.js's computeAnchoredPosition())
+// rather than popping up in some unrelated fixed spot. Dragging it moves
+// it and deliberately does not open anything (see js/mam-dock.js's
+// threshold).
+//
+// Default position is page-type aware: the map (`data-page="properties_map"`)
+// docks bottom-safe, over the map itself rather than the listing panel
+// beside it; every other public page docks to the right edge, matching
+// where the original standalone orb this replaced always sat. Each
+// context remembers its OWN dragged position (js/mam-dock.js scopes the
+// stored position by this same side), so a spot chosen on the map never
+// leaks onto Home and vice versa.
 //
 // Usage, once near the end of <body>:
 //   <div id="mamCompanionLauncher" data-page="property" data-id="abc123"></div>
@@ -37,6 +48,13 @@
 // about properties; a services page can ask about something else).
 import { mountMamDock } from './mam-dock.js';
 import { mountMamChatPanel, isMamMounted } from './mam-chat-panel.js';
+
+// Only map.html uses this `data-page` value (confirmed against every
+// other page's own launcher markup) -- what decides its dock defaults to
+// the bottom-safe position, centred over the map itself, instead of the
+// right-edge default every other public page gets.
+const MAP_PAGE_VALUE = 'properties_map';
+const MAP_GREETED_KEY = 'darwesh_mam_map_greeted';
 
 const mount = document.getElementById('mamCompanionLauncher');
 if (mount && !isMamMounted()) {
@@ -64,13 +82,25 @@ function readPageContext() {
 }
 
 function init() {
+  const isMapPage = mount.getAttribute('data-page') === MAP_PAGE_VALUE;
   const label = mount.getAttribute('data-label')
     || tr('mam.dockPrompt', 'Ask MAM about properties…');
 
-  const dock = mountMamDock({ getLanguage: currentLang, label });
+  const dock = mountMamDock({
+    getLanguage: currentLang,
+    label,
+    defaultSide: isMapPage ? 'bottom' : 'right',
+    // Centres the map's default position over the map HALF of the split
+    // view (`#mapPanel`), not the whole window -- the window's own centre
+    // can land inside the listing panel beside it on desktop, which is
+    // exactly the "must not cover listing cards" case this avoids by
+    // construction rather than by nudging around it afterwards.
+    bottomAnchorSelector: isMapPage ? '#mapPanel' : undefined
+  });
 
   const panel = mountMamChatPanel({
     orbEl: dock.openBtn,          // the whole compact bar opens the overlay
+    dockEl: dock.root,            // what the overlay morphs from/to (see mam-chat-panel.js)
     micEls: [dock.micBtn],        // the dock's mic drives the SAME voice state
     companion: dock.companion,
     getLanguage: currentLang,
@@ -86,4 +116,23 @@ function init() {
   document.addEventListener('darwesh:langchange', () => {
     dock.setLabel(mount.getAttribute('data-label') || tr('mam.dockPrompt', 'Ask MAM about properties…'));
   });
+
+  // ---- the map's one-time arrival greeting ------------------------------
+  // A visitor who lands on the map with no conversation already running
+  // gets a brief, silent nudge in the dock's own label -- never spoken,
+  // never opening the panel (both would be a lot louder than "a subtle
+  // first-time greeting" asks for) -- shown once ever, not on every
+  // reload, and never when a real conversation is already carried in from
+  // another page.
+  if (isMapPage && !panel.hasExistingConversation) {
+    let alreadyGreeted = false;
+    try { alreadyGreeted = localStorage.getItem(MAP_GREETED_KEY) === '1'; } catch { /* storage disabled */ }
+    if (!alreadyGreeted) {
+      try { localStorage.setItem(MAP_GREETED_KEY, '1'); } catch { /* storage disabled -- shows once per visit instead of once ever, acceptable */ }
+      const GREETING_MS = 5000;
+      const greeting = tr('mam.mapGreeting', 'How can I help you find a property?');
+      dock.setLabel(greeting);
+      setTimeout(() => { dock.setLabel(mount.getAttribute('data-label') || label); }, GREETING_MS);
+    }
+  }
 }

@@ -34,10 +34,17 @@ function ensureStylesheet() {
   document.head.appendChild(link);
 }
 
-const VALID_STATES = new Set(['idle', 'listening', 'thinking', 'speaking', 'result-ready', 'error']);
+// 'wake-listening' is passive: the mic is open only to catch the "MAM AI"
+// wake phrase, not to capture a real question. It gets its own state
+// (rather than reusing 'listening') so the orb -- and a screen reader --
+// can tell "ambient, waiting for the phrase" apart from "actively taking
+// your question," which is what 'listening' means everywhere else in
+// this codebase (map.html's circle search, the hands-free loop).
+const VALID_STATES = new Set(['idle', 'wake-listening', 'listening', 'thinking', 'speaking', 'result-ready', 'error']);
 
 const STATE_LABELS = {
   idle: { en: 'MAM is ready', ar: 'MAM جاهز', ku: 'MAM ئامادەیە' },
+  'wake-listening': { en: 'MAM is listening for “MAM AI”', ar: 'MAM بانتظار قول "مام آي"', ku: 'MAM چاوەڕێی وشەی "مام ئای"ـە' },
   listening: { en: 'MAM is listening', ar: 'MAM يستمع', ku: 'MAM گوێ دەگرێت' },
   thinking: { en: 'MAM is thinking', ar: 'MAM يفكر', ku: 'MAM بیر دەکاتەوە' },
   speaking: { en: 'MAM is speaking', ar: 'MAM يتحدث', ku: 'MAM قسە دەکات' },
