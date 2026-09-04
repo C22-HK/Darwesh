@@ -354,8 +354,13 @@ violation reporting. -->
      * gone with js/mam-properties-map.js. The one shared surface --
      * js/mam-dock.js + js/mam-chat-panel.js, mounted by
      * js/mam-companion-launcher.js at the bottom of this file -- brings
-     * its own stylesheets, positions itself, remembers where the visitor
-     * put it, and keeps clear of the controls below via data-mam-avoid.
+     * its own stylesheets, defaults to a bottom-safe dock centred over
+     * THIS page's own #mapPanel (never the listing panel beside it),
+     * remembers where the visitor put it if they moved it, and keeps
+     * clear of the controls below (plus Leaflet's own zoom/attribution,
+     * marked right where they're created) via data-mam-avoid. Opening the
+     * conversation morphs it upward from that same dock -- never a
+     * separate panel appearing somewhere else on the page.
      *
      * The list panel still reserves room at its foot so the last card can
      * be scrolled clear of the dock resting over it. */
@@ -1098,6 +1103,13 @@ let areaMin = null, areaMax = null;
 const MAX_MAP_ZOOM = 15;
 const map = L.map('map', { zoomControl: false, maxZoom: MAX_MAP_ZOOM }).setView([36.35, 44.3], 8);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
+// data-mam-avoid: the shared MAM dock (js/mam-dock.js) keeps clear of
+// anything carrying this attribute, so the zoom buttons and Leaflet's own
+// attribution never end up hidden under the dock or the conversation it
+// morphs into. Marked here, right after Leaflet creates each control's
+// DOM node, rather than as static markup -- Leaflet builds these itself.
+document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution')
+  .forEach(el => el.setAttribute('data-mam-avoid', ''));
 
 // ---------------------------------------------------------------------
 // Map type (Roadmap/Satellite/Hybrid) -- Roadmap is the existing OSM

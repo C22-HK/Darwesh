@@ -13,7 +13,9 @@
 //   * build the compact bar and host the orb component inside it
 //   * be draggable, with a movement threshold that keeps tap-to-open and
 //     drag-to-move distinguishable
-//   * dock sensibly on release and remember where it was put
+//   * start in a page-appropriate default spot (bottom-safe on the map,
+//     right-edge everywhere else -- see `defaultSide`) and dock sensibly
+//     on release, remembering where it was put separately per page type
 //   * expose the orb, the mic button and the open-target to whoever wires
 //     conversation behaviour onto them
 //
@@ -40,6 +42,14 @@ const MOBILE_BREAKPOINT = 768;
 // 1440px-wide window and a 390px-wide phone are not the same place, and a
 // spot chosen on one is rarely the right spot on the other.
 //
+// Positions are ALSO scoped by `defaultSide` ('bottom' on the map,
+// 'right' everywhere else) rather than shared globally. Without this, a
+// position dragged out on the map (a bottom-safe dock) would leak onto
+// Home (a right-edge dock) and vice versa the next time either loaded --
+// each page type keeps its own memory, and moving between the two
+// contexts always shows that context's own last-chosen spot, or its
+// default if none was ever chosen.
+//
 // Stored as fractions of the free space, not pixels, so a stored position
 // still means something after a resize or an orientation change. This is
 // a UI preference and nothing else -- no identifiers, no auth state, and
@@ -47,18 +57,18 @@ const MOBILE_BREAKPOINT = 768;
 const POS_KEY_PREFIX = 'darwesh_mam_dock_pos_v1_';
 
 function isMobile() { return window.innerWidth < MOBILE_BREAKPOINT; }
-function posKey() { return POS_KEY_PREFIX + (isMobile() ? 'mobile' : 'desktop'); }
+function posKey(defaultSide) { return POS_KEY_PREFIX + defaultSide + '_' + (isMobile() ? 'mobile' : 'desktop'); }
 
-function readStoredPos() {
+function readStoredPos(defaultSide) {
   try {
-    const raw = JSON.parse(localStorage.getItem(posKey()) || 'null');
+    const raw = JSON.parse(localStorage.getItem(posKey(defaultSide)) || 'null');
     if (!raw || typeof raw.fx !== 'number' || typeof raw.fy !== 'number') return null;
     if (!Number.isFinite(raw.fx) || !Number.isFinite(raw.fy)) return null;
     return { fx: Math.min(1, Math.max(0, raw.fx)), fy: Math.min(1, Math.max(0, raw.fy)) };
   } catch { return null; }   // private mode, disabled storage, corrupt value
 }
-function writeStoredPos(fx, fy) {
-  try { localStorage.setItem(posKey(), JSON.stringify({ fx, fy })); } catch { /* nothing breaks without it */ }
+function writeStoredPos(defaultSide, fx, fy) {
+  try { localStorage.setItem(posKey(defaultSide), JSON.stringify({ fx, fy })); } catch { /* nothing breaks without it */ }
 }
 
 function safeInsets() {
@@ -90,9 +100,20 @@ function ensureStylesheet() {
  * @param {Object} [opts]
  * @param {() => string} [opts.getLanguage]
  * @param {string} [opts.label] Visible prompt text on the bar.
+ * @param {'bottom'|'right'} [opts.defaultSide] Where the dock lives before
+ *   the visitor has ever moved it, and the scope its remembered position
+ *   is stored under (see the POS_KEY_PREFIX comment above). 'bottom' is
+ *   the map's own bottom-safe dock; 'right' -- the default -- is every
+ *   other public page.
+ * @param {string} [opts.bottomAnchorSelector] Only consulted when
+ *   defaultSide is 'bottom': an element (e.g. map.html's own `#mapPanel`)
+ *   to horizontally centre the default position over instead of the
+ *   whole window. On the map, the window's own centre can land inside
+ *   the listing panel that sits beside the map, not over the map at all
+ *   -- this is what keeps the default actually over the map.
  * @returns {{root, orbEl, micBtn, openBtn, companion, setLabel, suppress, destroy}}
  */
-export function mountMamDock({ getLanguage, label } = {}) {
+export function mountMamDock({ getLanguage, label, defaultSide = 'right', bottomAnchorSelector } = {}) {
   ensureStylesheet();
 
   const root = document.createElement('div');
@@ -166,18 +187,35 @@ export function mountMamDock({ getLanguage, label } = {}) {
     };
   }
 
-  // Where the dock sits before anyone has moved it: centred along the
-  // bottom, which is where an assistant bar is expected and which is
-  // clear of this site's header, its mobile bottom nav, and the map's
-  // trailing-edge tools.
+  // Where the dock sits before anyone has moved it -- genuinely different
+  // per page type, not one universal spot:
+  //
+  //   'bottom' (the map): centred along the bottom, which is where an
+  //   assistant bar is expected and which is clear of the map's own
+  //   trailing-edge tools. Centred over `bottomAnchorSelector` (the map
+  //   half specifically) rather than the whole window when one is given
+  //   -- the window's own horizontal centre can land inside the listing
+  //   panel beside the map on desktop, which is exactly the "must not
+  //   cover listing cards" case this is written to avoid by construction.
+  //
+  //   'right' (every other public page): the right edge, vertically
+  //   centred -- the position the standalone orb this dock replaced
+  //   already used, so a returning visitor sees MAM in the place they
+  //   already expect it.
   function defaultPx() {
     const b = bounds();
-    return { x: Math.round((window.innerWidth - b.w) / 2), y: b.maxY };
+    if (defaultSide === 'bottom') {
+      const anchor = bottomAnchorSelector && document.querySelector(bottomAnchorSelector);
+      const r = anchor && anchor.getBoundingClientRect();
+      const centreX = (r && r.width > 0) ? r.left + r.width / 2 : window.innerWidth / 2;
+      return { x: Math.round(Math.min(b.maxX, Math.max(b.minX, centreX - b.w / 2))), y: b.maxY };
+    }
+    return { x: b.maxX, y: Math.round((b.minY + b.maxY) / 2) };
   }
 
   function place() {
-    const stored = readStoredPos();
-    if (!stored) { const d = defaultPx(); applyPx(d.x, d.y); return; }
+    const stored = readStoredPos(defaultSide);
+    if (!stored) { const d = defaultPx(); const cleared = nudgeClear(d.x, d.y); applyPx(cleared.x, cleared.y); return; }
     const b = bounds();
     applyPx(b.minX + stored.fx * (b.maxX - b.minX), b.minY + stored.fy * (b.maxY - b.minY));
   }
@@ -279,7 +317,7 @@ export function mountMamDock({ getLanguage, label } = {}) {
     const cleared = nudgeClear(snappedX, r.top);
     const final = applyPx(cleared.x, cleared.y);
     const f = fractionsFromPx(final.x, final.y);
-    writeStoredPos(f.fx, f.fy);
+    writeStoredPos(defaultSide, f.fx, f.fy);
   }
   root.addEventListener('pointerup', endDrag);
   root.addEventListener('pointercancel', endDrag);
