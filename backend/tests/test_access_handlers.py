@@ -237,9 +237,7 @@ def test_rate_limited_create_organization_returns_429():
 
 def test_create_organization_success_returns_201_and_org_id():
     client, org_ops, _perm_ops = make_client()
-    resp = client.post(
-        "/api/v1/access/organizations", json={"type": "furniture_store", "name": "My Store"}
-    )
+    resp = client.post("/api/v1/access/organizations", json={"type": "furniture_store", "name": "My Store"})
     assert resp.status_code == 201
     assert resp.json()["organizationId"] == "new-org-id"
     assert org_ops.calls[0][1]["caller_uid"] == "alice"
@@ -329,9 +327,7 @@ def test_decline_invitation_uses_only_the_authenticated_callers_own_uid():
 def test_revoke_invitation_passes_authenticated_uid_and_admin_flag():
     org_ops = FakeOrganizationOps()
     client, _org_ops, _perm_ops = make_client(caller=ADMIN, org_ops=org_ops)
-    resp = client.post(
-        "/api/v1/access/organizations/org1/members/target-uid/revoke-invitation", json={}
-    )
+    resp = client.post("/api/v1/access/organizations/org1/members/target-uid/revoke-invitation", json={})
     assert resp.status_code == 200
     call = org_ops.calls[0][1]
     assert call["caller_uid"] == "admin-uid"
@@ -389,9 +385,7 @@ def test_transfer_ownership_requires_new_owner_uid():
 def test_transfer_ownership_success():
     org_ops = FakeOrganizationOps()
     client, _org_ops, _perm_ops = make_client(org_ops=org_ops)
-    resp = client.post(
-        "/api/v1/access/organizations/org1/transfer-ownership", json={"newOwnerUid": "someone"}
-    )
+    resp = client.post("/api/v1/access/organizations/org1/transfer-ownership", json={"newOwnerUid": "someone"})
     assert resp.status_code == 200
     assert org_ops.calls[0][1]["new_owner_uid"] == "someone"
 
@@ -430,7 +424,14 @@ def test_transfer_ownership_uses_its_own_stricter_rate_limiter():
 def test_list_my_organizations_returns_ops_result():
     org_ops = FakeOrganizationOps()
     org_ops.next_result = [
-        {"organizationId": "org1", "name": "Store", "type": "furniture_store", "membershipStatus": "owner", "memberRole": None, "isOwner": True}
+        {
+            "organizationId": "org1",
+            "name": "Store",
+            "type": "furniture_store",
+            "membershipStatus": "owner",
+            "memberRole": None,
+            "isOwner": True,
+        }
     ]
     client, _org_ops, _perm_ops = make_client(caller=ALICE, org_ops=org_ops)
     resp = client.get("/api/v1/access/me/organizations")
@@ -498,7 +499,17 @@ def test_create_company_success_returns_201_and_company_id():
     resp = client.post("/api/v1/access/companies", json={"name": "Acme Realty"})
     assert resp.status_code == 201
     assert resp.json()["companyId"] == "new-company-id"
-    assert company_ops.calls[0] == ("create_company", {"caller_uid": "alice", "name": "Acme Realty", "description": None, "city": None, "district": None, "address": None})
+    assert company_ops.calls[0] == (
+        "create_company",
+        {
+            "caller_uid": "alice",
+            "name": "Acme Realty",
+            "description": None,
+            "city": None,
+            "district": None,
+            "address": None,
+        },
+    )
 
 
 def test_create_company_malformed_body_returns_400():
@@ -557,7 +568,9 @@ def test_remove_employee_maps_not_found_error_to_404_generic_message():
 
 def test_list_my_companies_returns_ops_result():
     company_ops = FakeCompanyOps()
-    company_ops.next_result = [{"companyId": "company1", "name": "Acme Realty", "membershipStatus": "owner", "isOwner": True}]
+    company_ops.next_result = [
+        {"companyId": "company1", "name": "Acme Realty", "membershipStatus": "owner", "isOwner": True}
+    ]
     client, _company_ops = make_company_client(caller=ALICE, company_ops=company_ops)
     resp = client.get("/api/v1/access/me/companies")
     assert resp.status_code == 200
@@ -582,9 +595,7 @@ def test_company_membership_rate_limited_returns_429():
 
 def test_set_role_defaults_requires_admin():
     client, _org_ops, perm_ops = make_client(caller=ALICE)  # not admin
-    resp = client.post(
-        "/api/v1/access/role-defaults", json={"accountType": "office_employee", "permissions": {}}
-    )
+    resp = client.post("/api/v1/access/role-defaults", json={"accountType": "office_employee", "permissions": {}})
     assert resp.status_code == 403
     assert perm_ops.calls == []
 
@@ -602,9 +613,7 @@ def test_set_role_defaults_by_admin_succeeds():
 
 def test_set_role_defaults_rejects_unrecognized_account_type_before_calling_ops():
     client, _org_ops, perm_ops = make_client(caller=ADMIN)
-    resp = client.post(
-        "/api/v1/access/role-defaults", json={"accountType": "not_a_real_type", "permissions": {}}
-    )
+    resp = client.post("/api/v1/access/role-defaults", json={"accountType": "not_a_real_type", "permissions": {}})
     assert resp.status_code == 400
     assert perm_ops.calls == []
 

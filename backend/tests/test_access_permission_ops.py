@@ -97,10 +97,16 @@ async def test_set_role_defaults_writes_audit_entry_with_previous_and_new_value(
     account_type = _account_type("office_employee")
     admin = _uid("admin")
     await ops.set_role_defaults(
-        account_type=account_type, permissions={"edit_office_listing": True}, caller_uid=admin, caller_is_admin=True
+        account_type=account_type,
+        permissions={"edit_office_listing": True},
+        caller_uid=admin,
+        caller_is_admin=True,
     )
     await ops.set_role_defaults(
-        account_type=account_type, permissions={"edit_office_listing": False}, caller_uid=admin, caller_is_admin=True
+        account_type=account_type,
+        permissions={"edit_office_listing": False},
+        caller_uid=admin,
+        caller_is_admin=True,
     )
 
     entries = [
@@ -133,7 +139,10 @@ async def test_set_user_overrides_by_non_admin_forbidden(db, ops):
     db.collection("users").document(target).set({"role": "customer"})
     with pytest.raises(ForbiddenError):
         await ops.set_user_overrides(
-            target_uid=target, permissions={"create_listing": True}, caller_uid=_uid("not-admin"), caller_is_admin=False
+            target_uid=target,
+            permissions={"create_listing": True},
+            caller_uid=_uid("not-admin"),
+            caller_is_admin=False,
         )
 
 
@@ -152,7 +161,10 @@ async def test_set_user_overrides_rejects_protected_permission(db, ops):
 async def test_set_user_overrides_for_nonexistent_user_not_found(ops):
     with pytest.raises(NotFoundError):
         await ops.set_user_overrides(
-            target_uid=_uid("ghost"), permissions={"create_listing": True}, caller_uid=_uid("admin"), caller_is_admin=True
+            target_uid=_uid("ghost"),
+            permissions={"create_listing": True},
+            caller_uid=_uid("admin"),
+            caller_is_admin=True,
         )
 
 
@@ -224,10 +236,15 @@ async def test_org_context_owner_gets_global_permissions_as_effective(db, ops):
     uid = _uid("owner")
     org_id = _uid("org")
     await ops.set_role_defaults(
-        account_type=account_type, permissions={"create_product": True}, caller_uid=_uid("admin"), caller_is_admin=True
+        account_type=account_type,
+        permissions={"create_product": True},
+        caller_uid=_uid("admin"),
+        caller_is_admin=True,
     )
     db.collection("users").document(uid).set({"role": "customer", "accountType": account_type})
-    db.collection("organizations").document(org_id).set({"ownerId": uid, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).set(
+        {"ownerId": uid, "type": "furniture_store", "name": "Store"}
+    )
 
     result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
 
@@ -240,7 +257,9 @@ async def test_org_context_active_member_gets_union_of_global_and_org_scoped(db,
     org_id = _uid("org")
     owner = _uid("owner")
     db.collection("users").document(uid).set({"role": "customer"})  # no accountType at all
-    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).set(
+        {"ownerId": owner, "type": "furniture_store", "name": "Store"}
+    )
     db.collection("organizations").document(org_id).collection("members").document(uid).set(
         {"role": "employee", "status": "active", "permissions": {"create_product": True}}
     )
@@ -257,7 +276,9 @@ async def test_org_context_pending_membership_grants_nothing(db, ops):
     org_id = _uid("org")
     owner = _uid("owner")
     db.collection("users").document(uid).set({"role": "customer"})
-    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).set(
+        {"ownerId": owner, "type": "furniture_store", "name": "Store"}
+    )
     db.collection("organizations").document(org_id).collection("members").document(uid).set(
         {"role": "employee", "status": "pending", "permissions": {"create_product": True}}
     )
@@ -273,7 +294,9 @@ async def test_org_context_invited_membership_grants_nothing(db, ops):
     org_id = _uid("org")
     owner = _uid("owner")
     db.collection("users").document(uid).set({"role": "customer"})
-    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).set(
+        {"ownerId": owner, "type": "furniture_store", "name": "Store"}
+    )
     db.collection("organizations").document(org_id).collection("members").document(uid).set(
         {"role": "employee", "status": "invited", "permissions": {"create_product": True}}
     )
@@ -289,7 +312,9 @@ async def test_org_context_removed_membership_no_doc_grants_nothing(db, ops):
     org_id = _uid("org")
     owner = _uid("owner")
     db.collection("users").document(uid).set({"role": "customer"})
-    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).set(
+        {"ownerId": owner, "type": "furniture_store", "name": "Store"}
+    )
     # no member doc at all -- removal deletes it outright (organization_ops.py)
 
     result = await ops.get_effective_permissions(uid=uid, organization_id=org_id)
@@ -313,8 +338,12 @@ async def test_org_a_membership_does_not_leak_into_org_b_context(db, ops):
     owner_a = _uid("owner-a")
     owner_b = _uid("owner-b")
     db.collection("users").document(uid).set({"role": "customer"})
-    db.collection("organizations").document(org_a).set({"ownerId": owner_a, "type": "furniture_store", "name": "A"})
-    db.collection("organizations").document(org_b).set({"ownerId": owner_b, "type": "furniture_store", "name": "B"})
+    db.collection("organizations").document(org_a).set(
+        {"ownerId": owner_a, "type": "furniture_store", "name": "A"}
+    )
+    db.collection("organizations").document(org_b).set(
+        {"ownerId": owner_b, "type": "furniture_store", "name": "B"}
+    )
     db.collection("organizations").document(org_a).collection("members").document(uid).set(
         {"role": "employee", "status": "active", "permissions": {"create_product": True}}
     )
@@ -331,7 +360,9 @@ async def test_org_context_never_resolves_a_protected_key_even_if_force_seeded(d
     org_id = _uid("org")
     owner = _uid("owner")
     db.collection("users").document(uid).set({"role": "customer"})
-    db.collection("organizations").document(org_id).set({"ownerId": owner, "type": "furniture_store", "name": "Store"})
+    db.collection("organizations").document(org_id).set(
+        {"ownerId": owner, "type": "furniture_store", "name": "Store"}
+    )
     db.collection("organizations").document(org_id).collection("members").document(uid).set(
         {"role": "employee", "status": "active", "permissions": {"admin_access": True, "create_product": True}}
     )
@@ -354,7 +385,10 @@ async def test_set_role_defaults_by_non_admin_writes_denied_audit_entry(db, ops)
     caller = _uid("not-admin")
     with pytest.raises(ForbiddenError):
         await ops.set_role_defaults(
-            account_type=account_type, permissions={"create_listing": True}, caller_uid=caller, caller_is_admin=False
+            account_type=account_type,
+            permissions={"create_listing": True},
+            caller_uid=caller,
+            caller_is_admin=False,
         )
     entries = [e for e in _audit_entries(db, target_id=account_type) if e["adminUid"] == caller]
     assert len(entries) == 1
@@ -367,7 +401,10 @@ async def test_set_role_defaults_protected_key_writes_denied_audit_entry(db, ops
     admin = _uid("admin")
     with pytest.raises(ValidationError):
         await ops.set_role_defaults(
-            account_type=account_type, permissions={"manage_platform_security": True}, caller_uid=admin, caller_is_admin=True
+            account_type=account_type,
+            permissions={"manage_platform_security": True},
+            caller_uid=admin,
+            caller_is_admin=True,
         )
     entries = [e for e in _audit_entries(db, target_id=account_type) if e["adminUid"] == admin]
     denied = [e for e in entries if e["reasonCode"] == "protected_permission_escalation_attempt"]

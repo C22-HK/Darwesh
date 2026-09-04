@@ -40,14 +40,48 @@
 // Nothing reads this field yet; it exists so the map is complete and the
 // drift guard has something stable to check.
 
+// PHASE 3B added `portfolio`, `icon` and `accountType` to each entry.
+//
+// `portfolio` is a THIRD independent axis, and the one Phase 3B actually
+// enforces in the UI: may this role show a visual gallery of past work on
+// its profile? It is not the same question as `posts`:
+//
+//   posts      may the role publish to professionalPosts -- the future,
+//              moderated, rate-limited feed. Still Designer-only in
+//              firestore.rules; nothing in Phase 3B changes that.
+//   portfolio  may the role's profile show a visual project gallery AT
+//              ALL, from any source (professionalPosts for Designer, the
+//              legacy serviceProviders.portfolio array for the others).
+//
+// A lawyer is false on both. Before Phase 3B, js/profile-role.js rendered
+// providerData.portfolio for EVERY role that did not supply a custom work
+// tab -- which included lawyer.html. So a lawyer profile had a Projects
+// tab with a photo grid, contradicting the approved decision that legal
+// work is not a photo gallery. Gating on this flag is what makes that
+// decision structural instead of a comment.
 export const PROFESSIONAL_ROLES = {
-  designer:    { profileMedia: true, posts: true,  beforeAfter: true,  page: 'designer.html' },
-  engineer:    { profileMedia: true, posts: true,  beforeAfter: false, page: 'engineer.html' },
-  lawyer:      { profileMedia: true, posts: false, beforeAfter: false, page: 'lawyer.html' },
-  landscaping: { profileMedia: true, posts: true,  beforeAfter: true,  page: 'landscaping.html' },
-  cleaning:    { profileMedia: true, posts: true,  beforeAfter: true,  page: 'cleaning.html' },
-  maintenance: { profileMedia: true, posts: true,  beforeAfter: true,  page: 'maintenance.html' },
+  designer:    { profileMedia: true, posts: true,  beforeAfter: true,  portfolio: true,  page: 'designer.html',    icon: 'palette',            accountType: 'professional_designer' },
+  engineer:    { profileMedia: true, posts: true,  beforeAfter: false, portfolio: true,  page: 'engineer.html',    icon: 'architecture',       accountType: 'professional_engineer' },
+  lawyer:      { profileMedia: true, posts: false, beforeAfter: false, portfolio: false, page: 'lawyer.html',      icon: 'gavel',              accountType: 'professional_lawyer' },
+  landscaping: { profileMedia: true, posts: true,  beforeAfter: true,  portfolio: true,  page: 'landscaping.html', icon: 'yard',               accountType: 'professional_landscaping' },
+  cleaning:    { profileMedia: true, posts: true,  beforeAfter: true,  portfolio: true,  page: 'cleaning.html',    icon: 'cleaning_services',  accountType: 'cleaning_individual' },
+  maintenance: { profileMedia: true, posts: true,  beforeAfter: true,  portfolio: true,  page: 'maintenance.html', icon: 'handyman',           accountType: 'professional_maintenance' },
 };
+
+/**
+ * Roles whose profile may show a visual gallery of past work.
+ * False for lawyer -- see the note above. This IS enforced by the Phase
+ * 3B UI (js/profile-role.js hides the Projects tab entirely), unlike
+ * `posts`, which remains design intent until the Phase 3C limiter.
+ */
+export function allowsPortfolio(serviceType) {
+  return !!(PROFESSIONAL_ROLES[serviceType] && PROFESSIONAL_ROLES[serviceType].portfolio);
+}
+
+/** The Material Symbols glyph a role falls back to when it has no photo. */
+export function roleIcon(serviceType) {
+  return (PROFESSIONAL_ROLES[serviceType] && PROFESSIONAL_ROLES[serviceType].icon) || 'person';
+}
 
 /** Every supported serviceType. Must equal firestore.rules' create-time enum. */
 export const PROFESSIONAL_SERVICE_TYPES = Object.keys(PROFESSIONAL_ROLES);

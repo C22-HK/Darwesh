@@ -258,7 +258,9 @@ def build_access_handlers(
     # docstring for why each action family gets its own independently-
     # namespaced limiter rather than sharing one counter.
     if cfg.is_production:
-        create_limiter = FirestoreRateLimiter(db, name="access_org_create", limit=5, window_seconds=60 * 60, logger=logger)
+        create_limiter = FirestoreRateLimiter(
+            db, name="access_org_create", limit=5, window_seconds=60 * 60, logger=logger
+        )
         membership_limiter = FirestoreRateLimiter(
             db, name="access_membership", limit=30, window_seconds=60 * 60, logger=logger
         )
@@ -289,7 +291,11 @@ def build_access_handlers(
             logger=logger,
         ),
         PermissionAdminHandler(
-            ops=perm_ops, auth=auth_gate, mutation_limiter=mutation_limiter, read_limiter=read_limiter, logger=logger
+            ops=perm_ops,
+            auth=auth_gate,
+            mutation_limiter=mutation_limiter,
+            read_limiter=read_limiter,
+            logger=logger,
         ),
         # Phase 3: reuses the SAME membership_limiter instance as
         # OrganizationHandler above (one shared per-uid counter across
@@ -333,7 +339,9 @@ def build_mam_provider(cfg: Config) -> ChatProvider | None:
         logger.error("MAM_CHAT_PROVIDER=%r is not a recognized provider -- ignoring", provider_name)
         return None
     except ValueError as exc:
-        logger.error("MAM chat provider misconfigured, falling back to deterministic-only", extra={"error": str(exc)})
+        logger.error(
+            "MAM chat provider misconfigured, falling back to deterministic-only", extra={"error": str(exc)}
+        )
         return None
 
 

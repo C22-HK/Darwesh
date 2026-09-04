@@ -192,9 +192,7 @@ def create_app(
             company_handler.remove_employee,
             methods=["POST"],
         )
-        app.add_api_route(
-            "/api/v1/access/me/companies", company_handler.list_my_companies, methods=["GET"]
-        )
+        app.add_api_route("/api/v1/access/me/companies", company_handler.list_my_companies, methods=["GET"])
     if permission_admin_handler is not None:
         app.add_api_route(
             "/api/v1/access/role-defaults", permission_admin_handler.set_role_defaults, methods=["POST"]

@@ -43,14 +43,18 @@ async def _seed_user(db, uid: str) -> None:
     db.collection("users").document(uid).set({"role": "customer", "createdAt": time.time()})
 
 
-async def _invite_and_accept(ops, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool = False) -> None:
+async def _invite_and_accept(
+    ops, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool = False
+) -> None:
     """Test-only convenience: the real, full two-step Phase 2.1 flow --
     invite (owner/admin), then accept (target, always self-uid) -- used
     wherever a test needs an already-ACTIVE member as setup for
     something else (remove_member, update_member_permissions,
     transfer_ownership), not to re-test invite_member/accept_invitation
     themselves."""
-    await ops.invite_member(org_id=org_id, target_uid=target_uid, caller_uid=caller_uid, caller_is_admin=caller_is_admin)
+    await ops.invite_member(
+        org_id=org_id, target_uid=target_uid, caller_uid=caller_uid, caller_is_admin=caller_is_admin
+    )
     await ops.accept_invitation(org_id=org_id, caller_uid=target_uid)
 
 
@@ -154,9 +158,7 @@ async def test_invite_member_requires_a_real_user_profile(db, ops):
     owner = _uid("owner")
     org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
     with pytest.raises(NotFoundError):
-        await ops.invite_member(
-            org_id=org_id, target_uid=_uid("ghost"), caller_uid=owner, caller_is_admin=False
-        )
+        await ops.invite_member(org_id=org_id, target_uid=_uid("ghost"), caller_uid=owner, caller_is_admin=False)
 
 
 async def test_admin_can_invite_a_member_even_without_being_the_owner(db, ops):
@@ -837,7 +839,9 @@ async def test_set_active_organization_with_no_relationship_at_all_rejected(db, 
 
 async def test_set_active_organization_nonexistent_org_not_found(ops):
     with pytest.raises(NotFoundError):
-        await ops.set_active_organization(uid=_uid("someone"), organization_id="does-not-exist-" + uuid.uuid4().hex)
+        await ops.set_active_organization(
+            uid=_uid("someone"), organization_id="does-not-exist-" + uuid.uuid4().hex
+        )
 
 
 async def test_set_active_organization_none_clears_it(db, ops):

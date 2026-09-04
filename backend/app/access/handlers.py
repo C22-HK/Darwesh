@@ -104,9 +104,7 @@ class OrganizationHandler:
         org_type = _string_field(body, "type")
         name = _string_field(body, "name")
         if org_type is None or org_type not in ORGANIZATION_TYPES:
-            return JSONResponse(
-                {"error": f"'type' must be one of: {sorted(ORGANIZATION_TYPES)}"}, status_code=400
-            )
+            return JSONResponse({"error": f"'type' must be one of: {sorted(ORGANIZATION_TYPES)}"}, status_code=400)
         try:
             org_id = await self.ops.create_organization(
                 caller_uid=caller.uid,
@@ -292,7 +290,9 @@ class OrganizationHandler:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("member permission change failed", extra={"error": str(exc)})
-            return JSONResponse({"error": "Could not update this member's permissions right now."}, status_code=500)
+            return JSONResponse(
+                {"error": "Could not update this member's permissions right now."}, status_code=500
+            )
         return JSONResponse({"status": "updated"}, status_code=200)
 
     async def transfer_ownership(self, request: Request) -> JSONResponse:
@@ -432,7 +432,10 @@ class CompanyHandler:
         target_uid = request.path_params.get("target_uid")
         try:
             await self.ops.invite_employee(
-                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                company_id=company_id,
+                target_uid=target_uid,
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
@@ -483,7 +486,10 @@ class CompanyHandler:
         target_uid = request.path_params.get("target_uid")
         try:
             await self.ops.revoke_invitation(
-                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                company_id=company_id,
+                target_uid=target_uid,
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
@@ -502,7 +508,10 @@ class CompanyHandler:
         target_uid = request.path_params.get("target_uid")
         try:
             await self.ops.approve_membership(
-                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                company_id=company_id,
+                target_uid=target_uid,
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
@@ -521,7 +530,10 @@ class CompanyHandler:
         target_uid = request.path_params.get("target_uid")
         try:
             await self.ops.reject_membership(
-                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                company_id=company_id,
+                target_uid=target_uid,
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
@@ -540,7 +552,10 @@ class CompanyHandler:
         target_uid = request.path_params.get("target_uid")
         try:
             await self.ops.remove_employee(
-                company_id=company_id, target_uid=target_uid, caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                company_id=company_id,
+                target_uid=target_uid,
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)

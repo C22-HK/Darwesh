@@ -151,7 +151,9 @@ def test_resolve_organization_permissions_never_revokes_a_global_grant():
 
 
 def test_resolve_organization_permissions_with_no_org_grant_returns_global_unchanged():
-    result = resolve_organization_permissions(global_permissions={"create_listing": True}, org_member_permissions=None)
+    result = resolve_organization_permissions(
+        global_permissions={"create_listing": True}, org_member_permissions=None
+    )
     assert result == {"create_listing": True}
 
 
@@ -165,5 +167,7 @@ def test_resolve_organization_permissions_excludes_protected_keys():
 
 
 def test_resolve_organization_permissions_malformed_org_map_is_ignored_not_fatal():
-    result = resolve_organization_permissions(global_permissions={"create_listing": True}, org_member_permissions="not-a-dict")
+    result = resolve_organization_permissions(
+        global_permissions={"create_listing": True}, org_member_permissions="not-a-dict"
+    )
     assert result == {"create_listing": True}

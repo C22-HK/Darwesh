@@ -26,7 +26,7 @@ class FakeQuery:
     def __init__(self, items: list[tuple[str, dict]]):
         self._items = items
 
-    def where(self, field: str, op: str, value: Any) -> "FakeQuery":
+    def where(self, field: str, op: str, value: Any) -> FakeQuery:
         assert op == "==", f"FakeQuery only supports '==' (tools.py never uses another op), got {op!r}"
 
         def _matches(doc: dict) -> bool:
@@ -34,7 +34,7 @@ class FakeQuery:
 
         return FakeQuery([(doc_id, doc) for doc_id, doc in self._items if _matches(doc)])
 
-    def limit(self, n: int) -> "FakeQuery":
+    def limit(self, n: int) -> FakeQuery:
         return FakeQuery(self._items[:n])
 
     def stream(self) -> list[FakeDocSnapshot]:
@@ -55,7 +55,7 @@ class FakeDocRef:
     def delete(self) -> None:
         self._entry["data"] = None
 
-    def collection(self, name: str) -> "FakeCollectionRef":
+    def collection(self, name: str) -> FakeCollectionRef:
         return FakeCollectionRef(self._entry["subs"].setdefault(name, {}))
 
 

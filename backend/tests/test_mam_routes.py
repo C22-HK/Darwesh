@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 
 from app.access.caller_context import CallerContext
 from app.mam.policy import PUBLIC_CALLER, MamCaller
-from app.mam.rate_limit import MamRateLimiters
 from app.mam.routes import MamHandler
 from app.mam.schemas import ChatResponse, MapAction, PropertyCard, SuggestedAction
 from app.server import create_app
@@ -83,7 +82,10 @@ def test_chat_route_not_registered_when_handler_is_none():
 def test_missing_auth_header_proceeds_as_public_caller():
     orchestrator = FakeOrchestrator()
     handler = MamHandler(
-        orchestrator=orchestrator, auth=FakeAuthGate(None), rate_limiters=FakeRateLimiters(), logger=make_test_logger()
+        orchestrator=orchestrator,
+        auth=FakeAuthGate(None),
+        rate_limiters=FakeRateLimiters(),
+        logger=make_test_logger(),
     )
     client = make_client(handler)
     resp = client.post("/api/v1/mam/chat", json={"message": "hi"})
@@ -140,7 +142,10 @@ def test_rate_limited_returns_429_without_calling_orchestrator():
 
 def test_missing_message_returns_400():
     handler = MamHandler(
-        orchestrator=FakeOrchestrator(), auth=FakeAuthGate(None), rate_limiters=FakeRateLimiters(), logger=make_test_logger()
+        orchestrator=FakeOrchestrator(),
+        auth=FakeAuthGate(None),
+        rate_limiters=FakeRateLimiters(),
+        logger=make_test_logger(),
     )
     client = make_client(handler)
     resp = client.post("/api/v1/mam/chat", json={})
@@ -149,7 +154,10 @@ def test_missing_message_returns_400():
 
 def test_malformed_json_body_returns_400():
     handler = MamHandler(
-        orchestrator=FakeOrchestrator(), auth=FakeAuthGate(None), rate_limiters=FakeRateLimiters(), logger=make_test_logger()
+        orchestrator=FakeOrchestrator(),
+        auth=FakeAuthGate(None),
+        rate_limiters=FakeRateLimiters(),
+        logger=make_test_logger(),
     )
     client = make_client(handler)
     resp = client.post("/api/v1/mam/chat", content=b"{not json", headers={"Content-Type": "application/json"})
@@ -176,12 +184,21 @@ def test_response_serialization_shape():
         language="en",
         cards=(
             PropertyCard(
-                listing_id="l1", title="Nice villa", city="Erbil", price=300000, deal_type="sale",
-                property_type="villa", beds=4, verified=True, image_url="https://example.com/x.jpg",
+                listing_id="l1",
+                title="Nice villa",
+                city="Erbil",
+                price=300000,
+                deal_type="sale",
+                property_type="villa",
+                beds=4,
+                verified=True,
+                image_url="https://example.com/x.jpg",
             ),
         ),
         map_action=MapAction(target="map.html", filters={"q": "Erbil"}, focus_listing_id="l1"),
-        suggested_actions=(SuggestedAction(label_key="k", label_fallback="Open map", action="open_map", payload={}),),
+        suggested_actions=(
+            SuggestedAction(label_key="k", label_fallback="Open map", action="open_map", payload={}),
+        ),
         session_id="s1",
     )
     handler = MamHandler(
@@ -207,7 +224,9 @@ def test_rate_limiter_is_keyed_by_client_ip_and_uid():
     orchestrator = FakeOrchestrator()
     limiters = FakeRateLimiters()
     caller_ctx = CallerContext(uid="u1", email=None, role=None, is_admin=False)
-    handler = MamHandler(orchestrator=orchestrator, auth=FakeAuthGate(caller_ctx), rate_limiters=limiters, logger=make_test_logger())
+    handler = MamHandler(
+        orchestrator=orchestrator, auth=FakeAuthGate(caller_ctx), rate_limiters=limiters, logger=make_test_logger()
+    )
     client = make_client(handler)
     client.post("/api/v1/mam/chat", json={"message": "hi"}, headers={"Authorization": "Bearer x"})
     assert limiters.calls[0][1] == "u1"

@@ -27,20 +27,25 @@ def make_test_logger() -> logging.Logger:
 
 
 def make_request(message: str, *, session_id: str = "") -> ChatRequest:
-    return ChatRequest(
-        message=message, language="en", session_id=session_id, page_context=PageContext(page=None)
-    )
+    return ChatRequest(message=message, language="en", session_id=session_id, page_context=PageContext(page=None))
 
 
 class FakeProvider:
-    def __init__(self, *, text: str | None = None, raise_not_configured: bool = False, raise_unexpected: bool = False):
+    def __init__(
+        self, *, text: str | None = None, raise_not_configured: bool = False, raise_unexpected: bool = False
+    ):
         self._text = text
         self._raise_not_configured = raise_not_configured
         self._raise_unexpected = raise_unexpected
         self.calls = 0
 
     async def generate(
-        self, *, system_instruction: str, history: list[ChatTurn], tools: list[ToolSpec], tier: ModelTier,
+        self,
+        *,
+        system_instruction: str,
+        history: list[ChatTurn],
+        tools: list[ToolSpec],
+        tier: ModelTier,
         max_output_tokens: int,
     ) -> ProviderResponse:
         self.calls += 1
@@ -64,7 +69,12 @@ class FakeScriptedProvider:
         self.seen_history: list[list[ChatTurn]] = []
 
     async def generate(
-        self, *, system_instruction: str, history: list[ChatTurn], tools: list[ToolSpec], tier: ModelTier,
+        self,
+        *,
+        system_instruction: str,
+        history: list[ChatTurn],
+        tools: list[ToolSpec],
+        tier: ModelTier,
         max_output_tokens: int,
     ) -> ProviderResponse:
         self.seen_history.append(list(history))
@@ -76,8 +86,17 @@ class FakeScriptedProvider:
 def make_orchestrator(*, provider=None) -> Orchestrator:
     db = FakeFirestore()
     db.collection("listings").document("l1").set(
-        {"title": "Nice villa", "city": "Erbil", "price": 300000, "dealType": "sale",
-         "propertyType": "villa", "beds": 4, "private": False, "status": "active", "verified": True}
+        {
+            "title": "Nice villa",
+            "city": "Erbil",
+            "price": 300000,
+            "dealType": "sale",
+            "propertyType": "villa",
+            "beds": 4,
+            "private": False,
+            "status": "active",
+            "verified": True,
+        }
     )
     return Orchestrator(
         tools=Tools(db=db, logger=make_test_logger()),
@@ -215,13 +234,16 @@ async def test_unauthenticated_caller_gets_sign_in_message_for_authenticated_onl
 # real google-genai SDK (which test_mam_gemini_provider.py covers).
 # ---------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_provider_tool_call_is_dispatched_and_result_fed_back():
     provider = FakeScriptedProvider(
         [
             ProviderResponse(
                 text=None,
-                tool_calls=[ToolCallRequest(call_id="c1", tool_name="search_properties", arguments={"city": "Erbil"})],
+                tool_calls=[
+                    ToolCallRequest(call_id="c1", tool_name="search_properties", arguments={"city": "Erbil"})
+                ],
                 finish_reason="tool_calls",
             ),
             ProviderResponse(text="I found a villa in Erbil for you."),
@@ -275,7 +297,9 @@ async def test_provider_tool_call_denied_by_authorization_feeds_back_error_not_c
         [
             ProviderResponse(
                 text=None,
-                tool_calls=[ToolCallRequest(call_id="c1", tool_name="save_property", arguments={"listing_id": "l1"})],
+                tool_calls=[
+                    ToolCallRequest(call_id="c1", tool_name="save_property", arguments={"listing_id": "l1"})
+                ],
                 finish_reason="tool_calls",
             ),
             ProviderResponse(text="You'll need to sign in to save that."),

@@ -9,7 +9,21 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class AuthRequirement(str, Enum):
+# UP042 suppressed on the class line only, deliberately and permanently.
+#
+# Ruff wants `StrEnum` here. That is NOT a behaviour-preserving swap: a
+# (str, Enum) member stringifies to 'AuthRequirement.PUBLIC', while a
+# StrEnum member stringifies to 'public'. Measured, not assumed. Equality
+# against a plain str and json.dumps output are identical for both, and no
+# current call site interpolates a member -- but this is a str subclass
+# whose whole purpose is being usable as a string, so the day someone adds
+# an f-string log line or uses a member as a dict key, the output silently
+# changes. The legacy contract is kept on purpose.
+#
+# Scoped to this one statement: no global UP042 disable, no file-level
+# blanket, no ruff config change. Any OTHER class in this file that
+# inherits (str, Enum) will still be flagged.
+class AuthRequirement(str, Enum):  # noqa: UP042 -- legacy str-Enum contract, see above
     PUBLIC = "public"  # any caller, signed in or not
     AUTHENTICATED = "authenticated"  # a real, verified Firebase uid required
     ADMIN = "admin"  # reserved -- no MAM tool uses this yet (see tools.py's "not implemented" list)

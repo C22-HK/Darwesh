@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.mam.session import MAX_HISTORY_TURNS, MAX_SESSIONS, SESSION_TTL_SECONDS, SessionStore
+from app.mam.session import MAX_HISTORY_TURNS, SESSION_TTL_SECONDS, SessionStore
 
 
 def test_get_or_create_without_id_makes_a_new_session():

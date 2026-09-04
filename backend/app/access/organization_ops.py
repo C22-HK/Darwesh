@@ -191,7 +191,9 @@ class OrganizationOps:
                 if not org_snap.exists:
                     raise NotFoundError(f"organization '{org_id}' does not exist")
                 if org_snap.get("ownerId") == caller_uid:
-                    raise ValidationError("the organization's owner cannot request membership in their own organization")
+                    raise ValidationError(
+                        "the organization's owner cannot request membership in their own organization"
+                    )
                 member_snap = member_ref.get(transaction=txn)
                 if member_snap.exists:
                     raise ConflictError("a membership record already exists for this user in this organization")
@@ -232,9 +234,7 @@ class OrganizationOps:
 
         await asyncio.to_thread(_op)
 
-    async def invite_member(
-        self, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool
-    ) -> None:
+    async def invite_member(self, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool) -> None:
         """Phase 2.1: the organization owner (or an admin) invites a
         specific, already-known uid -- this creates a PENDING-for-the-
         target 'invited' record, NOT immediate membership (the earlier
@@ -334,7 +334,9 @@ class OrganizationOps:
                     raise NotFoundError("no pending invitation exists for you in this organization")
                 expires_at = member_snap.get("expiresAt")
                 if expires_at is not None and _is_expired(expires_at):
-                    raise ConflictError("this invitation has expired -- ask the organization owner to reinvite you")
+                    raise ConflictError(
+                        "this invitation has expired -- ask the organization owner to reinvite you"
+                    )
                 txn.update(
                     member_ref,
                     {"status": MEMBER_STATUS_ACTIVE, "acceptedAt": fb_firestore.SERVER_TIMESTAMP},
@@ -558,9 +560,7 @@ class OrganizationOps:
 
         await asyncio.to_thread(_op)
 
-    async def remove_member(
-        self, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool
-    ) -> None:
+    async def remove_member(self, *, org_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool) -> None:
         org_ref = self._db.collection("organizations").document(org_id)
         member_ref = org_ref.collection("members").document(target_uid)
 
@@ -727,7 +727,9 @@ class OrganizationOps:
                     raise NotFoundError(f"organization '{org_id}' does not exist")
                 current_owner = org_snap.get("ownerId")
                 if not caller_is_admin and current_owner != caller_uid:
-                    raise ForbiddenError("only the organization's current owner or an admin may transfer ownership")
+                    raise ForbiddenError(
+                        "only the organization's current owner or an admin may transfer ownership"
+                    )
                 if not user_ref.get(transaction=txn).exists:
                     raise NotFoundError(f"no user profile exists for uid '{new_owner_uid}'")
                 member_snap = new_owner_member_ref.get(transaction=txn)
@@ -880,6 +882,7 @@ class OrganizationOps:
         organization if the stored value turns out to be stale (fails
         closed to "no org context selected", not to "guess one")."""
         if organization_id is None:
+
             def _clear() -> None:
                 self._db.collection("users").document(uid).update({"activeOrganizationId": None})
 
@@ -902,9 +905,7 @@ class OrganizationOps:
                 if not is_owner:
                     member_snap = member_ref.get(transaction=txn)
                     if not member_snap.exists or member_snap.get("status") != MEMBER_STATUS_ACTIVE:
-                        raise ValidationError(
-                            "you do not currently have active access to this organization"
-                        )
+                        raise ValidationError("you do not currently have active access to this organization")
                 if not user_ref.get(transaction=txn).exists:
                     raise NotFoundError("no user profile exists for this account")
                 txn.update(user_ref, {"activeOrganizationId": organization_id})

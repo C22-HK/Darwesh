@@ -153,7 +153,9 @@ def parse_chat_request(body: dict, *, session_id_from_client: str | None) -> Cha
     # enough to look up someone else's session by guessing (session.py's
     # store is itself keyed so a guessed id at worst finds an empty
     # session, never another user's).
-    session_id = session_id_from_client if isinstance(session_id_from_client, str) and session_id_from_client else None
+    session_id = (
+        session_id_from_client if isinstance(session_id_from_client, str) and session_id_from_client else None
+    )
 
     raw_ctx = body.get("pageContext")
     ctx = _parse_page_context(raw_ctx if isinstance(raw_ctx, dict) else {})
@@ -173,9 +175,7 @@ def _parse_page_context(raw: dict) -> PageContext:
     selected_raw = raw.get("selectedIds")
     selected: tuple[str, ...] = ()
     if isinstance(selected_raw, list):
-        selected = tuple(
-            v for v in selected_raw[:MAX_SELECTED_IDS] if isinstance(v, str) and v and len(v) <= 200
-        )
+        selected = tuple(v for v in selected_raw[:MAX_SELECTED_IDS] if isinstance(v, str) and v and len(v) <= 200)
 
     return PageContext(
         page=page,

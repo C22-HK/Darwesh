@@ -81,7 +81,9 @@ class FirebaseIdTokenVerifier:
                 # credential; treat exactly like any other verification
                 # failure to the caller (401), not a 500 that would hint
                 # at server-side trouble.
-                self._logger.error("id token verification failed: certificate fetch error", extra={"error": str(exc)})
+                self._logger.error(
+                    "id token verification failed: certificate fetch error", extra={"error": str(exc)}
+                )
                 return None
 
         decoded = await asyncio.to_thread(_verify)

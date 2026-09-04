@@ -24,7 +24,6 @@ from app.mam.schemas import (
     ProfessionalCard,
     ProjectCard,
     PropertyCard,
-    SuggestedAction,
 )
 from app.mam.session import SessionStore
 from app.mam.tools import ToolExecutionError, Tools, build_tool_specs, dispatch
@@ -41,7 +40,7 @@ _MAX_TOOL_ROUNDS = 4
 _DEGRADED_MESSAGE = {
     "en": "MAM's AI reasoning is temporarily unavailable, but I can still help with navigation and basic lookups -- try asking to open the map, or name a city or service you're interested in.",
     "ar": "الذكاء الاصطناعي لدى MAM غير متوفر مؤقتًا، لكن يمكنني ما زلت المساعدة في التنقل والاستعلامات الأساسية -- جرّب أن تطلب فتح الخريطة، أو اذكر مدينة أو خدمة تهمك.",
-    "ku": "زیرەکی دەستکردی MAM بۆ ماوەیەک بەردەست نییە، بەڵام هێشتا دەتوانم یارمەتیت بدەم بۆ ڕێنیشاندان و پرسیارە سادەکان -- هەوڵبدە داوا بکە نەخشەکە بکرێتەوە، یان ناوی شارێک یان خزمەتگوزاریەک بڵێ کە حەزت لێیەتی."
+    "ku": "زیرەکی دەستکردی MAM بۆ ماوەیەک بەردەست نییە، بەڵام هێشتا دەتوانم یارمەتیت بدەم بۆ ڕێنیشاندان و پرسیارە سادەکان -- هەوڵبدە داوا بکە نەخشەکە بکرێتەوە، یان ناوی شارێک یان خزمەتگوزاریەک بڵێ کە حەزت لێیەتی.",
 }
 
 
@@ -74,9 +73,13 @@ class Orchestrator:
 
         degraded_text = _DEGRADED_MESSAGE.get(request.language, _DEGRADED_MESSAGE["en"])
         session.append("assistant", degraded_text)
-        return ChatResponse(message=degraded_text, language=request.language, degraded=True, session_id=session.session_id)
+        return ChatResponse(
+            message=degraded_text, language=request.language, degraded=True, session_id=session.session_id
+        )
 
-    async def _respond_from_intent(self, caller: MamCaller, resolved: ResolvedIntent, language: str) -> ChatResponse:
+    async def _respond_from_intent(
+        self, caller: MamCaller, resolved: ResolvedIntent, language: str
+    ) -> ChatResponse:
         if resolved.tool_name is None:
             return ChatResponse(message=resolved.reply_fallback or "", language=language)
         try:
@@ -94,7 +97,9 @@ class Orchestrator:
             return ChatResponse(message=str(exc), language=language)
         return _build_response(resolved.tool_name, resolved.arguments, result, language)
 
-    async def _respond_from_provider(self, caller: MamCaller, request: ChatRequest, *, session_id: str) -> ChatResponse:
+    async def _respond_from_provider(
+        self, caller: MamCaller, request: ChatRequest, *, session_id: str
+    ) -> ChatResponse:
         # ASK -> UNDERSTAND -> TOOLS -> ACT -> STRUCTURED RESULT, with a
         # live provider: each round asks the model for a turn; if it
         # requests tools, EVERY call goes through the exact same
@@ -136,17 +141,26 @@ class Orchestrator:
                 except ToolExecutionError as exc:
                     result = {"error": str(exc)}
                 history.append(
-                    ChatTurn(role="tool", content=json.dumps(result), tool_name=call.tool_name, tool_call_id=call.call_id)
+                    ChatTurn(
+                        role="tool",
+                        content=json.dumps(result),
+                        tool_name=call.tool_name,
+                        tool_call_id=call.call_id,
+                    )
                 )
 
-        raise RuntimeError(f"mam: provider did not produce a final answer within {_MAX_TOOL_ROUNDS} tool-call rounds")
+        raise RuntimeError(
+            f"mam: provider did not produce a final answer within {_MAX_TOOL_ROUNDS} tool-call rounds"
+        )
 
 
 def _build_response(tool_name: str, arguments: dict, result: dict, language: str) -> ChatResponse:
     if tool_name == "search_properties":
         cards = tuple(_property_card(r) for r in result.get("results", []))
         msg = _count_message(len(cards), language)
-        return ChatResponse(message=msg, language=language, cards=cards, map_action=_search_filters_action(arguments))
+        return ChatResponse(
+            message=msg, language=language, cards=cards, map_action=_search_filters_action(arguments)
+        )
 
     if tool_name == "get_property":
         if not result.get("found"):
@@ -155,7 +169,9 @@ def _build_response(tool_name: str, arguments: dict, result: dict, language: str
 
     if tool_name == "compare_properties":
         cards = tuple(_property_card(r) for r in result.get("compared", []))
-        return ChatResponse(message="", language=language, cards=cards, comparison={"items": [c.listing_id for c in cards]})
+        return ChatResponse(
+            message="", language=language, cards=cards, comparison={"items": [c.listing_id for c in cards]}
+        )
 
     if tool_name == "get_market_summary":
         return ChatResponse(message="", language=language, comparison={"marketSummary": result})
@@ -163,8 +179,11 @@ def _build_response(tool_name: str, arguments: dict, result: dict, language: str
     if tool_name == "search_professionals":
         cards = tuple(
             ProfessionalCard(
-                provider_id=r["providerId"], display_name=r["displayName"], service_type=r["serviceType"],
-                city=r.get("city"), verified=r["verified"],
+                provider_id=r["providerId"],
+                display_name=r["displayName"],
+                service_type=r["serviceType"],
+                city=r.get("city"),
+                verified=r["verified"],
             )
             for r in result.get("results", [])
         )
@@ -173,16 +192,24 @@ def _build_response(tool_name: str, arguments: dict, result: dict, language: str
     if tool_name == "search_projects":
         cards = tuple(
             ProjectCard(
-                project_id=r["projectId"], name=r.get("name") or "", city=r.get("city") or "",
-                construction_status=r.get("constructionStatus"), starting_price=r.get("startingPrice"),
-                currency=r.get("currency") or "USD", verified=r["verified"],
+                project_id=r["projectId"],
+                name=r.get("name") or "",
+                city=r.get("city") or "",
+                construction_status=r.get("constructionStatus"),
+                starting_price=r.get("startingPrice"),
+                currency=r.get("currency") or "USD",
+                verified=r["verified"],
             )
             for r in result.get("results", [])
         )
         return ChatResponse(message=_count_message(len(cards), language), language=language, cards=cards)
 
     if tool_name == "open_on_map":
-        action = MapAction(target=result["target"], filters=result.get("filters", {}), focus_listing_id=result.get("focusListingId"))
+        action = MapAction(
+            target=result["target"],
+            filters=result.get("filters", {}),
+            focus_listing_id=result.get("focusListingId"),
+        )
         return ChatResponse(message="", language=language, map_action=action)
 
     # Generic fallback for tools without a dedicated card type (get_listing_history,
@@ -230,17 +257,33 @@ def _search_filters_action(arguments: dict) -> MapAction | None:
 
 def _property_card(r: dict) -> PropertyCard:
     return PropertyCard(
-        listing_id=r.get("listingId", ""), title=r.get("title", ""), city=r.get("city", ""),
-        price=r.get("price"), deal_type=r.get("dealType", ""), property_type=r.get("propertyType", ""),
-        beds=r.get("beds"), verified=bool(r.get("verified")), image_url=r.get("img"),
+        listing_id=r.get("listingId", ""),
+        title=r.get("title", ""),
+        city=r.get("city", ""),
+        price=r.get("price"),
+        deal_type=r.get("dealType", ""),
+        property_type=r.get("propertyType", ""),
+        beds=r.get("beds"),
+        verified=bool(r.get("verified")),
+        image_url=r.get("img"),
     )
 
 
 def _count_message(n: int, language: str) -> str:
     if n == 0:
-        return {"en": "I don't see any matches right now.", "ar": "لا توجد نتائج مطابقة حاليًا.", "ku": "هیچ ئەنجامێکی گونجاو ئێستا نییە."}.get(language, "No matches right now.")
-    return {"en": f"Found {n} result(s):", "ar": f"تم العثور على {n} نتيجة:", "ku": f"{n} ئەنجام دۆزرایەوە:"}.get(language, f"Found {n} result(s):")
+        return {
+            "en": "I don't see any matches right now.",
+            "ar": "لا توجد نتائج مطابقة حاليًا.",
+            "ku": "هیچ ئەنجامێکی گونجاو ئێستا نییە.",
+        }.get(language, "No matches right now.")
+    return {"en": f"Found {n} result(s):", "ar": f"تم العثور على {n} نتيجة:", "ku": f"{n} ئەنجام دۆزرایەوە:"}.get(
+        language, f"Found {n} result(s):"
+    )
 
 
 def _not_available_message(language: str) -> str:
-    return {"en": "That listing isn't available right now.", "ar": "هذا العقار غير متاح حاليًا.", "ku": "ئەم خانووە ئێستا بەردەست نییە."}.get(language, "Not available.")
+    return {
+        "en": "That listing isn't available right now.",
+        "ar": "هذا العقار غير متاح حاليًا.",
+        "ku": "ئەم خانووە ئێستا بەردەست نییە.",
+    }.get(language, "Not available.")

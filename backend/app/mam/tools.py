@@ -23,7 +23,6 @@ from typing import Any
 from app.mam.policy import (
     AuthRequirement,
     MamCaller,
-    ToolAuthorizationError,
     project_public_listing_fields,
     require_auth,
     wrap_untrusted,
@@ -234,7 +233,15 @@ class Tools:
             listing = listing_snap.to_dict()
             estate_id = listing.get("estateId")
             asking_price = listing.get("price")
-            currency = listing.get("dealType")  # listings store USD by convention site-wide
+            # NOTE: a `currency` local used to be assigned here from
+            # listing["dealType"] -- a copy-paste error, since dealType is
+            # 'sale'/'rent', not a currency. It was never read, so it had no
+            # runtime effect, and it is removed rather than "used": wiring it
+            # into the return value would change this tool's response shape,
+            # which is an API decision, not a lint fix. Listings store price
+            # in USD by site-wide convention (sell.html and admin.html both
+            # normalise to USD), so a currency field would be a constant
+            # today anyway.
             if not estate_id:
                 return {
                     "available": False,
@@ -248,9 +255,10 @@ class Tools:
             # bridged for any caller, including an authenticated one.
             summaries = [
                 d.to_dict()
-                for d in self.db.collection("estates").document(estate_id).collection(
-                    "publicTransactionSummary"
-                ).stream()
+                for d in self.db.collection("estates")
+                .document(estate_id)
+                .collection("publicTransactionSummary")
+                .stream()
             ]
             return {"available": True, "askingPrice": asking_price, "verifiedTransactions": summaries}
 
@@ -376,7 +384,12 @@ class Tools:
 
     # ---- open_on_map (pure action, no Firestore) ------------------------
     async def open_on_map(
-        self, caller: MamCaller, *, deal_type: str | None = None, city: str | None = None, listing_id: str | None = None
+        self,
+        caller: MamCaller,
+        *,
+        deal_type: str | None = None,
+        city: str | None = None,
+        listing_id: str | None = None,
     ) -> dict:
         require_auth(caller, AuthRequirement.PUBLIC)
         # Same filter-key vocabulary as _search_filters_action
@@ -480,7 +493,11 @@ def build_tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_property",
             description="Fetch full details of one specific real listing by its id.",
-            parameters_schema={"type": "object", "properties": {"listingId": {"type": "string"}}, "required": ["listingId"]},
+            parameters_schema={
+                "type": "object",
+                "properties": {"listingId": {"type": "string"}},
+                "required": ["listingId"],
+            },
         ),
         ToolSpec(
             name="compare_properties",
@@ -499,7 +516,11 @@ def build_tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_listing_history",
             description="Get a listing's asking price and any admin-verified sale/rent history for its linked Estate, if one exists.",
-            parameters_schema={"type": "object", "properties": {"listingId": {"type": "string"}}, "required": ["listingId"]},
+            parameters_schema={
+                "type": "object",
+                "properties": {"listingId": {"type": "string"}},
+                "required": ["listingId"],
+            },
         ),
         ToolSpec(
             name="search_professionals",
@@ -517,7 +538,11 @@ def build_tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_professional",
             description="Fetch one specific service provider's public profile by id.",
-            parameters_schema={"type": "object", "properties": {"providerId": {"type": "string"}}, "required": ["providerId"]},
+            parameters_schema={
+                "type": "object",
+                "properties": {"providerId": {"type": "string"}},
+                "required": ["providerId"],
+            },
         ),
         ToolSpec(
             name="search_services",
@@ -532,7 +557,11 @@ def build_tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="get_project",
             description="Fetch one specific project's details by id.",
-            parameters_schema={"type": "object", "properties": {"projectId": {"type": "string"}}, "required": ["projectId"]},
+            parameters_schema={
+                "type": "object",
+                "properties": {"projectId": {"type": "string"}},
+                "required": ["projectId"],
+            },
         ),
         ToolSpec(
             name="open_on_map",
@@ -554,12 +583,20 @@ def build_tool_specs() -> list[ToolSpec]:
         ToolSpec(
             name="save_property",
             description="Save a listing to the signed-in caller's own favorites. Requires the caller to be signed in.",
-            parameters_schema={"type": "object", "properties": {"listingId": {"type": "string"}}, "required": ["listingId"]},
+            parameters_schema={
+                "type": "object",
+                "properties": {"listingId": {"type": "string"}},
+                "required": ["listingId"],
+            },
         ),
         ToolSpec(
             name="remove_saved_property",
             description="Remove a listing from the signed-in caller's own favorites. Requires the caller to be signed in.",
-            parameters_schema={"type": "object", "properties": {"listingId": {"type": "string"}}, "required": ["listingId"]},
+            parameters_schema={
+                "type": "object",
+                "properties": {"listingId": {"type": "string"}},
+                "required": ["listingId"],
+            },
         ),
     ]
 

@@ -45,6 +45,7 @@ this can never leak the API key). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <script src="./js/icon-fallback.js"></script>
+<script src="./js/currency.js"></script>
 <!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
 it runs before any script on this page that imports maps-core.js.
 Gitignored, generated at deploy time (see js/maps-config.local.example.js
@@ -2107,7 +2108,10 @@ async function onListingFormSubmit(e) {
   // converted and rounded right here, at the moment of save.
   const enteredPrice = Number(document.getElementById('fPrice').value);
   const priceCurrency = document.getElementById('fPriceCurrency').value;
-  const price = priceCurrency === 'IQD' ? Math.round(enteredPrice / 1310) : enteredPrice;
+  // Shared conversion -- see js/currency.js. Identical arithmetic to
+  // the inline `Math.round(enteredPrice / 1310)` it replaces; the rate
+  // and rounding now live in exactly one place.
+  const price = window.darweshUsdFromEntered(enteredPrice, priceCurrency);
   const beds = Number(document.getElementById('fBeds').value) || 0;
   const baths = Number(document.getElementById('fBaths').value) || 0;
   const sqft = Number(document.getElementById('fSqft').value) || 0;
