@@ -132,8 +132,9 @@ if (!dupeIds) ok('no duplicate element IDs within any page');
 let mapChecks = false;
 const mapHtml = fs.readFileSync(path.join(ROOT, 'map.html'), 'utf8');
 const controlIds = [
-  'mapToolsToggle', 'fullscreenBtn', 'resetViewBtn',
-  'drawSearchBtn', 'myLocationBtn'
+  'fullscreenBtn', 'resetViewBtn', 'drawSearchBtn',
+  'myLocationBtn', 'searchThisAreaBtn', 'clearSearchAreaBtn',
+  'drawUndoBtn', 'drawFinishBtn'
 ];
 controlIds.forEach(id => {
   // The element's own tag, from id="..." to the closing </button>.
@@ -148,15 +149,35 @@ controlIds.forEach(id => {
     fail(`map.html: control #${id} still contains a material-symbols ligature span`);
     mapChecks = true;
   }
-  if (!/\baria-label="/.test(el)) {
-    fail(`map.html: control #${id} has no aria-label`);
-    mapChecks = true;
-  }
-  if (!/\btitle="/.test(el)) {
-    fail(`map.html: control #${id} has no title (hover) text`);
+  // Every control needs an accessible name, from EITHER a visible text
+  // label or an aria-label -- not necessarily both. Adding aria-label to
+  // a button that already shows its name is redundant, and when the two
+  // drift apart it is the invisible one a screen reader announces.
+  const hasVisibleLabel = /<span[^>]*class="[^"]*tool-label/.test(el);
+  if (!hasVisibleLabel && !/\baria-label="/.test(el)) {
+    fail(`map.html: icon-only control #${id} has no aria-label and no visible label`);
     mapChecks = true;
   }
 });
+// The edge handle is the ONLY map control outside the drawer (plus
+// Leaflet's own zoom buttons). If a floating control stack comes back,
+// this catches it.
+if (!/id="mapEdgeHandle"/.test(mapHtml)) {
+  fail('map.html: expected the map-tools edge handle #mapEdgeHandle');
+  mapChecks = true;
+}
+if (/class="map-overlay-controls"/.test(mapHtml)) {
+  fail('map.html: the old floating .map-overlay-controls stack is back -- tools belong in the edge drawer');
+  mapChecks = true;
+}
+controlIds.forEach(id => {
+  const inDrawer = new RegExp(`<aside[^>]*id="mapDrawer"[\\s\\S]*?\\bid="${id}"[\\s\\S]*?</aside>`);
+  if (!inDrawer.test(mapHtml)) {
+    fail(`map.html: control #${id} must live inside the #mapDrawer edge drawer`);
+    mapChecks = true;
+  }
+});
+
 // Draw is a mode, not a one-shot action, so its pressed state must be
 // both declared in markup and kept in sync from setDrawMode().
 if (!/id="drawSearchBtn"[^>]*aria-pressed="false"/.test(mapHtml)) {

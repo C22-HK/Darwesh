@@ -1366,3 +1366,513 @@ body.cine-intro-open { overflow: hidden; }
     border-color: var(--cine-gold-1, #B89A63);
   }
 }
+
+/* =====================================================================
+ * PROPERTY LISTING CARD (.lc) -- the map's left result panel
+ * ---------------------------------------------------------------------
+ * A card answers, in order: what is it, where is it, how big, how much.
+ * The old card led with the address and buried the price in a corner,
+ * so scanning the column told you nothing about the properties in it.
+ *
+ * The height is FIXED and set elsewhere (.listing-card in map.html): the
+ * wheel's snap-centering maths needs every card to be exactly the same
+ * height in every language. So every row here is single-line and
+ * truncates -- nothing in this component may wrap, or the column stops
+ * centering correctly.
+ * ===================================================================== */
+
+.cine-scope .lc {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(34,30,21,0.92) 0%, rgba(23,21,15,0.96) 100%);
+  border: 1px solid rgba(93,72,43,0.55);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.cine-scope .lc:hover {
+  border-color: rgba(184,154,99,0.6);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.45);
+}
+/* The selected card is the one the map is showing. A gold rail on the
+ * leading edge reads at a glance down a scrolling column in a way a
+ * border-colour change alone does not. Logical inset-inline-start keeps
+ * it on the correct side under RTL with no separate rule. */
+.cine-scope .lc.active {
+  border-color: var(--cine-gold-1, #B89A63);
+  background: linear-gradient(180deg, rgba(46,39,25,0.95) 0%, rgba(28,25,17,0.97) 100%);
+}
+.cine-scope .lc.active::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #D8BC80, #B89A63);
+  z-index: 3;
+}
+
+/* ---- Media ---------------------------------------------------------- */
+.cine-scope .lc-media {
+  position: relative;
+  flex: none;
+  width: 104px;
+  overflow: hidden;
+  background: #100E0A;   /* the box has colour before the photo lands */
+}
+@media (min-width: 768px) { .cine-scope .lc-media { width: 124px; } }
+.cine-scope .lc-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;      /* fill the slot, never distort the photo */
+  display: block;
+}
+.cine-scope .lc-media.is-hidden-loc img { filter: blur(7px); transform: scale(1.15); }
+.cine-scope .lc-lock {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(9,10,10,0.5);
+  color: #F2EEE5;
+}
+.cine-scope .lc-lock svg { width: 18px; height: 18px; }
+
+/* Deal state sits on the image instead of taking one of the four text
+ * rows -- the card is height-constrained, and this is the one fact that
+ * reads fine as a small overlay. */
+.cine-scope .lc-deal {
+  position: absolute;
+  inset-block-end: 6px;
+  inset-inline-start: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(9,10,10,0.78);
+  backdrop-filter: blur(4px);
+  color: #E8DFC9;
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cine-scope .lc-fav {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  width: 26px; height: 26px;
+  border-radius: 999px;
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(9,10,10,0.6);
+  backdrop-filter: blur(4px);
+  color: #F2EEE5;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+  z-index: 4;
+}
+.cine-scope .lc-fav svg { width: 14px; height: 14px; }
+.cine-scope .lc-fav:hover { background: rgba(9,10,10,0.85); }
+.cine-scope .lc-fav.is-on { color: var(--cine-gold-1, #B89A63); }
+
+/* ---- Body ----------------------------------------------------------- */
+.cine-scope .lc-body {
+  flex: 1;
+  min-width: 0;            /* lets the truncation below actually happen */
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+.cine-scope .lc-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.cine-scope .lc-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: #F2EEE5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (min-width: 768px) { .cine-scope .lc-title { font-size: 15px; } }
+.cine-scope .lc-verified { width: 14px; height: 14px; flex: none; color: #7FB88A; }
+.cine-scope .lc-place {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: #A79F91;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Facts ---------------------------------------------------------- */
+.cine-scope .lc-facts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+.cine-scope .lc-facts:empty { display: none; }   /* no data, no empty row */
+.cine-scope .lc-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #C4BCAC;
+  white-space: nowrap;
+}
+.cine-scope .lc-fact-icon { width: 13px; height: 13px; flex: none; color: #8E7448; }
+
+/* ---- Price + actions ------------------------------------------------ */
+.cine-scope .lc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  margin-block-start: 1px;
+}
+/* The number people are actually shopping on, so it gets the one strong
+ * colour on the card and the largest size. */
+.cine-scope .lc-price {
+  margin: 0;
+  min-width: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--cine-gold-1, #B89A63);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (min-width: 768px) { .cine-scope .lc-price { font-size: 16.5px; } }
+.cine-scope .lc-actions { display: flex; align-items: center; gap: 5px; flex: none; }
+.cine-scope .lc-action {
+  width: 27px; height: 27px;
+  border-radius: 999px;
+  border: 1px solid rgba(93,72,43,0.7);
+  background: transparent;
+  color: #C4BCAC;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.cine-scope .lc-action svg { width: 14px; height: 14px; }
+.cine-scope .lc-action:hover {
+  background: rgba(184,154,99,0.16);
+  border-color: var(--cine-gold-1, #B89A63);
+  color: #F2EEE5;
+}
+.cine-scope .lc-action:focus-visible,
+.cine-scope .lc-fav:focus-visible,
+.cine-scope .lc:focus-visible {
+  outline: 2px solid var(--cine-gold-1, #B89A63);
+  outline-offset: 2px;
+}
+
+/* Touch targets: the whole card is the primary hit area, but the two
+ * icon buttons are separate actions and need the platform minimum. */
+@media (max-width: 767px) {
+  .cine-scope .lc-action { width: 30px; height: 30px; }
+  .cine-scope .lc-fav { width: 30px; height: 30px; }
+  .cine-scope .lc-fav svg { width: 15px; height: 15px; }
+}
+
+/* =====================================================================
+ * MAP EDGE DRAWER
+ * ---------------------------------------------------------------------
+ * Closed, the map's tools cost one thin handle on the trailing edge.
+ * Open, they are a glass panel over the map -- the map keeps rendering
+ * behind it and is never re-initialised, because this is a sibling
+ * overlay rather than anything in the map's own layout.
+ *
+ * Everything positional uses logical properties (inset-inline-end,
+ * padding-inline), so the whole component mirrors under RTL with no
+ * second set of rules -- including the drag direction, which is derived
+ * from the computed direction in map.html rather than hardcoded.
+ * ===================================================================== */
+
+/* ---- The handle ------------------------------------------------------ */
+.cine-scope .map-edge-handle {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1150;
+  width: 22px;
+  height: 92px;
+  padding: 0;
+  border: 1px solid rgba(184,154,99,0.35);
+  border-inline-end: none;
+  border-start-start-radius: 11px;
+  border-end-start-radius: 11px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  background: linear-gradient(180deg, rgba(28,25,17,0.86), rgba(17,15,11,0.92));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: -3px 0 16px rgba(0,0,0,0.42);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;      /* the handle owns its gesture, not the map */
+  transition: width .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.cine-scope .map-edge-handle:hover { width: 26px; border-color: rgba(184,154,99,0.7); }
+.cine-scope .map-edge-handle:focus-visible {
+  outline: 2px solid var(--cine-gold-1, #B89A63);
+  outline-offset: 2px;
+}
+/* The grip is the affordance: a short vertical rule, the same language a
+ * physical sliding panel uses. */
+.cine-scope .meh-grip {
+  width: 3px;
+  height: 34px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(216,188,128,0.95), rgba(142,116,72,0.85));
+}
+/* Marks a tool that has become available while the drawer is shut --
+ * today, "search this area" after a real pan. Without it, moving the map
+ * would offer nothing and the user would never know to look. */
+.cine-scope .meh-dot {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 6px;
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--cine-gold-1, #B89A63);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.cine-scope .map-edge-handle[data-attention="1"] .meh-dot { opacity: 1; transform: scale(1); }
+/* While a boundary is being drawn the handle is the way back to Finish,
+ * so it says so rather than looking idle. */
+.cine-scope .map-edge-handle[data-drawing="1"] {
+  border-color: var(--cine-gold-1, #B89A63);
+  background: linear-gradient(180deg, rgba(70,57,32,0.92), rgba(40,33,19,0.95));
+}
+.cine-scope .map-edge-handle[data-drawing="1"] .meh-grip {
+  animation: mehPulse 1.6s ease-in-out infinite;
+}
+@keyframes mehPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ---- The drawer ------------------------------------------------------ */
+.cine-scope .map-drawer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 1160;
+  width: min(320px, 86vw);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(26,23,16,0.90) 0%, rgba(14,13,9,0.94) 100%);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  border-inline-start: 1px solid rgba(184,154,99,0.28);
+  border-start-start-radius: 18px;
+  border-end-start-radius: 18px;
+  box-shadow: -18px 0 48px rgba(0,0,0,0.5);
+  /* Closed by default. --drawer-x is written by the drag handler so the
+   * panel tracks the finger; released, the transition below springs it
+   * to whichever end it settled nearest. */
+  transform: translateX(var(--drawer-x, 100%));
+  transition: transform 380ms cubic-bezier(0.22, 1.2, 0.36, 1);
+  overscroll-behavior: contain;
+  padding-inline-end: env(safe-area-inset-right, 0px);
+  padding-block-end: env(safe-area-inset-bottom, 0px);
+}
+/* RTL: the drawer sits on the left, so "closed" is the other direction.
+ * Handled here rather than by negating in JS, which would have to know
+ * about direction at every write. */
+.cine-scope [dir="rtl"] .map-drawer,
+[dir="rtl"] .cine-scope .map-drawer { transform: translateX(calc(-1 * var(--drawer-x, 100%))); }
+.cine-scope .map-drawer.is-dragging { transition: none; }   /* follow the finger exactly */
+.cine-scope .map-drawer.is-open { --drawer-x: 0%; }
+
+/* Compact mode: while a boundary is being drawn the map has to stay
+ * usable, so the drawer narrows to just the Area search group instead of
+ * closing. Same DOM, same controls -- nothing is duplicated elsewhere. */
+.cine-scope .map-drawer[data-mode="compact"] { width: min(196px, 62vw); }
+.cine-scope .map-drawer[data-mode="compact"] .drawer-group:not([data-group="area"]) { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .map-drawer { transition: none; }
+  .cine-scope .map-edge-handle[data-drawing="1"] .meh-grip { animation: none; }
+}
+
+.cine-scope .map-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1155;
+  background: rgba(6,6,5,0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+.cine-scope .map-drawer-scrim.is-open { opacity: 1; pointer-events: auto; }
+
+/* ---- Drawer chrome --------------------------------------------------- */
+.cine-scope .map-drawer-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 14px 11px;
+  border-block-end: 1px solid rgba(184,154,99,0.16);
+}
+.cine-scope .map-drawer-title {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cine-gold-1, #B89A63);
+}
+.cine-scope .map-drawer-close {
+  width: 30px; height: 30px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid rgba(93,72,43,0.6);
+  background: transparent;
+  color: #C4BCAC;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.cine-scope .map-drawer-close svg { width: 15px; height: 15px; }
+.cine-scope .map-drawer-close:hover { background: rgba(184,154,99,0.14); color: #F2EEE5; }
+
+.cine-scope .map-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- Groups ---------------------------------------------------------- */
+/* Each group is a card, so the drawer reads as four labelled sets rather
+ * than one undifferentiated column of buttons. */
+.cine-scope .drawer-group {
+  border: 1px solid rgba(93,72,43,0.42);
+  border-radius: 13px;
+  background: rgba(255,250,240,0.028);
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cine-scope .drawer-group-title {
+  margin: 0 0 2px;
+  padding-inline: 3px;
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #8A8172;
+}
+
+/* ---- Tool rows -------------------------------------------------------- */
+/* One shape for every tool: icon, label, full-width hit area. Uniformity
+ * is the point -- a row's meaning comes from its label, not from being
+ * shaped differently to its neighbours. */
+.cine-scope .tool-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #E8E2D6;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+@media (max-width: 767px) { .cine-scope .tool-row { min-height: 44px; } }
+.cine-scope .tool-row .ctl-svg { width: 18px; height: 18px; flex: none; color: #B89A63; }
+.cine-scope .tool-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cine-scope .tool-row:hover:not(:disabled) { background: rgba(184,154,99,0.13); border-color: rgba(184,154,99,0.34); }
+.cine-scope .tool-row:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: 1px; }
+.cine-scope .tool-row:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* A mode that is currently ON -- filled, not merely tinted, so it is
+ * unmistakable at a glance which tool is armed. */
+.cine-scope .tool-row[aria-pressed="true"] {
+  background: var(--cine-gold-1, #B89A63);
+  border-color: var(--cine-gold-1, #B89A63);
+  color: #17150F;
+  font-weight: 650;
+}
+.cine-scope .tool-row[aria-pressed="true"] .ctl-svg { color: #17150F; }
+
+.cine-scope .tool-row-sub { min-height: 38px; font-size: 12.5px; padding-inline-start: 16px; }
+.cine-scope .tool-row-primary { border-color: rgba(184,154,99,0.45); }
+.cine-scope .tool-row-danger .ctl-svg { color: #D98C6A; }
+
+/* The draw sub-actions only exist mid-drawing. */
+.cine-scope .draw-actions { display: none; flex-direction: column; gap: 4px; }
+.cine-scope .draw-actions.show { display: flex; }
+
+/* ---- Segmented map-type control -------------------------------------- */
+.cine-scope .map-drawer .map-type-switch {
+  display: flex;
+  width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid rgba(93,72,43,0.55);
+  background: rgba(9,10,10,0.42);
+  box-shadow: none;
+}
+.cine-scope .map-drawer .map-type-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #A79F91;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color .15s ease, color .15s ease;
+}
+.cine-scope .map-drawer .map-type-btn.active { background: var(--cine-gold-1, #B89A63); color: #17150F; }
+.cine-scope .map-drawer .map-type-btn:hover:not(.active) { color: #F2EEE5; background: rgba(184,154,99,0.1); }
+.cine-scope .map-drawer .map-type-btn:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: -2px; }

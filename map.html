@@ -326,6 +326,28 @@ violation reporting. -->
     .map-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     @media (min-width: 768px) { .map-toast { bottom: 1.5rem; } }
 
+    /* ---- MAM companion vs. the map-tools edge handle --------------------
+     * css/mam-companion.css docks the orb at right:20px, top:50% -- which
+     * is exactly where this page's edge handle now sits. Two controls
+     * were landing on the same 92px band at the trailing edge.
+     *
+     * Scoped to this page because the handle only exists here: the orb
+     * drops below the handle's band, and while the drawer is open it
+     * fades out entirely rather than sitting on top of the panel. The
+     * MamCompanion instance is untouched -- this is placement only, so
+     * none of its state/behaviour changes. */
+    .mamco-root { top: 76%; transition: opacity .25s ease, transform .3s ease; }
+    body[data-map-drawer="open"] .mamco-root {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-50%) translateX(12px);
+    }
+    @media (max-width: 767px) {
+      /* Mobile already re-anchors the orb near the header, well clear of
+         the handle -- leave that placement alone. */
+      .mamco-root { top: 148px; }
+    }
+
     /* ---- MAM AI ---------------------------------------------------------
      * A floating assistant dock layered OVER the live map/results -- an
      * original Darwesh implementation. The interaction shape (a compact
@@ -362,11 +384,50 @@ violation reporting. -->
       background: #17150Ff2; backdrop-filter: blur(10px); border: 1px solid #5D482B;
       border-radius: 999px; padding: 7px 7px 7px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.4);
     }
+    /* The dock's mark is the SAME living body as the full MAM orb
+       (css/mam-companion.css), scaled down -- two counter-rotating
+       blurred gradient layers on non-harmonic periods -- so the small
+       launcher and the large assistant read as one identity rather than
+       a logo and an animation. Kept local to this element because the
+       dock's mark is a <span>, not a MamCompanion instance. */
     .drm-ai-mark {
       width: 22px; height: 22px; border-radius: 999px; flex: none; position: relative;
-      background: radial-gradient(circle at 35% 30%, #221E15, #17150F 70%); border: 1px solid #5D482B;
+      overflow: hidden; isolation: isolate;
+      background: radial-gradient(circle at 50% 52%, #2A2417 0%, #14120C 70%, #0C0B07 100%);
+      border: 1px solid #5D482B;
+      box-shadow: inset 0 0 6px rgba(0,0,0,0.8), 0 0 10px -3px rgba(184,154,99,0.5);
     }
-    .drm-ai-mark::after { content: ''; position: absolute; inset: 0; margin: auto; width: 6px; height: 6px; border-radius: 999px; background: #B89A63; }
+    .drm-ai-mark::before,
+    .drm-ai-mark::after {
+      content: ''; position: absolute; inset: -34%; border-radius: 999px;
+    }
+    .drm-ai-mark::before {
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,246,224,0.95) 0%, rgba(240,206,132,0.6) 15%, transparent 50%),
+        radial-gradient(circle at 34% 62%, rgba(224,166,74,0.55) 0%, transparent 42%);
+      filter: blur(2.5px);
+      animation: drmMarkA 13s linear infinite;
+    }
+    .drm-ai-mark::after {
+      background:
+        radial-gradient(circle at 62% 58%, rgba(216,188,128,0.5) 0%, transparent 40%),
+        radial-gradient(circle at 38% 34%, rgba(142,116,72,0.6) 0%, transparent 45%);
+      filter: blur(3.5px); mix-blend-mode: screen;
+      animation: drmMarkB 21s linear infinite;
+    }
+    @keyframes drmMarkA {
+      0% { transform: rotate(0deg) scale(1); }
+      50% { transform: rotate(180deg) scale(1.09); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+    @keyframes drmMarkB {
+      0% { transform: rotate(360deg) scale(1.06); }
+      50% { transform: rotate(180deg) scale(0.94); }
+      100% { transform: rotate(0deg) scale(1.06); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .drm-ai-mark::before, .drm-ai-mark::after { animation: none; }
+    }
     #drmAiInput { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #F2EEE5; font-family: 'Inter', sans-serif; font-size: 14px; }
     #drmAiInput::placeholder { color: #A79F91; }
     .drm-ai-icon-btn { flex: none; width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
@@ -570,61 +631,109 @@ violation reporting. -->
 <!-- Map panel -->
 <div id="mapPanel" class="relative w-full md:w-1/2 lg:w-3/5 h-full order-1 md:order-2">
 <div id="map" class="w-full h-full"></div>
-<!-- Map Overlay Controls.
-     One group, one visual language: every control here is a labelled
-     button carrying an INLINE SVG rather than a webfont ligature, so the
-     map is operable even when fonts.googleapis.com is unreachable.
-     On phones the group collapses behind a single toggle -- five stacked
-     controls plus a segmented switch is most of a small screen's height,
-     and the map is the thing people came for. -->
-<div class="map-overlay-controls" id="mapOverlayControls" data-tools="collapsed">
-<button id="mapToolsToggle" type="button" title="Map tools" aria-label="Map tools" aria-expanded="false" aria-controls="mapToolsGroup" class="map-overlay-btn map-overlay-btn-icon map-tools-toggle" data-i18n-title="map.mapTools" data-i18n-aria="map.mapTools">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/></svg>
+<!-- ===================================================================
+     MAP TOOLS -- an edge drawer, not a floating toolbar.
+     ===================================================================
+     A stack of buttons parked over the map costs map area permanently
+     and, on a phone, took most of the screen's height. Here the closed
+     state is a single thin handle welded to the map's trailing edge;
+     everything else lives inside a drawer that slides out over the map
+     and slides back. The map is never rebuilt -- the drawer is a sibling
+     overlay, so opening it never touches the Leaflet instance.
+
+     Every tool the page owns is in here, grouped by what it does, so
+     there is exactly one place to look. The only controls left outside
+     are Leaflet's own zoom buttons.
+     =================================================================== -->
+<button id="mapEdgeHandle" type="button" class="map-edge-handle"
+        aria-label="Map tools" title="Map tools" aria-expanded="false" aria-controls="mapDrawer"
+        data-i18n-aria="map.mapTools" data-i18n-title="map.mapTools">
+<span class="meh-grip" aria-hidden="true"></span>
+<span class="meh-dot" aria-hidden="true"></span>
 </button>
-<div class="map-overlay-group" id="mapToolsGroup">
+
+<!-- Catches the click-outside that closes the drawer. Not focusable and
+     aria-hidden: ESC and the handle are the accessible ways out, so this
+     never becomes a tab stop between the drawer and the page. -->
+<div id="mapDrawerScrim" class="map-drawer-scrim" aria-hidden="true"></div>
+
+<aside id="mapDrawer" class="map-drawer" role="dialog" aria-modal="false"
+       aria-label="Map tools" data-i18n-aria="map.mapTools">
+<div class="map-drawer-head">
+<h2 class="map-drawer-title" data-i18n="map.mapTools">Map tools</h2>
+<button id="mapDrawerCloseBtn" type="button" class="map-drawer-close" aria-label="Close" data-i18n-aria="common.close" title="Close" data-i18n-title="common.close">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+</div>
+
+<div class="map-drawer-body">
+
+<!-- ---- Map style -------------------------------------------------- -->
+<section class="drawer-group" data-group="style">
+<h3 class="drawer-group-title" data-i18n="map.groupMapStyle">Map style</h3>
 <div class="map-type-switch" id="mapTypeSwitch" role="group" aria-label="Map type" data-i18n-aria="map.mapType">
 <button type="button" class="map-type-btn active" data-map-type="roadmap" data-i18n="drm.roadmap">Map</button>
 <button type="button" class="map-type-btn" data-map-type="satellite" data-i18n="drm.satellite">Satellite</button>
 <button type="button" class="map-type-btn" data-map-type="hybrid" data-i18n="drm.hybrid">Hybrid</button>
 </div>
-<button id="fullscreenBtn" type="button" title="Fullscreen" aria-label="Fullscreen" class="map-overlay-btn map-overlay-btn-icon" data-i18n-title="drm.fullscreen" data-i18n-aria="drm.fullscreen">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
-</button>
-<button id="resetViewBtn" type="button" title="Reset view" aria-label="Reset view" class="map-overlay-btn map-overlay-btn-icon" data-i18n-title="map.resetView" data-i18n-aria="map.resetView">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-</button>
-<button id="drawSearchBtn" type="button" title="Draw Area" aria-label="Draw Area" aria-pressed="false" class="map-overlay-btn map-overlay-btn-labeled" data-i18n-title="map.drawArea" data-i18n-aria="map.drawArea">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-<span class="label" data-i18n="map.drawArea">Draw Area</span>
-</button>
-<button id="myLocationBtn" type="button" title="My Location" aria-label="My Location" class="map-overlay-btn map-overlay-btn-icon" data-i18n-title="map.myLocation" data-i18n-aria="map.myLocation">
+</section>
+
+<!-- ---- Location ---------------------------------------------------- -->
+<section class="drawer-group" data-group="location">
+<h3 class="drawer-group-title" data-i18n="map.groupLocation">Location</h3>
+<button id="myLocationBtn" type="button" class="tool-row" title="My Location" aria-label="My Location" data-i18n-title="map.myLocation" data-i18n-aria="map.myLocation">
 <svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+<span class="tool-label" data-i18n="map.myLocation">My Location</span>
 </button>
-</div>
-</div>
-<!-- Search-this-area chip -- appears only after a significant, debounced
-     pan/zoom; clicking it filters to the current viewport without any
-     continuous background querying. -->
-<button id="searchThisAreaBtn" class="search-this-area-chip">
+<button id="resetViewBtn" type="button" class="tool-row" title="Reset view" aria-label="Reset view" data-i18n-title="map.resetView" data-i18n-aria="map.resetView">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+<span class="tool-label" data-i18n="map.resetView">Reset view</span>
+</button>
+<!-- Enabled only once a real pan/zoom has made "this area" mean
+     something different from the last search (the .show class is still
+     set by the same debounced handler as before). -->
+<button id="searchThisAreaBtn" type="button" class="tool-row" disabled="" title="Search this area" aria-label="Search this area" data-i18n-title="drm.searchThisArea" data-i18n-aria="drm.searchThisArea">
 <svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
-<span data-i18n="drm.searchThisArea">Search this area</span>
+<span class="tool-label" data-i18n="drm.searchThisArea">Search this area</span>
 </button>
-<!-- Draw-mode contextual actions -- shown only while actively placing a
-     boundary's points (mouse click or touch tap, both handled by
-     Leaflet's own click event). -->
+</section>
+
+<!-- ---- Area search ------------------------------------------------- -->
+<section class="drawer-group" data-group="area">
+<h3 class="drawer-group-title" data-i18n="map.groupAreaSearch">Area search</h3>
+<button id="drawSearchBtn" type="button" class="tool-row" title="Draw Area" aria-label="Draw Area" aria-pressed="false" data-i18n-title="map.drawArea" data-i18n-aria="map.drawArea">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+<span class="tool-label" data-i18n="map.drawArea">Draw Area</span>
+</button>
+<!-- Only meaningful mid-drawing, so it is revealed rather than sitting
+     there permanently disabled. -->
 <div class="draw-actions" id="drawActions">
-<button type="button" id="drawUndoBtn" class="draw-action-btn draw-action-undo">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span data-i18n="map.undoPoint">Undo point</span>
+<button type="button" id="drawUndoBtn" class="tool-row tool-row-sub">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+<span class="tool-label" data-i18n="map.undoPoint">Undo point</span>
 </button>
-<button type="button" id="drawFinishBtn" class="draw-action-btn draw-action-finish" disabled="">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m4 12 5 5L20 6"/></svg><span data-i18n="map.finishArea">Finish</span>
+<button type="button" id="drawFinishBtn" class="tool-row tool-row-sub tool-row-primary" disabled="">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m4 12 5 5L20 6"/></svg>
+<span class="tool-label" data-i18n="map.finishArea">Finish</span>
 </button>
 </div>
-<!-- Clear Search Area chip -->
-<button id="clearSearchAreaBtn" class="map-search-chip" style="display:none;">
-<span data-i18n="map.searchAreaActive">Search Area Active</span>
+<button id="clearSearchAreaBtn" type="button" class="tool-row tool-row-danger" style="display:none;">
 <svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
+<span class="tool-label" data-i18n="map.clearSearchArea">Clear area</span>
 </button>
+</section>
+
+<!-- ---- View --------------------------------------------------------- -->
+<section class="drawer-group" data-group="view">
+<h3 class="drawer-group-title" data-i18n="map.groupView">View</h3>
+<button id="fullscreenBtn" type="button" class="tool-row" title="Fullscreen" aria-label="Fullscreen" data-i18n-title="drm.fullscreen" data-i18n-aria="drm.fullscreen">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M16 3h3a2 2 0 0 1 2 2v3"/><path d="M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+<span class="tool-label" data-i18n="drm.fullscreen">Fullscreen</span>
+</button>
+</section>
+
+</div>
+</aside>
 <!-- Map Legend -->
 <div class="map-legend" id="mapLegend">
 <button type="button" id="legendToggleBtn" class="map-legend-title flex items-center justify-between w-full" style="cursor:pointer; background:none; border:none; padding:0;" aria-expanded="true">
@@ -757,6 +866,36 @@ let listingsLoaded = false;
 // viewed from agent-dashboard.html's map. A listing with no lat/lng
 // can't be placed on this map so it's left out here.
 // ---------------------------------------------------------------------
+// A count the listing genuinely recorded, or null. The distinction
+// matters on the card: `Number(undefined) || 0` used to turn "this
+// listing never said" into a confident "0 bd", and a studio flat and a
+// listing with missing data then looked identical. null hides the row.
+// A real, recorded 0 is preserved -- 0 bathrooms on a plot of land is a
+// fact, not an absence.
+function numOrNull(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// The listing's OWN photograph, preferred over stock in every case where
+// one exists. Fields are tried in the order the data actually carries
+// them; `strict` returns null instead of the stock fallback so callers
+// can tell "this is the property" from "this is a placeholder".
+// Everything here is a public listing field -- no gallery subcollection
+// read, no extra Firestore query, nothing per-card.
+function realListingImage(d, strict) {
+  const candidates = [
+    d.img, d.coverImage, d.coverImageUrl, d.imageUrl, d.photoURL,
+    Array.isArray(d.images) ? d.images[0] : null,
+    Array.isArray(d.photos) ? d.photos[0] : null
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim() && isSafeHttpUrl(c.trim())) return c.trim();
+  }
+  return strict ? null : (IMAGES[0] || '');
+}
+
 let listingsLoadError = false;
 async function loadListings() {
   listingsLoadError = false;
@@ -858,16 +997,32 @@ async function loadListings() {
       return {
         id: d.id,
         city: d.city || '',
-        address: d.address || d.title || '',
+        district: d.district || '',
+        // Kept SEPARATE from address now. These used to be collapsed into
+        // one `address` field (`d.address || d.title`), which is why a
+        // listing with no street address rendered its title in the
+        // address slot -- and a listing with neither showed nothing at
+        // all. listingTitle() below needs to know which it actually has.
+        title: (typeof d.title === 'string' ? d.title.trim() : ''),
+        address: d.address || '',
         lat: d._lat, lng: d._lng,
         type: d.dealType === 'rent' ? 'rent' : 'sale',
         price,
         priceLabel: d.dealType === 'rent' ? ('$' + price.toLocaleString() + '/mo') : ('$' + price.toLocaleString()),
-        beds: Number(d.beds) || 0,
-        baths: Number(d.baths) || 0,
-        sqft: Number(d.sqft) || 0,
+        // null, not 0, when the field is absent: a listing that simply
+        // never recorded a bedroom count is not a zero-bedroom property,
+        // and the card hides the row rather than asserting "0 bd".
+        beds: numOrNull(d.beds),
+        baths: numOrNull(d.baths),
+        sqft: numOrNull(d.sqft),
         propertyType: d.propertyType || '',
-        img: d.img || IMAGES[0],
+        // Real listing imagery, in the order the data actually offers it:
+        // an explicit cover, then the first gallery image, and only then a
+        // neutral stock fallback. The old `d.img || IMAGES[0]` never
+        // looked at d.images at all, so a listing whose photos lived in
+        // the gallery array showed a generic stock building instead.
+        img: realListingImage(d),
+        hasRealImg: !!realListingImage(d, true),
         verified: !!d.verified,
         private: !!d.private,
         // Real Firestore server timestamp when present (Timestamp
@@ -956,7 +1111,7 @@ async function toggleFavorite(id) {
   } else {
     favoriteIds.add(idStr);
     await favFns.setDoc(ref, {
-      listingId: idStr, address: l.address, city: l.city,
+      listingId: idStr, address: storedAddress(l), city: l.city,
       priceLabel: l.priceLabel, img: l.img, savedAt: favFns.serverTimestamp()
     });
     showToast(tr('listing.savedToFavorites', 'Saved to favorites'), 'favorite');
@@ -974,7 +1129,7 @@ let viewingListingId = null;
 function openViewingModal(id) {
   viewingListingId = id;
   const l = LISTINGS.find(x => x.id === id);
-  document.getElementById('viewingModalListingLine').textContent = l ? `${l.address}, ${l.city}` : '';
+  document.getElementById('viewingModalListingLine').textContent = l ? placeLine(l) : '';
   document.getElementById('viewingRequestError').classList.add('hidden');
   document.getElementById('viewingRequestForm').reset();
   if (favAuth && favAuth.currentUser && favAuth.currentUser.email) {
@@ -1011,7 +1166,7 @@ document.getElementById('viewingRequestForm').addEventListener('submit', async (
     await favFns.addDoc(favFns.collection(favDb, 'submissions'), {
       type: 'viewing',
       listingId: viewingListingId,
-      address: l ? l.address : '', city: l ? l.city : '', priceLabel: l ? l.priceLabel : '',
+      address: l ? storedAddress(l) : '', city: l ? l.city : '', priceLabel: l ? l.priceLabel : '',
       lat: l ? l.lat : null, lng: l ? l.lng : null,
       name, phone, email,
       uid: (favAuth && favAuth.currentUser) ? favAuth.currentUser.uid : null,
@@ -1286,9 +1441,15 @@ function neighborhoodIcon() {
 function buildNeighborhoodMarkers(visibleListings) {
   const groups = {};
   visibleListings.forEach(l => {
-    if (!l.address) return;
-    const key = l.address + '|' + l.city;
-    if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
+    // District first: that IS the neighbourhood, whereas an address is a
+    // specific building that happens to sit in one. Before the title and
+    // address fields were separated, a listing with no street address
+    // fell back to its TITLE here, so a one-off property name could
+    // appear on the map as though it were a neighbourhood.
+    const name = l.district || l.address;
+    if (!name) return;
+    const key = name + '|' + l.city;
+    if (!groups[key]) groups[key] = { name, lats: [], lngs: [] };
     groups[key].lats.push(l.lat);
     groups[key].lngs.push(l.lng);
   });
@@ -1409,7 +1570,14 @@ function filteredListings() {
   const q = document.getElementById('citySearch').value.trim().toLowerCase();
   const list = LISTINGS.filter(l => {
     const typeMatch = activeType === 'all' || l.type === activeType;
-    const qMatch = !q || l.city.toLowerCase().includes(q) || l.address.toLowerCase().includes(q);
+    // Title is searched explicitly now. It used to be matched only by
+    // accident, via the old `address: d.address || d.title` fallback --
+    // so a listing that had BOTH an address and a title was never
+    // findable by its title at all.
+    const qMatch = !q || l.city.toLowerCase().includes(q)
+      || l.address.toLowerCase().includes(q)
+      || l.district.toLowerCase().includes(q)
+      || l.title.toLowerCase().includes(q);
     const priceMatch = (priceMin === null || l.price >= priceMin) && (priceMax === null || l.price <= priceMax);
     const bedsMatch = l.beds >= bedsMin;
     const bathsMatch = l.baths >= bathsMin;
@@ -1479,7 +1647,7 @@ function card(l) {
 
   const addressLine = hidden
     ? `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${tr('map.approximateArea','Approximate area')} &middot; ${escapeHtml(l.city)}</p>`
-    : `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${escapeHtml(l.address)}, ${escapeHtml(l.city)}</p>`;
+    : `<p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 text-[13px]"><span class="material-symbols-outlined text-[15px]">location_on</span>${escapeHtml(placeLine(l))}</p>`;
 
   const actions = hidden ? `
     <div class="flex gap-2 mt-3">
@@ -1519,61 +1687,156 @@ function card(l) {
 // (required for the scroll-snap centering math in wireWheel() below).
 // Every line uses Tailwind's logical (start/end) utilities instead of
 // left/right so RTL mirrors automatically, no page-scoped override.
+// PROPERTY-TYPE LABEL, localized. Falls back to the raw stored value
+// rather than dropping it, so an unrecognised type still says something
+// truthful instead of vanishing.
+const PROPERTY_TYPE_KEYS = {
+  house: 'map.house', villa: 'map.villa', apartment: 'map.apartment',
+  office: 'map.office', land: 'map.land', building: 'map.building',
+  shop: 'map.shop', commercial: 'map.commercialProperty'
+};
+// The human-readable location of a listing, skipping whichever parts the
+// document does not have. Replaces the hardcoded `${l.address}, ${l.city}`
+// that rendered a leading comma whenever the address was missing.
+function placeLine(l) {
+  return [l.address, l.district, l.city].filter(Boolean).join(', ');
+}
+
+// What gets WRITTEN into a favourite or a viewing request -- deliberately
+// not placeLine(), because those records carry `city` as its own field
+// and would otherwise repeat it. This reproduces the pre-split value
+// (`d.address || d.title`) exactly, so no stored document loses text
+// because the two fields were separated.
+function storedAddress(l) {
+  return l.address || l.title || l.district || '';
+}
+
+function propertyTypeLabel(l) {
+  const raw = String(l.propertyType || '').trim().toLowerCase();
+  const key = PROPERTY_TYPE_KEYS[raw];
+  if (key) return tr(key, raw.charAt(0).toUpperCase() + raw.slice(1));
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '';
+}
+
+// THE CARD'S HEADLINE -- and the reason a document id can never be one.
+//
+// The card used to lead with `address, city`, where `address` was
+// `d.address || d.title`. A listing created without a street address fell
+// through to its title; one created with neither showed a bare comma, and
+// where an id had been typed into the address field that id became the
+// visible headline. Nothing in that chain ever asked "what IS this
+// property", which is the only question the headline should answer.
+//
+// Three tiers, in the order a person would answer it:
+//   1. the title the lister actually wrote,
+//   2. a generated "<Type> for Sale/Rent" -- always true, built from
+//      structured fields rather than free text,
+//   3. the city, so the card is never headless.
+// An id-shaped title (all digits, or a Firestore-style 20-char token) is
+// rejected at tier 1 and falls through to tier 2, because a number is not
+// a name no matter which field it was typed into.
+function looksLikeRawId(s) {
+  const t = String(s || '').trim();
+  if (!t) return true;
+  if (/^\d+$/.test(t)) return true;                       // 3456789
+  if (/^[A-Za-z0-9_-]{18,}$/.test(t) && !/\s/.test(t)) return true; // doc id
+  return false;
+}
+function listingTitle(l) {
+  if (!looksLikeRawId(l.title)) return l.title;
+  const type = propertyTypeLabel(l);
+  if (type) {
+    return trf(
+      l.type === 'rent' ? 'map.titleTypeForRent' : 'map.titleTypeForSale',
+      l.type === 'rent' ? '{type} for Rent' : '{type} for Sale',
+      { type }
+    );
+  }
+  if (l.city) {
+    return trf(
+      l.type === 'rent' ? 'map.titleInCityForRent' : 'map.titleInCityForSale',
+      l.type === 'rent' ? 'Property for Rent in {city}' : 'Property for Sale in {city}',
+      { city: l.city }
+    );
+  }
+  return l.type === 'rent' ? tr('common.forRent', 'For Rent') : tr('common.forSale', 'For Sale');
+}
+
+// Icons drawn inline rather than as Material Symbols ligatures. A fact
+// row is exactly where a missing webfont does the most damage: the
+// number stays but its meaning disappears, so "4 2 500" reads as
+// nothing. These are correct with no network.
+const FACT_ICONS = {
+  bed: '<path d="M2 17v-5h20v5"/><path d="M2 17v3M22 17v3"/><path d="M4 12V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M8 12V9h8v3"/>',
+  bath: '<path d="M3 12h18v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4v-3Z"/><path d="M6 12V5a2 2 0 0 1 4 0"/><path d="M6 19l-1 2M18 19l1 2"/>',
+  area: '<path d="M4 4h16v16H4z"/><path d="M4 9h4M4 15h4M9 4v4M15 4v4"/>'
+};
+function factIcon(name) {
+  return `<svg class="lc-fact-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${FACT_ICONS[name]}</svg>`;
+}
+// A fact is rendered only when the listing actually recorded it. An
+// absent value produces no markup at all -- no icon, no "0", no empty
+// box where a number should be.
+function fact(iconName, value, unit, label) {
+  if (value === null || value === undefined) return '';
+  return `<span class="lc-fact" title="${label}"><span class="sr-only">${label}: </span>${factIcon(iconName)}<span>${value}${unit}</span></span>`;
+}
+
 function wheelCard(l) {
   const hidden = isPrivateHidden(l);
   const active = l.id === activeId;
   const favActive = favoriteIds.has('buy-' + l.id);
-  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="absolute top-1.5 start-1.5 w-6 h-6 rounded-full bg-primary/60 backdrop-blur-sm flex items-center justify-center hover:bg-primary/80 transition-colors z-10" aria-label="Save to favorites">
-      <span class="material-symbols-outlined text-[14px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
+  const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="lc-fav${favActive ? ' is-on' : ''}" aria-label="${tr('map.saveToFavorites', 'Save to favorites')}" aria-pressed="${favActive}">
+      <svg viewBox="0 0 24 24" fill="${favActive ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 0 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
     </button>`;
   const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
   const dealLabel = l.type === 'sale' ? tr('common.forSale', 'For Sale') : tr('common.forRent', 'For Rent');
   const verifiedBadge = l.verified
-    ? `<span class="material-symbols-outlined text-[15px] text-tertiary flex-none" aria-label="${tr('common.verified', 'Verified')}" title="${tr('common.verified', 'Verified')}">verified</span>`
+    ? `<svg class="lc-verified" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${tr('common.verified', 'Verified')}"><path d="m9 12 2 2 4-4"/><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5Z"/></svg>`
     : '';
 
-  const media = hidden ? `
-    <div class="relative flex-none w-24 md:w-28 overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt="" decoding="async"/>
+  // Fixed aspect box + object-cover: a portrait phone photo and a wide
+  // agency shot both fill the same slot without stretching, and because
+  // the box is sized by CSS rather than by the image, a slow photo
+  // cannot shift the row beneath it.
+  const media = `
+    <div class="lc-media${hidden ? ' is-hidden-loc' : ''}">
+      <img loading="lazy" decoding="async" src="${safeImg}" alt=""/>
+      ${hidden ? `<span class="lc-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>` : ''}
       ${favBtn}
-      <div class="absolute inset-0 bg-primary/55 flex items-center justify-center text-on-primary">
-        <span class="material-symbols-outlined text-[20px]">lock</span>
-      </div>
-    </div>` : `
-    <div class="relative flex-none w-24 md:w-28 overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover" src="${safeImg}" alt="" decoding="async"/>
-      ${favBtn}
+      <span class="lc-deal">${dealLabel}</span>
     </div>`;
 
-  const addressLine = hidden
+  const place = hidden
     ? `${tr('map.approximateArea', 'Approximate area')} &middot; ${escapeHtml(l.city)}`
-    : `${escapeHtml(l.address)}, ${escapeHtml(l.city)}`;
+    : [l.district, l.city].filter(Boolean).map(escapeHtml).join(' &middot; ') || escapeHtml(l.address);
 
   const revealBtn = hidden
-    ? `<button data-id="${l.id}" class="reveal-location-btn w-7 h-7 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors flex-none" aria-label="${tr('map.exactLocation', 'Exact Location')}" title="${tr('map.exactLocation', 'Exact Location')}">
-        <span class="material-symbols-outlined text-[15px]">lock_open</span>
+    ? `<button data-id="${l.id}" class="reveal-location-btn lc-action" aria-label="${tr('map.exactLocation', 'Exact Location')}" title="${tr('map.exactLocation', 'Exact Location')}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg>
       </button>`
     : '';
 
   return `
-  <article data-id="${l.id}" role="option" aria-selected="${active}" tabindex="-1" class="listing-card${active ? ' active' : ''} cursor-pointer flex items-stretch bg-surface-container-lowest rounded-xl border border-outline-variant overflow-hidden relative">
+  <article data-id="${l.id}" role="option" aria-selected="${active}" tabindex="-1" class="listing-card${active ? ' active' : ''} lc">
     ${media}
-    <div class="flex-1 min-w-0 py-2 px-2.5 flex flex-col justify-center gap-1">
-      <div class="flex items-center justify-between gap-2">
-        <span class="font-label-caps text-label-caps text-[10px] text-on-surface-variant uppercase tracking-wide truncate">${dealLabel}</span>
-        <p class="font-headline-md text-[15px] text-primary flex-none">${hidden ? tr('map.priceOnRequest', 'Price on request') : l.priceLabel}</p>
+    <div class="lc-body">
+      <div class="lc-head">
+        <h3 class="lc-title">${escapeHtml(listingTitle(l))}</h3>
+        ${verifiedBadge}
       </div>
-      <p class="font-body-md text-body-md text-on-surface text-[13px] truncate flex items-center gap-1">${verifiedBadge}<span class="truncate">${addressLine}</span></p>
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex gap-2.5 min-w-0">
-          <span class="font-data-mono text-data-mono text-on-surface-variant flex items-center gap-0.5 text-[11px]"><span class="material-symbols-outlined text-[13px] text-outline">bed</span>${l.beds}</span>
-          <span class="font-data-mono text-data-mono text-on-surface-variant flex items-center gap-0.5 text-[11px]"><span class="material-symbols-outlined text-[13px] text-outline">bathtub</span>${l.baths}</span>
-          <span class="font-data-mono text-data-mono text-on-surface-variant flex items-center gap-0.5 text-[11px]"><span class="material-symbols-outlined text-[13px] text-outline">square_foot</span>${l.sqft}m&sup2;</span>
-        </div>
-        <div class="flex items-center gap-1.5 flex-none">
+      <p class="lc-place">${place}</p>
+      <div class="lc-facts">
+        ${fact('bed', l.beds, '', tr('map.bedrooms', 'Bedrooms'))}
+        ${fact('bath', l.baths, '', tr('map.bathrooms', 'Bathrooms'))}
+        ${fact('area', l.sqft, 'm²', tr('map.area', 'Area'))}
+      </div>
+      <div class="lc-foot">
+        <p class="lc-price">${hidden ? tr('map.priceOnRequest', 'Price on request') : l.priceLabel}</p>
+        <div class="lc-actions">
           ${revealBtn}
-          <button data-id="${l.id}" class="request-viewing-btn w-7 h-7 rounded-full border border-outline-variant flex items-center justify-center text-on-surface hover:bg-surface-container transition-colors" aria-label="${tr('map.requestViewing', 'Request Viewing')}" title="${tr('map.requestViewing', 'Request Viewing')}">
-            <span class="material-symbols-outlined text-[15px]">calendar_month</span>
+          <button data-id="${l.id}" class="request-viewing-btn lc-action" aria-label="${tr('map.requestViewing', 'Request Viewing')}" title="${tr('map.requestViewing', 'Request Viewing')}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></svg>
           </button>
         </div>
       </div>
@@ -2047,22 +2310,153 @@ viewToggle.addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------------
-// Mobile map-tools group.
+// MAP TOOLS EDGE DRAWER
 //
-// The controls themselves are identical on every breakpoint -- only their
-// visibility differs, and only under 768px (see css/cinematic.css). The
-// collapsed/expanded state is expressed as ONE attribute on the container
-// so CSS owns the layout entirely and this handler owns nothing but the
-// state + its ARIA mirror; there is no width check here, which is what
-// keeps a desktop resize from ever hiding a control (the media query
-// simply stops applying).
+// Closed, the tools cost one handle on the map's trailing edge. Open, the
+// drawer sits over the map -- a sibling overlay, so opening it never
+// touches the Leaflet instance and the map is never re-created or
+// re-measured.
+//
+// Two ways in, because pointing devices and thumbs want different things:
+// a click/tap on the handle toggles, and a drag off the handle pulls the
+// panel with the finger. During a drag the panel is positioned directly
+// from the pointer (transition suppressed) so it tracks 1:1; on release
+// it springs to whichever end it is nearest, or in the direction of a
+// fast flick.
+//
+// The gesture is bound to the HANDLE and the DRAWER only -- never to the
+// map -- so panning the map is completely unaffected. `touch-action:none`
+// on those two elements is what stops the browser claiming the drag for
+// a scroll before the handler sees it.
 // ---------------------------------------------------------------------
-const mapOverlayControls = document.getElementById('mapOverlayControls');
-const mapToolsToggle = document.getElementById('mapToolsToggle');
-mapToolsToggle.addEventListener('click', () => {
-  const expanded = mapOverlayControls.dataset.tools === 'expanded';
-  mapOverlayControls.dataset.tools = expanded ? 'collapsed' : 'expanded';
-  mapToolsToggle.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+const mapDrawer = document.getElementById('mapDrawer');
+const mapEdgeHandle = document.getElementById('mapEdgeHandle');
+const mapDrawerScrim = document.getElementById('mapDrawerScrim');
+const mapDrawerCloseBtn = document.getElementById('mapDrawerCloseBtn');
+
+// Opening past this fraction of the panel's own width commits the
+// gesture; below it the panel snaps back. A velocity flick overrides it,
+// so a quick flick opens even if it never travelled far.
+const DRAWER_COMMIT_FRACTION = 0.4;
+const DRAWER_FLICK_VELOCITY = 0.45;   // px per ms
+
+let drawerOpen = false;
+
+function setDrawerOpen(open, opts) {
+  drawerOpen = open;
+  mapDrawer.classList.toggle('is-open', open);
+  mapDrawer.style.removeProperty('--drawer-x');   // hand control back to CSS
+  mapEdgeHandle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  // The scrim only exists to catch an outside click, and only on a
+  // pointer device wide enough for "outside" to be meaningful map.
+  mapDrawerScrim.classList.toggle('is-open', open);
+  // Lets page CSS move the MAM companion out of the drawer's way without
+  // this handler needing to know the orb exists.
+  document.body.dataset.mapDrawer = open ? 'open' : 'closed';
+  if (open) mapEdgeHandle.dataset.attention = '0';
+  if (open && !(opts && opts.silent)) {
+    // Move focus in so keyboard users land on a tool, not back at the top
+    // of the page. Not a focus trap: the drawer is non-modal by design
+    // (the map behind it stays usable), so Tab may leave it freely.
+    const first = mapDrawer.querySelector('.tool-row:not(:disabled), .map-type-btn');
+    if (first) first.focus({ preventScroll: true });
+  }
+}
+
+mapEdgeHandle.setAttribute('aria-expanded', 'false');
+
+// ---- Pointer drag ----------------------------------------------------
+// One handler set covers mouse, touch and pen. RTL flips the sign once,
+// here, rather than at every arithmetic site.
+let dragActive = false;
+let dragStartX = 0;
+let dragStartTime = 0;
+let dragStartOpen = false;
+let dragMoved = false;
+let dragWidth = 0;
+
+function dirSign() {
+  // In RTL the drawer lives on the left, so an opening drag travels the
+  // other way. getComputedStyle rather than a lang check: what matters is
+  // the direction actually in effect on this element.
+  return getComputedStyle(document.documentElement).direction === 'rtl' ? -1 : 1;
+}
+
+function onDragStart(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  dragActive = true;
+  dragMoved = false;
+  dragStartX = e.clientX;
+  dragStartTime = e.timeStamp;
+  dragStartOpen = drawerOpen;
+  dragWidth = mapDrawer.getBoundingClientRect().width || 1;
+  mapDrawer.classList.add('is-dragging');
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* not captureable */ }
+}
+
+function onDragMove(e) {
+  if (!dragActive) return;
+  const dx = (e.clientX - dragStartX) * dirSign();
+  if (Math.abs(dx) > 4) dragMoved = true;
+  // Travel is measured from wherever the drawer started, and clamped to
+  // the panel's own width so it can never be dragged past either end.
+  const base = dragStartOpen ? 0 : dragWidth;
+  const next = Math.min(dragWidth, Math.max(0, base + dx));
+  mapDrawer.style.setProperty('--drawer-x', (next / dragWidth * 100) + '%');
+  mapDrawerScrim.classList.toggle('is-open', next < dragWidth * 0.9);
+}
+
+function onDragEnd(e) {
+  if (!dragActive) return;
+  dragActive = false;
+  mapDrawer.classList.remove('is-dragging');
+  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) { /* fine */ }
+
+  // A press that never moved is a tap: toggle, exactly as a click would.
+  if (!dragMoved) { setDrawerOpen(!drawerOpen); return; }
+
+  const dx = (e.clientX - dragStartX) * dirSign();
+  const dt = Math.max(1, e.timeStamp - dragStartTime);
+  const velocity = dx / dt;                       // negative = toward open
+  const travelled = Math.abs(dx) / dragWidth;
+
+  if (Math.abs(velocity) > DRAWER_FLICK_VELOCITY) {
+    setDrawerOpen(velocity < 0);                  // flick decides outright
+  } else if (dragStartOpen) {
+    setDrawerOpen(travelled < DRAWER_COMMIT_FRACTION || dx < 0);
+  } else {
+    setDrawerOpen(dx < 0 && travelled >= DRAWER_COMMIT_FRACTION);
+  }
+}
+
+[mapEdgeHandle, mapDrawer].forEach(el => {
+  el.addEventListener('pointerdown', (e) => {
+    // Inside the drawer, only a drag that starts on non-interactive
+    // chrome should move the panel -- otherwise pressing a tool would
+    // begin a drag instead of activating it.
+    if (el === mapDrawer && e.target.closest('button, input, select, a, .map-type-switch')) return;
+    onDragStart(e);
+  });
+  el.addEventListener('pointermove', onDragMove);
+  el.addEventListener('pointerup', onDragEnd);
+  el.addEventListener('pointercancel', () => {
+    if (!dragActive) return;
+    dragActive = false;
+    mapDrawer.classList.remove('is-dragging');
+    setDrawerOpen(dragStartOpen);                 // abandoned: put it back
+  });
+});
+// Keyboard/assistive activation. A real click that followed a drag is
+// suppressed by the dragMoved check in onDragEnd, which already toggled.
+mapEdgeHandle.addEventListener('click', (e) => { e.preventDefault(); });
+mapEdgeHandle.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDrawerOpen(!drawerOpen); }
+});
+
+mapDrawerCloseBtn.addEventListener('click', () => { setDrawerOpen(false); mapEdgeHandle.focus(); });
+mapDrawerScrim.addEventListener('click', () => setDrawerOpen(false));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
 });
 
 const drawSearchBtn = document.getElementById('drawSearchBtn');
@@ -2110,6 +2504,12 @@ function setDrawMode(on) {
   // apart.
   drawSearchBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
   drawActionsEl.classList.toggle('show', drawMode);
+  // Drawing needs the map AND needs Undo/Finish within reach, so the
+  // drawer narrows to just the Area search group rather than closing.
+  // Same controls, same DOM nodes -- nothing is duplicated onto the map.
+  mapDrawer.dataset.mode = drawMode ? 'compact' : 'full';
+  mapEdgeHandle.dataset.drawing = drawMode ? '1' : '0';
+  if (drawMode) setDrawerOpen(true, { silent: true });
   if (drawMode) {
     // Starting a new boundary replaces any previous one -- only one
     // spatial filter (drawn polygon OR viewport snapshot) is ever
@@ -2118,13 +2518,11 @@ function setDrawMode(on) {
     searchPolygonPoints = null;
     viewportSearchBounds = null;
     document.getElementById('searchThisAreaBtn').classList.remove('show');
+    document.getElementById('searchThisAreaBtn').disabled = true;
+    mapEdgeHandle.dataset.attention = '0';
     clearSearchAreaBtn.style.display = 'none';
     drawPreviewPoints = [];
     redrawPreview();
-    // Drawing needs the map, not the toolbar. Collapsing is a no-op above
-    // 768px, where the group is never hidden in the first place.
-    mapOverlayControls.dataset.tools = 'collapsed';
-    mapToolsToggle.setAttribute('aria-expanded', 'false');
     showToast(tr('map.tapToAddPoint', 'Tap the map to add points, then Finish'), 'edit');
   } else {
     drawPreviewPoints = [];
@@ -2195,12 +2593,18 @@ map.on('moveend zoomend', () => {
       return; // movement too small to be worth prompting for
     }
     searchThisAreaBtn.classList.add('show');
+    searchThisAreaBtn.disabled = false;
+    // The drawer may be shut, in which case the newly-available tool is
+    // invisible -- the handle says so instead of the offer being lost.
+    if (!drawerOpen) mapEdgeHandle.dataset.attention = '1';
   }, 500);
 });
 searchThisAreaBtn.addEventListener('click', () => {
   viewportSearchBounds = map.getBounds();
   lastFilteredBounds = viewportSearchBounds;
   searchThisAreaBtn.classList.remove('show');
+  searchThisAreaBtn.disabled = true;
+  mapEdgeHandle.dataset.attention = '0';
   clearSearchAreaBtn.style.display = 'flex';
   refresh();
 });

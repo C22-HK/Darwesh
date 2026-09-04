@@ -27,6 +27,26 @@
   transition: right 240ms ease, top 240ms ease, transform 240ms ease;
 }
 
+/* ---------------------------------------------------------------------
+ * THE ORB -- living energy, not a spinner.
+ *
+ * The old orb was a flat disc with a dot in it: legible, but inert, and
+ * it read as a status LED rather than as something with a presence. What
+ * follows is the same DOM (.mamco-orb > .mamco-core, both already in
+ * js/mam-companion.js) restyled into a warm core wrapped in slow golden
+ * plasma.
+ *
+ * The movement comes from TWO blurred gradient layers rotating in
+ * opposite directions at different, deliberately non-harmonic speeds.
+ * Because their periods do not divide into each other, the pattern they
+ * make together takes minutes to visibly repeat -- that irregularity is
+ * what reads as organic. A single rotating layer always reads as a
+ * spinning graphic no matter how it is drawn.
+ *
+ * Pure CSS: no canvas, no WebGL, no animation library. Two compositor
+ * properties (transform, opacity) are animated, so this costs a phone
+ * nothing even sitting on a live map.
+ * ------------------------------------------------------------------- */
 .mamco-orb {
   pointer-events: auto;
   position: relative;
@@ -36,52 +56,169 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at 34% 28%, var(--mamco-surface-high), var(--mamco-surface) 72%);
+  overflow: hidden;              /* keeps the plasma inside the sphere */
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 52%, #2A2417 0%, #14120C 68%, #0C0B07 100%);
   border: 1px solid var(--mamco-outline);
-  box-shadow: 0 8px 28px rgba(9, 10, 10, 0.35);
+  /* Inner shadow gives the disc curvature; the outer pair is the bloom
+     the plasma throws onto the page behind it. */
+  box-shadow:
+    inset 0 0 18px rgba(0,0,0,0.85),
+    0 0 22px -6px rgba(184,154,99,0.42),
+    0 8px 28px rgba(9, 10, 10, 0.35);
   transition: box-shadow 320ms ease, border-color 320ms ease;
 }
+/* The containment ring. Sits outside the clipped sphere, so it can pulse
+   past the orb's own edge. */
 .mamco-orb::before {
   content: '';
   position: absolute;
   inset: -6px;
   border-radius: 999px;
   border: 1.5px solid var(--mamco-accent);
-  opacity: 0.5;
+  opacity: 0.42;
+  pointer-events: none;
+  z-index: 3;
   transition: opacity 320ms ease, transform 320ms ease;
 }
+
+/* The plasma body. Fills the sphere rather than being a dot in it. */
 .mamco-core {
-  width: 14px;
-  height: 14px;
+  position: absolute;
+  inset: 0;
   border-radius: 999px;
-  background: var(--mamco-accent);
-  box-shadow: 0 0 14px 2px rgba(184, 154, 99, 0.55);
-  transition: background 320ms ease, transform 320ms ease, box-shadow 320ms ease;
+  background: transparent;
+  transition: filter 320ms ease, opacity 320ms ease;
+}
+/* Layer 1 -- the bright heart plus two warm lobes, turning slowly one
+   way. Oversized and offset so the lobes sweep through the visible disc
+   instead of orbiting tidily around its centre. */
+.mamco-core::before,
+.mamco-core::after {
+  content: '';
+  position: absolute;
+  inset: -34%;
+  border-radius: 999px;
+  will-change: transform;
+}
+.mamco-core::before {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,246,224,0.95) 0%, rgba(240,206,132,0.6) 14%, rgba(184,154,99,0.22) 30%, transparent 52%),
+    radial-gradient(circle at 33% 62%, rgba(224,166,74,0.55) 0%, transparent 42%),
+    radial-gradient(circle at 68% 36%, rgba(255,214,150,0.45) 0%, transparent 38%);
+  filter: blur(5px);
+  animation: mamco-swirl-a 13s linear infinite;
+}
+/* Layer 2 -- cooler, dimmer, counter-rotating on a period that is not a
+   multiple of layer 1's. */
+.mamco-core::after {
+  background:
+    radial-gradient(circle at 62% 58%, rgba(216,188,128,0.5) 0%, transparent 40%),
+    radial-gradient(circle at 38% 34%, rgba(142,116,72,0.55) 0%, transparent 45%),
+    radial-gradient(circle at 50% 78%, rgba(255,200,120,0.32) 0%, transparent 36%);
+  filter: blur(7px);
+  mix-blend-mode: screen;
+  animation: mamco-swirl-b 21s linear infinite;
 }
 
-.mamco-orb[data-state="idle"] .mamco-core { animation: mamco-breathe 4.5s ease-in-out infinite; }
+@keyframes mamco-swirl-a {
+  0%   { transform: rotate(0deg)   scale(1);    }
+  50%  { transform: rotate(180deg) scale(1.09); }
+  100% { transform: rotate(360deg) scale(1);    }
+}
+@keyframes mamco-swirl-b {
+  0%   { transform: rotate(360deg) scale(1.06); }
+  50%  { transform: rotate(180deg) scale(0.94); }
+  100% { transform: rotate(0deg)   scale(1.06); }
+}
 
-.mamco-orb[data-state="listening"] { border-color: var(--mamco-accent); box-shadow: 0 0 0 6px rgba(184, 154, 99, 0.16), 0 8px 28px rgba(9, 10, 10, 0.35); }
+/* ---- States ---------------------------------------------------------
+ * Each state changes SPEED and BRIGHTNESS of the same living body rather
+ * than swapping in a different graphic, so the identity holds across all
+ * six and the transitions between them read as one thing changing mood.
+ * ------------------------------------------------------------------- */
+
+/* idle -- a slow breath on top of the base swirl. */
+.mamco-orb[data-state="idle"] { animation: mamco-breathe 5.5s ease-in-out infinite; }
+
+/* hover -- brighter and a touch faster; the orb notices you. */
+.mamco-orb:hover {
+  border-color: rgba(184,154,99,0.75);
+  box-shadow:
+    inset 0 0 18px rgba(0,0,0,0.8),
+    0 0 30px -4px rgba(184,154,99,0.6),
+    0 8px 28px rgba(9, 10, 10, 0.4);
+}
+.mamco-orb:hover .mamco-core::before { animation-duration: 9s; }
+.mamco-orb:hover .mamco-core::after  { animation-duration: 15s; }
+.mamco-orb:hover .mamco-core { filter: brightness(1.15); }
+
+/* listening -- the ring opens outward in a steady rhythm, like a mic
+   level. The plasma itself stays calm: it is receiving, not working. */
+.mamco-orb[data-state="listening"] {
+  border-color: var(--mamco-accent);
+  box-shadow:
+    inset 0 0 18px rgba(0,0,0,0.8),
+    0 0 0 6px rgba(184, 154, 99, 0.16),
+    0 0 34px -4px rgba(184,154,99,0.55),
+    0 8px 28px rgba(9, 10, 10, 0.35);
+}
 .mamco-orb[data-state="listening"]::before { opacity: 1; animation: mamco-ring-pulse 1.2s ease-in-out infinite; }
+.mamco-orb[data-state="listening"] .mamco-core { filter: brightness(1.1); }
 
-.mamco-orb[data-state="thinking"]::before { border-style: dashed; opacity: 0.9; animation: mamco-rotate 2.4s linear infinite; }
-.mamco-orb[data-state="thinking"] .mamco-core { animation: mamco-breathe 1.6s ease-in-out infinite; }
+/* thinking -- the fire genuinely churns: both layers speed up and the
+   ring breaks into a slow rotating dash. */
+.mamco-orb[data-state="thinking"]::before {
+  border-style: dashed;
+  opacity: 0.9;
+  animation: mamco-rotate 2.4s linear infinite;
+}
+.mamco-orb[data-state="thinking"] .mamco-core::before { animation-duration: 4.5s; }
+.mamco-orb[data-state="thinking"] .mamco-core::after  { animation-duration: 7s; }
+.mamco-orb[data-state="thinking"] .mamco-core { filter: brightness(1.2) saturate(1.15); }
 
-.mamco-orb[data-state="speaking"] .mamco-core { animation: mamco-speak-pulse 0.85s ease-in-out infinite; }
+/* speaking -- the core pulses on the cadence of speech while the plasma
+   keeps its own slower motion underneath. */
+.mamco-orb[data-state="speaking"] { animation: mamco-speak-pulse 0.85s ease-in-out infinite; }
+.mamco-orb[data-state="speaking"] .mamco-core::before { animation-duration: 7s; }
+.mamco-orb[data-state="speaking"] .mamco-core { filter: brightness(1.25); }
 
-.mamco-orb[data-state="result-ready"] { border-color: var(--mamco-accent); box-shadow: 0 0 0 7px rgba(184, 154, 99, 0.2), 0 8px 28px rgba(9, 10, 10, 0.35); }
-.mamco-orb[data-state="result-ready"] .mamco-core { transform: scale(1.3); }
+/* result-ready -- one bright bloom, then MamCompanion settles it back to
+   idle on its own timer. */
+.mamco-orb[data-state="result-ready"] {
+  border-color: var(--mamco-accent);
+  box-shadow:
+    inset 0 0 18px rgba(0,0,0,0.7),
+    0 0 0 7px rgba(184, 154, 99, 0.2),
+    0 0 42px -2px rgba(184,154,99,0.75),
+    0 8px 28px rgba(9, 10, 10, 0.35);
+}
+.mamco-orb[data-state="result-ready"] .mamco-core { filter: brightness(1.45) saturate(1.2); }
 
+/* error / offline -- the warmth drains toward rose and the motion nearly
+   stops. Read as "something is wrong" without a single red alarm icon. */
 .mamco-orb[data-state="error"] { border-color: var(--mamco-error); }
-.mamco-orb[data-state="error"] .mamco-core { background: var(--mamco-error); box-shadow: 0 0 14px 2px rgba(229, 120, 122, 0.5); }
+.mamco-orb[data-state="error"] .mamco-core {
+  filter: hue-rotate(-38deg) saturate(1.25) brightness(0.92);
+}
+.mamco-orb[data-state="error"] .mamco-core::before { animation-duration: 30s; }
+.mamco-orb[data-state="error"] .mamco-core::after  { animation-duration: 44s; }
 
-@keyframes mamco-breathe { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.8); opacity: 0.75; } }
+@keyframes mamco-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.965); } }
 @keyframes mamco-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.16); opacity: 1; } }
 @keyframes mamco-rotate { to { transform: rotate(360deg); } }
-@keyframes mamco-speak-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.4); } }
+@keyframes mamco-speak-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
 
+/* Motion is the one thing that goes. Colour, brightness and the ring
+ * remain, so every state is still distinguishable at a glance -- a user
+ * who asked for less motion should not also lose the information. */
 @media (prefers-reduced-motion: reduce) {
-  .mamco-orb::before, .mamco-core { animation: none !important; }
+  .mamco-orb,
+  .mamco-orb::before,
+  .mamco-core,
+  .mamco-core::before,
+  .mamco-core::after { animation: none !important; }
   .mamco-orb[data-state="result-ready"] .mamco-core { transform: none; }
 }
 
@@ -97,7 +234,11 @@
      guess, so the companion never sits on top of another control. */
   .mamco-root { right: 10px; top: 148px; transform: none; }
   .mamco-orb { width: 34px; height: 34px; }
-  .mamco-core { width: 7px; height: 7px; }
+  /* .mamco-core fills the orb now, so the small launcher is the SAME
+     living body at a smaller radius -- one identity, two sizes. The blur
+     scales down with it or the plasma would wash out to a flat smudge. */
+  .mamco-core::before { filter: blur(3px); }
+  .mamco-core::after  { filter: blur(4px); }
 }
 
 /* This page renders inside dir="rtl" for ku/ar -- the companion stays
