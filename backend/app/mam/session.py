@@ -41,7 +41,16 @@ class SessionState:
     last_result_ids: list[str] = field(
         default_factory=list
     )  # the last search's listing ids, for "compare the first two"
-    updated_at: float = field(default_factory=time.monotonic)
+    # Called through a lambda rather than passed as `default_factory=
+    # time.monotonic`. Passing the function directly binds THIS module's
+    # `time.monotonic` object once, when the dataclass is built at import;
+    # the lambda looks the attribute up on each call instead. append()
+    # below already reads the live attribute, so the direct form gave one
+    # class two different clocks -- construction frozen at import, updates
+    # live -- which is invisible in production (nothing reassigns
+    # time.monotonic there) but means a test that substitutes the clock
+    # only moves half of it. See tests/test_mam_session.py.
+    updated_at: float = field(default_factory=lambda: time.monotonic())
 
     def append(self, role: str, text: str) -> None:
         self.turns.append(SessionTurn(role=role, text=text))
