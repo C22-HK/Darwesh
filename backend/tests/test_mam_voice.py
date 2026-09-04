@@ -152,6 +152,40 @@ async def test_resolve_sorani_speaker_returns_none_when_no_sorani_voice_listed()
 
 
 @pytest.mark.asyncio
+async def test_resolve_sorani_speaker_uses_override_and_skips_network_entirely():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("override was set -- no catalog request should ever be made")
+
+    client = KurdishTTSClient(
+        stt_key="",
+        tts_key="tts-key",
+        logger=make_test_logger(),
+        client_factory=client_factory_for(handler),
+        sorani_speaker_id_override="confirmed-speaker-id",
+    )
+    assert await client.resolve_sorani_speaker() == "confirmed-speaker-id"
+
+
+@pytest.mark.asyncio
+async def test_resolve_sorani_speaker_falls_through_to_a_later_catalog_path():
+    # The unverified-endpoint mitigation: the first candidate path 404s
+    # (as it would if KurdishTTS's real catalog lives somewhere else),
+    # and the SECOND candidate succeeds -- proving the fallback list
+    # actually gets walked, not just the first entry.
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/speakers":
+            return httpx.Response(404)
+        if request.url.path == "/api/tts/speakers":
+            return httpx.Response(200, json=SPEAKER_CATALOG_BODY)
+        raise AssertionError(f"unexpected path {request.url.path}")
+
+    client = KurdishTTSClient(
+        stt_key="", tts_key="tts-key", logger=make_test_logger(), client_factory=client_factory_for(handler)
+    )
+    assert await client.resolve_sorani_speaker() == "ckb-sorani-free-1"
+
+
+@pytest.mark.asyncio
 async def test_text_to_speech_returns_audio_bytes_on_success():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/api/speakers":

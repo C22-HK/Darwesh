@@ -106,6 +106,14 @@ class Config:
     # depend on this being configured at all.
     kurdishtts_stt_key: str = ""
     kurdishtts_tts_key: str = ""
+    # Optional. Not a secret -- a plain speaker/voice id KurdishTTS itself
+    # assigns. When set, app.mam.voice skips its own catalog-lookup
+    # fallback entirely and uses this id directly for every Sorani TTS
+    # call -- the safer long-term answer once the real id has been
+    # confirmed against KurdishTTS's current docs (its catalog endpoint's
+    # exact path could not be independently verified while this was
+    # built). Leave unset to fall back to that best-effort lookup.
+    kurdishtts_sorani_speaker_id: str = ""
 
     @property
     def is_production(self) -> bool:
@@ -142,4 +150,5 @@ def load() -> Config:
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
         kurdishtts_stt_key=os.environ.get("KURDISHTTS_STT_KEY", ""),
         kurdishtts_tts_key=os.environ.get("KURDISHTTS_TTS_KEY", ""),
+        kurdishtts_sorani_speaker_id=os.environ.get("KURDISHTTS_SORANI_SPEAKER_ID", ""),
     )

@@ -208,6 +208,135 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   fetchMamVoiceConfig().then((cfg) => { kurdishVoice.sttAvailable = cfg.sttAvailable; kurdishVoice.ttsAvailable = cfg.ttsAvailable; });
   function soraniVoiceActive() { return currentLang() === 'ku'; }
 
+  // ---- one authoritative voice state machine (section 3) -----------------
+  // Lives at THIS outer scope, not inside the SpeechRecognition block
+  // further down, because showThinking()/speak() run for every turn --
+  // typed or spoken -- and need to update it regardless of whether this
+  // browser even has SpeechRecognition at all. Every place that used to
+  // call companion.setState(...) for a voice-related moment now goes
+  // through setVoiceState() instead, so there is exactly ONE place that
+  // decides what the visible state is and what side effects (starting/
+  // stopping the barge-in watch) a transition triggers.
+  const VOICE_STATES = ['IDLE', 'WAKE_LISTENING', 'LISTENING', 'PROCESSING', 'SPEAKING', 'INTERRUPTED', 'ERROR'];
+  const VOICE_STATE_TO_COMPANION = {
+    IDLE: 'idle', WAKE_LISTENING: 'wake-listening', LISTENING: 'listening',
+    PROCESSING: 'thinking', SPEAKING: 'speaking', INTERRUPTED: 'listening', ERROR: 'error'
+  };
+  let voiceState = 'IDLE';
+  // Shared with the SpeechRecognition block below, which is the only
+  // thing that ever sets this true -- an active, multi-turn conversation
+  // loop is running. Declared here (not there) for the same reason as
+  // the state machine itself: setVoiceState needs to read it regardless
+  // of whether recognition exists.
+  let handsFree = false;
+  // handleBargeIn genuinely needs startListening(), which only exists
+  // once SpeechRecognition is confirmed to exist -- starts as a no-op
+  // and is given its real body further down. On a browser without
+  // SpeechRecognition, handsFree can never become true (nothing ever
+  // sets it), so startBargeInWatch below never runs for lack of a caller
+  // with handsFree=true, and this placeholder is never invoked either.
+  let handleBargeIn = () => {};
+
+  function setVoiceState(next) {
+    if (!VOICE_STATES.includes(next)) return;
+    const prev = voiceState;
+    voiceState = next;
+    companion.setState(VOICE_STATE_TO_COMPANION[next]);
+    // Only on an ACTUAL transition into/out of SPEAKING -- not on a
+    // same-state re-call -- so a second speak() while already SPEAKING
+    // (e.g. a KurdishTTS failure falling back to the browser voice
+    // within the same turn) never opens a second barge-in mic tap.
+    if (next === 'SPEAKING' && prev !== 'SPEAKING' && handsFree) {
+      startBargeInWatch(() => handleBargeIn());
+    } else if (prev === 'SPEAKING' && next !== 'SPEAKING') {
+      stopBargeInWatch();
+    }
+  }
+
+  // ---- barge-in / interruption (section 8) --------------------------
+  // A SEPARATE, minimal microphone tap -- never a second SpeechRecognition
+  // or STT session -- that only ever runs while voiceState is SPEAKING.
+  // It looks at raw volume (RMS), not content: a sustained loud stretch
+  // is treated as "the visitor started talking over MAM", a single spike
+  // (a click, a cough) is not. This is a real, physical limitation on a
+  // device without echo cancellation between its own speakers and mic:
+  // the guard delay + sustain requirement below reduce false triggers
+  // from MAM's own voice bleeding back in, but cannot eliminate the
+  // possibility on every device -- see startBargeInWatch's own comment.
+  // Any environment missing AudioContext/getUserMedia simply never
+  // starts this at all; barge-in is an enhancement, never a requirement
+  // for the base conversation loop to work.
+  const BARGE_IN_RMS_THRESHOLD = 0.06;
+  const BARGE_IN_SUSTAIN_MS = 350;   // must stay loud this long -- rejects a single spike
+  const BARGE_IN_GUARD_MS = 450;     // ignored window right after TTS starts -- its own onset is the likeliest false-positive moment
+  let bargeInStream = null;
+  let bargeInAudioCtx = null;
+  let bargeInAnalyser = null;
+  let bargeInRAF = null;
+
+  function bargeInSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) &&
+      !!(window.AudioContext || window.webkitAudioContext);
+  }
+
+  async function startBargeInWatch(onInterrupt) {
+    if (!bargeInSupported() || bargeInStream) return;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      return; // no permission / no device for this second consumer -- MAM just finishes speaking normally, uninterruptible
+    }
+    // The SPEAKING turn may have already ended (a fast reply) by the
+    // time permission resolves -- don't open a mic for a watch nobody
+    // needs any more.
+    if (voiceState !== 'SPEAKING') { stream.getTracks().forEach((t) => t.stop()); return; }
+    bargeInStream = stream;
+    try {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      bargeInAudioCtx = new Ctor();
+      const source = bargeInAudioCtx.createMediaStreamSource(bargeInStream);
+      bargeInAnalyser = bargeInAudioCtx.createAnalyser();
+      bargeInAnalyser.fftSize = 512;
+      source.connect(bargeInAnalyser);
+    } catch {
+      stopBargeInWatch();
+      return;
+    }
+    const data = new Uint8Array(bargeInAnalyser.fftSize);
+    const startedAt = performance.now();
+    let sustainedMs = 0;
+    let lastTick = startedAt;
+    function tick() {
+      if (!bargeInAnalyser) return;
+      const now = performance.now();
+      const dt = now - lastTick;
+      lastTick = now;
+      bargeInAnalyser.getByteTimeDomainData(data);
+      let sumSquares = 0;
+      for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sumSquares += v * v; }
+      const rms = Math.sqrt(sumSquares / data.length);
+      if (now - startedAt < BARGE_IN_GUARD_MS) { bargeInRAF = requestAnimationFrame(tick); return; }
+      if (rms > BARGE_IN_RMS_THRESHOLD) {
+        sustainedMs += dt;
+        if (sustainedMs >= BARGE_IN_SUSTAIN_MS) { onInterrupt(); return; }
+      } else {
+        sustainedMs = 0;
+      }
+      bargeInRAF = requestAnimationFrame(tick);
+    }
+    bargeInRAF = requestAnimationFrame(tick);
+  }
+
+  function stopBargeInWatch() {
+    if (bargeInRAF) cancelAnimationFrame(bargeInRAF);
+    bargeInRAF = null;
+    if (bargeInAudioCtx) { try { bargeInAudioCtx.close(); } catch { /* already closed */ } }
+    bargeInAudioCtx = null;
+    bargeInAnalyser = null;
+    if (bargeInStream) { bargeInStream.getTracks().forEach((t) => t.stop()); bargeInStream = null; }
+  }
+
   const panel = document.createElement('div');
   panel.className = 'mamcp-panel';
   panel.setAttribute('role', 'dialog');
@@ -608,7 +737,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   let thinkingEl = null;
   function showThinking() {
     if (thinkingEl) return;
-    companion.setState('thinking');
+    setVoiceState('PROCESSING');
     thinkingEl = document.createElement('div');
     thinkingEl.className = 'mamcp-bubble mamcp-bubble-assistant mamcp-thinking';
     thinkingEl.setAttribute('aria-label', tr('mam.orbThinking', 'MAM is thinking'));
@@ -707,11 +836,16 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     function settle() {
       if (settled) return;
       settled = true;
-      companion.setState('idle');
+      // If a hands-free loop is running, the onDone callback below is
+      // about to call startListening() itself (see the various onDone
+      // sites in the recognition block), which sets LISTENING -- setting
+      // IDLE here first would just be an instantly-overwritten flash.
+      // Only force IDLE when nothing else is about to take over.
+      if (!handsFree) setVoiceState('IDLE');
       kurdishTtsController = null;
       if (onDone) onDone();
     }
-    kurdishAudioEl.onplay = () => companion.setState('speaking');
+    kurdishAudioEl.onplay = () => setVoiceState('SPEAKING');
     kurdishAudioEl.onended = settle;
     kurdishAudioEl.onerror = () => { speakWithBrowserVoice(text, { onDone }); }; // playback itself failed -- fall back rather than going silent
     try {
@@ -756,12 +890,13 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (settled) return;
       settled = true;
       clearTimeout(watchdog);
-      companion.setState('idle');
+      // See speakWithKurdishTts's settle() for why this is conditional.
+      if (!handsFree) setVoiceState('IDLE');
       if (onDone) onDone();
     }
     utterance.addEventListener('start', () => {
       clearTimeout(watchdog);          // speech really began -- not blocked
-      companion.setState('speaking');
+      setVoiceState('SPEAKING');
     });
     utterance.addEventListener('end', settle);
     utterance.addEventListener('error', settle);
@@ -936,7 +1071,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     } catch (err) {
       if (thisController.signal.aborted) { hideThinking(); return; }
       hideThinking();
-      companion.setState('error');
+      setVoiceState('ERROR');
       if (err instanceof BackendResponseError && err.status === 429) {
         addAssistantBubble({ message: tr('mam.rateLimited', "You're sending messages a little fast — please wait a moment and try again.") }, { failed: true, retryText: text });
       } else if (err && err.name === 'AbortError') {
@@ -1087,7 +1222,9 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     let recogMode = null;       // 'wake' | 'conversation' | null -- purpose of the running session
     let listening = false;      // conversation recognition currently open
     let wakeListening = false;  // wake recognition currently open
-    let handsFree = false;      // an active, multi-turn conversation loop is running
+    // handsFree ('an active, multi-turn conversation loop is running') is
+    // declared at the outer scope, alongside setVoiceState -- see that
+    // declaration's own comment for why. Set/read here exactly as before.
     // Set between calling recognition.start() and the browser confirming
     // it. Without it, a fast end->restart can call start() twice before
     // the first has taken effect, which throws InvalidStateError and (on
@@ -1105,6 +1242,15 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     let lastTranscript = '';
     let lastTranscriptAt = 0;
     const DUPLICATE_WINDOW_MS = 2500;
+    // A SECOND duplicate guard, on the FINAL text actually about to be
+    // sent -- lastTranscript above only ever sees the browser's own raw
+    // guess, but a Sorani turn may instead send KurdishTTS's transcript
+    // (see the 'end' handler below), which lastTranscript never observed.
+    // Without this, two back-to-back turns that both resolve to the same
+    // KurdishTTS transcript (a very plausible false "did I mishear that
+    // twice" case) would each burn a real backend/TTS turn.
+    let lastSentVoiceText = null;
+    let lastSentVoiceTextAt = 0;
     // Decided inside `result` (while `recognition` may still technically
     // be finishing its current session) and acted on inside `end` --
     // calling recognition.start() again before the browser has actually
@@ -1139,13 +1285,33 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
             ? tr('mam.wakeModeOn', 'Voice on — say “MAM AI” to talk, or tap to turn it off')
             : tr('mam.handsFreeStart', 'Start a hands-free voice conversation')));
       });
-      if (onVoiceUi) onVoiceUi({ handsFree, listening, wakeEnabled, wakeListening });
+      if (onVoiceUi) onVoiceUi({ handsFree, listening, wakeEnabled, wakeListening, voiceState });
     }
 
     function voiceProblem(messageKey, fallback) {
       open();
       addAssistantBubble({ message: tr(messageKey, fallback) }, { failed: true });
     }
+
+    voiceApi.getVoiceState = () => voiceState;
+
+    // Gives the outer-scope placeholder (declared near setVoiceState,
+    // above -- see its own comment) its real body, now that
+    // SpeechRecognition/startListening genuinely exist. Confirmed
+    // interruption: stop whichever voice is actually playing (KurdishTTS
+    // audio and/or browser speechSynthesis -- only one is ever really
+    // active, but both are safe to stop unconditionally), cancel any
+    // obsolete in-flight TTS request, then hand straight into a fresh
+    // conversation-mode capture for the new thing the visitor is saying.
+    // startListening()'s own re-entrancy guard makes this safe even if
+    // the interrupted speak()'s own onDone callback also later fires.
+    handleBargeIn = function () {
+      stopBargeInWatch();
+      stopKurdishAudio();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      setVoiceState('INTERRUPTED');
+      startListening();
+    };
 
     // ---- KurdishTTS STT (Sorani conversation-turn capture) ----------------
     // The browser's own SpeechRecognition (above/below) has no real Sorani
@@ -1244,7 +1410,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         recognition.start();
         recogMode = 'conversation';
         listening = true;
-        companion.setState('listening');
+        setVoiceState('LISTENING');
         open();
         startKurdishRecording();
       } catch {
@@ -1260,7 +1426,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
 
     function stopListening() {
       listening = false;
-      if (companion.getState() === 'listening') companion.setState('idle');
+      if (voiceState === 'LISTENING') setVoiceState('IDLE');
       updateMicUI();
     }
 
@@ -1275,7 +1441,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         recognition.start();
         recogMode = 'wake';
         wakeListening = true;
-        companion.setState('wake-listening');
+        setVoiceState('WAKE_LISTENING');
       } catch {
         // Most likely: the browser is refusing to start recognition
         // without a fresh gesture on THIS document (see the resume
@@ -1292,7 +1458,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
 
     function stopWakeListening() {
       wakeListening = false;
-      if (companion.getState() === 'wake-listening') companion.setState('idle');
+      if (voiceState === 'WAKE_LISTENING') setVoiceState('IDLE');
       updateMicUI();
     }
 
@@ -1327,6 +1493,18 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (onResumeHint) onResumeHint(null);
       stopListening();
       stopWakeListening();
+      // Belt-and-suspenders: stopListening()/stopWakeListening() above
+      // already reach IDLE from LISTENING/WAKE_LISTENING, but this is the
+      // one place that must GUARANTEE MAM is never left claiming to still
+      // be listening/thinking/speaking (e.g. voice turned off mid-reply,
+      // straight out of SPEAKING). The one exception is ERROR: the
+      // 'error' handler below calls setVoiceState('ERROR') and THEN this
+      // function in the same call stack, so forcing IDLE here too would
+      // make the error transition invisible -- ERROR is left standing
+      // until the next real voice action instead (starting to listen
+      // again naturally moves off it), which is itself a settled,
+      // non-busy state, not a "stuck" one.
+      if (voiceState !== 'ERROR') setVoiceState('IDLE');
     }
 
     // `viaWake`: true when a heard wake phrase is what started this turn,
@@ -1357,7 +1535,26 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         voiceOutputEnabled = true;
         updateVoiceToggleUI();
       }
-      if (!skipListen) startListening();
+      if (skipListen) return; // caller already has a real command and will send it itself
+      // A short, natural Sorani greeting on the visitor's OWN explicit
+      // gesture (never on a wake-word re-entry, and never on the silent
+      // auto-resume after navigation -- see the bottom of this block) --
+      // section 4's "first interaction" shape. Fixed text, never an LLM
+      // call: nothing here costs a chat-provider turn, and speak()'s own
+      // KurdishTTS cache (see speakWithKurdishTts) means the audio itself
+      // is only ever synthesized once per page, however many times the
+      // visitor toggles the mic.
+      if (!viaWake && soraniVoiceActive()) { speakGreeting(); return; }
+      startListening();
+    }
+
+    const GREETING_TEXT_KU = 'سڵاو، من مامم. چۆن دەتوانم یارمەتیت بدەم؟';
+    function speakGreeting() {
+      open();
+      addAssistantBubble({ message: GREETING_TEXT_KU });
+      recordTurn({ role: 'assistant', text: GREETING_TEXT_KU, cards: [] });
+      setVoiceState('PROCESSING'); // acknowledgement beat, mirrors the wake-handoff one above
+      speak(GREETING_TEXT_KU, { onDone: () => { if (handsFree) startListening(); } });
     }
 
     // ONE predictable on/off switch for the mic/voice button: anything
@@ -1417,7 +1614,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
           pendingWakeInlineCommand = null;
           if (inline) {
             beginHandsFree({ viaWake: true, skipListen: true });
-            companion.setState('listening');   // a brief acknowledgement beat, per the wake-flow states
+            setVoiceState('LISTENING');   // a brief acknowledgement beat, per the wake-flow states
             sendMessage(inline, {
               viaVoice: true,
               onReplySpoken: () => { if (handsFree) startListening(); },
@@ -1453,29 +1650,38 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
           textPromise = Promise.resolve(browserGuess);
         }
 
-        textPromise.then((text) => {
-          if (text) {
-            sendMessage(text, {
-              viaVoice: true,
-              // Chained off the end of the spoken reply, so the next turn
-              // opens the mic exactly when MAM stops talking -- never while
-              // it is still speaking, which is what would feed its own
-              // voice back in.
-              onReplySpoken: () => { if (handsFree) startListening(); },
-              // A failed turn ends the conversation loop (not the standing
-              // wake preference): looping on an error would just re-ask
-              // into a broken connection.
-              onFailed: () => { naturalConversationEnd(); }
-            });
-            return;
-          }
-          // Reached with no result = silence. Reopen the mic a few times,
-          // then give up (dropping to wake-listening if that preference is
-          // still on) rather than capturing indefinitely.
+        // Shared by both "nothing usable was heard" and "the exact same
+        // thing was just sent a moment ago" -- reopen the mic a few
+        // times, then give up (dropping to wake-listening if that
+        // preference is still on) rather than capturing indefinitely.
+        function retryListeningOrGiveUp() {
           if (!handsFree || !wasListening || sending) return;
           silentRounds += 1;
           if (silentRounds >= MAX_SILENT_ROUNDS) { naturalConversationEnd(); return; }
           startListening();
+        }
+
+        textPromise.then((text) => {
+          if (!text) { retryListeningOrGiveUp(); return; }
+          const now = Date.now();
+          if (text === lastSentVoiceText && now - lastSentVoiceTextAt < DUPLICATE_WINDOW_MS) {
+            retryListeningOrGiveUp();
+            return;
+          }
+          lastSentVoiceText = text;
+          lastSentVoiceTextAt = now;
+          sendMessage(text, {
+            viaVoice: true,
+            // Chained off the end of the spoken reply, so the next turn
+            // opens the mic exactly when MAM stops talking -- never while
+            // it is still speaking, which is what would feed its own
+            // voice back in.
+            onReplySpoken: () => { if (handsFree) startListening(); },
+            // A failed turn ends the conversation loop (not the standing
+            // wake preference): looping on an error would just re-ask
+            // into a broken connection.
+            onFailed: () => { naturalConversationEnd(); }
+          });
         });
       }
     });
@@ -1495,6 +1701,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       // 'not-allowed'/'audio-capture': retrying those would just fail
       // again, silently, forever, on every future page.
       pendingWakeToConversation = false; pendingWakeInlineCommand = null; pendingStopCommand = false; pendingSendText = null;
+      setVoiceState('ERROR');
       disableVoiceCompletely();
       if (kind === 'not-allowed' || kind === 'service-not-allowed') {
         voiceProblem('mam.micDenied', 'Microphone access is blocked. Allow the microphone for this site in your browser settings, then try voice again.');
