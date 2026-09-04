@@ -29,6 +29,7 @@
 // textContent/element properties.
 import { auth } from './firebase-init.js';
 import { sendMamChat, BackendUnavailableError, BackendResponseError } from './mam-api.js';
+import { detectDirectCommand, resolvePage, filtersToMapUrlParams } from './mam-actions.js';
 
 // Below this width the panel gives up trying to sit beside the dock and
 // becomes a near-full-width sheet instead -- there simply is not enough
@@ -40,6 +41,22 @@ const NARROW_VIEWPORT_PX = 480;
 const PANEL_MARGIN_PX = 12;
 const PANEL_WIDTH_PX = 360;
 const PANEL_MAX_HEIGHT_PX = 560;
+// How far the grab handle must be dragged down before a release counts as
+// "collapse" rather than "snap back" -- see the grab-handle block below.
+const COLLAPSE_DRAG_PX = 70;
+
+// Inline SVG for every icon this panel's own chrome needs. Never
+// `material-symbols-outlined`: that glyph only exists once the Material
+// Symbols webfont has actually loaded, and a blocked/slow CDN (or, on the
+// map's own filter bar, exactly the same font) renders the literal
+// fallback text ("close", "mic", "send"...) instead of an icon. These
+// controls are core to using MAM at all, so they never depend on a
+// webfont loading in the first place.
+const ICON_CLOSE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_MIC_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>';
+const ICON_SEND_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>';
+const ICON_VOLUME_ON_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+const ICON_VOLUME_OFF_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/></svg>';
 
 const MAX_MESSAGE_LENGTH = 1000;
 const SESSION_KEY = 'darwesh_mam_companion_session_id';
@@ -193,6 +210,24 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // computeAnchoredPosition() below).
   panel.setAttribute('aria-hidden', 'true');
 
+  // ---- grab handle -- replaces the old "popup with an X" pattern -------
+  // A premium bottom-sheet/panel is grabbed and dragged away, not closed
+  // with a button in the corner. This is the PRIMARY way to collapse:
+  // drag it down past COLLAPSE_DRAG_PX and release (see the pointer
+  // handlers below, wired after `close` exists). It is also a real
+  // control for anyone who can't drag -- role="button" plus tabindex, so
+  // Enter/Space collapses it from the keyboard exactly like a click would.
+  const grabHandle = document.createElement('div');
+  grabHandle.className = 'mamcp-grab-handle';
+  grabHandle.setAttribute('role', 'button');
+  grabHandle.tabIndex = 0;
+  grabHandle.setAttribute('aria-label', tr('mam.collapseHandle', 'Collapse MAM'));
+  const grabBar = document.createElement('span');
+  grabBar.className = 'mamcp-grab-bar';
+  grabBar.setAttribute('aria-hidden', 'true');
+  grabHandle.appendChild(grabBar);
+  panel.appendChild(grabHandle);
+
   const header = document.createElement('div');
   header.className = 'mamcp-header';
   const titleWrap = document.createElement('div');
@@ -212,16 +247,20 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   voiceToggleBtn.title = 'Voice replies';
   voiceToggleBtn.setAttribute('aria-label', 'Toggle voice replies');
   const voiceToggleIcon = document.createElement('span');
-  voiceToggleIcon.className = 'material-symbols-outlined';
-  voiceToggleIcon.style.fontSize = '18px';
+  voiceToggleIcon.className = 'mamcp-icon';
   voiceToggleBtn.appendChild(voiceToggleIcon);
   headerActions.appendChild(voiceToggleBtn);
 
+  // A small, quiet collapse control for keyboard/screen-reader use and
+  // anyone who would rather click than drag -- deliberately NOT the
+  // prominent circular X a popup normally gets; the grab handle above is
+  // the surface's real, primary affordance for closing. Same action as
+  // before (`close()`), a calmer icon and label for it.
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
-  closeBtn.className = 'mamcp-icon-btn';
-  closeBtn.setAttribute('aria-label', 'Close');
-  closeBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px;">close</span>';
+  closeBtn.className = 'mamcp-icon-btn mamcp-collapse-btn';
+  closeBtn.setAttribute('aria-label', tr('mam.collapse', 'Collapse'));
+  closeBtn.innerHTML = ICON_CLOSE_SVG;
   headerActions.appendChild(closeBtn);
   header.appendChild(headerActions);
   panel.appendChild(header);
@@ -257,18 +296,14 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   micBtn.className = 'mamcp-bar-btn mamcp-mic';
   micBtn.hidden = true;
   micBtn.setAttribute('aria-label', 'Speak your question');
-  const micIcon = document.createElement('span');
-  micIcon.className = 'material-symbols-outlined';
-  micIcon.style.fontSize = '16px';
-  micIcon.textContent = 'mic';
-  micBtn.appendChild(micIcon);
+  micBtn.innerHTML = ICON_MIC_SVG;
   form.appendChild(micBtn);
 
   const sendBtn = document.createElement('button');
   sendBtn.type = 'submit';
   sendBtn.className = 'mamcp-bar-btn mamcp-send';
   sendBtn.setAttribute('aria-label', 'Send message');
-  sendBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">send</span>';
+  sendBtn.innerHTML = ICON_SEND_SVG;
   form.appendChild(sendBtn);
   panel.appendChild(form);
 
@@ -379,6 +414,57 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   function toggle() { if (!isOpen) { open(); input.focus(); } else close(); }
   closeBtn.addEventListener('click', close);
   if (orbEl) orbEl.addEventListener('click', toggle);
+
+  // Escape collapses from anywhere in the panel -- a real keyboard path
+  // that needs no drag and no pointer at all. Also listened for on
+  // `document`, since a voice- or action-triggered open() never moves
+  // focus into the panel the way a manual tap-to-open does.
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen) { e.stopPropagation(); close(); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen && !panel.contains(document.activeElement)) close();
+  });
+  // Enter/Space on the grab handle itself does the same thing a click on
+  // it would (role="button" makes this expected, but is not automatic on
+  // a <div>).
+  grabHandle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); close(); }
+  });
+
+  // ---- drag-the-handle-down-to-collapse --------------------------------
+  // The primary gesture this surface offers instead of a popup's X: grab
+  // the handle, pull it down, let go. Short of the threshold, it springs
+  // back -- nothing closes on an accidental nudge. Horizontal movement is
+  // ignored entirely (this is a vertical dismiss gesture, not a drag-to-
+  // move -- the dock itself already owns repositioning).
+  let handleDrag = null;
+  grabHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    handleDrag = { pointerId: e.pointerId, startY: e.clientY, dy: 0 };
+    try { grabHandle.setPointerCapture(e.pointerId); } catch { /* capture unsupported -- still works while over the handle */ }
+    panel.classList.add('is-collapsing');
+  });
+  grabHandle.addEventListener('pointermove', (e) => {
+    if (!handleDrag || e.pointerId !== handleDrag.pointerId) return;
+    const dy = Math.max(0, e.clientY - handleDrag.startY);   // downward only
+    handleDrag.dy = dy;
+    panel.style.transform = 'translateY(' + dy + 'px)';
+    panel.style.opacity = String(Math.max(0.4, 1 - dy / 500));
+  });
+  function endHandleDrag(e) {
+    if (!handleDrag || e.pointerId !== handleDrag.pointerId) return;
+    const dy = handleDrag.dy;
+    handleDrag = null;
+    panel.classList.remove('is-collapsing');
+    panel.style.transform = '';
+    panel.style.opacity = '';
+    if (dy > COLLAPSE_DRAG_PX) close();   // past the threshold: finish the dismiss
+    // otherwise: clearing the inline overrides above lets the panel's own
+    // (now re-enabled) transition spring it straight back to fully open.
+  }
+  grabHandle.addEventListener('pointerup', endHandleDrag);
+  grabHandle.addEventListener('pointercancel', endHandleDrag);
 
   // A resize/rotation while the panel is OPEN must keep it correctly
   // anchored and clamped. The dock is collapsed (invisible) at this point
@@ -617,7 +703,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     window.speechSynthesis.speak(utterance);
   }
   function updateVoiceToggleUI() {
-    voiceToggleIcon.textContent = voiceOutputEnabled ? 'volume_up' : 'volume_off';
+    voiceToggleIcon.innerHTML = voiceOutputEnabled ? ICON_VOLUME_ON_SVG : ICON_VOLUME_OFF_SVG;
     voiceToggleBtn.setAttribute('aria-pressed', String(voiceOutputEnabled));
   }
   if (window.speechSynthesis) {
@@ -631,21 +717,69 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     });
   }
 
-  // ---- applying an allowlisted map filter/focus action, only when this
-  // panel happens to be open on map.html itself (never a second search
-  // implementation -- reuses the exact same real hook the map's own dock
-  // uses). On every other page there is no map to update, so this is a
-  // no-op there and the reply's cards/suggestedActions are all a visitor
-  // gets, exactly as intended. --------------------------------------------
+  // ---- applying an allowlisted map filter/focus action -----------------
+  // Reuses the exact same real hook the map's own dock uses -- never a
+  // second search implementation. When this panel happens to already be
+  // open ON map.html, the filters/focus apply immediately in place. From
+  // ANY other page, MAM operating the frontend still has to be able to
+  // reach the map: the same filter values are translated (see
+  // js/mam-actions.js's filtersToMapUrlParams -- the SAME vocabulary
+  // backend/app/mam/orchestrator.py's tool calls already use) into
+  // map.html's own URL query state, and the visitor is taken there, so a
+  // search made from Home lands exactly like the same search made
+  // directly on the map. -------------------------------------------------
   function applyMapAction(mapAction) {
     if (!mapAction || mapAction.target !== 'map.html') return;
-    if (mapAction.filters && Object.keys(mapAction.filters).length &&
-        window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function') {
-      window.DarweshPropertiesMap.applyFilters(mapAction.filters);
+    const onMapPage = window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function';
+    if (onMapPage) {
+      if (mapAction.filters && Object.keys(mapAction.filters).length) {
+        window.DarweshPropertiesMap.applyFilters(mapAction.filters);
+      }
+      if (mapAction.focusListingId && typeof window.DarweshPropertiesMap.focusListing === 'function') {
+        window.DarweshPropertiesMap.focusListing(mapAction.focusListingId);
+      }
+      return;
     }
-    if (mapAction.focusListingId && window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.focusListing === 'function') {
-      window.DarweshPropertiesMap.focusListing(mapAction.focusListingId);
+    const hasFilters = mapAction.filters && Object.keys(mapAction.filters).length;
+    if (!hasFilters && !mapAction.focusListingId) return;
+    const params = filtersToMapUrlParams(mapAction.filters || {});
+    if (mapAction.focusListingId) params.set('listing', String(mapAction.focusListingId));
+    location.href = 'map.html' + (params.toString() ? '?' + params.toString() : '');
+  }
+
+  // ---- direct commands -- the small, deterministic action layer --------
+  // A handful of requests (navigate, go back, clear filters, collapse/
+  // open MAM) need no NLU and no backend round trip at all: detected here
+  // via js/mam-actions.js's fixed allowlist and executed immediately,
+  // offline of the backend, identically every time. Everything this does
+  // NOT confidently recognize (a property search, a filter value, small
+  // talk) falls straight through to the real backend conversation just
+  // below, completely unaffected -- this is deliberately narrow, never a
+  // second, competing intent parser. Typed and spoken input both arrive
+  // through this SAME sendMessage(), so a direct command works identically
+  // either way, in the same session/transcript as everything else.
+  function executeDirectCommand(command) {
+    if (command.type === 'navigate') {
+      const page = resolvePage(command.page);
+      if (!page) return null;
+      return { confirm: trf('mam.actionOpenedPage', 'Opening {page}…', { page: command.page }), run: () => { location.href = page; } };
     }
+    if (command.type === 'back') {
+      return { confirm: tr('mam.actionWentBack', 'Going back…'), run: () => { history.back(); } };
+    }
+    if (command.type === 'clear_filters') {
+      if (window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.clearFilters === 'function') {
+        return { confirm: tr('mam.actionClearedFilters', 'Filters cleared.'), run: () => { window.DarweshPropertiesMap.clearFilters(); } };
+      }
+      return { confirm: tr('mam.actionNoFiltersHere', "There's nothing to clear here — the filters live on the map."), run: () => {} };
+    }
+    if (command.type === 'collapse_mam') {
+      return { confirm: null, run: () => { close(); } };
+    }
+    if (command.type === 'open_mam') {
+      return { confirm: null, run: () => { open(); } };
+    }
+    return null;
   }
 
   // ---- sending a turn -----------------------------------------------
@@ -668,6 +802,28 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (onFailed) onFailed();
       return;
     }
+
+    // Direct commands short-circuit the entire backend round trip -- see
+    // executeDirectCommand() above. Typed or spoken, this is the exact
+    // same check either way, in the exact same session/transcript as a
+    // normal turn.
+    const direct = detectDirectCommand(text);
+    const resolved = direct && executeDirectCommand(direct);
+    if (resolved) {
+      open();
+      lastTurnWasVoice = viaVoice;
+      addUserBubble(text);
+      recordTurn({ role: 'user', text });
+      if (resolved.confirm) {
+        addAssistantBubble({ message: resolved.confirm });
+        recordTurn({ role: 'assistant', text: resolved.confirm, cards: [] });
+      }
+      resolved.run();
+      if (viaVoice && resolved.confirm) speak(resolved.confirm, { onDone: onReplySpoken });
+      else if (onReplySpoken) onReplySpoken();
+      return;
+    }
+
     open();
     lastTurnWasVoice = viaVoice;
 
@@ -770,10 +926,41 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   function normalizeForPhraseMatch(s) {
     return (s || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   }
-  const WAKE_PATTERNS = [/\bmam\s*a+\s*i\b/, /\bmamai\b/, /مام\s*ا[يی]/, /مام\s*آی/];
+  // "MAM AI" and "MAMA" match anywhere in the transcript -- both are
+  // distinctive enough (two syllables, an unusual pairing/repetition) that
+  // a stray mid-sentence match is very unlikely. Bare "MAM" is the
+  // opposite case: a common short word ("my mam", "mam and dad") that
+  // genuinely could turn up buried in an unrelated sentence, which is
+  // exactly the "dangerously broad substring matching" this must avoid.
+  // It is therefore only accepted at the START of the utterance --
+  // real wake-word usage says the name FIRST ("MAM, three bedrooms in
+  // Erbil" / a bare "MAM") rather than trailing off a sentence about
+  // something else, so anchoring to `^` keeps the explicit, narrow
+  // pattern the product asked for without opening a substring hole.
+  const WAKE_PATTERNS = [/\bmam\s*a+\s*i\b/, /\bmamai\b/, /^mama\b/, /^mam\b/, /مام\s*ا[يی]/, /مام\s*آی/, /^مام\b/];
   function heardWakePhrase(transcript) {
     const norm = normalizeForPhraseMatch(transcript);
     return WAKE_PATTERNS.some((re) => re.test(norm));
+  }
+  // A short wake word like bare "MAM" is naturally said in the SAME
+  // breath as the request that follows it ("mam show me villas in
+  // erbil") far more often than "MAM AI" is -- continuous stays off (see
+  // above), so that whole utterance arrives as one wake-mode `result` and
+  // waiting for a second one nobody is going to say would just look like
+  // MAM ignored the request. If real words follow the matched phrase in
+  // the SAME transcript, they are sent immediately as the request itself
+  // instead of being discarded once wake-mode's own listener has decided
+  // this session heard the trigger.
+  function extractWakeTrailingText(transcript) {
+    const norm = normalizeForPhraseMatch(transcript);
+    for (const re of WAKE_PATTERNS) {
+      const m = re.exec(norm);
+      if (m) {
+        const rest = norm.slice(m.index + m[0].length).trim();
+        return rest.length >= 2 ? rest : null;
+      }
+    }
+    return null;
   }
   const STOP_PATTERNS = [/\bstop\s*mam\b/, /\bmam\s*stop\b/, /وەستە\s*مام/, /مام\s*وەستە/, /توقف\s*مام/, /مام\s*توقف/];
   function heardStopPhrase(transcript) {
@@ -843,6 +1030,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     // transition waits for `end`, exactly like the original hands-free
     // loop already did for its own restart decisions.
     let pendingWakeToConversation = false;
+    let pendingWakeInlineCommand = null;   // real words heard trailing the wake word in the same utterance
     let pendingStopCommand = false;
     let pendingSendText = null;
 
@@ -959,7 +1147,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     function disableVoiceCompletely() {
       persistWakeEnabled(false);
       handsFree = false; silentRounds = 0;
-      pendingWakeToConversation = false; pendingStopCommand = false; pendingSendText = null;
+      pendingWakeToConversation = false; pendingWakeInlineCommand = null; pendingStopCommand = false; pendingSendText = null;
       // abort(), not stop(): stop() still delivers whatever it heard, so
       // an explicit Stop could be followed by one more question the
       // visitor never meant to ask.
@@ -979,7 +1167,13 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     // the phrase at all, so re-persisting it there is redundant, not
     // wrong, but skipping it keeps the intent of the flag legible: it
     // means "the visitor asked for this," not "a turn happened."
-    function beginHandsFree({ viaWake = false } = {}) {
+    // `skipListen`: the caller already has a real command to send (a
+    // command spoken trailing the wake word in the very same utterance --
+    // see extractWakeTrailingText) and will call sendMessage itself right
+    // after this returns, so opening the mic to wait for a second
+    // utterance that was never coming would just add a pointless capture
+    // round before the one that actually matters.
+    function beginHandsFree({ viaWake = false, skipListen = false } = {}) {
       if (handsFree) return;
       handsFree = true;
       silentRounds = 0;
@@ -993,7 +1187,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         voiceOutputEnabled = true;
         updateVoiceToggleUI();
       }
-      startListening();
+      if (!skipListen) startListening();
     }
 
     // ONE predictable on/off switch for the mic/voice button: anything
@@ -1024,7 +1218,10 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         // the hand-off into a real conversation) happens uniformly in
         // 'end' below, once the browser has actually finished this
         // session -- starting a new one from here would race it.
-        if (transcript && heardWakePhrase(transcript)) pendingWakeToConversation = true;
+        if (transcript && heardWakePhrase(transcript)) {
+          pendingWakeToConversation = true;
+          pendingWakeInlineCommand = extractWakeTrailingText(transcript);
+        }
         return;
       }
       if (recogMode === 'conversation') {
@@ -1046,7 +1243,19 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         stopWakeListening();
         if (pendingWakeToConversation) {
           pendingWakeToConversation = false;
-          beginHandsFree({ viaWake: true });
+          const inline = pendingWakeInlineCommand;
+          pendingWakeInlineCommand = null;
+          if (inline) {
+            beginHandsFree({ viaWake: true, skipListen: true });
+            companion.setState('listening');   // a brief acknowledgement beat, per the wake-flow states
+            sendMessage(inline, {
+              viaVoice: true,
+              onReplySpoken: () => { if (handsFree) startListening(); },
+              onFailed: () => { naturalConversationEnd(); }
+            });
+          } else {
+            beginHandsFree({ viaWake: true });
+          }
         } else if (wakeEnabled && !handsFree) {
           startWakeListening();   // heard nothing useful -- keep waiting for the phrase
         }
@@ -1097,7 +1306,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       // run its normal restart/wake-drop-back logic) matters most for
       // 'not-allowed'/'audio-capture': retrying those would just fail
       // again, silently, forever, on every future page.
-      pendingWakeToConversation = false; pendingStopCommand = false; pendingSendText = null;
+      pendingWakeToConversation = false; pendingWakeInlineCommand = null; pendingStopCommand = false; pendingSendText = null;
       disableVoiceCompletely();
       if (kind === 'not-allowed' || kind === 'service-not-allowed') {
         voiceProblem('mam.micDenied', 'Microphone access is blocked. Allow the microphone for this site in your browser settings, then try voice again.');

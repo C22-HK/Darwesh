@@ -48,7 +48,42 @@
   transition: transform 260ms cubic-bezier(.22,.61,.36,1), opacity 200ms ease, visibility 0s linear 0s;
 }
 
-.mamcp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--mamco-outline, #5D482B); flex: none; }
+/* Grab handle -- the primary way to collapse this surface (see the
+   pointer handlers in js/mam-chat-panel.js). A quiet horizontal bar, the
+   same shape every native bottom sheet uses, so "drag this down" reads
+   immediately without a label. touch-action:none is what lets the drag
+   gesture itself arrive instead of the browser treating it as a page
+   scroll. */
+.mamcp-grab-handle {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+  flex: none;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mamcp-grab-handle:active { cursor: grabbing; }
+.mamcp-grab-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--mamco-outline, #5D482B);
+  transition: background 150ms ease;
+}
+.mamcp-grab-handle:hover .mamcp-grab-bar,
+.mamcp-grab-handle:focus-visible .mamcp-grab-bar {
+  background: var(--mamco-accent, #B89A63);
+}
+.mamcp-grab-handle:focus-visible { outline: 2px solid var(--mamco-accent, #B89A63); outline-offset: 2px; border-radius: 999px; }
+/* While actively dragged: no transition fighting the finger/pointer, the
+   JS sets transform/opacity directly every move. Cleared the instant the
+   drag ends (see endHandleDrag), whether that finishes as a collapse or a
+   spring-back. */
+.mamcp-panel.is-collapsing { transition: none; }
+
+.mamcp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 14px 12px; border-bottom: 1px solid var(--mamco-outline, #5D482B); flex: none; }
 .mamcp-title-wrap { display: flex; flex-direction: column; min-width: 0; }
 .mamcp-title { font-weight: 700; font-size: 12px; color: var(--mamco-glow, #F2EEE5); letter-spacing: .04em; text-transform: uppercase; }
 .mamcp-subtitle { font-size: 10.5px; color: #A79F91; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -56,6 +91,12 @@
 .mamcp-icon-btn { background: none; border: none; color: #A79F91; cursor: pointer; padding: 5px; border-radius: 999px; display: flex; }
 .mamcp-icon-btn:hover { color: var(--mamco-glow, #F2EEE5); }
 .mamcp-icon-btn[aria-pressed="true"] { color: var(--mamco-accent, #B89A63); }
+.mamcp-icon { display: flex; }
+/* Deliberately quiet -- the grab handle above is this surface's real
+   collapse affordance; this is a small fallback for keyboard/pointer
+   users who would rather click than drag, not a second prominent X. */
+.mamcp-collapse-btn { opacity: .55; }
+.mamcp-collapse-btn:hover { opacity: 1; }
 
 .mamcp-log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
 .mamcp-empty { font-size: 12.5px; color: #A79F91; line-height: 1.5; padding: 4px 2px; }

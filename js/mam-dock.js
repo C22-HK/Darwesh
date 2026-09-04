@@ -111,17 +111,26 @@ function ensureStylesheet() {
  *   whole window. On the map, the window's own centre can land inside
  *   the listing panel that sits beside the map, not over the map at all
  *   -- this is what keeps the default actually over the map.
+ * @param {'bar'|'orb'} [opts.variant] What the collapsed surface looks
+ *   like. 'bar' (the map's own compact assistant bar) keeps the label
+ *   text and its own mic button, unchanged. 'orb' -- every other public
+ *   page -- is ONLY the living orb: no label, no separate mic button (the
+ *   panel it expands into already has one). Positioning, dragging and
+ *   memory work identically either way; this only changes what is built
+ *   and shown while collapsed.
  * @returns {{root, orbEl, micBtn, openBtn, companion, setLabel, suppress, destroy}}
  */
-export function mountMamDock({ getLanguage, label, defaultSide = 'right', bottomAnchorSelector } = {}) {
+export function mountMamDock({ getLanguage, label, defaultSide = 'right', bottomAnchorSelector, variant = 'bar' } = {}) {
   ensureStylesheet();
 
+  const isOrb = variant === 'orb';
   const root = document.createElement('div');
-  root.className = 'mamdock';
+  root.className = 'mamdock' + (isOrb ? ' mamdock--orb' : '');
 
   const openBtn = document.createElement('button');
   openBtn.type = 'button';
   openBtn.className = 'mamdock-open';
+  openBtn.setAttribute('aria-label', label || 'Ask MAM');
 
   // The orb component mounts INTO the bar. `interactive: false` here on
   // purpose: the orb is inside a real <button> that is already focusable
@@ -129,10 +138,17 @@ export function mountMamDock({ getLanguage, label, defaultSide = 'right', bottom
   // tabindex would put two controls in the tab order for one action.
   const companion = new MamCompanion({ mountTarget: openBtn, getLanguage, interactive: false });
 
-  const labelEl = document.createElement('span');
-  labelEl.className = 'mamdock-label';
-  labelEl.textContent = label || 'Ask MAM';
-  openBtn.appendChild(labelEl);
+  // 'orb' variant: the collapsed surface is ONLY the living orb -- no
+  // label text, no permanent pill shape. "Ask MAM about properties..."
+  // stays map-only, where the extra width is earned by real assistant
+  // context; everywhere else the orb alone IS the assistant.
+  let labelEl = null;
+  if (!isOrb) {
+    labelEl = document.createElement('span');
+    labelEl.className = 'mamdock-label';
+    labelEl.textContent = label || 'Ask MAM';
+    openBtn.appendChild(labelEl);
+  }
   root.appendChild(openBtn);
 
   const micBtn = document.createElement('button');
@@ -140,12 +156,24 @@ export function mountMamDock({ getLanguage, label, defaultSide = 'right', bottom
   micBtn.className = 'mamdock-mic';
   micBtn.hidden = true;   // revealed only if the browser really has speech recognition
   micBtn.innerHTML = MIC_SVG;
-  root.appendChild(micBtn);
+  // The orb variant carries no separate mic control on the collapsed
+  // surface -- voice lives inside the expanded panel only, per "collapsed
+  // MAM must be ONLY a small living circular orb." The button is still
+  // built (so callers always get a real element back and the shared
+  // voice-state code has one consistent list of mic elements to drive),
+  // it is simply never attached to the document, so toggling classes/
+  // hidden on it is inert.
+  if (!isOrb) root.appendChild(micBtn);
 
   const resumeHint = document.createElement('div');
   resumeHint.className = 'mamdock-resume-hint';
   resumeHint.hidden = true;
   resumeHint.setAttribute('role', 'status');
+  // Kept even in orb mode: this is a transient status bubble ("voice is
+  // paused, tap to resume"), not the permanent label/pill this variant
+  // otherwise omits -- section G still requires a small, honest affordance
+  // when wake mode cannot auto-resume, and the orb is where it has to
+  // attach since there is no bar to show it inline in.
   root.appendChild(resumeHint);
 
   document.body.appendChild(root);
@@ -360,7 +388,10 @@ export function mountMamDock({ getLanguage, label, defaultSide = 'right', bottom
     micBtn,
     orbEl: openBtn.querySelector('.mamco-orb'),
     companion,
-    setLabel(text) { labelEl.textContent = text; },
+    // The orb variant has no label element at all -- a no-op there rather
+    // than throwing, since callers (language changes, the map's arrival
+    // greeting) call this unconditionally without knowing the variant.
+    setLabel(text) { if (labelEl) labelEl.textContent = text; else openBtn.setAttribute('aria-label', text || 'Ask MAM'); },
     /**
      * Collapses the compact bar while the conversation overlay is up.
      * The two are one surface in two states, and both are fixed-position

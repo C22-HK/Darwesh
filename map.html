@@ -212,6 +212,112 @@ violation reporting. -->
     .private-city-badge:hover { transform: scale(1.06); }
     .filter-dropdown-btn.active { border-color: #8E7448; color: #B89A63; background: #221E15; }
     .filter-dropdown-menu { position: fixed; z-index: 1200; }
+    .filter-dropdown-btn svg, #saveSearchBtn svg { flex: none; }
+
+    /* ---- Buy / Rent / Sell segmented control -------------------------
+     * Same three real controls as before (`.type-toggle` buttons still
+     * carry `data-type-filter` and drive the exact same `activeType`
+     * state; Sell is still a plain link to sell.html, a different kind of
+     * action from an in-place mode switch) -- this only adds a sliding
+     * indicator pill behind them, repositioned in JS (moveTypeSegIndicator
+     * below) whenever the active one changes, so choosing a mode reads as
+     * one continuous glide instead of an instant background swap. */
+    #typeSeg { position: relative; }
+    #typeSegIndicator {
+      position: absolute; top: 2px; bottom: 2px; left: 2px;
+      width: calc(33.333% - 2.667px);
+      border-radius: 999px;
+      background: #B89A63;
+      transition: transform 260ms cubic-bezier(.22,.61,.36,1);
+      z-index: 0;
+    }
+    @media (prefers-reduced-motion: reduce) { #typeSegIndicator { transition: none; } }
+    #typeSeg .type-toggle, #typeSeg a { position: relative; z-index: 1; }
+
+    /* ---- chip rows (Beds / Baths) -------------------------------------
+     * Replaces the two <select> elements with real, touch-friendly
+     * buttons -- bedsMin/bathsMin (map.html's own module-level state)
+     * work identically either way, these just set them on click instead
+     * of on change. */
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip-opt {
+      border: 1px solid #5D482B; border-radius: 999px; padding: 6px 13px;
+      font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 600;
+      color: #F2EEE5; background: transparent; cursor: pointer;
+      transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+    .chip-opt:hover { border-color: #B89A63; }
+    .chip-opt[aria-pressed="true"] { background: #B89A63; border-color: #B89A63; color: #090A0A; }
+
+    /* ---- Home Type cards ------------------------------------------------
+     * Same checkboxes as before (`.home-type-check`, still what the
+     * existing Apply/Clear/URL-state JS reads) -- visually promoted from
+     * a checklist to selectable cards. The native input stays in the DOM
+     * (and focusable/keyboard-operable) but visually hidden; the label
+     * carries the real card look and reacts to :checked on its own input. */
+    .hometype-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .hometype-card {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      border: 1px solid #5D482B; border-radius: 12px; padding: 10px 6px;
+      cursor: pointer; text-align: center;
+      font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; color: #C9C2B4;
+      transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+    }
+    .hometype-card:hover { border-color: #8E7448; }
+    .hometype-card svg { width: 20px; height: 20px; stroke: currentColor; }
+    .hometype-card input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .hometype-card:has(input:checked) { border-color: #B89A63; background: #221E15; color: #B89A63; }
+    .hometype-card:has(input:focus-visible) { outline: 2px solid #B89A63; outline-offset: 2px; }
+
+    /* ---- Price currency toggle ------------------------------------------
+     * A data-entry convenience only, exactly like sell.html's own
+     * currencySelect -- priceMin/priceMax (map.html's own filter state)
+     * stay in USD always; switching this only changes what unit the two
+     * number inputs are READ as at Apply time (see priceApplyBtn's
+     * listener), via the one shared js/currency.js rate. */
+    .currency-toggle { display: inline-flex; border: 1px solid #5D482B; border-radius: 999px; padding: 2px; }
+    .currency-opt {
+      border: none; background: none; border-radius: 999px; padding: 3px 10px;
+      font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: .03em;
+      color: #A79F91; cursor: pointer;
+    }
+    .currency-opt[aria-pressed="true"] { background: #B89A63; color: #090A0A; }
+
+    /* ---- verified-only toggle switch (More panel) -----------------------
+     * Same #verifiedOnlyCheck checkbox as before -- a real switch look
+     * via CSS only, no new JS state. */
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; }
+    .switch-track {
+      position: relative; flex: none; width: 36px; height: 20px; border-radius: 999px;
+      background: #3A3327; border: 1px solid #5D482B; transition: background 150ms ease;
+    }
+    .switch-track::after {
+      content: ''; position: absolute; top: 1px; inset-inline-start: 1px; width: 16px; height: 16px;
+      border-radius: 50%; background: #F2EEE5; transition: transform 150ms ease;
+    }
+    #verifiedOnlyCheck { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    #verifiedOnlyCheck:checked ~ .switch-track { background: #B89A63; }
+    #verifiedOnlyCheck:checked ~ .switch-track::after { transform: translateX(16px); background: #090A0A; }
+    #verifiedOnlyCheck:focus-visible ~ .switch-track { outline: 2px solid #B89A63; outline-offset: 2px; }
+
+    /* ---- sort options: a visible check on the active one ---------------- */
+    .sort-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .sort-option svg { opacity: 0; flex: none; }
+    .sort-option[aria-pressed="true"] { color: #B89A63; }
+    .sort-option[aria-pressed="true"] svg { opacity: 1; }
+
+    /* ---- location: a compact pin+text trigger with its own suggestion
+     * list of real Kurdistan Region/Iraq cities, rendered inside the same
+     * dropdown panel as the search input -- #citySearch is still the SAME
+     * text input every existing filter/URL-state/save-search code already
+     * reads .value from. */
+    #citySuggestList { max-height: 200px; overflow-y: auto; }
+    #citySuggestList button {
+      display: block; width: 100%; text-align: start; border: none; background: none;
+      color: #F2EEE5; font-family: 'Inter', sans-serif; font-size: 13px; padding: 8px 10px;
+      border-radius: 8px; cursor: pointer;
+    }
+    #citySuggestList button:hover, #citySuggestList button:focus-visible { background: #221E15; color: #B89A63; }
     .map-popup-card .leaflet-popup-content-wrapper { padding: 0; border-radius: 12px; overflow: hidden; }
     .map-popup-card .leaflet-popup-content { margin: 0; width: 240px !important; }
     .map-popup-card .listing-card { border-radius: 0; border: none; box-shadow: none; cursor: default; }
@@ -375,28 +481,44 @@ violation reporting. -->
 <div id="siteMobileNav" data-active="propertiesMap"></div>
 <script src="./js/site-mobile-nav.js"></script>
 <script src="./js/escape-html.js"></script>
+<script src="./js/currency.js"></script>
 
 <!-- Filter Bar -->
 <div id="filterBarWrap" class="fixed top-16 left-0 w-full z-40 bg-surface-container-lowest border-b border-outline-variant">
 <div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-3 flex items-center gap-3 overflow-x-auto hide-scrollbar">
-<div class="flex items-center bg-surface-container rounded-full p-1 flex-none">
-<button data-type-filter="sale" class="type-toggle px-4 py-1.5 rounded-full font-label-caps text-label-caps transition-all bg-primary text-on-primary" data-i18n="map.buyToggle">Buy</button>
-<button data-type-filter="rent" class="type-toggle px-4 py-1.5 rounded-full font-label-caps text-label-caps transition-all text-on-surface-variant" data-i18n="map.rentToggle">Rent</button>
-<a href="sell.html" class="px-4 py-1.5 rounded-full font-label-caps text-label-caps transition-all text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high" data-i18n="map.sellToggle">Sell</a>
+<div id="typeSeg" class="flex items-center bg-surface-container rounded-full p-1 flex-none">
+<div id="typeSegIndicator" aria-hidden="true"></div>
+<button data-type-filter="sale" class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center transition-colors bg-primary text-on-primary" data-i18n="map.buyToggle">Buy</button>
+<button data-type-filter="rent" class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center transition-colors text-on-surface-variant" data-i18n="map.rentToggle">Rent</button>
+<a href="sell.html" class="flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center transition-colors text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high" data-i18n="map.sellToggle">Sell</a>
 </div>
 <div class="relative flex-none">
-<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">location_on</span>
-<input id="citySearch" class="w-56 bg-surface-container rounded-full border-none focus:ring-2 focus:ring-secondary text-body-md text-on-surface pl-9 pr-4 py-2 placeholder-outline-variant" placeholder="City, e.g. Erbil, Duhok..." type="text" data-i18n-placeholder="map.searchCity"/>
+<button id="cityTriggerBtn" type="button" class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" style="max-width:180px;">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+<span id="cityTriggerLabel" class="truncate" data-i18n="map.anyCity">Any city</span>
+</button>
+<div id="cityFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-3" style="width:240px;">
+<input id="citySearch" class="w-full bg-surface-container rounded-lg border border-outline-variant focus:ring-2 focus:ring-secondary text-body-md text-on-surface px-3 py-2 placeholder-outline-variant" placeholder="City, e.g. Erbil, Duhok..." type="text" data-i18n-placeholder="map.searchCity" autocomplete="off"/>
+<div id="citySuggestList" class="mt-2 flex flex-col" role="listbox" aria-label="Suggested cities"></div>
+</div>
 </div>
 <div class="relative flex-none">
 <button id="priceFilterBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-                <span data-i18n="map.priceLabel">Price</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+<span data-i18n="map.priceLabel">Price</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
-<div id="priceFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:260px;">
+<div id="priceFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:270px;">
+<div class="flex items-center justify-between mb-3">
+<span class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="map.priceLabel">Price</span>
+<div id="priceCurrencyToggle" class="currency-toggle" role="group" aria-label="Currency">
+<button type="button" class="currency-opt" data-currency="USD" aria-pressed="true">USD</button>
+<button type="button" class="currency-opt" data-currency="IQD" aria-pressed="false">IQD</button>
+</div>
+</div>
 <div class="grid grid-cols-2 gap-2 mb-3">
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.minPrice">Min</label>
-<input id="priceMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="$0"/>
+<input id="priceMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="0"/>
 </div>
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.maxPrice">Max</label>
@@ -411,23 +533,29 @@ violation reporting. -->
 </div>
 <div class="relative flex-none">
 <button id="bedsFilterBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-                <span data-i18n="map.bedsAndBaths">Beds &amp; Baths</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+<span data-i18n="map.bedsAndBaths">Beds &amp; Baths</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
-<div id="bedsFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:260px;">
-<div class="grid grid-cols-2 gap-2 mb-3">
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.beds">Beds</label>
-<select id="bedsMinSelect" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
-<option value="0" data-i18n="map.any">Any</option>
-<option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option><option value="5">5+</option>
-</select>
+<div id="bedsFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:270px;">
+<div class="mb-3">
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1.5" data-i18n="common.beds">Beds</span>
+<div id="bedsChipRow" class="chip-row" role="group" aria-label="Bedrooms">
+<button type="button" class="chip-opt" data-beds="0" aria-pressed="true" data-i18n="map.any">Any</button>
+<button type="button" class="chip-opt" data-beds="1" aria-pressed="false">1+</button>
+<button type="button" class="chip-opt" data-beds="2" aria-pressed="false">2+</button>
+<button type="button" class="chip-opt" data-beds="3" aria-pressed="false">3+</button>
+<button type="button" class="chip-opt" data-beds="4" aria-pressed="false">4+</button>
+<button type="button" class="chip-opt" data-beds="5" aria-pressed="false">5+</button>
 </div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="common.baths">Baths</label>
-<select id="bathsMinSelect" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md">
-<option value="0" data-i18n="map.any">Any</option>
-<option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option>
-</select>
+</div>
+<div class="mb-3">
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1.5" data-i18n="common.baths">Baths</span>
+<div id="bathsChipRow" class="chip-row" role="group" aria-label="Bathrooms">
+<button type="button" class="chip-opt" data-baths="0" aria-pressed="true" data-i18n="map.any">Any</button>
+<button type="button" class="chip-opt" data-baths="1" aria-pressed="false">1+</button>
+<button type="button" class="chip-opt" data-baths="2" aria-pressed="false">2+</button>
+<button type="button" class="chip-opt" data-baths="3" aria-pressed="false">3+</button>
+<button type="button" class="chip-opt" data-baths="4" aria-pressed="false">4+</button>
 </div>
 </div>
 <div class="flex gap-2">
@@ -438,18 +566,19 @@ violation reporting. -->
 </div>
 <div class="relative flex-none">
 <button id="homeTypeFilterBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-                <span data-i18n="map.homeType">Home Type</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+<span data-i18n="map.homeType">Home Type</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
-<div id="homeTypeFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:220px;">
-<div class="flex flex-col gap-2 mb-3">
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="house"/> <span data-i18n="map.house">House</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="villa"/> <span data-i18n="map.villa">Villa</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="apartment"/> <span data-i18n="map.apartment">Apartment</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="land"/> <span data-i18n="map.land">Land</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="building"/> <span data-i18n="map.building">Building</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="office"/> <span data-i18n="map.office">Office</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="shop"/> <span data-i18n="map.shop">Shop</span></label>
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface"><input type="checkbox" class="home-type-check rounded" value="commercialProperty"/> <span data-i18n="map.commercialProperty">Commercial Property</span></label>
+<div id="homeTypeFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-3" style="width:260px;">
+<div class="hometype-grid mb-3">
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="house"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.house">House</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="villa"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l9-7 9 7"/><path d="M5 11v9h14v-9"/><circle cx="12" cy="15" r="2"/></svg><span data-i18n="map.villa">Villa</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="apartment"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/></svg><span data-i18n="map.apartment">Apartment</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="land"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20V8M10 20V8M14 20V8M18 20V8"/></svg><span data-i18n="map.land">Land</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="building"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="1"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1M10 18h1M13 18h1"/></svg><span data-i18n="map.building">Building</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="office"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg><span data-i18n="map.office">Office</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="shop"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.shop">Shop</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="commercialProperty"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/></svg><span data-i18n="map.commercialProperty">Commercial</span></label>
 </div>
 <div class="flex gap-2">
 <button id="homeTypeApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
@@ -459,10 +588,14 @@ violation reporting. -->
 </div>
 <div class="relative flex-none">
 <button id="moreFiltersBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-                <span data-i18n="map.moreFilters">More</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+<span data-i18n="map.moreFilters">More</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
-<div id="moreFiltersMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:240px;">
-<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface mb-3"><input type="checkbox" id="verifiedOnlyCheck" class="rounded"/> <span data-i18n="map.verifiedOnly">Verified only</span></label>
+<div id="moreFiltersMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:250px;">
+<label class="switch-row mb-3">
+<span class="font-body-md text-body-md text-on-surface" data-i18n="map.verifiedOnly">Verified only</span>
+<input type="checkbox" id="verifiedOnlyCheck"/><span class="switch-track" aria-hidden="true"></span>
+</label>
 <div class="grid grid-cols-2 gap-2 mb-3">
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min m²</label>
@@ -481,18 +614,21 @@ violation reporting. -->
 </div>
 <div class="relative flex-none">
 <button id="sortBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-<span class="material-symbols-outlined text-[16px]">swap_vert</span><span data-i18n="map.sortLabel">Sort</span> <span class="material-symbols-outlined text-[16px]">expand_more</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h11"/><path d="m16 21 4-4-4-4"/><path d="M20 17H9"/></svg>
+<span data-i18n="map.sortLabel">Sort</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
-<div id="sortMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-2" style="width:200px;">
-<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="recommended" data-i18n="map.sortRecommended">Recommended</button>
-<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="newest" data-i18n="map.sortNewest">Newest</button>
-<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceAsc" data-i18n="map.sortPriceAsc">Price: Low to High</button>
-<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceDesc" data-i18n="map.sortPriceDesc">Price: High to Low</button>
-<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="areaDesc" data-i18n="map.sortArea">Largest Area</button>
+<div id="sortMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-2" style="width:220px;">
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="recommended" aria-pressed="true" data-i18n="map.sortRecommended"><span data-i18n="map.sortRecommended">Recommended</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="newest" aria-pressed="false"><span data-i18n="map.sortNewest">Newest</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceAsc" aria-pressed="false"><span data-i18n="map.sortPriceAsc">Price: Low to High</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceDesc" aria-pressed="false"><span data-i18n="map.sortPriceDesc">Price: High to Low</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="areaDesc" aria-pressed="false"><span data-i18n="map.sortArea">Largest Area</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 </div>
 </div>
 <button id="saveSearchBtn" type="button" class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors">
-<span class="material-symbols-outlined text-[16px]">bookmark_add</span><span data-i18n="map.saveSearch">Save Search</span>
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M9.5 6.5h5M12 4v5"/></svg>
+<span data-i18n="map.saveSearch">Save Search</span>
 </button>
 <span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
 </div>
@@ -1094,6 +1230,12 @@ let selectedHomeTypes = new Set();
 let sortBy = 'recommended';
 let verifiedOnly = false;
 let areaMin = null, areaMax = null;
+// Data-entry convenience for the Price panel only (see js/currency.js) --
+// priceMin/priceMax above stay in USD always, exactly like every other
+// reader of this page's state (URL params, applyAiFilters, filtering)
+// already expects; this only decides what unit the two number inputs are
+// READ as the next time Apply is pressed.
+let priceCurrency = 'USD';
 // Capped well below street/building level (OSM building outlines
 // typically render from z16+) so no one can zoom in far enough to make
 // out an individual property, private listing or not. The satellite/
@@ -2056,11 +2198,41 @@ document.querySelectorAll('.filter-dropdown-menu').forEach(menu => {
 });
 document.addEventListener('click', closeAllFilterMenus);
 
+// ---- Price currency toggle ------------------------------------------
+// A data-entry convenience, exactly like sell.html's own currencySelect
+// (see js/currency.js): switching this converts whatever is CURRENTLY
+// typed in the two inputs so the visible numbers stay meaningful, using
+// the one shared rate this whole codebase already uses -- never a second
+// exchange-rate constant.
+document.querySelectorAll('#priceCurrencyToggle .currency-opt').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const next = btn.dataset.currency;
+    if (next === priceCurrency) return;
+    const rate = window.DARWESH_IQD_PER_USD;
+    const minInput = document.getElementById('priceMinInput');
+    const maxInput = document.getElementById('priceMaxInput');
+    [minInput, maxInput].forEach((el) => {
+      const raw = el.value;
+      if (raw === '') return;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return;
+      el.value = String(Math.round(next === 'IQD' ? n * rate : n / rate));
+    });
+    priceCurrency = next;
+    document.querySelectorAll('#priceCurrencyToggle .currency-opt').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+  });
+});
 document.getElementById('priceApplyBtn').addEventListener('click', () => {
   const minVal = document.getElementById('priceMinInput').value;
   const maxVal = document.getElementById('priceMaxInput').value;
-  priceMin = minVal !== '' ? Number(minVal) : null;
-  priceMax = maxVal !== '' ? Number(maxVal) : null;
+  const toUsd = (raw) => {
+    if (raw === '') return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return priceCurrency === 'IQD' ? (window.darweshUsdFromEntered ? window.darweshUsdFromEntered(n, 'IQD') : Math.round(n / window.DARWESH_IQD_PER_USD)) : n;
+  };
+  priceMin = toUsd(minVal);
+  priceMax = toUsd(maxVal);
   document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
   closeAllFilterMenus();
   updateUrlState(true);
@@ -2076,9 +2248,27 @@ document.getElementById('priceClearBtn').addEventListener('click', () => {
   refresh();
 });
 
+// ---- Beds & Baths chip rows -------------------------------------------
+// Real buttons instead of <select> elements -- bedsMin/bathsMin (this
+// page's own filter state) work exactly the same either way, these just
+// set them on click. `setChipActive` is also reused wherever this state
+// needs to be synced from elsewhere (URL load, MAM's own filter action).
+function setChipActive(rowId, dataAttr, value) {
+  document.querySelectorAll('#' + rowId + ' .chip-opt').forEach((btn) => {
+    btn.setAttribute('aria-pressed', String(Number(btn.dataset[dataAttr]) === Number(value)));
+  });
+}
+document.querySelectorAll('#bedsChipRow .chip-opt').forEach((btn) => {
+  btn.addEventListener('click', () => setChipActive('bedsChipRow', 'beds', Number(btn.dataset.beds)));
+});
+document.querySelectorAll('#bathsChipRow .chip-opt').forEach((btn) => {
+  btn.addEventListener('click', () => setChipActive('bathsChipRow', 'baths', Number(btn.dataset.baths)));
+});
 document.getElementById('bedsApplyBtn').addEventListener('click', () => {
-  bedsMin = Number(document.getElementById('bedsMinSelect').value);
-  bathsMin = Number(document.getElementById('bathsMinSelect').value);
+  const bedsBtn = document.querySelector('#bedsChipRow .chip-opt[aria-pressed="true"]');
+  const bathsBtn = document.querySelector('#bathsChipRow .chip-opt[aria-pressed="true"]');
+  bedsMin = bedsBtn ? Number(bedsBtn.dataset.beds) : 0;
+  bathsMin = bathsBtn ? Number(bathsBtn.dataset.baths) : 0;
   document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
   closeAllFilterMenus();
   updateUrlState(true);
@@ -2086,8 +2276,8 @@ document.getElementById('bedsApplyBtn').addEventListener('click', () => {
 });
 document.getElementById('bedsClearBtn').addEventListener('click', () => {
   bedsMin = 0; bathsMin = 0;
-  document.getElementById('bedsMinSelect').value = '0';
-  document.getElementById('bathsMinSelect').value = '0';
+  setChipActive('bedsChipRow', 'beds', 0);
+  setChipActive('bathsChipRow', 'baths', 0);
   document.getElementById('bedsFilterBtn').classList.remove('active');
   closeAllFilterMenus();
   updateUrlState(true);
@@ -2137,7 +2327,10 @@ document.getElementById('moreFiltersClearBtn').addEventListener('click', () => {
 document.querySelectorAll('.sort-option').forEach(btn => {
   btn.addEventListener('click', () => {
     sortBy = btn.dataset.sort;
-    document.querySelectorAll('.sort-option').forEach(b => b.classList.toggle('bg-surface-container', b === btn));
+    document.querySelectorAll('.sort-option').forEach(b => {
+      b.classList.toggle('bg-surface-container', b === btn);
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
     document.getElementById('sortBtn').classList.toggle('active', sortBy !== 'recommended');
     closeAllFilterMenus();
     updateUrlState(true);
@@ -2145,6 +2338,20 @@ document.querySelectorAll('.sort-option').forEach(btn => {
   });
 });
 
+// ---- Buy/Rent/Sell segmented indicator ---------------------------------
+// Purely visual -- activeType and the buttons' own classes (still set
+// below, unchanged) remain the real state. Positioned by INDEX among the
+// three real segments (Buy, Rent, Sell) rather than by measuring Buy/Rent
+// specifically, so the indicator still lands under Sell (a plain link,
+// not a `.type-toggle`) the instant it is clicked, even though Sell
+// itself navigates away a moment later.
+function moveTypeSegIndicator() {
+  const seg = document.getElementById('typeSeg');
+  const items = Array.from(seg.children).filter((el) => el.id !== 'typeSegIndicator');
+  const activeIdx = activeType === 'rent' ? 1 : 0;   // Sell never becomes "active" state -- it navigates instead
+  document.getElementById('typeSegIndicator').style.transform = 'translateX(' + (activeIdx * 100) + '%)';
+  void items;   // items.length is always 3 (Buy, Rent, Sell) -- kept for readability, not indexed further
+}
 document.querySelectorAll('.type-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
     activeType = btn.dataset.typeFilter;
@@ -2154,11 +2361,50 @@ document.querySelectorAll('.type-toggle').forEach(btn => {
     });
     btn.classList.add('bg-primary', 'text-on-primary');
     btn.classList.remove('text-on-surface-variant');
+    moveTypeSegIndicator();
     updateUrlState(true);
     refresh();
   });
 });
-document.getElementById('citySearch').addEventListener('input', refresh);
+moveTypeSegIndicator();
+
+// ---- Location: compact trigger + suggestions --------------------------
+// #citySearch is still the exact same text input every existing filter/
+// URL-state/save-search read already uses -- this only adds a trigger
+// label (so the collapsed control shows "Erbil" instead of a permanently
+// empty-looking text box) and a short list of real Kurdistan Region/Iraq
+// cities to pick from without typing.
+const CITY_SUGGESTIONS = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Kirkuk', 'Halabja', 'Zakho', 'Koya', 'Soran'];
+function renderCitySuggestions(filterText) {
+  const list = document.getElementById('citySuggestList');
+  list.innerHTML = '';
+  const q = (filterText || '').trim().toLowerCase();
+  CITY_SUGGESTIONS.filter((c) => !q || c.toLowerCase().includes(q)).forEach((city) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'option');
+    b.textContent = city;
+    b.addEventListener('click', () => {
+      document.getElementById('citySearch').value = city;
+      updateCityTriggerLabel();
+      closeAllFilterMenus();
+      updateUrlState(true);
+      refresh();
+    });
+    list.appendChild(b);
+  });
+}
+function updateCityTriggerLabel() {
+  const val = document.getElementById('citySearch').value.trim();
+  document.getElementById('cityTriggerLabel').textContent = val || tr('map.anyCity', 'Any city');
+}
+document.getElementById('citySearch').addEventListener('input', () => {
+  renderCitySuggestions(document.getElementById('citySearch').value);
+  updateCityTriggerLabel();
+  refresh();
+});
+renderCitySuggestions('');
+updateCityTriggerLabel();
 
 const viewToggle = document.getElementById('viewToggle');
 const listPanel = document.getElementById('listPanel');
@@ -2866,21 +3112,25 @@ function readUrlStateIntoFilters() {
   const urlCity = p.get('city');
   const urlType = p.get('type');
   if (urlCity) document.getElementById('citySearch').value = urlCity;
+  updateCityTriggerLabel();
   if (urlType === 'all' || (urlCity && !urlType)) setActiveTypeFromUrl('all');
   else if (urlType === 'rent') setActiveTypeFromUrl('rent');
   else if (urlType === 'sale' || !urlType) setActiveTypeFromUrl(urlType || 'sale');
+  moveTypeSegIndicator();
 
   const pMin = p.get('priceMin'), pMax = p.get('priceMax');
   priceMin = pMin !== null ? Number(pMin) : null;
   priceMax = pMax !== null ? Number(pMax) : null;
+  priceCurrency = 'USD';
   document.getElementById('priceMinInput').value = priceMin ?? '';
   document.getElementById('priceMaxInput').value = priceMax ?? '';
+  document.querySelectorAll('#priceCurrencyToggle .currency-opt').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.currency === 'USD')));
   document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
 
   bedsMin = Number(p.get('beds')) || 0;
   bathsMin = Number(p.get('baths')) || 0;
-  document.getElementById('bedsMinSelect').value = String(bedsMin);
-  document.getElementById('bathsMinSelect').value = String(bathsMin);
+  setChipActive('bedsChipRow', 'beds', bedsMin);
+  setChipActive('bathsChipRow', 'baths', bathsMin);
   document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
 
   const typesParam = p.get('types');
@@ -2898,6 +3148,11 @@ function readUrlStateIntoFilters() {
   document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
 
   sortBy = p.get('sort') || 'recommended';
+  document.querySelectorAll('.sort-option').forEach((b) => {
+    const isActive = b.dataset.sort === sortBy;
+    b.classList.toggle('bg-surface-container', isActive);
+    b.setAttribute('aria-pressed', String(isActive));
+  });
   document.getElementById('sortBtn').classList.toggle('active', sortBy !== 'recommended');
 
   const urlListing = p.get('listing');
@@ -2924,9 +3179,32 @@ window.addEventListener('popstate', () => {
 // ---------------------------------------------------------------------
 function applyAiFilters(filters) {
   if (!filters || typeof filters !== 'object') return;
+  // A full reset ("clear the filters") -- js/mam-actions.js's
+  // detectDirectCommand()/clear_filters is the one caller that ever sets
+  // this. Runs BEFORE the individual per-key branches below (which stay
+  // no-ops here since `filters` carries nothing else alongside `clear`),
+  // so this is always a clean slate, never a reset fighting a
+  // simultaneous filter value.
+  if (filters.clear === true) {
+    document.getElementById('priceClearBtn').click();
+    document.getElementById('bedsClearBtn').click();
+    document.getElementById('homeTypeClearBtn').click();
+    document.getElementById('moreFiltersClearBtn').click();
+    document.getElementById('citySearch').value = '';
+    updateCityTriggerLabel();
+    sortBy = 'recommended';
+    document.querySelectorAll('.sort-option').forEach((b) => { b.classList.toggle('bg-surface-container', b.dataset.sort === 'recommended'); b.setAttribute('aria-pressed', String(b.dataset.sort === 'recommended')); });
+    document.getElementById('sortBtn').classList.remove('active');
+    updateUrlState(true);
+    refresh();
+    document.dispatchEvent(new CustomEvent('darwesh:mam-ai-filters-applied'));
+    return;
+  }
   if (filters.deal === 'rent') setActiveTypeFromUrl('rent');
+  if (filters.deal || filters.deal === 'rent') moveTypeSegIndicator();
   if (typeof filters.q === 'string' && filters.q) {
     document.getElementById('citySearch').value = filters.q;
+    updateCityTriggerLabel();
   }
   if (Array.isArray(filters.types) && filters.types.length) {
     selectedHomeTypes = new Set(filters.types.filter((t) => typeof t === 'string' && t));
@@ -2945,8 +3223,33 @@ function applyAiFilters(filters) {
   }
   if (filters.beds !== undefined) {
     bedsMin = Number(filters.beds) || 0;
-    document.getElementById('bedsMinSelect').value = String(bedsMin);
+    setChipActive('bedsChipRow', 'beds', bedsMin);
     document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
+  }
+  if (filters.baths !== undefined) {
+    bathsMin = Number(filters.baths) || 0;
+    setChipActive('bathsChipRow', 'baths', bathsMin);
+    document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
+  }
+  if (filters.verified !== undefined) {
+    verifiedOnly = !!filters.verified;
+    document.getElementById('verifiedOnlyCheck').checked = verifiedOnly;
+    document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  }
+  if (filters.areaMin !== undefined) {
+    areaMin = Number(filters.areaMin) || null;
+    document.getElementById('areaMinInput').value = areaMin ?? '';
+    document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  }
+  if (filters.areaMax !== undefined) {
+    areaMax = Number(filters.areaMax) || null;
+    document.getElementById('areaMaxInput').value = areaMax ?? '';
+    document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  }
+  if (typeof filters.sort === 'string' && document.querySelector('.sort-option[data-sort="' + filters.sort + '"]')) {
+    sortBy = filters.sort;
+    document.querySelectorAll('.sort-option').forEach((b) => { const on = b.dataset.sort === sortBy; b.classList.toggle('bg-surface-container', on); b.setAttribute('aria-pressed', String(on)); });
+    document.getElementById('sortBtn').classList.toggle('active', sortBy !== 'recommended');
   }
   updateUrlState(true);
   refresh();
@@ -2954,6 +3257,10 @@ function applyAiFilters(filters) {
 }
 window.DarweshPropertiesMap = {
   applyFilters: applyAiFilters,
+  // "Clear the filters" (js/mam-actions.js's detectDirectCommand) --
+  // reuses the exact same per-panel Clear buttons every visitor's own
+  // click already drives, never a second reset implementation.
+  clearFilters: () => applyAiFilters({ clear: true }),
   // MAM identifying/selecting a specific property (mapAction.
   // focusListingId) centers it in the SAME wheel/map -- never a second,
   // MAM-only card competing with these real ones. A no-op if the id
