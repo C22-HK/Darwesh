@@ -416,7 +416,12 @@ def build_voice_handler(cfg: Config) -> VoiceHandler | None:
             db = None
     rate_limiters = build_voice_rate_limiters(db=db, is_production=cfg.is_production and db is not None)
 
-    client = KurdishTTSClient(stt_key=cfg.kurdishtts_stt_key, tts_key=cfg.kurdishtts_tts_key, logger=logger)
+    client = KurdishTTSClient(
+        stt_key=cfg.kurdishtts_stt_key,
+        tts_key=cfg.kurdishtts_tts_key,
+        logger=logger,
+        sorani_speaker_id_override=cfg.kurdishtts_sorani_speaker_id,
+    )
     logger.info(
         "MAM voice (KurdishTTS) enabled",
         extra={"stt": bool(cfg.kurdishtts_stt_key), "tts": bool(cfg.kurdishtts_tts_key)},

@@ -52,6 +52,15 @@ _VOICE_UNAVAILABLE = JSONResponse(
     status_code=503,
 )
 
+# Candidate speaker-catalog paths, tried in order until one returns a
+# usable list -- see resolve_sorani_speaker()'s own docstring for why
+# there's more than one: this deployment could not independently verify
+# KurdishTTS's current official docs for the exact endpoint (no outbound
+# network access from the environment this was built in). Setting
+# KURDISHTTS_SORANI_SPEAKER_ID (app.config) skips this list entirely once
+# the real id is confirmed -- the safer, cheaper long-term answer.
+_SPEAKER_CATALOG_PATHS = ("/api/speakers", "/api/tts/speakers", "/api/voices")
+
 
 class KurdishTTSError(Exception):
     """Raised for any upstream KurdishTTS failure. The message is safe to
@@ -61,6 +70,32 @@ class KurdishTTSError(Exception):
 
 def _default_client_factory() -> httpx.AsyncClient:
     return httpx.AsyncClient(timeout=_TIMEOUT_SECONDS)
+
+
+def _pick_free_sorani_speaker(catalog_body: Any) -> str | None:
+    """Extracts a free-tier Sorani speaker id from a parsed catalog
+    response, tolerant of a bare list or a {"speakers": [...]} wrapper --
+    two shapes real APIs commonly use, since the exact one wasn't
+    independently verifiable here. Returns None for anything else,
+    never a guess."""
+    speakers = (
+        catalog_body
+        if isinstance(catalog_body, list)
+        else (catalog_body.get("speakers") if isinstance(catalog_body, dict) else None)
+    )
+    if not isinstance(speakers, list):
+        return None
+    for speaker in speakers:
+        if not isinstance(speaker, dict):
+            continue
+        locale = str(speaker.get("dialect") or speaker.get("language") or speaker.get("locale") or "").lower()
+        tier = str(speaker.get("tier") or speaker.get("plan") or "").lower()
+        is_free = speaker.get("free") is True or tier in ("", "free")
+        if ("sorani" in locale or "ckb" in locale) and is_free:
+            speaker_id = speaker.get("id") or speaker.get("voiceId") or speaker.get("speakerId")
+            if isinstance(speaker_id, str) and speaker_id:
+                return speaker_id
+    return None
 
 
 @dataclass
@@ -77,6 +112,10 @@ class KurdishTTSClient:
     tts_key: str
     logger: logging.Logger
     client_factory: Callable[[], httpx.AsyncClient] = field(default=_default_client_factory)
+    # Optional, operator-confirmed speaker id (KURDISHTTS_SORANI_SPEAKER_ID)
+    # -- when set, resolve_sorani_speaker() uses it directly and never
+    # queries the (unverified-path) catalog at all.
+    sorani_speaker_id_override: str = ""
     _cached_sorani_speaker_id: str | None = field(default=None, init=False, repr=False)
     _speaker_lookup_attempted: bool = field(default=False, init=False, repr=False)
 
@@ -108,47 +147,47 @@ class KurdishTTSClient:
         return transcript
 
     async def resolve_sorani_speaker(self) -> str | None:
-        """Looks up a free-tier Sorani speaker from KurdishTTS's own
-        public catalog rather than a hardcoded/invented voice id (per the
-        explicit "query the public speaker catalog" instruction). Cached
-        for the life of this client -- the catalog does not need to be
-        re-fetched on every TTS call. A failed/unrecognized lookup
-        resolves to None, never a guess: text_to_speech() then reports
-        voice_unavailable rather than sending a made-up speaker id
-        upstream."""
+        """Resolves which KurdishTTS speaker id to use for Sorani TTS.
+        Prefers sorani_speaker_id_override (an explicit, operator-confirmed
+        id -- see app.config's KURDISHTTS_SORANI_SPEAKER_ID) when set, since
+        it needs no network round trip and no guessing at all. Otherwise
+        falls back to querying KurdishTTS's own public catalog rather than
+        a hardcoded/invented voice id (per the explicit "query the public
+        speaker catalog" instruction) -- tried across a short list of
+        plausible catalog paths (see _SPEAKER_CATALOG_PATHS) since this
+        deployment could not independently verify KurdishTTS's current
+        official docs for the exact one. Cached for the life of this
+        client either way. A failed/unrecognized lookup resolves to None,
+        never a guess: text_to_speech() then reports voice_unavailable
+        rather than sending a made-up speaker id upstream."""
         if self._cached_sorani_speaker_id is not None:
+            return self._cached_sorani_speaker_id
+        if self.sorani_speaker_id_override:
+            self._cached_sorani_speaker_id = self.sorani_speaker_id_override
             return self._cached_sorani_speaker_id
         if self._speaker_lookup_attempted:
             return None
         self._speaker_lookup_attempted = True
         if not self.tts_key:
             return None
-        try:
-            async with self.client_factory() as http:
-                response = await http.get(
-                    f"{KURDISHTTS_BASE_URL}/api/speakers", headers={"x-api-key": self.tts_key}
-                )
-            if response.status_code >= 300:
-                raise KurdishTTSError(f"speaker catalog returned status {response.status_code}")
-            body = response.json()
-        except (httpx.HTTPError, ValueError, KurdishTTSError) as exc:
-            self.logger.warning("kurdishtts: speaker catalog lookup failed", extra={"error": str(exc)})
-            return None
-        speakers = body if isinstance(body, list) else body.get("speakers") if isinstance(body, dict) else None
-        if not isinstance(speakers, list):
-            return None
-        for speaker in speakers:
-            if not isinstance(speaker, dict):
+        for path in _SPEAKER_CATALOG_PATHS:
+            try:
+                async with self.client_factory() as http:
+                    response = await http.get(f"{KURDISHTTS_BASE_URL}{path}", headers={"x-api-key": self.tts_key})
+                if response.status_code >= 300:
+                    continue
+                body = response.json()
+            except (httpx.HTTPError, ValueError):
                 continue
-            locale = str(speaker.get("dialect") or speaker.get("language") or speaker.get("locale") or "").lower()
-            tier = str(speaker.get("tier") or speaker.get("plan") or "").lower()
-            is_free = speaker.get("free") is True or tier in ("", "free")
-            if ("sorani" in locale or "ckb" in locale) and is_free:
-                speaker_id = speaker.get("id") or speaker.get("voiceId") or speaker.get("speakerId")
-                if isinstance(speaker_id, str) and speaker_id:
-                    self._cached_sorani_speaker_id = speaker_id
-                    return speaker_id
-        self.logger.warning("kurdishtts: no free-tier Sorani speaker found in catalog")
+            speaker_id = _pick_free_sorani_speaker(body)
+            if speaker_id:
+                self._cached_sorani_speaker_id = speaker_id
+                return speaker_id
+        self.logger.warning(
+            "kurdishtts: no free-tier Sorani speaker found via any known catalog path -- "
+            "verify the current endpoint against KurdishTTS's own docs and set "
+            "KURDISHTTS_SORANI_SPEAKER_ID to skip catalog lookup entirely"
+        )
         return None
 
     async def text_to_speech(self, text: str, *, fmt: str = "opus") -> tuple[bytes, str]:
