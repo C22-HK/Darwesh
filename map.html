@@ -205,12 +205,17 @@ violation reporting. -->
      * below) whenever the active one changes, so choosing a mode reads as
      * one continuous glide instead of an instant background swap. */
     #typeSeg { position: relative; }
+    /* inset-inline-start (not left) + a logical offset computed in JS (not
+       transform: translateX) -- both self-mirror under dir="rtl" the same
+       way the buttons' own flex order already does, so the pill always
+       glides to wherever the active button actually renders instead of a
+       fixed physical direction. See moveTypeSegIndicator() below. */
     #typeSegIndicator {
-      position: absolute; top: 2px; bottom: 2px; left: 2px;
-      width: calc(33.333% - 2.667px);
+      position: absolute; top: 2px; bottom: 2px; inset-inline-start: 2px;
+      width: calc(33.333% - 2.667px);   /* fallback for the instant before JS measures the real button */
       border-radius: 999px;
       background: #B89A63;
-      transition: transform 260ms cubic-bezier(.22,.61,.36,1);
+      transition: inset-inline-start 260ms cubic-bezier(.22,.61,.36,1), width 260ms cubic-bezier(.22,.61,.36,1);
       z-index: 0;
     }
     @media (prefers-reduced-motion: reduce) { #typeSegIndicator { transition: none; } }
@@ -2383,11 +2388,23 @@ document.querySelectorAll('.sort-option').forEach(btn => {
 // not a `.type-toggle`) the instant it is clicked, even though Sell
 // itself navigates away a moment later.
 function moveTypeSegIndicator() {
-  const seg = document.getElementById('typeSeg');
-  const items = Array.from(seg.children).filter((el) => el.id !== 'typeSegIndicator');
   const activeIdx = activeType === 'rent' ? 1 : 0;   // Sell never becomes "active" state -- it navigates instead
-  document.getElementById('typeSegIndicator').style.transform = 'translateX(' + (activeIdx * 100) + '%)';
-  void items;   // items.length is always 3 (Buy, Rent, Sell) -- kept for readability, not indexed further
+  const seg = document.getElementById('typeSeg');
+  const btn = seg.querySelectorAll('.type-toggle, a')[activeIdx];
+  const indicator = document.getElementById('typeSegIndicator');
+  if (!btn) return;
+  // Measured from the real button, not assumed equal thirds -- Buy/Rent/
+  // Sell aren't always the same rendered width once translated (Kurdish
+  // "فرۆشتن" is wider than English "Sell"), so a fixed-fraction position
+  // would drift off the actual button edge. `offsetLeft` is a PHYSICAL
+  // measurement that already reflects wherever RTL's mirrored flex order
+  // rendered the button; direction converts that into the logical inset
+  // (inset-inline-start) the CSS above transitions on, so the pill glides
+  // the correct way in both directions without touching DOM order.
+  const rtl = getComputedStyle(seg).direction === 'rtl';
+  const inlineStart = rtl ? (seg.clientWidth - (btn.offsetLeft + btn.offsetWidth)) : btn.offsetLeft;
+  indicator.style.width = btn.offsetWidth + 'px';
+  indicator.style.insetInlineStart = inlineStart + 'px';
 }
 document.querySelectorAll('.type-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
