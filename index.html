@@ -401,53 +401,49 @@ function renderCityBrowseGrid() {
   }).join('');
 }
 
-// ONE shared read of the active public listings for this whole page.
+// City apartment counts via server-side COUNT aggregation.
 //
-// The city-apartment counts and the featured-properties grid both need
-// the same set of documents, and until this existed each built its own
-// identical unbounded query and awaited it separately -- two downloads of
-// the entire active listings collection on every single home-page load,
-// for one render. They now share one Promise, so the second consumer
-// costs nothing at all.
+// This used to download every active public listing and tally them in the
+// browser -- thousands of documents transferred and paid for to render
+// eight small numbers. getCountFromServer() computes each count inside
+// Firestore and returns only the number: the documents never leave the
+// server, and an aggregation is billed at one read per 1000 index entries
+// it scans (minimum one), so this is 8 reads instead of N.
 //
-// Deliberately a lazily-created shared Promise rather than a fetch kicked
-// off at module scope: if a future edit removes one of the two consumers,
-// this simply stops running instead of becoming an orphaned read.
-let activeListingsPromise = null;
-function loadActiveListingsOnce() {
-  if (activeListingsPromise) return activeListingsPromise;
-  activeListingsPromise = (async () => {
-    const [{ db, getDocs }, storeMod] = await Promise.all([
+// Every count is an EQUALITY-only query, and the existing composite index
+// listings(private, status, dealType, city, propertyType, createdAt DESC)
+// already covers all five equality fields in its prefix -- so this needs
+// no new index. Verified against firestore.indexes.json, not assumed.
+//
+// Promise.allSettled, not all(): one city failing must not blank out the
+// other seven. A city whose count could not be read is left absent, which
+// renderCityBrowseGrid already renders as "unknown" rather than as zero.
+async function loadCityApartmentCounts() {
+  try {
+    const [{ db, getCountFromServer }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where, limit } = storeMod;
-    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
-    // Safety ceiling only -- this page filters client-side and needs the
-    // whole active set. See PUBLIC_LISTINGS_CAP for the behaviour note.
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
-    const snap = await getDocs(q);
-    const docs = [];
-    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-    // Hand every card's document to the seed store so opening any of them
-    // paints instantly on listing.html. These documents are already in
-    // memory here -- seeding them costs no extra Firestore read.
-    try {
-      const { seedQuerySnapshot } = await import('./js/data-cache.js');
-      seedQuerySnapshot('listings', snap);
-    } catch { /* seeding is an optimization, never a reason to fail a render */ }
-    return docs;
-  })();
-  return activeListingsPromise;
-}
-
-async function loadCityApartmentCounts() {
-  try {
-    const docs = await loadActiveListingsOnce();
+    const { collection, query, where } = storeMod;
+    const results = await Promise.allSettled(BROWSE_CITIES.map(async (city) => {
+      const q = query(
+        collection(db, 'listings'),
+        where('private', '==', false),
+        where('status', '==', 'active'),
+        where('dealType', '==', 'sale'),
+        where('propertyType', '==', 'apartment'),
+        where('city', '==', city)
+      );
+      return [city, (await getCountFromServer(q)).data().count];
+    }));
     const counts = {};
-    docs.forEach(l => {
-      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
+    let anyOk = false;
+    results.forEach((r) => {
+      if (r.status === 'fulfilled') { counts[r.value[0]] = r.value[1]; anyOk = true; }
     });
+    // Every single city failing is indistinguishable from "Firestore is
+    // unreachable", and must not be reported as eight zeroes.
+    if (!anyOk) throw new Error('all city count queries failed');
     cityApartmentCounts = counts;
     cityCountsState = 'ready';
   } catch (e) {
@@ -570,14 +566,56 @@ function renderFeaturedGrid() {
     : `<p class="px-margin-mobile md:px-margin-desktop font-body-md text-body-md text-on-surface-variant">${(window.t && window.t('index.noFeaturedYet')) || 'No listings yet — check back soon.'}</p>`;
 }
 
+// Featured listings: at most 12 documents read instead of the entire
+// active collection.
+//
+// WHY NOT orderBy('verified','desc'), orderBy('createdAt','desc') -- the
+// obvious server-side translation of the old client-side comparator.
+// Because it would SILENTLY HIDE LISTINGS. Firestore excludes any
+// document that lacks the field being ordered on, and neither field is
+// guaranteed here:
+//
+//   verified   agent-dashboard.html's create payload does not contain the
+//              key at all (firestore.rules deliberately keeps `verified`
+//              out of the agent create allowlist and reads it with
+//              .get('verified', false), which tolerates absence). Only
+//              admin.html ever writes it. Ordering on it would drop every
+//              agent-created listing from Featured.
+//   createdAt  written on create today, but it is an allowlisted-optional
+//              field, not a required one, so listings predating that line
+//              can lack it.
+//
+// So the ordering is done with two BOUNDED equality queries instead --
+// verified ones first, then a small fill -- which reads at most 12
+// documents, orders on nothing optional, and preserves exactly what the
+// old comparator produced. Both are equality-only queries that Firestore
+// serves by merging single-field indexes (the same way today's
+// private+status query already runs with no composite index for that
+// pair), so this needs NO new index.
+const FEATURED_COUNT = 6;
 async function loadFeaturedListings() {
   try {
-    // Shares loadCityApartmentCounts()' single read -- see
-    // loadActiveListingsOnce() above.
-    const docs = await loadActiveListingsOnce();
-    featuredListings = docs
-      .sort((a, b) => (b.verified === a.verified ? 0 : (b.verified ? 1 : -1)) || (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
-      .slice(0, 6);
+    const [{ db, getDocs }, storeMod] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+    ]);
+    const { collection, query, where, limit } = storeMod;
+    const base = [where('private', '==', false), where('status', '==', 'active')];
+    const [verifiedSnap, fillSnap] = await Promise.all([
+      getDocs(query(collection(db, 'listings'), ...base, where('verified', '==', true), limit(FEATURED_COUNT))),
+      getDocs(query(collection(db, 'listings'), ...base, limit(FEATURED_COUNT)))
+    ]);
+    const byId = new Map();
+    verifiedSnap.forEach(d => byId.set(d.id, { id: d.id, ...d.data() }));
+    fillSnap.forEach(d => { if (!byId.has(d.id)) byId.set(d.id, { id: d.id, ...d.data() }); });
+    // Seeded so clicking a featured card paints listing.html instantly.
+    // Already in memory: no extra read.
+    try {
+      const { seedQuerySnapshot } = await import('./js/data-cache.js');
+      seedQuerySnapshot('listings', verifiedSnap);
+      seedQuerySnapshot('listings', fillSnap);
+    } catch { /* seeding is an optimization, never a reason to fail a render */ }
+    featuredListings = [...byId.values()].slice(0, FEATURED_COUNT);
     featuredState = 'ready';
   } catch (e) {
     // Not `[]`: an empty array is the honest answer only when the query

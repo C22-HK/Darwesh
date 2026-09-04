@@ -1178,7 +1178,32 @@
   // Returns true if an entity was created (or already existed), false if
   // creation failed -- callers show a recoverable retry state on false,
   // never a hard dead end (the account itself is already real either way).
+  // IN-FLIGHT GUARD -- correctness, not performance.
+  //
+  // This is the single chokepoint through which a company or service
+  // provider is created, and it has two callers: the OTP finalize path
+  // and the "retry" button on the success screen. withBusyButton() guards
+  // the button's own double-click, but nothing stopped the two paths from
+  // overlapping, or a finalize from being re-entered.
+  //
+  // That mattered because the idempotency check below ("do I already own
+  // a company? then reuse it") is a NETWORK round trip: two concurrent
+  // runs can both observe "none yet" before either has finished creating
+  // one, and both then create -- a duplicate company for one signup.
+  //
+  // Sharing the in-flight Promise rather than returning early means a
+  // second caller waits for and observes the SAME result, so the retry
+  // button still reports truthfully instead of silently doing nothing.
+  // Cleared on settle, so a genuine retry after a real failure still works.
+  let entityCreationInFlight = null;
   async function ensureEntityCreated() {
+    if (entityCreationInFlight) return entityCreationInFlight;
+    entityCreationInFlight = ensureEntityCreatedOnce()
+      .finally(() => { entityCreationInFlight = null; });
+    return entityCreationInFlight;
+  }
+
+  async function ensureEntityCreatedOnce() {
     const t = TYPE_CATALOG[state.realAccountType];
     if (!t) return true; // unknown/no accountType -> nothing to create
     const user = auth.currentUser;

@@ -159,21 +159,31 @@ function renderCityBrowseGrid() {
 
 async function loadCityApartmentCounts() {
   try {
-    const [{ db, getDocs }, storeMod] = await Promise.all([
+    const [{ db, getCountFromServer }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where, limit } = storeMod;
-    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
-    // Safety ceiling only -- counts are computed client-side over the
-    // active set. See PUBLIC_LISTINGS_CAP.
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
-    const snap = await getDocs(q);
+    const { collection, query, where } = storeMod;
+    // Server-side COUNT, same as index.html: eight numbers computed inside
+    // Firestore instead of the whole active listings collection downloaded
+    // and tallied here. Aggregations are billed per 1000 index entries
+    // scanned (minimum one), so this is ~8 reads regardless of catalogue
+    // size. Uses the existing composite index
+    // listings(private, status, dealType, city, propertyType, createdAt) --
+    // its prefix already covers all five equality fields, so no new index.
+    const results = await Promise.allSettled(BROWSE_CITIES.map(async (city) => {
+      const q = query(
+        collection(db, 'listings'),
+        where('private', '==', false),
+        where('status', '==', 'active'),
+        where('dealType', '==', 'sale'),
+        where('propertyType', '==', 'apartment'),
+        where('city', '==', city)
+      );
+      return [city, (await getCountFromServer(q)).data().count];
+    }));
     const counts = {};
-    snap.forEach(d => {
-      const l = d.data();
-      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
-    });
+    results.forEach((r) => { if (r.status === 'fulfilled') counts[r.value[0]] = r.value[1]; });
     cityApartmentCounts = counts;
   } catch (e) {
     cityApartmentCounts = {};

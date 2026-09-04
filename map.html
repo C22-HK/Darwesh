@@ -755,10 +755,30 @@ async function loadListings() {
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
     const { collection, query, where, limit } = storeMod;
-    const { PUBLIC_LISTINGS_CAP } = await import('./js/data-cache.js');
-    // Safety ceiling only -- the map plots every marker client-side and
-    // needs the whole active set. See PUBLIC_LISTINGS_CAP.
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(PUBLIC_LISTINGS_CAP));
+    const { MAP_LISTINGS_CAP } = await import('./js/data-cache.js');
+    // THE MAP IS DELIBERATELY NOT PAGINATED. Perf pass 3/3 moved
+    // index.html, buy.html and services.html to cursor pagination and
+    // count aggregation; this page is the considered exception.
+    //
+    // A map plots every matching marker at once, and this one also
+    // supports polygon draw and "search this area" across the whole set.
+    // Paginating it would mean a property inside the drawn polygon simply
+    // not being there because it fell on page 3 -- a correctness and trust
+    // failure, and exactly the "valid nearby properties disappear" outcome
+    // that must not happen. A read saved is not worth a listing hidden
+    // from someone searching the street it is on.
+    //
+    // The correct fix is a geographic query: store a geohash on each
+    // listing and issue geohash RANGE queries for the visible bounds
+    // (the standard Firestore pattern, geofire-common). That is a schema
+    // field plus a backfill, and it has to be reconciled with LOC-01 --
+    // the geohash must be computed from the ROUNDED publicLat/publicLng,
+    // never the exact private coordinate, or the hash itself leaks
+    // precision that LOC-01 exists to remove. That is a designed change,
+    // not a client tweak, so it is documented as the next map step rather
+    // than approximated here with something that looks like pagination
+    // and quietly loses markers.
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(MAP_LISTINGS_CAP));
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));

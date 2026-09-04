@@ -649,11 +649,8 @@ change is not meant to make. -->
     // (isListingOwnerOrAdmin) -- a teammate's private pin, unlike before,
     // is no longer shown at its real location on this map.
     const [publicTeamSnap, ownSnap] = await Promise.all([
-      getDocs(query(collection(db, 'listings'),
-        where('companyId', '==', currentCompanyId),
-        where('private', '==', false),
-        where('status', '==', 'active'))),
-      getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)))
+      getPublicTeamListingsSnap(),
+      getOwnListingsSnap()
     ]);
     const byId = new Map();
     publicTeamSnap.forEach(d => byId.set(d.id, d.data()));
@@ -844,10 +841,12 @@ change is not meant to make. -->
       let savedListingId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'listings', editingId), data);
+        invalidateListingMemos();
       } else {
         data.status = 'active';
         data.createdAt = serverTimestamp();
         const created = await addDoc(collection(db, 'listings'), data);
+        invalidateListingMemos();
         savedListingId = created.id;
       }
       if (savedListingId) {
@@ -900,6 +899,7 @@ change is not meant to make. -->
     if (!confirm(trDash('agentDash.deleteConfirm','Delete this listing? It will be removed from the public site immediately.'))) return;
     try {
       await deleteDoc(doc(db, 'listings', id));
+      invalidateListingMemos();
       loadMyListings();
     } catch (err) {
       console.error('[agent-dashboard] deleteListing failed', err.code || err.name, err.message);
@@ -907,11 +907,51 @@ change is not meant to make. -->
     }
   };
 
+  // ---- Per-session query reuse (perf pass 3/3) -------------------------
+  //
+  // Four separate places asked for `listings where agentId == currentUid`
+  // (this function, the team map, the team list and the finances tab) and
+  // two asked for the company's public listings. Tab switching re-ran them
+  // every time, so one dashboard session issued the same query up to four
+  // times.
+  //
+  // These memos are NOT an authorization shortcut. They hold the result of
+  // a query the server already evaluated under firestore.rules FOR THIS
+  // uid, and they are keyed on that uid and company id: if either changes,
+  // the memo is discarded rather than reused. Nothing here decides what a
+  // caller may see -- Firestore still does, on every fetch that actually
+  // happens.
+  //
+  // They are also invalidated after every write this page performs
+  // (create/update/delete), so an agent never sees their own change
+  // missing from a tab they switch to afterwards.
+  let ownListingsMemo = null;   // { uid, snap }
+  let teamListingsMemo = null;  // { companyId, snap }
+
+  async function getOwnListingsSnap({ force = false } = {}) {
+    if (!force && ownListingsMemo && ownListingsMemo.uid === currentUid) return ownListingsMemo.snap;
+    const snap = await getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)));
+    ownListingsMemo = { uid: currentUid, snap };
+    return snap;
+  }
+
+  async function getPublicTeamListingsSnap({ force = false } = {}) {
+    if (!force && teamListingsMemo && teamListingsMemo.companyId === currentCompanyId) return teamListingsMemo.snap;
+    const snap = await getDocs(query(collection(db, 'listings'),
+      where('companyId', '==', currentCompanyId),
+      where('private', '==', false),
+      where('status', '==', 'active')));
+    teamListingsMemo = { companyId: currentCompanyId, snap };
+    return snap;
+  }
+
+  /** Called after any listing write so no tab can render pre-write data. */
+  function invalidateListingMemos() { ownListingsMemo = null; teamListingsMemo = null; }
+
   async function loadMyListings() {
     const body = document.getElementById('listingsBody');
     const empty = document.getElementById('listingsEmpty');
-    const q = query(collection(db, 'listings'), where('agentId', '==', currentUid));
-    const snap = await getDocs(q);
+    const snap = await getOwnListingsSnap();
     document.getElementById('statMyListings').textContent = snap.size + ' ' + (snap.size === 1 ? trDash('agentDash.listingSingular','listing') : trDash('agentDash.listingPlural','listings'));
     if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
@@ -963,6 +1003,7 @@ change is not meant to make. -->
     const newStatus = l.status === 'closed' ? 'active' : 'closed';
     try {
       await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
+      invalidateListingMemos();
       loadMyListings();
     } catch (err) {
       console.error('[agent-dashboard] toggleListingStatus failed', err.code || err.name, err.message);
@@ -985,11 +1026,8 @@ change is not meant to make. -->
     // it won't appear here unless it's also the viewer's own -- a legacy
     // data gap, not a security concern; see AUTHORIZATION_REMEDIATION.md.
     const [publicTeamSnap, ownSnap] = await Promise.all([
-      getDocs(query(collection(db, 'listings'),
-        where('companyId', '==', currentCompanyId),
-        where('private', '==', false),
-        where('status', '==', 'active'))),
-      getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)))
+      getPublicTeamListingsSnap(),
+      getOwnListingsSnap()
     ]);
     const byId = new Map();
     publicTeamSnap.forEach(d => byId.set(d.id, d.data()));
@@ -1066,7 +1104,7 @@ change is not meant to make. -->
   async function loadFinances() {
     document.getElementById('finCommissionRate').value = agentCommissionRate;
 
-    const listingsSnap = await getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)));
+    const listingsSnap = await getOwnListingsSnap();
     const closedDeals = [];
     listingsSnap.forEach(d => { const l = d.data(); if (l.status === 'closed') closedDeals.push(l); });
 
