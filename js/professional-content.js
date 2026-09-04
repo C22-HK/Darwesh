@@ -29,6 +29,7 @@
 import { db, storage, getDoc, getDocs } from './firebase-init.js';
 import { collection, query, where, orderBy, limit as fsLimit, doc, startAfter } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js';
+import { compressImage, PORTFOLIO_IMAGE } from './image-compress.js';
 import { withUploadTimeout } from './profile-shell.js';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -78,7 +79,13 @@ export async function uploadProfessionalWorkImage(profileId, file) {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
   const path = `professional-work/${profileId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safeName}`;
   const fileRef = storageRef(storage, path);
-  await withUploadTimeout(uploadBytes(fileRef, file));
+  // A designer's portfolio image is displayed large, so PORTFOLIO_IMAGE
+  // keeps more detail than an avatar would. compressImage preserves the
+  // source type, so the uploaded bytes stay within the jpeg|png|webp set
+  // storage.rules enforces for this path -- and isAllowedImageFile()
+  // above has already rejected anything outside it before we get here.
+  const upload = await compressImage(file, PORTFOLIO_IMAGE);
+  await withUploadTimeout(uploadBytes(fileRef, upload));
   return withUploadTimeout(getDownloadURL(fileRef));
 }
 
@@ -157,7 +164,7 @@ export function renderCreatorCard(creator, { variant = 'inline', profileHref } =
     const locationParts = [creator.city, creator.district].filter(Boolean).map(esc);
     return `
       <a class="pcc-card pcc-full" href="${href}">
-        <span class="pcc-avatar" aria-hidden="true">${creator.photoOrLogoUrl ? `<img src="${esc(creator.photoOrLogoUrl)}" alt="" loading="lazy"/>` : `<span class="material-symbols-outlined">person</span>`}</span>
+        <span class="pcc-avatar" aria-hidden="true">${creator.photoOrLogoUrl ? `<img src="${esc(creator.photoOrLogoUrl)}" alt="" loading="lazy" decoding="async"/>` : `<span class="material-symbols-outlined">person</span>`}</span>
         <span class="pcc-identity">
           <span class="pcc-name-row"><span class="pcc-name">${name}</span>${verified}</span>
           <span class="pcc-meta">${roleLabel}${locationParts.length ? ' · ' + locationParts.join(' · ') : ''}</span>
@@ -168,7 +175,7 @@ export function renderCreatorCard(creator, { variant = 'inline', profileHref } =
   }
   return `
     <a class="pcc-card pcc-inline" href="${href}">
-      <span class="pcc-avatar" aria-hidden="true">${creator.photoOrLogoUrl ? `<img src="${esc(creator.photoOrLogoUrl)}" alt="" loading="lazy"/>` : `<span class="material-symbols-outlined">person</span>`}</span>
+      <span class="pcc-avatar" aria-hidden="true">${creator.photoOrLogoUrl ? `<img src="${esc(creator.photoOrLogoUrl)}" alt="" loading="lazy" decoding="async"/>` : `<span class="material-symbols-outlined">person</span>`}</span>
       <span class="pcc-name-row"><span class="pcc-name">${name}</span>${verified}</span>
     </a>
   `;

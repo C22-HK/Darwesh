@@ -27,7 +27,7 @@ new Function(), or string-form setTimeout/setInterval the way the broader
 'unsafe-eval' would. Deliberately not using 'unsafe-eval' here.
 
 https://*.googleapis.com / https://*.gstatic.com (img-src, connect-src):
-same fix as buy-rent-map.html/admin.html -- once a key is configured here
+same fix as admin.html -- once a key is configured here
 and the Google path is enabled, the SDK's own async tile/asset requests
 need Google-operated subdomains this policy only partially named (just
 the bootstrap loader's own host, maps.googleapis.com, and
@@ -40,6 +40,7 @@ naming a google/gstatic domain to the console (blockedURI is origin-only
 for cross-origin resources by spec, so this can never leak the API key). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 <!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
 it runs before any script on this page that imports maps-core.js.
 Gitignored, generated at deploy time (see js/maps-config.local.example.js
@@ -153,9 +154,9 @@ own initLocationPicker()). -->
   </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
 <!-- TopAppBar -->
-<div id="siteHeader" data-active=""></div>
+<div id="siteHeader" data-active="sell"></div>
 <script src="./js/site-header.js"></script>
-<div id="siteMobileNav" data-active=""></div>
+<div id="siteMobileNav" data-active="sell"></div>
 <script src="./js/site-mobile-nav.js"></script>
 
 <main class="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
@@ -491,7 +492,7 @@ own initLocationPicker()). -->
 
 <div class="hidden flex-col items-center gap-4 w-full" id="verifyCapturedWrap">
 <div class="relative w-64 h-64 rounded-full overflow-hidden border-4 border-tertiary-container">
-<img id="verifyCapturedImg" class="w-full h-full object-cover" alt=""/>
+<img id="verifyCapturedImg" class="w-full h-full object-cover" alt="" decoding="async"/>
 </div>
 <p class="flex items-center gap-1.5 text-on-tertiary-container bg-tertiary-container/30 px-4 py-1.5 rounded-full font-label-caps text-label-caps">
 <span class="material-symbols-outlined text-[16px]">check_circle</span>
@@ -1254,7 +1255,7 @@ function renderPhotoPreviews() {
       statusBadge = `<div class="absolute inset-0 bg-primary/30 flex items-center justify-center pointer-events-none"><span class="material-symbols-outlined text-white animate-spin" style="font-size:18px;">progress_activity</span></div>`;
     }
     return `<div class="photo-thumb relative rounded-lg overflow-hidden border border-outline-variant aspect-square bg-surface-container-low" draggable="true" data-index="${i}">
-      <img src="${url}" class="w-full h-full object-cover pointer-events-none"/>
+      <img src="${url}" class="w-full h-full object-cover pointer-events-none" decoding="async"/>
       ${i === 0 ? `<span class="absolute bottom-1 left-1 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none">${tr('sell.coverPhoto', 'Cover')}</span>` : ''}
       ${statusBadge}
       <button type="button" data-index="${i}" aria-label="Remove photo" class="photo-remove-btn absolute top-1 right-1 w-5 h-5 rounded-full bg-primary/80 text-on-primary flex items-center justify-center">
@@ -1513,11 +1514,11 @@ function renderReview() {
 
   const files = [...photoUpload.files];
   const coverUrl = photoPreviewUrls[0] || '';
-  const thumbs = files.slice(0, 8).map((f, i) => `<img src="${photoPreviewUrls[i]}" class="w-12 h-12 rounded-lg object-cover border border-outline-variant"/>`).join('');
+  const thumbs = files.slice(0, 8).map((f, i) => `<img src="${photoPreviewUrls[i]}" class="w-12 h-12 rounded-lg object-cover border border-outline-variant" decoding="async"/>`).join('');
 
   el.innerHTML = `
     <div class="rounded-2xl border border-outline-variant overflow-hidden">
-      ${coverUrl ? `<img src="${coverUrl}" class="w-full h-48 object-cover"/>` : `<div class="w-full h-48 bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined text-outline text-4xl">image</span></div>`}
+      ${coverUrl ? `<img src="${coverUrl}" class="w-full h-48 object-cover" decoding="async"/>` : `<div class="w-full h-48 bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined text-outline text-4xl">image</span></div>`}
       <div class="p-5 space-y-3">
         <h3 class="font-headline-md text-headline-md font-bold text-primary">${escapeReview(typeLabel)} ${escapeReview(dealLabel)}</h3>
         <p class="font-data-mono text-data-mono text-secondary">${escapeReview(priceLine)}</p>

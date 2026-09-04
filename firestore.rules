@@ -182,6 +182,34 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/serviceProviders/$(providerId)).data.ownerId
         : null;
     }
+    // PHASE 3A -- a download URL that really belongs to THIS project's own
+    // Storage bucket. Stricter than professionalPosts' existing
+    // isStorageUrl(), which checks only the firebasestorage.googleapis.com
+    // host and would therefore accept any Firebase project's bucket on the
+    // internet (tracked as an open item in
+    // docs/PROFESSIONAL_CONTENT_ARCHITECTURE.md §7/§12).
+    //
+    // Applied ONLY to serviceProviders.coverImageUrl, a field introduced by
+    // this phase with no legacy data behind it. It is deliberately NOT
+    // applied to photoOrLogoUrl: that field has never had any format
+    // validation, and this codebase already carries Google OAuth avatars on
+    // lh3.googleusercontent.com (signup.html, account.html), so tightening it
+    // here would reject the next profile save of any provider whose photo
+    // came from their Google account. That needs a read-only audit of live
+    // values first and is tracked as its own task -- not smuggled into a
+    // phase whose whole point is being purely additive.
+    //
+    // Both bucket spellings are accepted because Google addresses the same
+    // default bucket under both: darwesh-group.firebasestorage.app is what
+    // js/firebase-init.js configures and therefore what the SDK mints today,
+    // while the older <project>.appspot.com alias still resolves. Accepting
+    // one and not the other would reject legitimate uploads if the SDK's
+    // minted host ever changes; both are still this project's bucket and
+    // nobody else's.
+    function isOwnStorageUrl(v) {
+      return v is string
+          && v.matches('^https://firebasestorage\\.googleapis\\.com/v0/b/darwesh-group\\.(firebasestorage\\.app|appspot\\.com)/o/.*$');
+    }
     function companyOwnerId(companyId) {
       return exists(/databases/$(database)/documents/companies/$(companyId))
         ? get(/databases/$(database)/documents/companies/$(companyId)).data.get('ownerId', null)
@@ -1023,6 +1051,16 @@ service cloud.firestore {
       function isProviderOwnerNow() {
         return isSignedIn() && resource.data.ownerId == request.auth.uid;
       }
+      // PHASE 3A -- profile media + contact-visibility validation. Both
+      // fields are optional, so every document that exists today stays valid
+      // and every current write path keeps working unchanged.
+      function isValidProfileMedia(data) {
+        return !('coverImageUrl' in data) || isOwnStorageUrl(data.coverImageUrl);
+      }
+      function isValidContactVisibility(data) {
+        return !('contactVisibility' in data)
+            || data.contactVisibility in ['public', 'onRequest'];
+      }
       function isValidServicesOffered(data) {
         return !('servicesOffered' in data)
             || data.servicesOffered.hasOnly([
@@ -1038,19 +1076,22 @@ service cloud.firestore {
       // providers get a separate generated id, still owner-locked.
       allow create: if isSignedIn()
                     && request.resource.data.ownerId == request.auth.uid
-                    && request.resource.data.serviceType in ['engineer', 'designer', 'lawyer', 'landscaping', 'cleaning']
+                    && request.resource.data.serviceType in ['engineer', 'designer', 'lawyer', 'landscaping', 'cleaning', 'maintenance']
                     && request.resource.data.providerType in ['individual', 'team', 'company']
                     && (request.resource.data.providerType == 'individual' || request.resource.data.serviceType == 'cleaning')
                     && (request.resource.data.providerType != 'individual' || providerId == request.auth.uid)
                     && request.resource.data.get('verified', false) == false
                     && isValidServicesOffered(request.resource.data)
+                    && isValidProfileMedia(request.resource.data)
+                    && isValidContactVisibility(request.resource.data)
                     && request.resource.data.keys().hasOnly([
                          'serviceType', 'providerType', 'ownerId', 'displayName',
                          'companyName', 'photoOrLogoUrl', 'description', 'city',
                          'district', 'serviceAreas', 'experienceYears',
                          'specialties', 'servicesOffered', 'portfolio', 'teamSize',
                          'availableDays', 'availableHours', 'pricingModel',
-                         'verified', 'createdAt', 'updatedAt'
+                         'verified', 'createdAt', 'updatedAt',
+                         'coverImageUrl', 'contactVisibility'
                        ]);
       // ownerId is locked for EVERY client-SDK update, including
       // isAdmin() -- same backend-mediated-ownership-transfer reasoning
@@ -1063,13 +1104,16 @@ service cloud.firestore {
                              && request.resource.data.providerType == resource.data.providerType
                              && request.resource.data.get('verified', false) == resource.data.get('verified', false)
                              && isValidServicesOffered(request.resource.data)
+                             && isValidProfileMedia(request.resource.data)
+                             && isValidContactVisibility(request.resource.data)
                              && request.resource.data.diff(resource.data).affectedKeys()
                                   .hasOnly([
                                     'displayName', 'companyName', 'photoOrLogoUrl',
                                     'description', 'city', 'district', 'serviceAreas',
                                     'experienceYears', 'specialties', 'servicesOffered',
                                     'portfolio', 'teamSize', 'availableDays',
-                                    'availableHours', 'pricingModel', 'updatedAt'
+                                    'availableHours', 'pricingModel', 'updatedAt',
+                                    'coverImageUrl', 'contactVisibility'
                                   ]))
                        );
       allow delete: if isAdmin() || isProviderOwnerNow();
@@ -1080,6 +1124,46 @@ service cloud.firestore {
       // see another provider's private jobs" (plan §2.3/§3): a rule
       // would have to be written incorrectly to leak across providerId
       // path segments, not merely configured incorrectly.
+      // ---- PHASE 3A: the provider's real contact details ----
+      // serviceProviders/{id} is `allow read: if true`, so ANY field placed
+      // on that document is published to the world. A phone number therefore
+      // cannot live there and still be "shared according to a privacy
+      // policy" -- Firestore reads are document-level, so no rule could hide
+      // one field of a readable document. This is the same constraint, and
+      // the same split, as LOC-01's listings/{id}/private/location.
+      //
+      // The public profile carries `contactVisibility` and renders an ACTION
+      // ("request a call") rather than a number; the number itself lives
+      // here and is readable only by the provider who owns it, or an admin.
+      // Deliberately NOT readable by "any signed-in user" -- that is one
+      // throwaway account away from being public, which is the whole thing
+      // this document exists to prevent.
+      match /private/contact {
+        // exists() on the parent, exactly like
+        // canAccessListingPreciseLocation(): fails closed when the profile
+        // is gone, and forces profile-then-contact write ordering, since
+        // rules evaluate each write against pre-commit state.
+        function canAccessProviderContact() {
+          return isSignedIn()
+              && exists(/databases/$(database)/documents/serviceProviders/$(providerId))
+              && (isAdmin() || providerOwnerId(providerId) == request.auth.uid);
+        }
+        allow read: if canAccessProviderContact();
+        allow create, update: if canAccessProviderContact()
+                              && request.resource.data.keys()
+                                   .hasOnly(['phone', 'whatsapp', 'email', 'updatedAt'])
+                              && (!('phone' in request.resource.data)
+                                  || (request.resource.data.phone is string
+                                      && request.resource.data.phone.size() <= 40))
+                              && (!('whatsapp' in request.resource.data)
+                                  || (request.resource.data.whatsapp is string
+                                      && request.resource.data.whatsapp.size() <= 40))
+                              && (!('email' in request.resource.data)
+                                  || (request.resource.data.email is string
+                                      && request.resource.data.email.size() <= 320));
+        allow delete: if canAccessProviderContact();
+      }
+
       match /requests/{requestId} {
         allow create: if isSignedIn()
                       && request.resource.data.customerUid == request.auth.uid

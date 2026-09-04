@@ -158,12 +158,52 @@ function build(mount) {
   // radius. Bigger worlds this pass (was 96px flat, now up to ~220px at
   // focus) need a proportionally larger radius so neighbors still clear
   // the front world without overlapping. -------------------------------
+  // The largest |rel| any world sits at when the ring is at rest. With
+  // N = 5 (STEP 72deg) that is 144deg -- the outermost pair. Derived rather
+  // than hardcoded so adding a sixth service can't silently break the clamp
+  // below.
+  const RESTING_MAX_REL = Math.max(
+    ...Array.from({ length: N }, (_, i) => Math.abs(normalize(i * STEP)))
+  ) || 180;
+  // Breathing room at the stage edge. Deliberately larger than it looks like
+  // it needs to be: a world's rendered box is a little wider than
+  // base * depthScale (the face carries its own padding/label), and the ring
+  // does not always rest exactly on RESTING_MAX_REL, so a tight budget still
+  // left ~9px of the outermost world clipped. Measured, not guessed.
+  const STAGE_EDGE_PAD = 22;
+
   function metrics() {
     const w = window.innerWidth;
-    if (w < 640) return { base: 96, radiusX: 168, arcDip: 10 };
-    if (w < 900) return { base: 118, radiusX: 250, arcDip: 16 };
-    if (w < 1280) return { base: 138, radiusX: 340, arcDip: 20 };
-    return { base: 150, radiusX: 400, arcDip: 24 };
+    let m;
+    if (w < 640) m = { base: 96, radiusX: 168, arcDip: 10 };
+    else if (w < 900) m = { base: 118, radiusX: 250, arcDip: 16 };
+    else if (w < 1280) m = { base: 138, radiusX: 340, arcDip: 20 };
+    else m = { base: 150, radiusX: 400, arcDip: 24 };
+
+    // The stage is NOT the viewport. From 900px up it shares a flex row with
+    // the info column (max-width 460px), so at a 1440px viewport the stage is
+    // only ~668px wide. Picking radiusX off window.innerWidth therefore threw
+    // the outermost worlds past the stage edge, where .su-stage's
+    // overflow:hidden cut them in half (measured: the Legal world lost 42px of
+    // its 72px at 1440). Clamp the radius to what the stage can actually show.
+    //
+    // A world at RESTING_MAX_REL renders at x = (rel/180) * radiusX and is
+    // scaled down by the same depth falloff layout() applies, so its own half
+    // width has to be part of the budget:
+    //     (rel/180) * radiusX + halfPlanet <= stageWidth/2 - pad
+    const stageW = stageEl ? stageEl.clientWidth : 0;
+    if (stageW > 0) {
+      const outerDepth = Math.cos(RESTING_MAX_REL * Math.PI / 180);
+      const outerScale = 0.45 + 0.55 * ((outerDepth + 1) / 2);
+      const halfPlanet = (m.base * outerScale) / 2;
+      const budget = stageW / 2 - halfPlanet - STAGE_EDGE_PAD;
+      const maxRadius = budget * (180 / RESTING_MAX_REL);
+      // Never collapse the orbit to nothing on a very narrow stage -- below
+      // this the worlds would stack on top of each other, which reads worse
+      // than a slight peek.
+      m.radiusX = Math.max(120, Math.min(m.radiusX, maxRadius));
+    }
+    return m;
   }
 
   function layout() {

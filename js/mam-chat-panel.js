@@ -19,14 +19,14 @@ import { sendMamChat, BackendUnavailableError, BackendResponseError } from './ma
 
 const MAX_MESSAGE_LENGTH = 1000;
 const SESSION_KEY = 'darwesh_mam_companion_session_id';
-// Shared with js/mam-v2.js's own voice-output toggle -- the same on/off
+// Shared with the map's MAM dock voice-output toggle -- the same on/off
 // preference should follow the user across the legacy MAM chat and this
 // panel rather than resetting per surface.
 const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
 
 // Professional service-provider profile pages this frontend actually
 // has -- the only real destinations an `open_professional` suggested
-// action can ever resolve to. Mirrors js/mam-v2.js's own mapping
+// action can ever resolve to. Mirrors js/mam-properties-map.js's mapping
 // (section: sheetActionRow professional links) so both surfaces agree
 // on where a given serviceType's profile really lives.
 const PROFESSIONAL_PAGES = { engineer: 'engineer.html', designer: 'designer.html', lawyer: 'lawyer.html', landscaping: 'landscaping.html', cleaning: 'cleaning.html' };
@@ -327,7 +327,7 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
   function hideThinking() { if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; } }
 
   // ---- Voice output (TTS) -- OFF by default (never autoplays on load),
-  // the same localStorage preference js/mam-v2.js already uses so it
+  // the same localStorage preference the map's MAM dock uses so it
   // carries over between surfaces. Only ever speaks a reply that was
   // itself produced from a voice-initiated turn, or when the user has
   // explicitly turned voice replies on via this header toggle -- never

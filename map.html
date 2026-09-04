@@ -17,6 +17,7 @@ not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://server.arcgisonline.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Map Search</title>
@@ -753,11 +754,44 @@ async function loadListings() {
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
-    const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const { collection, query, where, limit } = storeMod;
+    const { MAP_LISTINGS_CAP } = await import('./js/data-cache.js');
+    // THE MAP IS DELIBERATELY NOT PAGINATED. Perf pass 3/3 moved
+    // index.html, buy.html and services.html to cursor pagination and
+    // count aggregation; this page is the considered exception.
+    //
+    // A map plots every matching marker at once, and this one also
+    // supports polygon draw and "search this area" across the whole set.
+    // Paginating it would mean a property inside the drawn polygon simply
+    // not being there because it fell on page 3 -- a correctness and trust
+    // failure, and exactly the "valid nearby properties disappear" outcome
+    // that must not happen. A read saved is not worth a listing hidden
+    // from someone searching the street it is on.
+    //
+    // The correct fix is a geographic query: store a geohash on each
+    // listing and issue geohash RANGE queries for the visible bounds
+    // (the standard Firestore pattern, geofire-common). That is a schema
+    // field plus a backfill, and it has to be reconciled with LOC-01 --
+    // the geohash must be computed from the ROUNDED publicLat/publicLng,
+    // never the exact private coordinate, or the hash itself leaks
+    // precision that LOC-01 exists to remove. That is a designed change,
+    // not a client tweak, so it is documented as the next map step rather
+    // than approximated here with something that looks like pagination
+    // and quietly loses markers.
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'), limit(MAP_LISTINGS_CAP));
     const snap = await getDocs(q);
     const docs = [];
     snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
+    // Seeds the public listing documents this page already downloaded so
+    // opening one paints instantly on listing.html. No extra Firestore
+    // read. LOC-01 is unaffected: what gets seeded is exactly the public
+    // document, which carries only the rounded publicLat/publicLng --
+    // js/data-cache.js structurally cannot seed the private/location
+    // subcollection, since it accepts only two-segment paths.
+    try {
+      const { seedQuerySnapshot } = await import('./js/data-cache.js');
+      seedQuerySnapshot('listings', snap);
+    } catch { /* seeding is an optimization, never a reason to fail a render */ }
     // LOC-01: the public map plots the ~1.1 km rounded pair the listing
     // document is now allowed to carry. A precise lat/lng is no longer
     // present on a public listing at all (see firestore.rules'
@@ -1323,7 +1357,7 @@ function card(l) {
   const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
   const imageBlock = hidden ? `
     <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}"/>
+      <img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" decoding="async"/>
       ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex flex-col items-center justify-center gap-1 text-on-primary">
         <span class="material-symbols-outlined text-[26px]">lock</span>
@@ -1332,7 +1366,7 @@ function card(l) {
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
     </div>` : `
     <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover" src="${safeImg}"/>
+      <img class="w-full h-full object-cover" src="${safeImg}" decoding="async"/>
       ${favBtn}
       ${badge}
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
@@ -1395,14 +1429,14 @@ function wheelCard(l) {
 
   const media = hidden ? `
     <div class="relative flex-none w-24 md:w-28 overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt=""/>
+      <img loading="lazy" class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt="" decoding="async"/>
       ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex items-center justify-center text-on-primary">
         <span class="material-symbols-outlined text-[20px]">lock</span>
       </div>
     </div>` : `
     <div class="relative flex-none w-24 md:w-28 overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover" src="${safeImg}" alt=""/>
+      <img loading="lazy" class="w-full h-full object-cover" src="${safeImg}" alt="" decoding="async"/>
       ${favBtn}
     </div>`;
 

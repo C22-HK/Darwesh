@@ -17,7 +17,7 @@
 // (never reuse the production key locally -- see
 // docs/GOOGLE_MAPS_CONFIGURATION.md §4). If js/maps-config.js is absent
 // (e.g. a fresh clone before you've copied this template), every page
-// that uses js/maps-core.js degrades gracefully: buy-rent-map.html and
+// that uses js/maps-core.js degrades gracefully: map.html and
 // the Admin Estate Intelligence Map show a "map unavailable" panel, and
 // sell.html/agent-dashboard.html's location pickers fall back to their
 // original Leaflet/Nominatim implementation -- nothing breaks.

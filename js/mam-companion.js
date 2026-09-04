@@ -3,7 +3,7 @@
 // This module owns nothing about chat, network, or Darwesh data -- it is
 // a small state machine driving one DOM element's appearance. Any page
 // can `import { MamCompanion } from './mam-companion.js'`, construct one,
-// and call `.setState(...)` -- mam-ai.html is the first consumer, not a
+// and call `.setState(...)` -- js/mam-companion-launcher.js is the consumer, not a
 // special case baked into this file. Keeping it decoupled is what lets a
 // later phase mount the same companion as a site-wide launcher without
 // touching this module.
@@ -44,7 +44,7 @@ export class MamCompanion {
    *   focusable) -- set this wherever the host page actually wires a
    *   click handler onto the orb (see js/mam-properties-map.js and
    *   js/mam-companion-launcher.js); leave it false on a page like
-   *   mam-ai.html where the orb is ambient status only and the page
+   *   a host page where the orb is ambient status only and the page
    *   itself is already the full interactive surface.
    */
   constructor({ mountTarget, getLanguage, interactive } = {}) {

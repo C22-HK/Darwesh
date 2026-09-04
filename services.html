@@ -17,6 +17,7 @@ not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Services</title>
@@ -158,18 +159,31 @@ function renderCityBrowseGrid() {
 
 async function loadCityApartmentCounts() {
   try {
-    const [{ db, getDocs }, storeMod] = await Promise.all([
+    const [{ db, getCountFromServer }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
       import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
     ]);
     const { collection, query, where } = storeMod;
-    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
-    const snap = await getDocs(q);
+    // Server-side COUNT, same as index.html: eight numbers computed inside
+    // Firestore instead of the whole active listings collection downloaded
+    // and tallied here. Aggregations are billed per 1000 index entries
+    // scanned (minimum one), so this is ~8 reads regardless of catalogue
+    // size. Uses the existing composite index
+    // listings(private, status, dealType, city, propertyType, createdAt) --
+    // its prefix already covers all five equality fields, so no new index.
+    const results = await Promise.allSettled(BROWSE_CITIES.map(async (city) => {
+      const q = query(
+        collection(db, 'listings'),
+        where('private', '==', false),
+        where('status', '==', 'active'),
+        where('dealType', '==', 'sale'),
+        where('propertyType', '==', 'apartment'),
+        where('city', '==', city)
+      );
+      return [city, (await getCountFromServer(q)).data().count];
+    }));
     const counts = {};
-    snap.forEach(d => {
-      const l = d.data();
-      if (l.propertyType === 'apartment' && l.dealType === 'sale' && l.city) counts[l.city] = (counts[l.city] || 0) + 1;
-    });
+    results.forEach((r) => { if (r.status === 'fulfilled') counts[r.value[0]] = r.value[1]; });
     cityApartmentCounts = counts;
   } catch (e) {
     cityApartmentCounts = {};

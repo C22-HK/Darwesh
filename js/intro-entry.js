@@ -99,6 +99,12 @@ import { createAudioController } from './audio-controller.js';
   }
 
   enterBtn.addEventListener('click', enter);
+
+  // Visible skip -- same action as Enter, just without asking the visitor to
+  // discover the Escape key.
+  const skipBtn = document.getElementById('cineSkipBtn');
+  if (skipBtn) skipBtn.addEventListener('click', enter);
+
   enterBtn.addEventListener('mousedown', startHold);
   enterBtn.addEventListener('mouseup', cancelHold);
   enterBtn.addEventListener('mouseleave', cancelHold);

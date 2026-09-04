@@ -1,7 +1,7 @@
-// MAM AI -- the ONLY user-facing MAM surface now (mam-ai.html is no
-// longer linked from public navigation, see js/site-header.js), living
-// on the ONE public Properties Map (map.html) rather than a map of its
-// own. This module never re-implements property search: every reply
+// MAM AI -- the ONLY user-facing MAM surface, living on the ONE public
+// Properties Map (map.html) rather than a map of its own. (The former
+// standalone mam-ai.html page and its js/mam-v2.js controller were
+// removed once this became the single surface.) This module never re-implements property search: every reply
 // comes from the exact same backend endpoint/tools mam-v2.js already
 // used (POST /api/v1/mam/chat via js/mam-api.js), and the ONLY way a
 // reply changes what's on screen is by calling window.DarweshPropertiesMap

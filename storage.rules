@@ -184,6 +184,49 @@ service firebase.storage {
       allow delete: if request.auth != null && (isAdmin() || isOwnedDesignerProfile());
     }
 
+    // professional-media/{providerId}/{kind}/{fileName} -- PHASE 3A.
+    // The shared profile-media path for EVERY service-provider role
+    // (engineer, designer, lawyer, landscaping, cleaning, maintenance):
+    // one avatar and one cover image per profile.
+    //
+    // {kind} is deliberately limited to 'photo' and 'cover' this phase.
+    // 'work' is NOT accepted: portfolio publishing for roles beyond
+    // Designer stays closed until a real server-side rate limiter exists
+    // (approved Phase 3C). Adding a value to this list later is a purely
+    // additive rule change; opening it now would enable an unbounded
+    // upload surface with no limiter behind it, which is exactly what was
+    // rejected. professional-work/ below is untouched -- Designer
+    // publishing keeps working exactly as it does today.
+    //
+    // CONDITION ORDER IS DELIBERATE. Every cheap, local, self-contained
+    // check (auth, kind, filename, size, content type) is evaluated BEFORE
+    // ownsProvider()'s cross-service firestore.get(). Rules short-circuit
+    // &&, so a bad MIME type or an oversized file is rejected without ever
+    // spending a Firestore read -- cheaper in production, and it means
+    // those denials are verifiable in a sandbox that cannot service
+    // firestore.get() at all (see tests/storage/helpers.mjs).
+    match /professional-media/{providerId}/{kind}/{fileName} {
+      function ownsProvider() {
+        return firestore.get(/databases/(default)/documents/serviceProviders/$(providerId))
+                 .data.get('ownerId', null) == request.auth.uid;
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && kind in ['photo', 'cover']
+                     // The client uploads crypto.randomUUID() + extension and
+                     // never the user's own filename. This bounds what can
+                     // reach the object name regardless.
+                     && fileName.matches('^[A-Za-z0-9._-]{1,120}$')
+                     && request.resource.size < 10 * 1024 * 1024
+                     // image/jpeg|png|webp ONLY -- no bare image/.*, which
+                     // would admit image/svg+xml. SVG can carry an embedded
+                     // <script> and this path is public-read, so it is a real
+                     // stored-XSS vector. Same decision as professional-work/.
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp']
+                     && (isAdmin() || ownsProvider());
+      allow delete: if request.auth != null && (isAdmin() || ownsProvider());
+    }
+
     // ---- Real-estate Projects/Buildings/Units/Floor Plans (Phase 1:
     // rules + schema only, no upload UI yet -- see firestore.rules'
     // matching section for the full architecture). Four fully separate,

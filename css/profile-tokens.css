@@ -725,3 +725,72 @@
  * (verified by grepping every *.html file's class attributes), so this
  * never matches an unrelated class by accident. */
 [class*="ps-"].hidden { display: none; }
+
+/* ---------------------------------------------------------------------
+   Material Symbols load guard (see js/icon-fallback.js)
+
+   Every icon here is a ligature span whose text content is a word
+   ("notifications", "expand_more"). If the Material Symbols font is slow
+   or blocked, the browser paints that word. These rules stop that.
+
+   All three selectors are scoped to a class that only js/icon-fallback.js
+   sets, so with JS disabled nothing below matches and behaviour is
+   unchanged -- this can never be the reason an icon goes missing.
+   --------------------------------------------------------------------- */
+
+/* Font still loading: keep the box, hide the word. No reflow on arrival. */
+html.ds-icons-pending .material-symbols-outlined {
+  visibility: hidden;
+}
+
+/* Font failed. font-size:0 collapses the ligature word away; the pseudo
+   element re-establishes its own size and draws a neutral placeholder, so
+   icon-only controls stay visible and tappable instead of vanishing.
+   !important is needed because most icon spans carry a Tailwind
+   text-[Npx] utility of equal specificity. */
+html.ds-icons-failed .material-symbols-outlined {
+  font-size: 0 !important;
+  line-height: 1;
+}
+html.ds-icons-failed .material-symbols-outlined::before {
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  font-size: 1rem;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.45;
+  vertical-align: -0.15em;
+}
+
+/* ---------------------------------------------------------------------
+   Loading skeletons. Used where the UI must show "this is arriving"
+   rather than a value it does not have yet -- see index.html's city
+   counts and Featured Properties, where rendering 0 / "no listings"
+   during a pending or failed query stated something false about the
+   business.
+   --------------------------------------------------------------------- */
+.ds-skeleton {
+  display: inline-block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(128, 128, 128, 0.10) 25%,
+    rgba(128, 128, 128, 0.20) 37%,
+    rgba(128, 128, 128, 0.10) 63%
+  );
+  background-size: 400% 100%;
+  animation: ds-skeleton-shimmer 1.4s ease infinite;
+}
+/* Sized to the digits it stands in for, so the row doesn't jump when the
+   real count lands. */
+.ds-skeleton--count { width: 18px; height: 13px; vertical-align: -1px; }
+
+@keyframes ds-skeleton-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-skeleton { animation: none; }
+}

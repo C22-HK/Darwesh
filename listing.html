@@ -17,6 +17,7 @@ not an oversight here); this can never provide clickjacking protection or
 violation reporting. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Listing</title>
@@ -79,7 +80,7 @@ violation reporting. -->
 <!-- Left: image + details -->
 <div class="lg:col-span-2 space-y-stack-md">
 <div class="relative rounded-2xl overflow-hidden h-64 md:h-96 bg-surface-container">
-<img id="listingImg" class="w-full h-full object-cover" src=""/>
+<img id="listingImg" class="w-full h-full object-cover" src="" decoding="async" fetchpriority="high"/>
 <div id="listingVerifiedBadge" class="hidden absolute top-4 right-4 bg-tertiary-container/90 backdrop-blur-sm text-on-tertiary-container px-3 py-1.5 rounded-full flex items-center gap-1 shadow-sm">
 <span class="material-symbols-outlined text-[16px]">verified</span>
 <span class="font-label-caps text-label-caps text-[11px]" data-i18n="common.verified">Verified</span>
@@ -151,7 +152,7 @@ violation reporting. -->
 <div class="flex items-center gap-3 py-stack-md border-t border-b border-surface-variant my-stack-md">
 <div class="w-11 h-11 rounded-full bg-primary-container/10 flex items-center justify-center text-primary flex-none overflow-hidden">
 <span class="material-symbols-outlined" id="listingAgentIcon">real_estate_agent</span>
-<img id="listingAgentPhoto" class="hidden w-full h-full object-cover"/>
+<img id="listingAgentPhoto" class="hidden w-full h-full object-cover" decoding="async"/>
 </div>
 <div class="min-w-0">
 <p class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="listing.listedBy">Listed by</p>
@@ -211,6 +212,11 @@ violation reporting. -->
 <script src="./js/i18n.js"></script>
 <script type="module">
   import { auth, db, getDoc, addDoc, setDoc, deleteDoc, getDocs } from './js/firebase-init.js';
+  // Static, not dynamic: the cached first paint below must not be gated on
+  // fetching this module. As a static import it loads in parallel with the
+  // rest of the page's module graph instead of adding a round trip in
+  // front of the very render it exists to make instant.
+  import { swrDoc } from './js/data-cache.js';
   import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
@@ -343,27 +349,51 @@ violation reporting. -->
     }
   }
 
+  // Stale-while-revalidate. Arriving here from buy.html, map.html or the
+  // home page means this exact document was downloaded moments ago and
+  // seeded by that page, so the first paint happens synchronously with no
+  // network at all -- the click feels instant instead of showing a
+  // skeleton for a round trip. The server read still happens immediately
+  // afterwards, and the UI is re-rendered only if something actually
+  // changed, so a stale price can never persist on screen and a needless
+  // re-render never causes a flicker.
+  //
+  // Opening listing.html cold (a shared link, a new tab) has no seed and
+  // behaves exactly as before: skeleton, then render on the server
+  // response.
   async function loadListing() {
     if (!listingId) {
       document.getElementById('listingLoading').classList.add('hidden');
       document.getElementById('listingNotFound').classList.remove('hidden');
       return;
     }
-    try {
-      const snap = await getDoc(doc(db, 'listings', listingId));
-      if (!snap.exists()) {
-        document.getElementById('listingLoading').classList.add('hidden');
-        document.getElementById('listingNotFound').classList.remove('hidden');
-        return;
-      }
-      listing = { id: snap.id, ...snap.data() };
-      renderListing(listing);
-      if (!mapInitialized) { mapInitialized = true; initMap(listing); }
-      if (listing.agentId) loadAgentPhoto(listing.agentId);
-    } catch (e) {
+    const showNotFound = () => {
       document.getElementById('listingLoading').classList.add('hidden');
       document.getElementById('listingNotFound').classList.remove('hidden');
-    }
+    };
+    await swrDoc({
+      path: 'listings/' + listingId,
+      fetchDoc: async () => {
+        const snap = await getDoc(doc(db, 'listings', listingId));
+        return snap.exists() ? snap.data() : null;
+      },
+      render: (data) => {
+        listing = { id: listingId, ...data };
+        renderListing(listing);
+        if (!mapInitialized) { mapInitialized = true; initMap(listing); }
+        if (listing.agentId) loadAgentPhoto(listing.agentId);
+      },
+      // No onMiss handler is needed: #listingLoading is visible in the
+      // markup by default and renderListing() is what hides it, so a
+      // cache miss already shows the skeleton and a cache hit removes it
+      // on the first synchronous paint.
+      //
+      // swrDoc resolves to null for both "no such listing" and "the fetch
+      // failed with nothing on screen" -- the same outcome this page has
+      // always shown for either. When a seed WAS painted and only the
+      // revalidation failed, it resolves to that painted data instead, so
+      // a network blip never blanks out a listing already being read.
+    }).then((data) => { if (data === null) showNotFound(); });
   }
   loadListing();
 

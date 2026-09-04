@@ -1,7 +1,7 @@
 // Thin client for the single MAM V2 endpoint (backend/app/mam/routes.py,
 // POST /api/v1/mam/chat). Mirrors js/backend-api.js's error-handling
 // contract (BackendUnavailableError / BackendResponseError) so
-// js/mam-v2.js can reuse the same catch-by-type pattern every other
+// every MAM surface can reuse the same catch-by-type pattern every other
 // backend-calling page already uses -- but this module is deliberately
 // its own file, not an addition to backend-api.js, because MAM's
 // auth is OPTIONAL (a signed-out visitor is a valid, first-class MAM
