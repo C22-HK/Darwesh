@@ -219,6 +219,10 @@ const translations = {
     'map.finishArea': 'تەواوکردن',
     'map.legendIcons': 'ئایکۆن جۆری خانووبەرە پیشان دەدات',
     'map.legendCluster': 'کۆکردنەوەی ڕیکلامە نزیکەکان',
+    'map.mapTools': 'ئامرازەکانی نەخشە',
+    'map.mapType': 'جۆری نەخشە',
+    'map.clusterOf': 'کۆمەڵێک ڕیکلام',
+    'map.approximateLocation': 'شوێنی نزیکەیی — شوێنی ورد بۆ پاراستنی تایبەتمەندی شاراوەیە.',
     'map.tapToAddPoint': 'دەست لەسەر نەخشە بدە بۆ زیادکردنی خاڵ، پاشان تەواوی بکە',
     'map.searchAreaApplied': 'ناوچەی گەڕان جێبەجێکرا',
     'map.searchAreaCleared': 'ناوچەی گەڕان پاککرایەوە',
@@ -1697,6 +1701,10 @@ const translations = {
     'map.finishArea': 'إنهاء',
     'map.legendIcons': 'الأيقونة تُظهر نوع العقار',
     'map.legendCluster': 'تجميع الإعلانات القريبة',
+    'map.mapTools': 'أدوات الخريطة',
+    'map.mapType': 'نوع الخريطة',
+    'map.clusterOf': 'مجموعة إعلانات',
+    'map.approximateLocation': 'موقع تقريبي — يتم إخفاء الموقع الدقيق حفاظاً على الخصوصية.',
     'map.tapToAddPoint': 'اضغط على الخريطة لإضافة نقاط، ثم أنهِ',
     'map.searchAreaApplied': 'تم تطبيق منطقة البحث',
     'map.searchAreaCleared': 'تم مسح منطقة البحث',
@@ -2994,6 +3002,25 @@ function applyTranslations(lang) {
     if (el.dataset.i18nOrigPh === undefined) el.dataset.i18nOrigPh = el.getAttribute('placeholder') || '';
     const key = el.getAttribute('data-i18n-placeholder');
     el.setAttribute('placeholder', (dict && dict[key]) ? dict[key] : el.dataset.i18nOrigPh);
+  });
+
+  // data-i18n-title / data-i18n-aria were USED across the site and
+  // validated by scripts/ci-checks.js, but never actually applied here --
+  // so every tooltip and every translated aria-label silently stayed
+  // English in Kurdish and Arabic. Added alongside the existing
+  // placeholder/html handlers, with the same original-value stashing so
+  // switching back to English restores the authored text rather than a
+  // key.
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    if (el.dataset.i18nOrigTitle === undefined) el.dataset.i18nOrigTitle = el.getAttribute('title') || '';
+    const key = el.getAttribute('data-i18n-title');
+    el.setAttribute('title', (dict && dict[key]) ? dict[key] : el.dataset.i18nOrigTitle);
+  });
+
+  document.querySelectorAll('[data-i18n-aria]').forEach(el => {
+    if (el.dataset.i18nOrigAria === undefined) el.dataset.i18nOrigAria = el.getAttribute('aria-label') || '';
+    const key = el.getAttribute('data-i18n-aria');
+    el.setAttribute('aria-label', (dict && dict[key]) ? dict[key] : el.dataset.i18nOrigAria);
   });
 
   document.querySelectorAll('[data-i18n-html]').forEach(el => {

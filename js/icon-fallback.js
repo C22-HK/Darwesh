@@ -18,11 +18,14 @@
 //                     (see css/profile-tokens.css).
 //
 // ---------------------------------------------------------------------
-// TWO BUGS FIXED HERE. Both produced the SAME visible symptom: every icon
-// on the page rendered as a small empty rounded square -- the
+// THREE BUGS FIXED HERE. Bugs 1 and 2 produced the SAME visible symptom:
+// every icon on the page rendered as a small empty rounded square -- the
 // ds-icons-failed placeholder -- even though the font was perfectly
 // reachable. Reported from the live Properties Map, where the right-side
-// controls are icon-only and so the damage was most obvious.
+// controls are icon-only and so the damage was most obvious. Bug 3 is the
+// mirror image, found while verifying that fix: with the font genuinely
+// unreachable the guard reported SUCCESS, so the raw ligature words came
+// back -- the very thing this file exists to prevent.
 //
 // BUG 1 -- the probe ran before the font could possibly be registered.
 // This script is a plain <script> in <head>, and on 29 of 31 pages it sits
@@ -54,7 +57,8 @@
 // icon disappears.
 (function () {
   var root = document.documentElement;
-  var FONT_SPEC = '24px "Material Symbols Outlined"';
+  var FONT_FAMILY = 'Material Symbols Outlined';
+  var FONT_SPEC = '24px "' + FONT_FAMILY + '"';
   // Generous, because being wrong in this direction is cheap: until the
   // timeout the icons are merely invisible (holding their space), whereas
   // a premature "failed" used to be permanent. 3s was too tight for a
@@ -82,12 +86,48 @@
   var done = false;      // ready reached -- terminal, nothing left to watch
   var timedOut = false;  // showed placeholders, but still watching
 
+  // BUG 3 -- check() alone cannot tell "the font is here" from "that font
+  // does not exist". Per the CSS Font Loading spec, check() reports
+  // whether every face MATCHING the query is loaded; when nothing matches
+  // it has nothing to wait for and answers true. Measured in a browser
+  // with fonts.googleapis.com unreachable:
+  //
+  //   document.fonts.size                              -> 0
+  //   check('24px "Material Symbols Outlined"', ...)    -> true
+  //   check('24px "Totally Not A Real Font 12345"', ...) -> true
+  //
+  // So the exact case this file exists for -- the stylesheet blocked
+  // outright, which the header calls a real condition for users in
+  // Iraq/Kurdistan -- was being read as success, latching ds-icons-ready
+  // and rendering every icon as its raw ligature word ("expand_more",
+  // "notifications"). That is the original symptom, not the fallback.
+  //
+  // The missing half is asking whether the family is REGISTERED at all.
+  // document.fonts only enumerates @font-face-declared faces, so this is
+  // exactly "did the Material Symbols stylesheet load", which is the
+  // question that was never being asked.
+  function familyIsRegistered() {
+    try {
+      var found = false;
+      document.fonts.forEach(function (face) {
+        if (face.family && face.family.replace(/["']/g, '') === FONT_FAMILY) found = true;
+      });
+      return found;
+    } catch (err) {
+      // No iterable FontFaceSet on this engine. Fall back to trusting
+      // check() alone -- the pre-existing behaviour -- rather than
+      // condemning a page whose font may be perfectly fine.
+      return true;
+    }
+  }
+
   // check() asks whether the font is loaded AND available for use right
   // now. Unlike load(), it does not kick off a fetch, so calling it
-  // repeatedly is free.
+  // repeatedly is free. Paired with the registration test above, the two
+  // together mean: the rule exists, and the file behind it has arrived.
   function fontIsAvailable() {
     try {
-      return document.fonts.check(FONT_SPEC, 'notifications');
+      return familyIsRegistered() && document.fonts.check(FONT_SPEC, 'notifications');
     } catch (err) {
       // A malformed font shorthand would throw; treat as "can't tell" and
       // let the timeout decide rather than crashing the page.

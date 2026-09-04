@@ -1229,3 +1229,140 @@ body.cine-intro-open { overflow: hidden; }
 .cine-intro-skip:hover,
 .cine-intro-skip:focus-visible { color: rgba(242, 238, 229, 0.92); }
 .cine-intro-skip:focus-visible { outline: 1px solid rgba(201, 162, 39, 0.7); outline-offset: 3px; }
+
+/* =====================================================================
+ * MAP CONTROLS + APPROXIMATE-LOCATION UX
+ * ---------------------------------------------------------------------
+ * The right-side controls previously rendered as empty rounded squares
+ * whenever the Material Symbols font was judged unavailable (see
+ * js/icon-fallback.js for that root cause). These controls now carry
+ * INLINE SVG, so they are correct even with no webfont at all -- a map
+ * control is exactly the case where a font dependency is not worth it.
+ * ===================================================================== */
+
+/* currentColor + the button's own font-size means one icon definition
+ * inherits hover/focus/active colour with no per-state overrides. */
+.cine-scope .ctl-svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: block;
+  color: currentColor;
+}
+.cine-scope .map-overlay-btn-labeled .ctl-svg,
+.cine-scope .search-this-area-chip .ctl-svg,
+.cine-scope .draw-action-btn .ctl-svg,
+.cine-scope .map-search-chip .ctl-svg { width: 16px; height: 16px; }
+
+/* Grouped, consistent chrome: one radius, one size, one spacing rhythm,
+ * rather than a loose stack of unrelated squares. */
+.cine-scope .map-overlay-btn {
+  border-radius: 12px;
+  transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
+}
+.cine-scope .map-overlay-btn:hover { background: rgba(184,154,99,0.16); }
+.cine-scope .map-overlay-btn:active { transform: scale(0.96); }
+
+/* A visible keyboard focus ring -- these are icon-only controls, so
+ * without one a keyboard user cannot tell where they are. */
+.cine-scope .map-overlay-btn:focus-visible,
+.cine-scope .search-this-area-chip:focus-visible,
+.cine-scope .draw-action-btn:focus-visible,
+.cine-scope .map-search-chip:focus-visible,
+.cine-scope .map-type-btn:focus-visible {
+  outline: 2px solid var(--cine-gold-1, #B89A63);
+  outline-offset: 2px;
+}
+
+/* Draw mode is a MODE, not a one-shot action, so it needs a state a user
+ * can see and a screen reader can read (aria-pressed, set in map.html). */
+.cine-scope .map-overlay-btn[aria-pressed="true"] {
+  background: var(--cine-gold-1, #B89A63);
+  color: #17150F;
+  border-color: var(--cine-gold-1, #B89A63);
+}
+
+/* ---- Approximate-location halo ------------------------------------- */
+/* pointer-events:none is belt-and-braces alongside Leaflet's
+ * interactive:false -- the halo must never intercept a click meant for a
+ * marker or a cluster badge underneath it. */
+.cine-scope .approx-halo { pointer-events: none; }
+
+/* ---- Approximate-location disclosure in the popup ------------------- */
+.cine-scope .approx-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--ps-color-outline-variant, rgba(93,72,43,0.5));
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ps-color-on-surface-variant, #A79F91);
+}
+.cine-scope .approx-note-dot {
+  width: 8px; height: 8px;
+  margin-top: 4px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--cine-gold-1, #B89A63);
+  background: rgba(184,154,99,0.25);
+}
+
+/* ---- Cluster vs listing marker -------------------------------------- */
+/* Deliberately a different SHAPE (circle) and colour from a price pin, so
+ * a cluster count can never be misread as a price. */
+.cine-scope .price-cluster {
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+}
+
+/* A long title or id must not stretch a pin across the map. */
+.cine-scope .price-pin {
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The controls inside the group keep the container's own stacking rhythm,
+ * so wrapping them changed the DOM but not the desktop layout. */
+.cine-scope .map-overlay-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+/* The group toggle exists only for narrow viewports -- above the
+ * breakpoint every control is already visible, so a button to reveal them
+ * would be one more thing to explain. */
+.cine-scope .map-tools-toggle { display: none; }
+
+/* ---- Mobile: a compact group, not a tall floating stack -------------- */
+@media (max-width: 767px) {
+  .cine-scope .map-overlay-btn { border-radius: 10px; }
+  /* 44px keeps the touch target at the platform minimum even though the
+   * icon itself is 18px. */
+  .cine-scope .map-overlay-btn-icon {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+  }
+  .cine-scope .map-overlay-btn-icon .ctl-svg { width: 18px; height: 18px; }
+  /* Draw Area keeps its text on mobile too -- it is the one control whose
+   * purpose is not obvious from an icon alone. */
+  .cine-scope .map-overlay-btn-labeled { padding-inline: 12px; height: 44px; }
+
+  /* One tap reveals the tools; the map keeps the rest of the screen.
+   * Visibility is driven purely by this attribute, so the state survives
+   * re-renders and there is no JS width check to get out of sync. */
+  .cine-scope .map-tools-toggle { display: flex; }
+  .cine-scope .map-overlay-controls[data-tools="collapsed"] .map-overlay-group { display: none; }
+  .cine-scope .map-tools-toggle[aria-expanded="true"] {
+    background: var(--cine-gold-1, #B89A63);
+    color: #17150F;
+    border-color: var(--cine-gold-1, #B89A63);
+  }
+}
