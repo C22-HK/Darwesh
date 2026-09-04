@@ -432,39 +432,57 @@ html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
  * keeps working on the same browser baseline as the rest of the site.
  *
  * transform/opacity only (compositor-friendly, no layout property is
- * ever animated here), and every section starts from its own resting
- * position in ordinary document flow -- nothing here uses `sticky` or
- * `fixed`, so native scroll is never hijacked.
+ * ever animated here). Every section starts from its own resting
+ * position in ordinary document flow; the ONE exception is the 7%
+ * section's brief sticky pin below, which is deliberately isolated to a
+ * single element with no transformed ancestor -- see its own comment for
+ * why that specific structure is what keeps native scroll un-hijacked.
+ *
+ * Four reusable transition recipes (assigned per section, not identical
+ * everywhere -- see the section-by-section comments below):
+ *   A. Depth Rise         -- hero, category rail, city track, fast-sale/
+ *                             active cards: the whole section recedes/
+ *                             scales as it leaves, rises forward as it
+ *                             enters.
+ *   B. Soft Pin + Reveal   -- the 7% section only (one deliberate
+ *                             "major storytelling moment", not everywhere).
+ *   C. Parallax Crossfade  -- hero background vs. foreground, and the 7%
+ *                             section's background texture vs. its
+ *                             pinned content, each moving at a different
+ *                             rate.
+ *   D. Layered Card Entrance -- individual cards (category/city/fast-sale/
+ *                             active/services) fade + rise from a slight
+ *                             depth the first time they scroll into view,
+ *                             staggered by nth-child -- see
+ *                             .cine-card-reveal below (IntersectionObserver-
+ *                             driven, js/reveal.js, not this scroll
+ *                             controller).
  * ========================================================================= */
 [data-cine3d] {
   --sp: var(--section-progress, 0.5);
   --d: max(calc(var(--sp) - 0.5), calc(0.5 - var(--sp)));
 }
+/* A + C: Hero. Text/search recede+darken as the section leaves (sp > 0.5);
+ * the background layer (hero-media, below) moves at a slower, larger-range
+ * rate for a real parallax read. The search bar itself carries no 3D
+ * transform at all (kept out of both layers) so it is always crisp. */
 [data-cine3d="hero"] {
   transform: perspective(1400px)
     translate3d(0, calc((var(--sp) - 0.5) * 34px), calc(max(0, var(--sp) - 0.5) * -110px))
     scale(calc(1 - max(0, var(--sp) - 0.5) * 0.08));
   opacity: calc(1 - max(0, var(--sp) - 0.5) * 0.85);
 }
-/* The hero's own background image, layered separately from its text/
- * search -- moves at a different (slower, larger-range) rate than the
- * foreground for a real parallax read, never affecting search
- * readability since the search bar itself carries no 3D transform. */
 [data-cine3d="hero-media"] {
   transform: translate3d(0, calc((var(--sp) - 0.5) * 52px), 0) scale(1.06);
 }
+/* A: category rail / city track / fast-sale / active cards -- the whole
+ * grid rises forward from depth on entry, recedes on exit. */
 [data-cine3d="rail"],
 [data-cine3d="cards"] {
   transform: perspective(1400px)
     translate3d(0, calc(var(--d) * 30px), calc(var(--d) * -70px))
     scale(calc(1 - var(--d) * 0.05));
   opacity: calc(1 - var(--d) * 0.5);
-}
-[data-cine3d="promo"] {
-  transform: perspective(1400px)
-    translate3d(0, calc(var(--d) * 22px), calc(var(--d) * -46px))
-    rotateX(calc(var(--d) * -1.4deg));
-  opacity: calc(1 - var(--d) * 0.35);
 }
 
 /* Mobile tier (js/cine-scroll-3d.js toggles this on <html> via
@@ -494,6 +512,53 @@ html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
 }
 @media (prefers-reduced-motion: reduce) {
   .cine-hover3d:hover { transform: none; }
+}
+
+/* ---- D. Layered Card Entrance (IntersectionObserver-driven, one shared
+ * instance -- see js/reveal.js / window.DarweshReveal.observe()) ----------
+ * Distinct from the [data-cine3d] continuous scroll-depth system above:
+ * this is a ONE-SHOT per-card fade + rise-from-slight-depth the first
+ * time each card scrolls into view, stacked on TOP of whatever whole-
+ * section depth motion its [data-cine3d] ancestor is already doing --
+ * together that's genuinely "layered" (section drifts continuously,
+ * individual cards also arrive with their own staggered entrance).
+ * Self-contained perspective() so it renders correctly regardless of the
+ * section wrapper's own transform. nth-child stagger delays, not a JS
+ * per-card timer, so this needs no extra script work per card. */
+.cine-card-reveal {
+  opacity: 0;
+  transform: perspective(900px) translate3d(0, 20px, -34px);
+  transition: opacity var(--motion-slow, 500ms) var(--ease-enter, ease-out),
+    transform var(--motion-slow, 500ms) var(--ease-enter, ease-out);
+}
+.cine-card-reveal.cine-in-view { opacity: 1; transform: none; }
+.cine-card-reveal:nth-child(1) { transition-delay: 0ms; }
+.cine-card-reveal:nth-child(2) { transition-delay: 60ms; }
+.cine-card-reveal:nth-child(3) { transition-delay: 120ms; }
+.cine-card-reveal:nth-child(4) { transition-delay: 180ms; }
+.cine-card-reveal:nth-child(5) { transition-delay: 240ms; }
+.cine-card-reveal:nth-child(6) { transition-delay: 300ms; }
+.cine-card-reveal:nth-child(7) { transition-delay: 340ms; }
+.cine-card-reveal:nth-child(8) { transition-delay: 380ms; }
+/* Mobile: drop perspective/translateZ entirely -- a soft fade + small
+ * rise only, matching the same reduced-intensity tier the continuous
+ * [data-cine3d] system already uses on <768px viewports. */
+@media (max-width: 767px) {
+  .cine-card-reveal { transform: translate3d(0, 12px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-card-reveal { opacity: 1; transform: none; transition: none; transition-delay: 0ms; }
+}
+
+/* ---- City circles: a static (non-scroll-driven) depth rhythm -- every
+ * third circle sits a touch forward, matching the "focused city gently
+ * forward, neighbors slightly recessed" brief without needing real
+ * scroll-position center-tracking per carousel (out of scope for the
+ * perf budget this page targets -- see the shared carousel's own
+ * comments). Purely decorative at rest; .cine-card-reveal above still
+ * drives its entrance. */
+.cine-scope .home-city-circle:nth-child(3n+1) .home-city-circle-media {
+  transform: scale(1.03) translateZ(4px);
 }
 
 /* =========================================================================
@@ -987,6 +1052,60 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-percent-media { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.14; }
 .cine-scope .home-percent-figure { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; line-height: 0.9; letter-spacing: -0.02em; color: var(--cine-gold-1, #B89A63); font-size: clamp(96px, 16vw, 180px); }
 .cine-scope .home-percent-figure sup { font-size: 0.32em; top: -0.5em; }
+
+/* ---- B. Soft Pin + Reveal -- the 7% section's brief sticky pin ---------
+ * .cine-pin-stage is a tall (desktop-only), untransformed scroll track;
+ * .cine-pin-content is the actual `position: sticky` element, offset
+ * below the fixed site header (h-16 = 4rem) so it never sits under it.
+ * --focus is a "tent" function built from --sp alone (min()/max()/calc(),
+ * same primitives already used for --d above): 0 at the pin's start,
+ * ramps to 1 by the time it's a third of the way through, HOLDS at 1
+ * through the middle third (this is the "grows into focus, then holds"
+ * read), ramps back to 0 through the final third as it recedes. The
+ * section's own [data-cine3d="promo"] progress keeps advancing smoothly
+ * the whole time (this wrapper is never transformed, so its
+ * getBoundingClientRect() keeps moving through the viewport exactly like
+ * every other section), which is what drives --focus continuously even
+ * while the content is visually pinned. */
+.cine-scope .cine-pin-stage { position: relative; }
+.cine-scope .cine-pin-content {
+  position: sticky;
+  top: 5rem;
+}
+[data-cine3d="promo"] {
+  --rise: min(1, calc(var(--sp) / 0.32));
+  --fall: max(0, calc((var(--sp) - 0.68) / 0.32));
+  --focus: max(0, min(var(--rise), calc(1 - var(--fall))));
+}
+[data-cine3d="promo"] .cine-pin-content {
+  transform: perspective(1400px)
+    translate3d(0, calc((1 - var(--focus)) * 26px), calc((var(--focus) - 1) * 60px))
+    scale(calc(0.94 + var(--focus) * 0.06));
+  opacity: calc(0.4 + var(--focus) * 0.6);
+}
+/* C: the background texture drifts at its own, slower/continuous rate
+ * (never held by --focus) -- a real parallax crossfade against the
+ * pinned, focus-driven foreground above it. */
+[data-cine3d="promo"] .home-percent-media {
+  transform: translate3d(0, calc((var(--sp) - 0.5) * 40px), 0) scale(1.08);
+}
+@media (min-width: 768px) {
+  .cine-scope .cine-pin-stage { min-height: 190vh; }
+}
+/* Mobile: no extra scroll track, no sticky, no pin -- the section just
+ * sits in normal flow (still gets the section-level fade via
+ * .cine-reveal on .cine-pin-content, and the mobile 3D tier below still
+ * applies its own light translate/opacity). "Shorter sticky distances"
+ * per the brief, taken to its safe limit: zero on the smallest viewports. */
+@media (max-width: 767px) {
+  .cine-scope .cine-pin-content { position: static; }
+}
+.cine3d-mobile [data-cine3d="promo"] { --focus: 1; }
+.cine3d-mobile [data-cine3d="promo"] .home-percent-media { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .cine-pin-content { position: static; transform: none !important; opacity: 1 !important; }
+  [data-cine3d="promo"] .home-percent-media { transform: none !important; }
+}
 
 /* ---- Mobile bottom nav ------------------------------------------------------ */
 .cine-scope .home-bottomnav { background: var(--ps-color-surface-container-lowest); border-top: 1px solid var(--ps-color-outline-variant); }
