@@ -136,7 +136,16 @@ MIN_PRICE_WORDS = [
     "اکثر من",
     "أکثر من",
 ]
-IQD_PER_USD = 1310  # approximate conversion only, for interpreting a spoken IQD amount -- never for pricing itself
+# Approximate conversion only, for interpreting a spoken IQD amount --
+# never for pricing itself.
+#
+# NOT unified with the frontend's js/currency.js, deliberately: that is a
+# browser global and this is a server process, so no import can bridge
+# them. The two serve different purposes (this one parses what a user
+# said; that one normalises what a user is storing), but they must hold
+# the SAME number. If the rate is ever revised, change both -- each file
+# names the other so neither can be found on its own.
+IQD_PER_USD = 1310
 
 MAP_KEYWORDS = [
     "map",

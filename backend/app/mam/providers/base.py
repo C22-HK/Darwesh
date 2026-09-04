@@ -17,7 +17,13 @@ from enum import Enum
 from typing import Any, Protocol
 
 
-class ModelTier(str, Enum):
+# UP042 suppressed on the class line only -- same reasoning as
+# app/mam/policy.py's AuthRequirement: converting to StrEnum would change
+# str()/f-string output from 'ModelTier.FAST' to 'fast'. Provider adapters
+# map a tier to a concrete model id explicitly, so nothing depends on the
+# stringified form today, and the legacy contract is preserved rather than
+# quietly altered. Scoped to this statement; UP042 stays enabled globally.
+class ModelTier(str, Enum):  # noqa: UP042 -- legacy str-Enum contract, see above
     """A capability tier, not a model name. The orchestrator picks a tier
     (FAST for navigation/simple lookups/tool orchestration, REASONING only
     where it provides a measurable benefit -- per the explicit model-
