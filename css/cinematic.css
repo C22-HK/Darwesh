@@ -422,6 +422,81 @@ html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
 }
 
 /* =========================================================================
+ * Cinematic 3D scroll depth (see js/cine-scroll-3d.js) -- ONE continuous
+ * scroll-progress variable per section (--section-progress, written by
+ * that one script) drives every visual recipe below entirely in CSS, so
+ * tuning the depth effect never needs a script change. --section-depth
+ * (--d) is "distance from viewport center", 0 at the middle of the
+ * screen rising to 0.5 at the edges -- computed with calc()+max() rather
+ * than the newer, less-supported CSS abs()/sign() functions, so this
+ * keeps working on the same browser baseline as the rest of the site.
+ *
+ * transform/opacity only (compositor-friendly, no layout property is
+ * ever animated here), and every section starts from its own resting
+ * position in ordinary document flow -- nothing here uses `sticky` or
+ * `fixed`, so native scroll is never hijacked.
+ * ========================================================================= */
+[data-cine3d] {
+  --sp: var(--section-progress, 0.5);
+  --d: max(calc(var(--sp) - 0.5), calc(0.5 - var(--sp)));
+}
+[data-cine3d="hero"] {
+  transform: perspective(1400px)
+    translate3d(0, calc((var(--sp) - 0.5) * 34px), calc(max(0, var(--sp) - 0.5) * -110px))
+    scale(calc(1 - max(0, var(--sp) - 0.5) * 0.08));
+  opacity: calc(1 - max(0, var(--sp) - 0.5) * 0.85);
+}
+/* The hero's own background image, layered separately from its text/
+ * search -- moves at a different (slower, larger-range) rate than the
+ * foreground for a real parallax read, never affecting search
+ * readability since the search bar itself carries no 3D transform. */
+[data-cine3d="hero-media"] {
+  transform: translate3d(0, calc((var(--sp) - 0.5) * 52px), 0) scale(1.06);
+}
+[data-cine3d="rail"],
+[data-cine3d="cards"] {
+  transform: perspective(1400px)
+    translate3d(0, calc(var(--d) * 30px), calc(var(--d) * -70px))
+    scale(calc(1 - var(--d) * 0.05));
+  opacity: calc(1 - var(--d) * 0.5);
+}
+[data-cine3d="promo"] {
+  transform: perspective(1400px)
+    translate3d(0, calc(var(--d) * 22px), calc(var(--d) * -46px))
+    rotateX(calc(var(--d) * -1.4deg));
+  opacity: calc(1 - var(--d) * 0.35);
+}
+
+/* Mobile tier (js/cine-scroll-3d.js toggles this on <html> via
+ * matchMedia): a gentle vertical reveal + very light fade only -- no
+ * scale, no rotateX, no translateZ, so it stays smooth and battery-light
+ * on a phone rather than running the full desktop recipe at a smaller
+ * viewport. */
+.cine3d-mobile [data-cine3d] {
+  transform: translate3d(0, calc(var(--d, 0) * 12px), 0) !important;
+  opacity: calc(1 - var(--d, 0) * 0.22) !important;
+}
+.cine3d-mobile [data-cine3d="hero-media"] { transform: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cine3d] { --section-progress: 1; transform: none !important; opacity: 1 !important; }
+}
+
+/* Desktop-only, pointer-only (never touch) subtle card tilt -- opt in per
+ * card with .cine-hover3d. (hover: hover) and (pointer: fine) already
+ * excludes touch devices at the media-query level, so no JS touch
+ * detection is needed to satisfy "disable on touch devices". */
+@media (hover: hover) and (pointer: fine) {
+  .cine-hover3d { transition: transform 180ms var(--ease-premium, ease); }
+  .cine-hover3d:hover {
+    transform: perspective(900px) rotateX(1deg) rotateY(-1.4deg) translateZ(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-hover3d:hover { transform: none; }
+}
+
+/* =========================================================================
  * Cursor follower -- a decorative halo layer, never the hit-testing
  * target. Position is written directly via style.transform from
  * js/cursor-follower.js's rAF loop (no React/state re-render, no layout
@@ -742,6 +817,7 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-search-input { color: var(--ps-color-on-surface); }
 .cine-scope .home-search-input::placeholder { color: var(--ps-color-on-surface-variant); }
 .cine-scope .home-search-icon { color: var(--ps-color-outline); }
+.cine-scope .home-search-icon-svg { color: var(--ps-color-outline); flex: none; }
 .cine-scope .home-search-divider { background: var(--ps-color-outline-variant); width: 1px; align-self: stretch; margin-block: 10px; flex: none; }
 .cine-scope .home-search-btn { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); border-radius: var(--radius-sm); transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), transform var(--motion-fast, 150ms) var(--ease-premium, ease); }
 .cine-scope .home-search-btn:hover { background: var(--cine-gold-2); transform: translateY(-1px); }
@@ -752,25 +828,6 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-section-subtitle { color: var(--ps-color-on-surface-variant); }
 .cine-scope .home-section-link { color: var(--ps-color-on-surface-variant); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
 .cine-scope .home-section-link:hover { color: var(--ps-color-secondary); }
-
-/* ---- Quick links (bento) ------------------------------------------------ */
-.cine-scope .home-quicklink-card {
-  border-radius: var(--radius-md); border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low);
-  transition: transform var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease);
-}
-.cine-scope .home-quicklink-card:hover { transform: translateY(-2px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
-.cine-scope .home-quicklink-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,10,10,0.08) 0%, rgba(9,10,10,0.88) 100%); }
-.cine-scope .home-quicklink-label { color: var(--ps-color-on-surface); }
-.cine-scope .home-quicklink-icon { color: var(--cine-gold-1); font-size: 22px; }
-
-/* ---- City rows ---------------------------------------------------------- */
-.cine-scope .home-city-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-sm); transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease), background-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
-.cine-scope .home-city-card:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container-low); }
-.cine-scope .home-city-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
-.cine-scope .home-city-icon { background: var(--ps-color-surface-container); color: var(--ps-color-on-surface-variant); border-radius: var(--radius-xs); transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), color var(--motion-fast, 150ms) var(--ease-premium, ease); }
-.cine-scope .home-city-card:hover .home-city-icon { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); }
-.cine-scope .home-city-name { color: var(--ps-color-on-surface); }
-.cine-scope .home-city-count { color: var(--ps-color-on-surface-variant); }
 
 /* ---- Property cards ------------------------------------------------------ */
 .cine-scope .home-property-card {
@@ -848,6 +905,114 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-footer-link { color: var(--ps-color-on-surface-variant); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
 .cine-scope .home-footer-link:hover { color: var(--ps-color-secondary); }
 .cine-scope .home-footer-bottom { border-top: 1px solid var(--ps-color-outline-variant); color: var(--ps-color-on-surface-variant); }
+
+/* =========================================================================
+ * Shared carousel arrows (js/carousel.js) -- ONE button style reused by
+ * every horizontal-scroll Home section, per the "luxury arrow buttons"
+ * brief: dark tonal background, thin restrained gold border, soft-square
+ * shape, subtle hover glow + lift, press feedback, real disabled state.
+ * Inline SVG only, no Material Symbols text.
+ * ========================================================================= */
+.cine-scope .home-carousel-nav { display: flex; align-items: center; gap: 8px; }
+.cine-scope .cine-carousel-arrow {
+  width: 40px; height: 40px; flex: none;
+  border-radius: 12px;
+  background: rgba(23, 21, 15, 0.72);
+  border: 1px solid rgba(184, 154, 99, 0.32);
+  color: var(--cine-gold-1, #B89A63);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 150ms var(--ease-premium, ease), box-shadow 150ms var(--ease-premium, ease), border-color 150ms var(--ease-premium, ease), opacity 150ms var(--ease-premium, ease);
+}
+.cine-scope .cine-carousel-arrow svg { width: 18px; height: 18px; }
+.cine-scope .cine-carousel-arrow:hover:not(:disabled) {
+  border-color: var(--cine-gold-1, #B89A63);
+  box-shadow: 0 0 0 4px rgba(184, 154, 99, 0.1), 0 6px 16px -4px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+.cine-scope .cine-carousel-arrow:active:not(:disabled) { transform: translateY(0) scale(0.95); }
+.cine-scope .cine-carousel-arrow:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: 2px; }
+.cine-scope .cine-carousel-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+[dir="rtl"] .cine-scope .cine-carousel-arrow.is-prev svg,
+[dir="rtl"] .cine-scope .cine-carousel-arrow.is-next svg { transform: scaleX(-1); }
+
+/* ---- Category rail -- premium horizontal scroller reusing the exact
+ * dark-gradient-over-image card language already proven on the bento
+ * quicklinks (.home-quicklink-*), just laid out as a snap track instead
+ * of a fixed grid so it can host real per-type imagery at a readable
+ * size on every viewport. ---------------------------------------------- */
+.cine-scope .home-category-track { display: flex; gap: 14px; scroll-snap-type: x proximity; }
+.cine-scope .home-category-card {
+  scroll-snap-align: start;
+  flex: none;
+  width: 180px; height: 220px;
+  border-radius: var(--radius-md, 14px);
+  position: relative; overflow: hidden;
+  border: 1px solid var(--ps-color-outline-variant);
+  transition: transform 220ms var(--ease-premium, ease), border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
+}
+.cine-scope .home-category-card:hover,
+.cine-scope .home-category-card:focus-visible { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .home-category-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,10,10,0.06) 0%, rgba(9,10,10,0.9) 100%); }
+.cine-scope .home-category-media { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform 500ms var(--ease-premium, ease); }
+.cine-scope .home-category-card:hover .home-category-media { transform: scale(1.06); }
+.cine-scope .home-category-icon { position: relative; z-index: 1; width: 34px; height: 34px; color: var(--cine-gold-1, #B89A63); }
+.cine-scope .home-category-label { position: relative; z-index: 1; color: var(--ps-color-on-surface); font-family: 'IBM Plex Sans', sans-serif; }
+.cine-scope .home-category-content { position: absolute; inset-inline-start: 16px; inset-block-end: 16px; display: flex; flex-direction: column; gap: 6px; }
+
+/* ---- City discovery -- circular image cards, real cities + real
+ * counts (loadCityApartmentCounts() in index.html, unchanged). -------- */
+.cine-scope .home-city-track { display: flex; gap: 22px; scroll-snap-type: x proximity; }
+.cine-scope .home-city-circle {
+  scroll-snap-align: start;
+  flex: none;
+  width: 128px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center;
+  transition: transform 220ms var(--ease-premium, ease);
+}
+.cine-scope .home-city-circle:hover, .cine-scope .home-city-circle:focus-visible { transform: translateY(-3px); }
+.cine-scope .home-city-circle-media {
+  width: 104px; height: 104px; border-radius: 999px;
+  background-size: cover; background-position: center;
+  border: 1.5px solid var(--ps-color-outline-variant);
+  box-shadow: var(--ps-shadow-3d-1);
+  transition: border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
+  position: relative;
+}
+.cine-scope .home-city-circle:hover .home-city-circle-media,
+.cine-scope .home-city-circle:focus-visible .home-city-circle-media { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 5px rgba(184,154,99,0.12), var(--ps-shadow-3d-2); }
+.cine-scope .home-city-circle-media::after { content: ''; position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(180deg, rgba(9,10,10,0) 55%, rgba(9,10,10,0.4) 100%); }
+.cine-scope .home-city-circle-name { color: var(--ps-color-on-surface); font-weight: 600; }
+.cine-scope .home-city-circle-count { color: var(--ps-color-on-surface-variant); }
+
+/* ---- Fast Sale / Activity cards reuse .home-property-card verbatim
+ * (see JS) -- only the badge language differs, defined here once. ---- */
+.cine-scope .home-property-badge.is-new { background: rgba(127, 184, 138, 0.16); border-color: rgba(127, 184, 138, 0.4); color: #7FB88A; }
+.cine-scope .home-activity-count { color: var(--ps-color-secondary); font-weight: 600; }
+
+/* ---- Services (editorial cards, inline SVG, tonal depth instead of a
+ * flat bordered box) ----------------------------------------------------*/
+.cine-scope .home-service-card-v2 {
+  position: relative; overflow: hidden;
+  border-radius: var(--radius-md, 14px);
+  border: 1px solid var(--ps-color-outline-variant);
+  background: linear-gradient(160deg, var(--ps-color-surface-container-low) 0%, var(--ps-color-surface-container-lowest) 100%);
+  transition: transform 220ms var(--ease-premium, ease), border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
+}
+.cine-scope .home-service-card-v2:hover, .cine-scope .home-service-card-v2:focus-visible { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .home-service-card-v2::before { content: ''; position: absolute; inset-inline-start: -30%; inset-block-start: -60%; width: 70%; height: 140%; background: radial-gradient(circle, rgba(184,154,99,0.1) 0%, transparent 70%); pointer-events: none; }
+.cine-scope .home-service-icon-v2 { width: 42px; height: 42px; border-radius: var(--radius-sm, 10px); background: rgba(184,154,99,0.12); color: var(--cine-gold-1, #B89A63); display: flex; align-items: center; justify-content: center; flex: none; }
+.cine-scope .home-service-icon-v2 svg { width: 22px; height: 22px; }
+
+/* ---- 7% section (redesigned oversized editorial numeral; the real
+ * discount percentage/coupon/QR destination are unchanged -- see the
+ * PR description for why the number itself was not touched). --------- */
+.cine-scope .home-percent-block { position: relative; overflow: hidden; border-radius: var(--radius-lg, 20px); border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low); }
+.cine-scope .home-percent-block::before { content: ''; position: absolute; inset-block-start: 0; inset-inline: 0; height: 2px; background: var(--ps-gold-edge); opacity: 0.8; }
+.cine-scope .home-percent-media { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.14; }
+.cine-scope .home-percent-figure { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; line-height: 0.9; letter-spacing: -0.02em; color: var(--cine-gold-1, #B89A63); font-size: clamp(96px, 16vw, 180px); }
+.cine-scope .home-percent-figure sup { font-size: 0.32em; top: -0.5em; }
 
 /* ---- Mobile bottom nav ------------------------------------------------------ */
 .cine-scope .home-bottomnav { background: var(--ps-color-surface-container-lowest); border-top: 1px solid var(--ps-color-outline-variant); }
