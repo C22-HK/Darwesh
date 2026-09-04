@@ -87,7 +87,10 @@ class KurdishTTSClient:
             async with self.client_factory() as http:
                 response = await http.post(
                     f"{KURDISHTTS_BASE_URL}/api/stt-proxy",
-                    headers={"x-api-key": self.stt_key, "Content-Type": content_type or "application/octet-stream"},
+                    headers={
+                        "x-api-key": self.stt_key,
+                        "Content-Type": content_type or "application/octet-stream",
+                    },
                     params={"dialect": dialect},
                     content=audio_bytes,
                 )
@@ -122,7 +125,9 @@ class KurdishTTSClient:
             return None
         try:
             async with self.client_factory() as http:
-                response = await http.get(f"{KURDISHTTS_BASE_URL}/api/speakers", headers={"x-api-key": self.tts_key})
+                response = await http.get(
+                    f"{KURDISHTTS_BASE_URL}/api/speakers", headers={"x-api-key": self.tts_key}
+                )
             if response.status_code >= 300:
                 raise KurdishTTSError(f"speaker catalog returned status {response.status_code}")
             body = response.json()
