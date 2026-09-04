@@ -34,45 +34,53 @@ violation reporting. -->
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
     #map { background: #101111; }
-    /* Property price pins — color encodes verification status:
-       red = agent-listed (not yet verified), green = verified/registered.
-       This is the same `verified` flag already shown as a badge on the
-       listing card, just made visible at a glance on the map too. */
+    /* Property price pins -- dark/gold, matching the MAM orb and cluster
+       badge identity (radial dark surface, gold accent, subtle glow), with
+       a real inline SVG property-type icon instead of a Material Symbols
+       ligature so it renders identically everywhere with no webfont.
+       Verification status keeps its existing visual distinction (red =
+       agent-listed, green = verified/registered) as a ring around the
+       icon badge rather than a solid fill, so the dark/gold identity holds
+       across both states -- same `verified` flag already shown on the
+       listing card, just visible at a glance on the map too. */
     .price-pin {
       font-family: 'Inter', sans-serif;
       font-weight: 700;
       font-size: 12px;
-      padding: 6px 10px;
+      padding: 4px 10px 4px 4px;
       border-radius: 999px;
-      border: 1.5px solid transparent;
-      box-shadow: 0 2px 6px rgba(4,22,39,0.22);
+      background: #17150F;
+      border: 1.5px solid #5D482B;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 14px -6px rgba(184,154,99,0.55);
       white-space: nowrap;
       transition: all .15s ease;
       cursor: pointer;
-      color: #ffffff;
+      color: #F2EEE5;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
     }
     .price-pin .price-pin-icon {
-      font-size: 13px !important;
-      line-height: 1;
-      flex-shrink: 0;
+      width: 20px; height: 20px; flex-shrink: 0;
+      border-radius: 999px; box-sizing: border-box; padding: 3px;
+      background: rgba(184,154,99,0.16); color: #D9C79A;
     }
-    .price-pin.pin-unverified { background: #c62828; border-color: #8f1c1c; }
-    .price-pin.pin-verified { background: #2e7d32; border-color: #1e5620; }
-    .price-pin:hover { transform: scale(1.08); z-index: 1000 !important; }
+    .price-pin .price-pin-label { line-height: 1; }
+    .price-pin.pin-unverified .price-pin-icon { box-shadow: inset 0 0 0 1.5px #E5787A; }
+    .price-pin.pin-verified .price-pin-icon { box-shadow: inset 0 0 0 1.5px #6FCB7F; }
+    .price-pin:hover { transform: scale(1.08); z-index: 1000 !important; border-color: #B89A63; }
     /* Compact (zoomed-out) mode -- icon only, no price text, so a wide
-       view doesn't fill up with overlapping price labels. Same shell
-       family, colors and border as the full pin, just round. */
+       view doesn't fill up with overlapping price labels. A true circular
+       marker: dark/gold badge, property-type icon centered, same status
+       ring as the full pin. */
     .price-pin.price-pin-compact {
-      width: 26px; height: 26px; padding: 0; border-radius: 999px;
-      justify-content: center;
+      width: 28px; height: 28px; padding: 0; justify-content: center;
     }
-    .price-pin.price-pin-compact .price-pin-icon { font-size: 15px !important; }
+    .price-pin.price-pin-compact .price-pin-icon { width: 100%; height: 100%; padding: 5px; background: none; }
     .price-pin.active {
-      transform: scale(1.14);
-      box-shadow: 0 0 0 3px rgba(4,22,39,0.9), 0 4px 10px rgba(4,22,39,0.3);
+      transform: scale(1.16);
+      border-color: #B89A63;
+      box-shadow: 0 0 0 3px rgba(184,154,99,0.35), 0 0 22px -2px rgba(184,154,99,0.85), 0 4px 12px rgba(0,0,0,0.5);
       z-index: 1000 !important;
     }
     /* Neighborhood markers — blue, mark a named area (derived from real
@@ -300,9 +308,33 @@ violation reporting. -->
     #verifiedOnlyCheck:checked ~ .switch-track::after { transform: translateX(16px); background: #090A0A; }
     #verifiedOnlyCheck:focus-visible ~ .switch-track { outline: 2px solid #B89A63; outline-offset: 2px; }
 
+    /* ---- Property Filters, inside MAP TOOLS -----------------------------
+       Sub-sections of the one "filters" drawer-group -- Price / Beds &
+       Baths / Home Type / More, each reusing the exact same ids/state this
+       page already had when they lived in the top toolbar's popovers. A
+       thin top divider (instead of a nested card) is what keeps four
+       sub-sections from reading as four more drawer-groups stacked inside
+       one drawer-group. */
+    .drawer-subgroup { padding-top: 10px; border-top: 1px solid rgba(93,72,43,0.32); }
+    .drawer-subgroup:first-child { padding-top: 0; border-top: none; }
+    .drawer-subgroup-label { font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: #B7AF9E; display: block; margin-bottom: 6px; }
+    #moreFiltersToggleBtn .chevron { transition: transform 200ms ease; }
+    #moreFiltersToggleBtn[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+    #moreFiltersBody { padding-top: 10px; }
+    #moreFiltersBody[hidden] { display: none; }
+
     /* ---- sort options: a visible check on the active one ---------------- */
-    .sort-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .sort-option svg { opacity: 0; flex: none; }
+    /* Root cause of the old "one word per line" bug: the menu had a fixed
+       220px width (barely enough for "Price: High to Low" once the 16px
+       padding, 8px gap and 24px checkmark icon were subtracted) and the
+       label had no white-space rule, so browsers with slightly wider text
+       metrics (or the longer ku/ar translations) wrapped it word-by-word,
+       inflating row height and making the whole menu read as narrow/tall.
+       Fixed by sizing the menu to its content (width:max-content above,
+       clamped to the viewport) and forcing the label onto one line. */
+    .sort-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; box-sizing: border-box; }
+    .sort-option span { white-space: nowrap; }
+    .sort-option svg { opacity: 0; flex: none; width: 18px; height: 18px; }
     .sort-option[aria-pressed="true"] { color: #B89A63; }
     .sort-option[aria-pressed="true"] svg { opacity: 1; }
 
@@ -503,123 +535,13 @@ violation reporting. -->
 </div>
 </div>
 <div class="relative flex-none">
-<button id="priceFilterBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-<span data-i18n="map.priceLabel">Price</span>
-<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-</button>
-<div id="priceFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:270px;">
-<div class="flex items-center justify-between mb-3">
-<span class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="map.priceLabel">Price</span>
-<div id="priceCurrencyToggle" class="currency-toggle" role="group" aria-label="Currency">
-<button type="button" class="currency-opt" data-currency="USD" aria-pressed="true">USD</button>
-<button type="button" class="currency-opt" data-currency="IQD" aria-pressed="false">IQD</button>
-</div>
-</div>
-<div class="grid grid-cols-2 gap-2 mb-3">
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.minPrice">Min</label>
-<input id="priceMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="0"/>
-</div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.maxPrice">Max</label>
-<input id="priceMaxInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" data-i18n-placeholder="map.any" placeholder="Any"/>
-</div>
-</div>
-<div class="flex gap-2">
-<button id="priceApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
-<button id="priceClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
-</div>
-</div>
-</div>
-<div class="relative flex-none">
-<button id="bedsFilterBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-<span data-i18n="map.bedsAndBaths">Beds &amp; Baths</span>
-<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-</button>
-<div id="bedsFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:270px;">
-<div class="mb-3">
-<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1.5" data-i18n="common.beds">Beds</span>
-<div id="bedsChipRow" class="chip-row" role="group" aria-label="Bedrooms">
-<button type="button" class="chip-opt" data-beds="0" aria-pressed="true" data-i18n="map.any">Any</button>
-<button type="button" class="chip-opt" data-beds="1" aria-pressed="false">1+</button>
-<button type="button" class="chip-opt" data-beds="2" aria-pressed="false">2+</button>
-<button type="button" class="chip-opt" data-beds="3" aria-pressed="false">3+</button>
-<button type="button" class="chip-opt" data-beds="4" aria-pressed="false">4+</button>
-<button type="button" class="chip-opt" data-beds="5" aria-pressed="false">5+</button>
-</div>
-</div>
-<div class="mb-3">
-<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1.5" data-i18n="common.baths">Baths</span>
-<div id="bathsChipRow" class="chip-row" role="group" aria-label="Bathrooms">
-<button type="button" class="chip-opt" data-baths="0" aria-pressed="true" data-i18n="map.any">Any</button>
-<button type="button" class="chip-opt" data-baths="1" aria-pressed="false">1+</button>
-<button type="button" class="chip-opt" data-baths="2" aria-pressed="false">2+</button>
-<button type="button" class="chip-opt" data-baths="3" aria-pressed="false">3+</button>
-<button type="button" class="chip-opt" data-baths="4" aria-pressed="false">4+</button>
-</div>
-</div>
-<div class="flex gap-2">
-<button id="bedsApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
-<button id="bedsClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
-</div>
-</div>
-</div>
-<div class="relative flex-none">
-<button id="homeTypeFilterBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-<span data-i18n="map.homeType">Home Type</span>
-<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-</button>
-<div id="homeTypeFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-3" style="width:260px;">
-<div class="hometype-grid mb-3">
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="house"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.house">House</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="villa"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l9-7 9 7"/><path d="M5 11v9h14v-9"/><circle cx="12" cy="15" r="2"/></svg><span data-i18n="map.villa">Villa</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="apartment"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/></svg><span data-i18n="map.apartment">Apartment</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="land"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20V8M10 20V8M14 20V8M18 20V8"/></svg><span data-i18n="map.land">Land</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="building"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="1"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1M10 18h1M13 18h1"/></svg><span data-i18n="map.building">Building</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="office"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg><span data-i18n="map.office">Office</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="shop"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.shop">Shop</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="commercialProperty"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/></svg><span data-i18n="map.commercialProperty">Commercial</span></label>
-</div>
-<div class="flex gap-2">
-<button id="homeTypeApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
-<button id="homeTypeClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
-</div>
-</div>
-</div>
-<div class="relative flex-none">
-<button id="moreFiltersBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
-<span data-i18n="map.moreFilters">More</span>
-<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-</button>
-<div id="moreFiltersMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-4" style="width:250px;">
-<label class="switch-row mb-3">
-<span class="font-body-md text-body-md text-on-surface" data-i18n="map.verifiedOnly">Verified only</span>
-<input type="checkbox" id="verifiedOnlyCheck"/><span class="switch-track" aria-hidden="true"></span>
-</label>
-<div class="grid grid-cols-2 gap-2 mb-3">
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min m²</label>
-<input id="areaMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="0"/>
-</div>
-<div>
-<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.maxArea">Max m²</label>
-<input id="areaMaxInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" data-i18n-placeholder="map.any" placeholder="Any"/>
-</div>
-</div>
-<div class="flex gap-2">
-<button id="moreFiltersApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
-<button id="moreFiltersClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
-</div>
-</div>
-</div>
-<div class="relative flex-none">
 <button id="sortBtn" type="button" class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h11"/><path d="m16 21 4-4-4-4"/><path d="M20 17H9"/></svg>
 <span data-i18n="map.sortLabel">Sort</span>
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
 </button>
-<div id="sortMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-2" style="width:220px;">
-<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="recommended" aria-pressed="true" data-i18n="map.sortRecommended"><span data-i18n="map.sortRecommended">Recommended</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
+<div id="sortMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-2" style="width:max-content; min-width:238px; max-width:calc(100vw - 16px);">
+<button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="recommended" aria-pressed="true"><span data-i18n="map.sortRecommended">Recommended</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 <button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="newest" aria-pressed="false"><span data-i18n="map.sortNewest">Newest</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 <button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceAsc" aria-pressed="false"><span data-i18n="map.sortPriceAsc">Price: Low to High</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 <button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="priceDesc" aria-pressed="false"><span data-i18n="map.sortPriceDesc">Price: High to Low</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
@@ -715,6 +637,121 @@ violation reporting. -->
 </button>
 </section>
 
+<!-- ---- Property filters ----------------------------------------------
+     Price / Beds & Baths / Home Type / More -- moved here from the top
+     toolbar's popovers. Every input/button below keeps its EXACT original
+     id, so the module-level filter state, refresh()/updateUrlState() calls
+     and window.DarweshPropertiesMap (MAM's action-agent hook) all keep
+     working unchanged -- this is a UI relocation only, never a second
+     filter system. -->
+<section class="drawer-group" data-group="filters">
+<h3 class="drawer-group-title" data-i18n="map.groupPropertyFilters">Property filters</h3>
+
+<!-- Price -->
+<div class="drawer-subgroup">
+<div class="flex items-center justify-between mb-2">
+<span class="drawer-subgroup-label" data-i18n="map.priceLabel">Price</span>
+<div id="priceCurrencyToggle" class="currency-toggle" role="group" aria-label="Currency">
+<button type="button" class="currency-opt" data-currency="USD" aria-pressed="true">USD</button>
+<button type="button" class="currency-opt" data-currency="IQD" aria-pressed="false">IQD</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2 mb-2">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.minPrice">Min</label>
+<input id="priceMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="0"/>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="map.maxPrice">Max</label>
+<input id="priceMaxInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" data-i18n-placeholder="map.any" placeholder="Any"/>
+</div>
+</div>
+<div class="flex gap-2">
+<button id="priceApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
+<button id="priceClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
+</div>
+</div>
+
+<!-- Beds & Baths -- chip selection commits instantly, per spec. -->
+<div class="drawer-subgroup">
+<span class="drawer-subgroup-label" data-i18n="map.bedsAndBaths">Beds &amp; Baths</span>
+<div class="mb-2">
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1.5" data-i18n="common.beds">Beds</span>
+<div id="bedsChipRow" class="chip-row" role="group" aria-label="Bedrooms">
+<button type="button" class="chip-opt" data-beds="0" aria-pressed="true" data-i18n="map.any">Any</button>
+<button type="button" class="chip-opt" data-beds="1" aria-pressed="false">1+</button>
+<button type="button" class="chip-opt" data-beds="2" aria-pressed="false">2+</button>
+<button type="button" class="chip-opt" data-beds="3" aria-pressed="false">3+</button>
+<button type="button" class="chip-opt" data-beds="4" aria-pressed="false">4+</button>
+<button type="button" class="chip-opt" data-beds="5" aria-pressed="false">5+</button>
+</div>
+</div>
+<div>
+<span class="font-label-caps text-label-caps text-on-surface-variant block mb-1.5" data-i18n="common.baths">Baths</span>
+<div id="bathsChipRow" class="chip-row" role="group" aria-label="Bathrooms">
+<button type="button" class="chip-opt" data-baths="0" aria-pressed="true" data-i18n="map.any">Any</button>
+<button type="button" class="chip-opt" data-baths="1" aria-pressed="false">1+</button>
+<button type="button" class="chip-opt" data-baths="2" aria-pressed="false">2+</button>
+<button type="button" class="chip-opt" data-baths="3" aria-pressed="false">3+</button>
+<button type="button" class="chip-opt" data-baths="4" aria-pressed="false">4+</button>
+</div>
+</div>
+<div class="flex justify-end mt-2">
+<button id="bedsClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
+</div>
+</div>
+
+<!-- Home Type -->
+<div class="drawer-subgroup">
+<span class="drawer-subgroup-label" data-i18n="map.homeType">Home Type</span>
+<div class="hometype-grid mb-2">
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="house"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.house">House</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="villa"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l9-7 9 7"/><path d="M5 11v9h14v-9"/><circle cx="12" cy="15" r="2"/></svg><span data-i18n="map.villa">Villa</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="apartment"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/></svg><span data-i18n="map.apartment">Apartment</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="land"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20V8M10 20V8M14 20V8M18 20V8"/></svg><span data-i18n="map.land">Land</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="building"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="1"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1M10 18h1M13 18h1"/></svg><span data-i18n="map.building">Building</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="office"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg><span data-i18n="map.office">Office</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="shop"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.shop">Shop</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="commercialProperty"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/></svg><span data-i18n="map.commercialProperty">Commercial</span></label>
+</div>
+<div class="flex gap-2">
+<button id="homeTypeApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
+<button id="homeTypeClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
+</div>
+</div>
+
+<!-- More Filters -- collapsed by default so the drawer isn't dominated by
+     the rarer filters; expand/collapse is purely local UI state, never
+     duplicating verifiedOnly/areaMin/areaMax which stay module-level. -->
+<div class="drawer-subgroup">
+<button type="button" id="moreFiltersToggleBtn" class="tool-row" aria-expanded="false" aria-controls="moreFiltersBody">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+<span class="tool-label" data-i18n="map.moreFilters">More filters</span>
+<svg class="ctl-svg chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg>
+</button>
+<div id="moreFiltersBody" hidden="">
+<label class="switch-row mb-3">
+<span class="font-body-md text-body-md text-on-surface" data-i18n="map.verifiedOnly">Verified only</span>
+<input type="checkbox" id="verifiedOnlyCheck"/><span class="switch-track" aria-hidden="true"></span>
+</label>
+<div class="grid grid-cols-2 gap-2 mb-3">
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.minArea">Min m²</label>
+<input id="areaMinInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="0"/>
+</div>
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-1" data-i18n="drm.maxArea">Max m²</label>
+<input id="areaMaxInput" type="number" min="0" class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" data-i18n-placeholder="map.any" placeholder="Any"/>
+</div>
+</div>
+<div class="flex gap-2">
+<button id="moreFiltersApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
+<button id="moreFiltersClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
+</div>
+</div>
+</div>
+</section>
+
 <!-- ---- Area search ------------------------------------------------- -->
 <section class="drawer-group" data-group="area">
 <h3 class="drawer-group-title" data-i18n="map.groupAreaSearch">Area search</h3>
@@ -756,7 +793,7 @@ violation reporting. -->
 <div id="legendBody">
 <div class="map-legend-item"><span class="map-legend-dot" style="background:#c62828;"></span><span data-i18n="map.legendAgentListing">Agent Listing</span></div>
 <div class="map-legend-item"><span class="map-legend-dot" style="background:#2e7d32;"></span><span data-i18n="map.legendVerifiedListing">Verified &amp; Registered</span></div>
-<div class="map-legend-item"><span class="material-symbols-outlined" style="font-size:14px;">home</span><span data-i18n="map.legendIcons">Icon shows property type</span></div>
+<div class="map-legend-item"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.legendIcons">Icon shows property type</span></div>
 <div class="map-legend-item"><span class="map-legend-dot" style="background:#1565c0;"></span><span data-i18n="map.legendNeighborhood">Neighborhood</span></div>
 <div class="map-legend-item"><span class="price-cluster" style="width:18px;height:18px;font-size:9px;border-width:1.5px;">N</span><span data-i18n="map.legendCluster">Grouped nearby listings</span></div>
 <div class="map-legend-item"><span class="map-legend-line"></span><span data-i18n="map.legendAdminArea">Administrative Area</span></div>
@@ -1312,21 +1349,34 @@ const CITY_CENTERS = {
   "Kirkuk": [35.4681, 44.3922]
 };
 
-// Property-type -> Material Symbols glyph shown inside the existing price
-// pin (same pill shell/colors/size for every type — only this glyph
-// changes). Keys are the canonical `propertyType` values sellers choose
-// in sell.html's typeSelect, never inferred from a listing's title.
-const PROPERTY_TYPE_ICONS = {
-  house: 'home',
-  villa: 'villa',
-  apartment: 'apartment',
-  land: 'landscape',
-  building: 'domain',
-  office: 'business_center',
-  shop: 'storefront',
-  commercialProperty: 'corporate_fare'
+// Property-type -> inline SVG path data. THE ONE icon set for this whole
+// page -- the same paths already drawn once for the Home Type checkboxes
+// in MAP TOOLS' Property Filters (map.html's .hometype-card markup) are
+// reused here rather than redrawn, so a marker, a filter chip and a
+// listing card all draw the identical glyph for the identical
+// `propertyType`. Deliberately plain inline SVG (never a Material Symbols
+// ligature/emoji) so it renders identically with no webfont and no
+// platform-dependent glyph. Keys are the canonical `propertyType` values
+// sellers choose in sell.html's typeSelect, never inferred from a title.
+const PROPERTY_TYPE_ICON_PATHS = {
+  house: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+  villa: '<path d="M3 12l9-7 9 7"/><path d="M5 11v9h14v-9"/><circle cx="12" cy="15" r="2"/>',
+  apartment: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/>',
+  land: '<path d="M3 20h18"/><path d="M6 20V8M10 20V8M14 20V8M18 20V8"/>',
+  building: '<rect x="7" y="2" width="10" height="20" rx="1"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1M10 18h1M13 18h1"/>',
+  office: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/>',
+  shop: '<path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/>',
+  commercialProperty: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/>'
 };
-const PROPERTY_TYPE_ICON_FALLBACK = 'home';
+// A generic house outline for any propertyType this map doesn't recognize
+// (a legacy listing, a typo, a type added elsewhere before this page's
+// icon set catches up) -- always a safe, readable icon, never a blank
+// marker and never a raw icon-name string leaking onto the map.
+const PROPERTY_TYPE_ICON_FALLBACK_PATH = PROPERTY_TYPE_ICON_PATHS.house;
+function propertyTypeIconSvg(propertyType, extraAttrs) {
+  const d = PROPERTY_TYPE_ICON_PATHS[propertyType] || PROPERTY_TYPE_ICON_FALLBACK_PATH;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"${extraAttrs ? ' ' + extraAttrs : ''}>${d}</svg>`;
+}
 
 // Below this zoom, markers drop their price text and show only the
 // property-type icon (a compact dot-like pin) so a wide, zoomed-out view
@@ -1337,19 +1387,19 @@ const PROPERTY_TYPE_ICON_FALLBACK = 'home';
 const COMPACT_MARKER_MAX_ZOOM = 10;
 function priceIcon(listing, active) {
   const statusClass = listing.verified ? 'pin-verified' : 'pin-unverified';
-  const glyph = PROPERTY_TYPE_ICONS[listing.propertyType] || PROPERTY_TYPE_ICON_FALLBACK;
+  const icon = propertyTypeIconSvg(listing.propertyType, 'class="price-pin-icon"');
   const compact = !active && map.getZoom() <= COMPACT_MARKER_MAX_ZOOM;
   if (compact) {
     return L.divIcon({
       className: '',
-      html: `<div class="price-pin price-pin-compact ${statusClass}" data-id="${listing.id}"><span class="material-symbols-outlined price-pin-icon">${glyph}</span></div>`,
+      html: `<div class="price-pin price-pin-compact ${statusClass}" data-id="${listing.id}">${icon}</div>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     });
   }
   return L.divIcon({
     className: '',
-    html: `<div class="price-pin ${statusClass}${active ? ' active' : ''}" data-id="${listing.id}"><span class="material-symbols-outlined price-pin-icon">${glyph}</span>${listing.priceLabel}</div>`,
+    html: `<div class="price-pin ${statusClass}${active ? ' active' : ''}" data-id="${listing.id}">${icon}<span class="price-pin-label">${listing.priceLabel}</span></div>`,
     iconSize: null,
     iconAnchor: [30, 15]
   });
@@ -1824,6 +1874,13 @@ function wheelCard(l) {
     ? `${tr('map.approximateArea', 'Approximate area')} &middot; ${escapeHtml(l.city)}`
     : [l.district, l.city].filter(Boolean).map(escapeHtml).join(' &middot; ') || escapeHtml(l.address);
 
+  // Same property-type icon language as the map markers -- identity only,
+  // never a substitute for the real photo above.
+  const typeLabel = propertyTypeLabel(l);
+  const typeBadge = typeLabel
+    ? `<span class="lc-type" title="${escapeHtml(typeLabel)}">${propertyTypeIconSvg(l.propertyType, 'class="lc-type-icon"')}<span class="sr-only">${escapeHtml(typeLabel)}</span></span>`
+    : '';
+
   const revealBtn = hidden
     ? `<button data-id="${l.id}" class="reveal-location-btn lc-action" aria-label="${tr('map.exactLocation', 'Exact Location')}" title="${tr('map.exactLocation', 'Exact Location')}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg>
@@ -1838,7 +1895,7 @@ function wheelCard(l) {
         <h3 class="lc-title">${escapeHtml(listingTitle(l))}</h3>
         ${verifiedBadge}
       </div>
-      <p class="lc-place">${place}</p>
+      <div class="lc-meta">${typeBadge}<p class="lc-place">${place}</p></div>
       <div class="lc-facts">
         ${fact('bed', l.beds, '', tr('map.bedrooms', 'Bedrooms'))}
         ${fact('bath', l.baths, '', tr('map.bathrooms', 'Bathrooms'))}
@@ -2233,7 +2290,7 @@ document.getElementById('priceApplyBtn').addEventListener('click', () => {
   };
   priceMin = toUsd(minVal);
   priceMax = toUsd(maxVal);
-  document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
+  document.getElementById('priceFilterBtn')?.classList.toggle('active', priceMin !== null || priceMax !== null);
   closeAllFilterMenus();
   updateUrlState(true);
   refresh();
@@ -2242,7 +2299,7 @@ document.getElementById('priceClearBtn').addEventListener('click', () => {
   priceMin = null; priceMax = null;
   document.getElementById('priceMinInput').value = '';
   document.getElementById('priceMaxInput').value = '';
-  document.getElementById('priceFilterBtn').classList.remove('active');
+  document.getElementById('priceFilterBtn')?.classList.remove('active');
   closeAllFilterMenus();
   updateUrlState(true);
   refresh();
@@ -2258,28 +2315,30 @@ function setChipActive(rowId, dataAttr, value) {
     btn.setAttribute('aria-pressed', String(Number(btn.dataset[dataAttr]) === Number(value)));
   });
 }
+// Beds & Baths live inside the always-open MAP TOOLS drawer now (not a
+// popover with its own Apply step), so a chip click commits straight into
+// the real filter state and re-renders immediately -- "selection must
+// immediately affect the real listing filter state," per spec.
 document.querySelectorAll('#bedsChipRow .chip-opt').forEach((btn) => {
-  btn.addEventListener('click', () => setChipActive('bedsChipRow', 'beds', Number(btn.dataset.beds)));
+  btn.addEventListener('click', () => {
+    setChipActive('bedsChipRow', 'beds', Number(btn.dataset.beds));
+    bedsMin = Number(btn.dataset.beds);
+    updateUrlState(true);
+    refresh();
+  });
 });
 document.querySelectorAll('#bathsChipRow .chip-opt').forEach((btn) => {
-  btn.addEventListener('click', () => setChipActive('bathsChipRow', 'baths', Number(btn.dataset.baths)));
-});
-document.getElementById('bedsApplyBtn').addEventListener('click', () => {
-  const bedsBtn = document.querySelector('#bedsChipRow .chip-opt[aria-pressed="true"]');
-  const bathsBtn = document.querySelector('#bathsChipRow .chip-opt[aria-pressed="true"]');
-  bedsMin = bedsBtn ? Number(bedsBtn.dataset.beds) : 0;
-  bathsMin = bathsBtn ? Number(bathsBtn.dataset.baths) : 0;
-  document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
-  closeAllFilterMenus();
-  updateUrlState(true);
-  refresh();
+  btn.addEventListener('click', () => {
+    setChipActive('bathsChipRow', 'baths', Number(btn.dataset.baths));
+    bathsMin = Number(btn.dataset.baths);
+    updateUrlState(true);
+    refresh();
+  });
 });
 document.getElementById('bedsClearBtn').addEventListener('click', () => {
   bedsMin = 0; bathsMin = 0;
   setChipActive('bedsChipRow', 'beds', 0);
   setChipActive('bathsChipRow', 'baths', 0);
-  document.getElementById('bedsFilterBtn').classList.remove('active');
-  closeAllFilterMenus();
   updateUrlState(true);
   refresh();
 });
@@ -2288,7 +2347,7 @@ document.getElementById('homeTypeApplyBtn').addEventListener('click', () => {
   selectedHomeTypes = new Set(
     Array.from(document.querySelectorAll('.home-type-check:checked')).map(cb => cb.value)
   );
-  document.getElementById('homeTypeFilterBtn').classList.toggle('active', selectedHomeTypes.size > 0);
+  document.getElementById('homeTypeFilterBtn')?.classList.toggle('active', selectedHomeTypes.size > 0);
   closeAllFilterMenus();
   updateUrlState(true);
   refresh();
@@ -2296,7 +2355,7 @@ document.getElementById('homeTypeApplyBtn').addEventListener('click', () => {
 document.getElementById('homeTypeClearBtn').addEventListener('click', () => {
   selectedHomeTypes = new Set();
   document.querySelectorAll('.home-type-check').forEach(cb => { cb.checked = false; });
-  document.getElementById('homeTypeFilterBtn').classList.remove('active');
+  document.getElementById('homeTypeFilterBtn')?.classList.remove('active');
   closeAllFilterMenus();
   updateUrlState(true);
   refresh();
@@ -2308,7 +2367,7 @@ document.getElementById('moreFiltersApplyBtn').addEventListener('click', () => {
   const maxVal = document.getElementById('areaMaxInput').value;
   areaMin = minVal !== '' ? Number(minVal) : null;
   areaMax = maxVal !== '' ? Number(maxVal) : null;
-  document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  document.getElementById('moreFiltersBtn')?.classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
   closeAllFilterMenus();
   updateUrlState(true);
   refresh();
@@ -2318,11 +2377,30 @@ document.getElementById('moreFiltersClearBtn').addEventListener('click', () => {
   document.getElementById('verifiedOnlyCheck').checked = false;
   document.getElementById('areaMinInput').value = '';
   document.getElementById('areaMaxInput').value = '';
-  document.getElementById('moreFiltersBtn').classList.remove('active');
+  document.getElementById('moreFiltersBtn')?.classList.remove('active');
   closeAllFilterMenus();
   updateUrlState(true);
   refresh();
 });
+
+// "More filters" is a collapsible subsection within the drawer's Property
+// Filters group (not a popover) -- purely local UI state, the real
+// verifiedOnly/areaMin/areaMax values above are untouched by expand/collapse.
+document.getElementById('moreFiltersToggleBtn').addEventListener('click', () => {
+  const btn = document.getElementById('moreFiltersToggleBtn');
+  const body = document.getElementById('moreFiltersBody');
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', String(!open));
+  body.hidden = open;
+});
+// Auto-expand "More filters" whenever a URL load or MAM action sets one of
+// its values, so an active filter is never hidden behind a collapsed
+// section the visitor never opened themselves.
+function syncMoreFiltersExpanded() {
+  if (!(verifiedOnly || areaMin !== null || areaMax !== null)) return;
+  document.getElementById('moreFiltersToggleBtn').setAttribute('aria-expanded', 'true');
+  document.getElementById('moreFiltersBody').hidden = false;
+}
 
 document.querySelectorAll('.sort-option').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -3125,18 +3203,18 @@ function readUrlStateIntoFilters() {
   document.getElementById('priceMinInput').value = priceMin ?? '';
   document.getElementById('priceMaxInput').value = priceMax ?? '';
   document.querySelectorAll('#priceCurrencyToggle .currency-opt').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.currency === 'USD')));
-  document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
+  document.getElementById('priceFilterBtn')?.classList.toggle('active', priceMin !== null || priceMax !== null);
 
   bedsMin = Number(p.get('beds')) || 0;
   bathsMin = Number(p.get('baths')) || 0;
   setChipActive('bedsChipRow', 'beds', bedsMin);
   setChipActive('bathsChipRow', 'baths', bathsMin);
-  document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
+  document.getElementById('bedsFilterBtn')?.classList.toggle('active', bedsMin > 0 || bathsMin > 0);
 
   const typesParam = p.get('types');
   selectedHomeTypes = new Set(typesParam ? typesParam.split(',').filter(Boolean) : []);
   document.querySelectorAll('.home-type-check').forEach(cb => { cb.checked = selectedHomeTypes.has(cb.value); });
-  document.getElementById('homeTypeFilterBtn').classList.toggle('active', selectedHomeTypes.size > 0);
+  document.getElementById('homeTypeFilterBtn')?.classList.toggle('active', selectedHomeTypes.size > 0);
 
   verifiedOnly = p.get('verified') === '1';
   const aMin = p.get('areaMin'), aMax = p.get('areaMax');
@@ -3145,7 +3223,8 @@ function readUrlStateIntoFilters() {
   document.getElementById('verifiedOnlyCheck').checked = verifiedOnly;
   document.getElementById('areaMinInput').value = areaMin ?? '';
   document.getElementById('areaMaxInput').value = areaMax ?? '';
-  document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  document.getElementById('moreFiltersBtn')?.classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+  syncMoreFiltersExpanded();
 
   sortBy = p.get('sort') || 'recommended';
   document.querySelectorAll('.sort-option').forEach((b) => {
@@ -3209,48 +3288,49 @@ function applyAiFilters(filters) {
   if (Array.isArray(filters.types) && filters.types.length) {
     selectedHomeTypes = new Set(filters.types.filter((t) => typeof t === 'string' && t));
     document.querySelectorAll('.home-type-check').forEach((cb) => { cb.checked = selectedHomeTypes.has(cb.value); });
-    document.getElementById('homeTypeFilterBtn').classList.toggle('active', selectedHomeTypes.size > 0);
+    document.getElementById('homeTypeFilterBtn')?.classList.toggle('active', selectedHomeTypes.size > 0);
   }
   if (filters.minPrice !== undefined) {
     priceMin = Number(filters.minPrice) || null;
     document.getElementById('priceMinInput').value = priceMin || '';
-    document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
+    document.getElementById('priceFilterBtn')?.classList.toggle('active', priceMin !== null || priceMax !== null);
   }
   if (filters.maxPrice !== undefined) {
     priceMax = Number(filters.maxPrice) || null;
     document.getElementById('priceMaxInput').value = priceMax || '';
-    document.getElementById('priceFilterBtn').classList.toggle('active', priceMin !== null || priceMax !== null);
+    document.getElementById('priceFilterBtn')?.classList.toggle('active', priceMin !== null || priceMax !== null);
   }
   if (filters.beds !== undefined) {
     bedsMin = Number(filters.beds) || 0;
     setChipActive('bedsChipRow', 'beds', bedsMin);
-    document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
+    document.getElementById('bedsFilterBtn')?.classList.toggle('active', bedsMin > 0 || bathsMin > 0);
   }
   if (filters.baths !== undefined) {
     bathsMin = Number(filters.baths) || 0;
     setChipActive('bathsChipRow', 'baths', bathsMin);
-    document.getElementById('bedsFilterBtn').classList.toggle('active', bedsMin > 0 || bathsMin > 0);
+    document.getElementById('bedsFilterBtn')?.classList.toggle('active', bedsMin > 0 || bathsMin > 0);
   }
   if (filters.verified !== undefined) {
     verifiedOnly = !!filters.verified;
     document.getElementById('verifiedOnlyCheck').checked = verifiedOnly;
-    document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+    document.getElementById('moreFiltersBtn')?.classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
   }
   if (filters.areaMin !== undefined) {
     areaMin = Number(filters.areaMin) || null;
     document.getElementById('areaMinInput').value = areaMin ?? '';
-    document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+    document.getElementById('moreFiltersBtn')?.classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
   }
   if (filters.areaMax !== undefined) {
     areaMax = Number(filters.areaMax) || null;
     document.getElementById('areaMaxInput').value = areaMax ?? '';
-    document.getElementById('moreFiltersBtn').classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
+    document.getElementById('moreFiltersBtn')?.classList.toggle('active', verifiedOnly || areaMin !== null || areaMax !== null);
   }
   if (typeof filters.sort === 'string' && document.querySelector('.sort-option[data-sort="' + filters.sort + '"]')) {
     sortBy = filters.sort;
     document.querySelectorAll('.sort-option').forEach((b) => { const on = b.dataset.sort === sortBy; b.classList.toggle('bg-surface-container', on); b.setAttribute('aria-pressed', String(on)); });
     document.getElementById('sortBtn').classList.toggle('active', sortBy !== 'recommended');
   }
+  syncMoreFiltersExpanded();
   updateUrlState(true);
   refresh();
   document.dispatchEvent(new CustomEvent('darwesh:mam-ai-filters-applied'));
