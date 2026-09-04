@@ -28,6 +28,7 @@ def create_app(
     permission_admin_handler: object | None = None,
     company_handler: object | None = None,
     mam_handler: object | None = None,
+    voice_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -48,7 +49,11 @@ def create_app(
     mam_handler backs MAM Intelligence V2's single chat endpoint (see
     app.mam.routes) -- gated on the same Firebase Admin credential check
     (MAM's own tools read real Firestore data), independent of whether a
-    live chat provider is configured (see app.main.build_mam_handler)."""
+    live chat provider is configured (see app.main.build_mam_handler).
+    voice_handler backs the KurdishTTS Sorani voice proxy (see
+    app.mam.voice) -- gated only on whether KURDISHTTS_STT_KEY/
+    KURDISHTTS_TTS_KEY are set (see app.main.build_voice_handler), no
+    Firebase credential required."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -207,6 +212,10 @@ def create_app(
         )
     if mam_handler is not None:
         app.add_api_route("/api/v1/mam/chat", mam_handler.chat, methods=["POST"])
+    if voice_handler is not None:
+        app.add_api_route("/api/v1/mam/voice/config", voice_handler.config, methods=["GET"])
+        app.add_api_route("/api/v1/mam/voice/stt", voice_handler.stt, methods=["POST"])
+        app.add_api_route("/api/v1/mam/voice/tts", voice_handler.tts, methods=["POST"])
 
     return app
 
