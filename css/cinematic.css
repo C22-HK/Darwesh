@@ -1730,7 +1730,29 @@ body.cine-intro-open { overflow: hidden; }
   pointer-events: none;
   transition: opacity .3s ease;
 }
-.cine-scope .map-drawer-scrim.is-open { opacity: 1; pointer-events: auto; }
+/* Open, the scrim dims the map but does NOT take the click.
+ *
+ * It used to set pointer-events:auto, which made every click anywhere on
+ * the map hit the scrim instead of the map: a marker could not be
+ * selected at all while the drawer was open, and the only thing a click
+ * did was close the drawer. On a 320px drawer over a full-width map that
+ * is the wrong trade -- the map is still the page, and most of it is
+ * still visible.
+ *
+ * Closing on an outside click still happens; it is driven by a document
+ * listener in map.html rather than by this element, so the same click
+ * both reaches the marker underneath and dismisses the drawer.
+ */
+.cine-scope .map-drawer-scrim.is-open { opacity: 1; }
+
+/* Mobile keeps the blocking scrim. There the drawer covers ~82vw, so the
+ * strip of map still showing is too narrow to aim at -- a tap there is
+ * far more likely to mean "close this" than "select that marker", and a
+ * mis-aimed tap that both selected a listing and closed the drawer would
+ * be worse than one that just closes it. */
+@media (max-width: 767px) {
+  .cine-scope .map-drawer-scrim.is-open { pointer-events: auto; }
+}
 
 /* ---- Drawer chrome --------------------------------------------------- */
 .cine-scope .map-drawer-head {

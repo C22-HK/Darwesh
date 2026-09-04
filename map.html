@@ -2454,7 +2454,41 @@ mapEdgeHandle.addEventListener('keydown', (e) => {
 });
 
 mapDrawerCloseBtn.addEventListener('click', () => { setDrawerOpen(false); mapEdgeHandle.focus(); });
-mapDrawerScrim.addEventListener('click', () => setDrawerOpen(false));
+
+// Click-outside-to-close, driven from the document rather than from the
+// scrim.
+//
+// The scrim used to swallow the click, which is why a marker could not be
+// selected while the drawer was open: the only thing a click on the map
+// did was dismiss the panel. Listening here instead means the click keeps
+// travelling -- Leaflet still gets it and selects the listing -- and the
+// drawer closes on the way. One click, both outcomes.
+//
+// `pointerdown` rather than `click`, so the drawer starts sliding away as
+// the press lands instead of a frame after it is released. Anything
+// inside the drawer or on the handle is excluded: the handle runs its own
+// toggle, and a press on drawer chrome may be the start of a drag.
+//
+// The scrim still handles this on mobile, where it stays click-blocking
+// (see css/cinematic.css) -- hence the closest() check covering it too,
+// so the two paths cannot both fire and fight.
+document.addEventListener('pointerdown', (e) => {
+  if (!drawerOpen) return;
+  // While a boundary is being drawn, clicks on the map ARE the task: each
+  // one drops a vertex. Closing the drawer on them would hide Undo and
+  // Finish behind the handle after the very first point. Draw mode ends
+  // through Finish, Escape or the Draw Area toggle instead.
+  if (drawMode) return;
+  // A pointer event's target is normally an Element (SVG included, since
+  // SVGElement extends Element and so has closest()), but guard anyway --
+  // a target that isn't one cannot be inside the drawer, so it counts as
+  // outside rather than skipping the close.
+  const t = e.target;
+  if (t && typeof t.closest === 'function' && t.closest('#mapDrawer, #mapEdgeHandle')) return;
+  setDrawerOpen(false);
+});
+mapDrawerScrim.addEventListener('click', () => { if (drawerOpen) setDrawerOpen(false); });
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
 });

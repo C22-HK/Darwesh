@@ -46,6 +46,41 @@ function fmtPrice(p, currency) {
 function getSessionId() { return sessionStorage.getItem(SESSION_KEY) || ''; }
 function setSessionId(id) { if (id) sessionStorage.setItem(SESSION_KEY, id); }
 
+// ---- Conversation carried across page navigation ----------------------
+// The session id already survived a navigation, so the BACKEND kept the
+// history -- but the panel was rebuilt empty on every page, so the
+// conversation looked lost even though MAM still remembered it. Asking a
+// follow-up ("what about the second one?") worked while showing no trace
+// of what it referred to.
+//
+// sessionStorage, deliberately, not localStorage: the conversation belongs
+// to this tab and this visit, and should not reappear days later or in
+// another tab -- which matches where the session id itself lives.
+//
+// Only what is needed to redraw a turn is stored: the text and any
+// reference cards. No map action is kept, because replaying one on a later
+// page would silently re-filter a map the visitor never asked to change.
+const TRANSCRIPT_KEY = 'darwesh_mam_companion_transcript';
+const TRANSCRIPT_MAX_TURNS = 24;
+
+function readTranscript() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(TRANSCRIPT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }   // corrupt or storage disabled -- start clean
+}
+function recordTurn(turn) {
+  try {
+    const turns = readTranscript();
+    turns.push(turn);
+    sessionStorage.setItem(TRANSCRIPT_KEY, JSON.stringify(turns.slice(-TRANSCRIPT_MAX_TURNS)));
+  } catch { /* private mode or quota -- the conversation still works, it just won't carry over */ }
+}
+/** Drops the carried conversation AND the session id, so the next message starts fresh. */
+export function clearMamConversation() {
+  try { sessionStorage.removeItem(TRANSCRIPT_KEY); sessionStorage.removeItem(SESSION_KEY); } catch { /* nothing to clear */ }
+}
+
 // A suggested action is only ever rendered as a real link this frontend
 // already knows how to serve -- an action type/payload this build can't
 // resolve to a genuine, existing destination is silently skipped rather
@@ -354,8 +389,12 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     return en.length ? en[0] : null;
   }
   let fallbackNoteShown = false;
-  function speak(text) {
-    if (!voiceOutputEnabled || !window.speechSynthesis || !text) return;
+  // onDone fires when the reply has finished being spoken -- or straight
+  // away when there is nothing to speak. The hands-free loop chains on it,
+  // so it must fire on EVERY path, including the disabled/unsupported ones;
+  // a path that silently returns would strand the loop mid-turn.
+  function speak(text, { onDone } = {}) {
+    if (!voiceOutputEnabled || !window.speechSynthesis || !text) { if (onDone) onDone(); return; }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const candidates = speechVoiceLangCandidates();
@@ -370,8 +409,8 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
       scrollLogToBottom();
     }
     utterance.addEventListener('start', () => companion.setState('speaking'));
-    utterance.addEventListener('end', () => companion.setState('idle'));
-    utterance.addEventListener('error', () => companion.setState('idle'));
+    utterance.addEventListener('end', () => { companion.setState('idle'); if (onDone) onDone(); });
+    utterance.addEventListener('error', () => { companion.setState('idle'); if (onDone) onDone(); });
     window.speechSynthesis.speak(utterance);
   }
   function updateVoiceToggleUI() {
@@ -417,12 +456,13 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     sendBtn.setAttribute('aria-busy', String(isSending));
   }
 
-  async function sendMessage(rawText, { viaVoice = false } = {}) {
+  async function sendMessage(rawText, { viaVoice = false, onReplySpoken, onFailed } = {}) {
     const text = (rawText || '').trim();
     if (!text || sending) return;
     if (text.length > MAX_MESSAGE_LENGTH) {
       open();
       addAssistantBubble({ message: trf('mam.tooLong', 'That message is too long (max {n} characters).', { n: MAX_MESSAGE_LENGTH }) });
+      if (onFailed) onFailed();
       return;
     }
     open();
@@ -433,6 +473,7 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     const thisController = pendingController;
 
     addUserBubble(text);
+    recordTurn({ role: 'user', text });
     input.value = '';
     setSendingState(true);
     showThinking();
@@ -446,9 +487,11 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
       hideThinking();
       if (data.sessionId) setSessionId(data.sessionId);
       addAssistantBubble(data);
+      recordTurn({ role: 'assistant', text: data.message || '', cards: Array.isArray(data.cards) ? data.cards : [] });
       applyMapAction(data.mapAction);
       companion.setState('result-ready');
-      if (lastTurnWasVoice && data.message) speak(data.message);
+      if (lastTurnWasVoice && data.message) speak(data.message, { onDone: onReplySpoken });
+      else if (onReplySpoken) onReplySpoken();   // nothing to say -- keep the loop moving
     } catch (err) {
       if (thisController.signal.aborted) { hideThinking(); return; }
       hideThinking();
@@ -462,6 +505,7 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
       } else {
         addAssistantBubble({ message: tr('mam.genericError', "That didn't go through. Please try again.") }, { failed: true, retryText: text });
       }
+      if (onFailed) onFailed();
     } finally {
       if (pendingController === thisController) {
         setSendingState(false);
@@ -486,43 +530,148 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognitionCtor) {
     const recognition = new SpeechRecognitionCtor();
+    // `continuous` stays FALSE on purpose. The browser's own continuous
+    // mode keeps the microphone stream open straight through MAM's spoken
+    // reply and transcribes that reply back as the next question -- the
+    // assistant ends up talking to itself. Capturing one utterance at a
+    // time and reopening the mic only after speaking has finished is what
+    // keeps the two voices apart.
     recognition.continuous = false;
     recognition.interimResults = false;
+
+    // HANDS-FREE IS A MODE, NOT A CAPTURE.
+    //
+    // One click starts a conversation and it runs on its own:
+    //
+    //   listening -> processing -> speaking -> listening -> ...
+    //
+    // A second click ends it. Previously the mic was push-to-talk: it
+    // captured exactly one utterance and stopped, so a back-and-forth
+    // meant reaching for the button before every single sentence.
     let listening = false;
+    let handsFree = false;
+    // A run of silences ends the mode instead of holding the microphone
+    // open forever -- someone who walked away should not leave it live.
+    let silentRounds = 0;
+    const MAX_SILENT_ROUNDS = 3;
+
     function speechLangTag() {
       const lang = currentLang();
       return (lang === 'ar' || lang === 'ku') ? 'ar-IQ' : 'en-US';
     }
-    function stopListening() {
-      listening = false;
-      micBtn.classList.remove('mic-listening');
-      if (companion.getState() === 'listening') companion.setState('idle');
+
+    function updateMicUI() {
+      micBtn.classList.toggle('mic-listening', listening);
+      micBtn.classList.toggle('mic-handsfree', handsFree);
+      micBtn.setAttribute('aria-pressed', String(handsFree));
+      micBtn.setAttribute('aria-label', handsFree
+        ? tr('mam.handsFreeStop', 'Stop the voice conversation')
+        : tr('mam.handsFreeStart', 'Start a hands-free voice conversation'));
     }
-    micBtn.hidden = false;
-    micBtn.addEventListener('click', () => {
-      if (listening) { recognition.stop(); return; }
-      if (window.speechSynthesis) window.speechSynthesis.cancel(); // don't let MAM's own voice be picked up as new input
+
+    function startListening() {
+      if (listening) return;
+      // Never listen while MAM is still speaking, or its own voice becomes
+      // the next question.
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
       recognition.lang = speechLangTag();
       try {
         recognition.start();
         listening = true;
-        micBtn.classList.add('mic-listening');
         companion.setState('listening');
         open();
-      } catch { stopListening(); }
+      } catch {
+        // Already started, or the mic was refused: drop the mode rather
+        // than leaving a button that claims to be listening.
+        listening = false;
+        endHandsFree();
+      }
+      updateMicUI();
+    }
+
+    function stopListening() {
+      listening = false;
+      if (companion.getState() === 'listening') companion.setState('idle');
+      updateMicUI();
+    }
+
+    function endHandsFree() {
+      handsFree = false;
+      silentRounds = 0;
+      try { recognition.abort(); } catch { /* not running */ }
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopListening();
+    }
+
+    micBtn.hidden = false;
+    updateMicUI();
+    micBtn.addEventListener('click', () => {
+      if (handsFree) { endHandsFree(); return; }
+      handsFree = true;
+      silentRounds = 0;
+      // The point of the mode is a spoken conversation, so replies are
+      // read aloud while it is on even if the visitor had voice output
+      // switched off for typing. The stored preference is left alone --
+      // ending the mode restores whatever they had chosen.
+      if (!voiceOutputEnabled && window.speechSynthesis) {
+        voiceOutputEnabled = true;
+        updateVoiceToggleUI();
+      }
+      startListening();
     });
+
     recognition.addEventListener('result', (e) => {
       const transcript = e.results[0][0].transcript;
       stopListening();
-      if (transcript && transcript.trim()) sendMessage(transcript, { viaVoice: true });
+      if (!transcript || !transcript.trim()) return;
+      silentRounds = 0;
+      sendMessage(transcript, {
+        viaVoice: true,
+        // Chained off the end of the spoken reply, so the next turn opens
+        // the mic exactly when MAM stops talking.
+        onReplySpoken: () => { if (handsFree) startListening(); },
+        // A failed turn ends the mode: looping on an error would just
+        // re-ask into a broken connection.
+        onFailed: () => { if (handsFree) endHandsFree(); }
+      });
     });
-    recognition.addEventListener('end', stopListening);
-    recognition.addEventListener('error', stopListening);
+
+    recognition.addEventListener('end', () => {
+      const wasListening = listening;
+      stopListening();
+      // Reached with no result = silence. Reopen the mic a few times, then
+      // give up rather than listening indefinitely.
+      if (!handsFree || !wasListening || sending) return;
+      silentRounds += 1;
+      if (silentRounds >= MAX_SILENT_ROUNDS) { endHandsFree(); return; }
+      startListening();
+    });
+
+    recognition.addEventListener('error', (e) => {
+      // 'no-speech' is ordinary silence and is handled by the end handler
+      // that follows it; anything else (denied permission, no device, a
+      // network failure) is a real stop.
+      if (e && e.error === 'no-speech') { stopListening(); return; }
+      endHandsFree();
+    });
   }
 
   document.addEventListener('darwesh:langchange', () => {
     input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM about the market…');
   });
+
+  // Redraw whatever was said before this page loaded. Runs last so every
+  // helper it uses exists and the log is still empty; a failed turn was
+  // never recorded, so nothing here can resurrect an error bubble.
+  (function replayCarriedConversation() {
+    const turns = readTranscript();
+    if (!turns.length) return;
+    turns.forEach((t) => {
+      if (!t || typeof t.text !== 'string') return;
+      if (t.role === 'user') addUserBubble(t.text);
+      else addAssistantBubble({ message: t.text, cards: Array.isArray(t.cards) ? t.cards : [] });
+    });
+  })();
 
   return { open, close, toggle, sendMessage };
 }
