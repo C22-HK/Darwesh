@@ -1,10 +1,33 @@
 name: CI
 
+# Runs against THIS project's real production branch,
+# claude/web-project-hqdo8o -- the repository's default branch and the one
+# deploy-pages.yml publishes from.
+#
+# This workflow previously watched `main` alone. `main` is not this
+# project's production branch and has not been: it sits 126 commits behind
+# claude/web-project-hqdo8o and carries 39 commits that branch never took.
+# So no push to production and no pull request into it has ever triggered
+# these checks -- PRs #42, #43 and #44 all merged with zero check runs,
+# and scripts/ci-checks.js has effectively been a local-only tool.
+# deploy-pages.yml was already pointed at the production branch (see its
+# header, which says so explicitly); this file was simply left behind.
+#
+# `main` is kept in both lists rather than dropped. It costs nothing while
+# nothing is pushed there, and it means a future decision to revive that
+# branch does not silently arrive without checks.
+#
+# Note for `pull_request`: the branch filter matches the BASE branch, so
+# this is "every PR merging INTO production", regardless of what the
+# source branch is called.
 on:
   push:
-    branches: [main]
+    branches: [claude/web-project-hqdo8o, main]
   pull_request:
-    branches: [main]
+    branches: [claude/web-project-hqdo8o, main]
+  # Lets a run be started by hand from the Actions tab -- useful to confirm
+  # the checks pass on production without waiting for the next PR.
+  workflow_dispatch:
 
 # Least-privilege default (INFRA-09, INFRASTRUCTURE_REMEDIATION.md): neither
 # job does anything beyond actions/checkout's own read (no PR comments, no
