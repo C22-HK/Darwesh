@@ -96,6 +96,17 @@ class Config:
     openai_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # --- KurdishTTS: Sorani voice layer for MAM (STT + TTS proxy) ---
+    # Both keys are server-side only -- see app.mam.voice, which never
+    # forwards either to the browser and never logs them. Each gates its
+    # OWN capability independently (see app.main.build_voice_handler):
+    # kurdishtts_stt_key controls whether MAM can transcribe Sorani speech,
+    # kurdishtts_tts_key whether it can speak Sorani replies aloud. Either
+    # or both may be unset -- MAM's text chat and non-Sorani voice never
+    # depend on this being configured at all.
+    kurdishtts_stt_key: str = ""
+    kurdishtts_tts_key: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.env == "production"
@@ -129,4 +140,6 @@ def load() -> Config:
         gemini_model_pro=os.environ.get("GEMINI_MODEL_PRO", ""),
         openai_api_key=os.environ.get("OPENAI_API_KEY", ""),
         anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        kurdishtts_stt_key=os.environ.get("KURDISHTTS_STT_KEY", ""),
+        kurdishtts_tts_key=os.environ.get("KURDISHTTS_TTS_KEY", ""),
     )

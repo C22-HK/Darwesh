@@ -28,7 +28,7 @@
 // backend/model text as HTML -- every dynamic value reaches the DOM via
 // textContent/element properties.
 import { auth } from './firebase-init.js';
-import { sendMamChat, BackendUnavailableError, BackendResponseError } from './mam-api.js';
+import { sendMamChat, BackendUnavailableError, BackendResponseError, fetchMamVoiceConfig, mamVoiceStt, mamVoiceTts } from './mam-api.js';
 import { detectDirectCommand, resolvePage, filtersToMapUrlParams } from './mam-actions.js';
 
 // Below this width the panel gives up trying to sit beside the dock and
@@ -196,6 +196,17 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   mounted = true;
   const currentLang = currentLangFactory(getLanguage);
   ensureStylesheet();
+
+  // ---- KurdishTTS Sorani voice capability -------------------------------
+  // Probed ONCE per page load, best-effort, never blocking anything --
+  // both STT and TTS stay off (kurdishVoice.*Available === false) until
+  // this resolves, and MAM's text chat and non-Sorani voice work exactly
+  // as before regardless of the outcome. No key is ever involved here:
+  // this only asks the backend which capabilities IT has configured (see
+  // backend/app/mam/voice.py's GET /api/v1/mam/voice/config).
+  const kurdishVoice = { sttAvailable: false, ttsAvailable: false };
+  fetchMamVoiceConfig().then((cfg) => { kurdishVoice.sttAvailable = cfg.sttAvailable; kurdishVoice.ttsAvailable = cfg.ttsAvailable; });
+  function soraniVoiceActive() { return currentLang() === 'ku'; }
 
   const panel = document.createElement('div');
   panel.className = 'mamcp-panel';
@@ -651,8 +662,79 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // on the utterance -- no error event, no exception, nothing. A watchdog
   // is the only way to notice, so one runs on every spoken reply and is
   // cleared the moment speech genuinely begins.
+  // ---- KurdishTTS audio playback (Sorani) --------------------------------
+  // Reuses ONE <audio> element for the life of the panel rather than a new
+  // one per reply -- both so at most one KurdishTTS clip is ever playing
+  // (interrupting a previous one just replaces its source) and so it's a
+  // single, obvious thing to stop from disableVoiceCompletely()/a new
+  // sendMessage() interrupting an in-flight reply.
+  const kurdishAudioEl = new Audio();
+  kurdishAudioEl.preload = 'auto';
+  let kurdishTtsController = null;   // aborts an in-flight (now-obsolete) synthesis request
+  let lastKurdishTtsText = null;     // cost control: never re-synthesize the same reply twice in a row
+  let lastKurdishTtsBlobUrl = null;
+  function stopKurdishAudio() {
+    if (kurdishTtsController) { kurdishTtsController.abort(); kurdishTtsController = null; }
+    try { kurdishAudioEl.pause(); } catch { /* not playing */ }
+  }
+  // Returns true if it successfully started (or is in the process of
+  // starting) KurdishTTS playback -- the caller must NOT also start
+  // browser speechSynthesis in that case. Returns false (having called
+  // nothing further) when KurdishTTS isn't usable right now, so the
+  // caller falls through to the existing browser-voice path unchanged.
+  async function speakWithKurdishTts(text, { onDone }) {
+    kurdishTtsController = new AbortController();
+    const thisController = kurdishTtsController;
+    let blobUrl;
+    if (lastKurdishTtsText === text && lastKurdishTtsBlobUrl) {
+      blobUrl = lastKurdishTtsBlobUrl;   // identical reply already synthesized -- reuse it, never re-request
+    } else {
+      const blob = await mamVoiceTts(text, { signal: thisController.signal });
+      if (thisController.signal.aborted) return; // superseded by a newer turn while awaiting
+      if (!blob) {
+        kurdishTtsController = null;
+        speakWithBrowserVoice(text, { onDone }); // KurdishTTS unavailable/quota-exhausted -- fall back, never fake success
+        return;
+      }
+      if (lastKurdishTtsBlobUrl) URL.revokeObjectURL(lastKurdishTtsBlobUrl);
+      blobUrl = URL.createObjectURL(blob);
+      lastKurdishTtsText = text;
+      lastKurdishTtsBlobUrl = blobUrl;
+    }
+    if (thisController.signal.aborted) return;
+    kurdishAudioEl.src = blobUrl;
+    let settled = false;
+    function settle() {
+      if (settled) return;
+      settled = true;
+      companion.setState('idle');
+      kurdishTtsController = null;
+      if (onDone) onDone();
+    }
+    kurdishAudioEl.onplay = () => companion.setState('speaking');
+    kurdishAudioEl.onended = settle;
+    kurdishAudioEl.onerror = () => { speakWithBrowserVoice(text, { onDone }); }; // playback itself failed -- fall back rather than going silent
+    try {
+      await kurdishAudioEl.play();
+    } catch {
+      // Same browser autoplay/gesture restriction speechSynthesis can hit
+      // -- fall back to the existing browser path's own honest handling
+      // of that case (its watchdog + "tap anywhere" note).
+      speakWithBrowserVoice(text, { onDone });
+    }
+  }
   function speak(text, { onDone } = {}) {
-    if (!voiceOutputEnabled || !window.speechSynthesis || !text) { if (onDone) onDone(); return; }
+    if (!voiceOutputEnabled || !text) { if (onDone) onDone(); return; }
+    stopKurdishAudio();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (soraniVoiceActive() && kurdishVoice.ttsAvailable) {
+      speakWithKurdishTts(text, { onDone });
+      return;
+    }
+    speakWithBrowserVoice(text, { onDone });
+  }
+  function speakWithBrowserVoice(text, { onDone } = {}) {
+    if (!window.speechSynthesis) { if (onDone) onDone(); return; }
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     const candidates = speechVoiceLangCandidates();
@@ -1065,12 +1147,97 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       addAssistantBubble({ message: tr(messageKey, fallback) }, { failed: true });
     }
 
+    // ---- KurdishTTS STT (Sorani conversation-turn capture) ----------------
+    // The browser's own SpeechRecognition (above/below) has no real Sorani
+    // support on most engines -- see the module's opening comment. Rather
+    // than replacing the whole wake/conversation state machine, a SEPARATE
+    // MediaRecorder captures the SAME conversation-mode turn in parallel
+    // (started right after recognition.start() succeeds, in
+    // startListening() below) purely as raw audio, sent to the backend STT
+    // proxy once the turn ends (finishKurdishRecording(), called from the
+    // 'end' handler). recognition itself still drives every start/stop
+    // timing decision exactly as before -- only WHICH transcript gets used
+    // changes when Sorani KurdishTTS STT is available.
+    let kurdishMediaStream = null;
+    let kurdishRecorder = null;
+    let kurdishRecordedChunks = [];
+    let kurdishSttController = null;
+
+    async function ensureKurdishMediaStream() {
+      if (kurdishMediaStream) return kurdishMediaStream;
+      try {
+        kurdishMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return kurdishMediaStream;
+      } catch {
+        return null; // mic denied/unavailable for this second consumer -- the browser's own recognition still works
+      }
+    }
+
+    function pickKurdishRecorderMimeType() {
+      const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      for (const type of candidates) {
+        if (window.MediaRecorder && window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(type)) return type;
+      }
+      return '';
+    }
+
+    function startKurdishRecording() {
+      if (!soraniVoiceActive() || !kurdishVoice.sttAvailable || !navigator.mediaDevices || !window.MediaRecorder) return;
+      ensureKurdishMediaStream().then((stream) => {
+        if (!stream || recogMode !== 'conversation') return; // turn already ended before permission resolved
+        kurdishRecordedChunks = [];
+        try {
+          kurdishRecorder = new MediaRecorder(stream, { mimeType: pickKurdishRecorderMimeType() });
+        } catch {
+          kurdishRecorder = null;
+          return;
+        }
+        kurdishRecorder.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) kurdishRecordedChunks.push(e.data); });
+        try { kurdishRecorder.start(); } catch { kurdishRecorder = null; }
+      });
+    }
+
+    // Aborts an in-progress recording/transcription without sending it --
+    // used when the turn is being torn down for a reason other than a
+    // normal end (voice turned off, a stop phrase heard).
+    function stopKurdishRecording() {
+      if (kurdishSttController) { kurdishSttController.abort(); kurdishSttController = null; }
+      if (kurdishRecorder && kurdishRecorder.state !== 'inactive') { try { kurdishRecorder.stop(); } catch { /* already stopped */ } }
+      kurdishRecorder = null;
+      kurdishRecordedChunks = [];
+    }
+
+    // Stops the recorder, sends what it captured to the backend STT proxy,
+    // and resolves with the transcript -- or null if there was no
+    // recording, nothing was captured, or the proxy call failed/was
+    // unavailable, so the caller falls back to the browser's own guess
+    // rather than losing the turn.
+    async function finishKurdishRecording() {
+      const recorder = kurdishRecorder;
+      kurdishRecorder = null;
+      if (!recorder) return null;
+      if (recorder.state === 'inactive') return null;
+      const stopped = new Promise((resolve) => { recorder.addEventListener('stop', resolve, { once: true }); });
+      try { recorder.stop(); } catch { return null; }
+      await stopped;
+      const chunks = kurdishRecordedChunks;
+      kurdishRecordedChunks = [];
+      if (!chunks.length) return null;
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+      kurdishSttController = new AbortController();
+      const thisController = kurdishSttController;
+      const transcript = await mamVoiceStt(blob, { signal: thisController.signal });
+      if (kurdishSttController === thisController) kurdishSttController = null;
+      return transcript;
+    }
+
     // Begins/continues one CONVERSATION turn -- the active, "capture a
     // real question" mode. Unchanged in spirit from the original
     // hands-free loop; only now it also hands off cleanly from wake mode.
     function startListening() {
       if (listening || starting) return;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopKurdishAudio();
       recognition.lang = speechLangTag();
       starting = true;
       try {
@@ -1079,6 +1246,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         listening = true;
         companion.setState('listening');
         open();
+        startKurdishRecording();
       } catch {
         // Already started, or the mic was refused: drop the mode rather
         // than leaving a button that claims to be listening.
@@ -1154,6 +1322,8 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       try { recognition.abort(); } catch { /* not running */ }
       recogMode = null;
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopKurdishAudio();
+      stopKurdishRecording();
       if (onResumeHint) onResumeHint(null);
       stopListening();
       stopWakeListening();
@@ -1264,31 +1434,49 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (mode === 'conversation') {
         const wasListening = listening;
         stopListening();
-        if (pendingStopCommand) { pendingStopCommand = false; disableVoiceCompletely(); return; }
-        if (pendingSendText) {
-          const text = pendingSendText;
-          pendingSendText = null;
-          sendMessage(text, {
-            viaVoice: true,
-            // Chained off the end of the spoken reply, so the next turn
-            // opens the mic exactly when MAM stops talking -- never while
-            // it is still speaking, which is what would feed its own
-            // voice back in.
-            onReplySpoken: () => { if (handsFree) startListening(); },
-            // A failed turn ends the conversation loop (not the standing
-            // wake preference): looping on an error would just re-ask
-            // into a broken connection.
-            onFailed: () => { naturalConversationEnd(); }
-          });
-          return;
+        if (pendingStopCommand) { pendingStopCommand = false; stopKurdishRecording(); disableVoiceCompletely(); return; }
+
+        // Sorani, with KurdishTTS STT available and a recording actually
+        // running: prefer ITS transcript (the browser's own recognition
+        // rarely has real Sorani support -- see the module's opening
+        // comment) over the browser's guess, falling back to that guess
+        // only if the proxy call fails or is unavailable -- never losing
+        // the turn over a KurdishTTS hiccup.
+        const browserGuess = pendingSendText;
+        pendingSendText = null;
+        const soraniSttInFlight = soraniVoiceActive() && kurdishVoice.sttAvailable && !!kurdishRecorder;
+        let textPromise;
+        if (soraniSttInFlight) {
+          textPromise = finishKurdishRecording().then((ko) => (ko && ko.trim()) || browserGuess);
+        } else {
+          stopKurdishRecording();
+          textPromise = Promise.resolve(browserGuess);
         }
-        // Reached with no result = silence. Reopen the mic a few times,
-        // then give up (dropping to wake-listening if that preference is
-        // still on) rather than capturing indefinitely.
-        if (!handsFree || !wasListening || sending) return;
-        silentRounds += 1;
-        if (silentRounds >= MAX_SILENT_ROUNDS) { naturalConversationEnd(); return; }
-        startListening();
+
+        textPromise.then((text) => {
+          if (text) {
+            sendMessage(text, {
+              viaVoice: true,
+              // Chained off the end of the spoken reply, so the next turn
+              // opens the mic exactly when MAM stops talking -- never while
+              // it is still speaking, which is what would feed its own
+              // voice back in.
+              onReplySpoken: () => { if (handsFree) startListening(); },
+              // A failed turn ends the conversation loop (not the standing
+              // wake preference): looping on an error would just re-ask
+              // into a broken connection.
+              onFailed: () => { naturalConversationEnd(); }
+            });
+            return;
+          }
+          // Reached with no result = silence. Reopen the mic a few times,
+          // then give up (dropping to wake-listening if that preference is
+          // still on) rather than capturing indefinitely.
+          if (!handsFree || !wasListening || sending) return;
+          silentRounds += 1;
+          if (silentRounds >= MAX_SILENT_ROUNDS) { naturalConversationEnd(); return; }
+          startListening();
+        });
       }
     });
 

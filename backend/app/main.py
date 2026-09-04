@@ -32,6 +32,7 @@ from app.mam.rate_limit import build_mam_rate_limiters
 from app.mam.routes import MamHandler
 from app.mam.session import SessionStore
 from app.mam.tools import Tools
+from app.mam.voice import KurdishTTSClient, VoiceHandler, build_voice_rate_limiters
 from app.otp.email_handler import EmailOtpSendHandler, EmailOtpVerifyHandler, SignupCompleteHandler
 from app.otp.email_sender import MockEmailSender, ResendOtpEmailSender
 from app.otp.firebase_admin_ops import EmailUidResolver, FirebaseAccountOps
@@ -386,6 +387,43 @@ def build_mam_handler(cfg: Config) -> MamHandler | None:
     return MamHandler(orchestrator=orchestrator, auth=auth_gate, rate_limiters=rate_limiters, logger=logger)
 
 
+def build_voice_handler(cfg: Config) -> VoiceHandler | None:
+    """Wires up the KurdishTTS Sorani voice proxy (POST /api/v1/mam/voice/
+    stt, /tts, GET /config). Unlike build_mam_handler, this needs NO
+    Firebase credential -- neither route touches Firestore, they only
+    forward to KurdishTTS with a server-side key. Registered only when at
+    least one of KURDISHTTS_STT_KEY/KURDISHTTS_TTS_KEY is set; if only one
+    is, the OTHER capability's route still exists but its handler method
+    returns a clean voice_unavailable response rather than 404 -- see
+    VoiceHandler.stt_available/tts_available. Both keys stay entirely
+    within KurdishTTSClient (app.mam.voice) -- never logged here or
+    anywhere else."""
+    if not cfg.kurdishtts_stt_key and not cfg.kurdishtts_tts_key:
+        logger.info("MAM voice (KurdishTTS) not configured, skipping (set KURDISHTTS_STT_KEY/KURDISHTTS_TTS_KEY)")
+        return None
+
+    # No Firebase Admin credential is available/needed for rate limiting
+    # in-memory-only deployments (mirrors build_mam_rate_limiters' own
+    # is_production switch) -- Firestore-backed limiting is used whenever
+    # a Firebase credential happens to already be configured for MAM,
+    # falling back to in-memory otherwise so this feature never depends
+    # on Firebase being set up at all.
+    db = None
+    if _has_firebase_credential(cfg):
+        try:
+            db = MamFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id).firestore_client
+        except ValueError:
+            db = None
+    rate_limiters = build_voice_rate_limiters(db=db, is_production=cfg.is_production and db is not None)
+
+    client = KurdishTTSClient(stt_key=cfg.kurdishtts_stt_key, tts_key=cfg.kurdishtts_tts_key, logger=logger)
+    logger.info(
+        "MAM voice (KurdishTTS) enabled",
+        extra={"stt": bool(cfg.kurdishtts_stt_key), "tts": bool(cfg.kurdishtts_tts_key)},
+    )
+    return VoiceHandler(client=client, rate_limiters=rate_limiters, logger=logger)
+
+
 def create_configured_app():
     cfg = load()
     logging.basicConfig(
@@ -399,6 +437,7 @@ def create_configured_app():
     )
     organization_handler, permission_admin_handler, company_handler = build_access_handlers(cfg)
     mam_handler = build_mam_handler(cfg)
+    voice_handler = build_voice_handler(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -410,6 +449,7 @@ def create_configured_app():
         permission_admin_handler,
         company_handler,
         mam_handler,
+        voice_handler,
     )
 
 
