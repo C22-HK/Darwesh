@@ -95,7 +95,12 @@ function init() {
     // can land inside the listing panel beside it on desktop, which is
     // exactly the "must not cover listing cards" case this avoids by
     // construction rather than by nudging around it afterwards.
-    bottomAnchorSelector: isMapPage ? '#mapPanel' : undefined
+    bottomAnchorSelector: isMapPage ? '#mapPanel' : undefined,
+    // The map keeps its useful compact bar (orb + label + mic) -- a
+    // premium Zillow-class map assistant earns that extra real estate.
+    // Every other page collapses to ONLY the living orb; the label and
+    // mic this variant omits still exist inside the expanded panel.
+    variant: isMapPage ? 'bar' : 'orb'
   });
 
   const panel = mountMamChatPanel({
