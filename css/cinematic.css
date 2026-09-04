@@ -908,6 +908,43 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .rp-hero-meta { color: var(--ps-color-on-surface-variant); }
 .cine-scope .rp-hero-eyebrow { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; }
 
+/* PHASE 3B -- optional provider cover image.
+ *
+ * Layered UNDER .rp-hero-media rather than replacing it, so a profile
+ * with no cover renders byte-for-byte as it did before: the role's own
+ * gradient/texture treatment below is untouched and remains the default.
+ * A cover, when present, sits behind that treatment and shows through it,
+ * which keeps every role visually recognisable instead of collapsing all
+ * six into one generic photo banner.
+ *
+ * position:absolute + inset:0 on a position:relative .rp-hero means the
+ * cover cannot change the hero's height, so adding one never shifts
+ * layout -- the identity block's negative margin still lands correctly. */
+.cine-scope .rp-hero-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* Only applied once a real cover URL is set, so the scrim never darkens
+ * a hero that has no cover behind it. */
+.cine-scope .rp-hero-cover--set::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(9,10,10,0.30) 0%, rgba(9,10,10,0.62) 68%, rgba(9,10,10,0.88) 100%);
+}
+/* With a cover behind it the role texture must not also paint an opaque
+ * surface colour, or the cover would be hidden by the very element meant
+ * to sit on top of it. */
+.cine-scope .rp-hero-cover--set + .rp-hero-media { background-color: transparent; }
+
+/* Owner-only media controls live inside the identity block, so they need
+ * the same stacking context as the rest of the identity content. */
+.cine-scope .rp-hero-identity #mediaControls { position: relative; z-index: 2; }
+
 /* Engineer: technical/architectural -- moderate image height, identity
  * card reads as a dense "spec sheet" strip anchored at the base of the
  * image (per spec: "large project image + identity card layered

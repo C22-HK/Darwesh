@@ -308,6 +308,7 @@
   import { auth, db, storage, getDoc, updateDoc, addDoc, setDoc, getDocs } from './js/firebase-init.js';
   import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc as fsDoc, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { PROFESSIONAL_ROLES } from './js/professional-roles.js';
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
   import { compressImage, LOGO_IMAGE } from './js/image-compress.js';
   import {
@@ -335,6 +336,7 @@
     professional_designer: { category: 'professional', labelKey: 'auth.pro.typeDesigner', fallback: 'Designer', descKey: 'auth.pro.typeDesignerDesc', descFallback: 'Interior or architectural design services.', icon: 'palette', kind: 'serviceProvider', serviceType: 'designer' },
     professional_lawyer: { category: 'professional', labelKey: 'auth.pro.typeLawyer', fallback: 'Lawyer', descKey: 'auth.pro.typeLawyerDesc', descFallback: 'Real estate and property legal services.', icon: 'gavel', kind: 'serviceProvider', serviceType: 'lawyer' },
     professional_landscaping: { category: 'professional', labelKey: 'auth.pro.typeLandscaping', fallback: 'Landscaping', descKey: 'auth.pro.typeLandscapingDesc', descFallback: 'Garden, yard, and outdoor space design.', icon: 'yard', kind: 'serviceProvider', serviceType: 'landscaping' },
+    professional_maintenance: { category: 'professional', labelKey: 'auth.pro.typeMaintenance', fallback: 'Maintenance', descKey: 'auth.pro.typeMaintenanceDesc', descFallback: 'Repairs and upkeep for homes, offices, and buildings.', icon: 'handyman', kind: 'serviceProvider', serviceType: 'maintenance' },
     cleaning_individual: { category: 'professional', labelKey: 'auth.pro.typeCleaningIndividual', fallback: 'Cleaning (Individual)', descKey: 'auth.pro.typeCleaningIndividualDesc', descFallback: 'You clean homes or offices on your own.', icon: 'cleaning_services', kind: 'serviceProvider', serviceType: 'cleaning', providerType: 'individual' },
     cleaning_team_or_company_owner: { category: 'professional', labelKey: 'auth.pro.typeCleaningTeam', fallback: 'Cleaning (Team / Company)', descKey: 'auth.pro.typeCleaningTeamDesc', descFallback: 'You run a cleaning team or registered company.', icon: 'groups', kind: 'serviceProvider', serviceType: 'cleaning', providerType: null },
     office_owner: { category: 'realestate', labelKey: 'auth.pro.typeOfficeOwner', fallback: 'Real Estate Office', descKey: 'auth.pro.typeOfficeOwnerDesc', descFallback: 'List properties and manage agents under your office.', icon: 'apartment', kind: 'company' },
@@ -1324,16 +1326,18 @@
           retryBtn.classList.add('hidden');
           el('successSubtitle').textContent = tr('auth.pro.successSubtitle', 'Your professional account has been created successfully.');
           if (t.kind === 'company') goBtn.href = `office.html?id=${encodeURIComponent(state.createdEntityId)}`;
-          else if (t.kind === 'serviceProvider' && t.serviceType === 'engineer') goBtn.href = 'engineer.html';
-          else if (t.kind === 'serviceProvider' && t.serviceType === 'designer') goBtn.href = 'designer.html';
+          else if (t.kind === 'serviceProvider' && PROFESSIONAL_ROLES[t.serviceType]) goBtn.href = PROFESSIONAL_ROLES[t.serviceType].page;
         }
       }));
     } else if (t && t.kind === 'company' && state.createdEntityId) {
       goBtn.href = `office.html?id=${encodeURIComponent(state.createdEntityId)}`;
-    } else if (t && t.kind === 'serviceProvider' && t.serviceType === 'engineer' && state.createdEntityId) {
-      goBtn.href = 'engineer.html';
-    } else if (t && t.kind === 'serviceProvider' && t.serviceType === 'designer' && state.createdEntityId) {
-      goBtn.href = 'designer.html';
+    } else if (t && t.kind === 'serviceProvider' && PROFESSIONAL_ROLES[t.serviceType] && state.createdEntityId) {
+      // PHASE 3B: every role in the capability map has a real profile
+      // page now, so all six route to their own profile instead of only
+      // engineer and designer. Lawyer, landscaping, cleaning and
+      // maintenance previously fell through to account.html despite
+      // having working pages.
+      goBtn.href = PROFESSIONAL_ROLES[t.serviceType].page;
     } else {
       // No dedicated profile page exists yet for this account type --
       // account.html is the honest, functional landing spot until one

@@ -1,6 +1,19 @@
 import { auth, db, getDoc } from './firebase-init.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { doc } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { PROFESSIONAL_ROLES } from './professional-roles.js';
+
+// accountType -> profile page, built from the one capability map.
+//
+// Cleaning is the only role with two accountTypes (an individual and a
+// team/company owner both land on cleaning.html), so the extra alias is
+// declared here rather than distorting the role map with a second entry
+// for the same serviceType.
+const PROFESSIONAL_DESTINATIONS = Object.fromEntries(
+  Object.values(PROFESSIONAL_ROLES).map((r) => [r.accountType, r.page])
+);
+PROFESSIONAL_DESTINATIONS.cleaning_team_or_company_owner = PROFESSIONAL_ROLES.cleaning.page;
+
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) return;
@@ -10,8 +23,15 @@ onAuthStateChanged(auth, async (user) => {
     const snap = await getDoc(doc(db, 'users', user.uid));
     if (snap.exists()) {
       const data = snap.data();
-      if (data.accountType === 'professional_engineer') dest = 'engineer.html';
-      else if (data.accountType === 'professional_designer') dest = 'designer.html';
+      // PHASE 3B: routed from the capability map instead of a hand-kept
+      // if/else. Before this, only engineer and designer were listed, so a
+      // signed-in lawyer, landscaper or cleaning provider was sent to
+      // account.html -- the generic customer page -- even though their own
+      // profile page existed and worked. Deriving the table from
+      // PROFESSIONAL_ROLES means adding a role to that map is the only
+      // step needed for its profile to become reachable.
+      const proDest = PROFESSIONAL_DESTINATIONS[data.accountType];
+      if (proDest) dest = proDest;
       else if (data.role === 'agent') dest = 'agent-dashboard.html';
     }
   } catch (e) {}
