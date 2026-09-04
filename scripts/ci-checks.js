@@ -134,7 +134,7 @@ const mapHtml = fs.readFileSync(path.join(ROOT, 'map.html'), 'utf8');
 const controlIds = [
   'fullscreenBtn', 'resetViewBtn', 'drawSearchBtn',
   'myLocationBtn', 'searchThisAreaBtn', 'clearSearchAreaBtn',
-  'drawUndoBtn', 'drawFinishBtn'
+  'redrawSearchAreaBtn'
 ];
 controlIds.forEach(id => {
   // The element's own tag, from id="..." to the closing </button>.
@@ -188,11 +188,51 @@ if (!/drawSearchBtn\.setAttribute\('aria-pressed'/.test(mapHtml)) {
   fail('map.html: #drawSearchBtn aria-pressed is never updated in JS');
   mapChecks = true;
 }
+// ---- Area search is a CIRCLE, and its filter is geographic ------------
+// The polygon tool it replaced is a real regression risk: it was itself a
+// deliberate change once (circle -> polygon), so "restore the polygon"
+// is a plausible future edit rather than an impossible one. These pin the
+// three properties that actually matter.
+//
+// 1. No polygon machinery may come back. Each of these names belonged
+//    only to the multi-vertex tool. `L.polygon(` deliberately is NOT on
+//    this list: drawBoundaryShape() draws OSM administrative city
+//    boundaries with it, which has nothing to do with area search, so
+//    matching it would fail for the wrong reason.
+['searchPolygonPoints', 'drawPreviewPoints', 'drawVertexMarkers', 'pointInPolygon']
+  .forEach(token => {
+    if (mapHtml.includes(token)) {
+      fail(`map.html: polygon draw-area machinery is back (found "${token}") -- area search is a single centre+radius circle`);
+      mapChecks = true;
+    }
+  });
+// 2. The filter must compare geographic metres, not screen pixels, or the
+//    selection silently changes meaning when the user zooms.
+const spatialFn = mapHtml.match(/function spatialMatch\([\s\S]*?\n\}/);
+if (!spatialFn) {
+  fail('map.html: expected a spatialMatch() function for the area filter');
+  mapChecks = true;
+} else if (!/map\.distance\(/.test(spatialFn[0]) || !/searchCircle\.radius/.test(spatialFn[0])) {
+  fail('map.html: spatialMatch() must filter by map.distance(centre, listing) <= searchCircle.radius -- a pixel/bounds approximation is not zoom-stable');
+  mapChecks = true;
+}
+// 3. The circle is an overlay describing the filter, not a control; if it
+//    were interactive it would swallow clicks meant for the markers
+//    inside it -- the same defect the halo below avoids.
+const circleFn = mapHtml.match(/function drawCircleLayer\([\s\S]*?\n\}/);
+if (!circleFn) {
+  fail('map.html: expected a drawCircleLayer() function -- the single place a search circle is created');
+  mapChecks = true;
+} else if (!/interactive:\s*false/.test(circleFn[0])) {
+  fail('map.html: the search circle must be created with interactive: false, or it swallows clicks meant for the markers inside it');
+  mapChecks = true;
+}
+
 // The halo communicates that the pin is approximate. It must not be
 // clickable, or it would swallow clicks meant for the marker beneath it.
-// Scoped to addApproxHalo's own body: `interactive: false` appears on the
-// draw-mode vertex dots too, so a whole-file match would pass even after
-// the halo lost the option.
+// Scoped to addApproxHalo's own body: `interactive: false` now appears on
+// the search circle and the draw-centre dot too, so a whole-file match
+// would pass even after the halo itself lost the option.
 const haloFn = mapHtml.match(/function addApproxHalo\([\s\S]*?\n\}/);
 if (!haloFn) {
   fail('map.html: expected an addApproxHalo() function for the approximate-location halo');

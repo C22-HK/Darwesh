@@ -1,9 +1,17 @@
 // MAM site-wide chat panel -- the ONE local, non-navigating conversation
-// surface mounted by js/mam-companion-launcher.js next to the shared orb
-// (js/mam-companion.js) on every public page other than map.html (which
-// keeps its own richer, request-lifecycle-aware dock -- see
-// js/mam-properties-map.js -- clicking the orb there focuses that same
-// panel rather than opening a second one). This module never implements
+// surface, mounted by js/mam-companion-launcher.js next to the shared
+// compact dock (js/mam-dock.js, which carries the orb from
+// js/mam-companion.js) on EVERY public page, map.html included.
+//
+// map.html used to be the exception: it ran its own parallel
+// implementation (the removed js/mam-properties-map.js) with its own
+// session id, its own bubbles, its own voice handling and its own orb.
+// That meant a conversation started on the home page did not exist on the
+// map and vice versa, two different voice implementations behaved
+// differently, and the map showed two MAM identities at once. There is
+// now one module, one session, one transcript and one voice state machine
+// for the whole site; a page contributes structured context and nothing
+// else. This module never implements
 // a second AI backend: every reply comes from the exact same endpoint
 // js/mam-api.js already calls (POST /api/v1/mam/chat), and every action
 // this panel performs is dispatched through a small, explicit allowlist
@@ -26,9 +34,9 @@ const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
 
 // Professional service-provider profile pages this frontend actually
 // has -- the only real destinations an `open_professional` suggested
-// action can ever resolve to. Mirrors js/mam-properties-map.js's mapping
-// (section: sheetActionRow professional links) so both surfaces agree
-// on where a given serviceType's profile really lives.
+// action can ever resolve to. This is now the single source of that
+// mapping: the map's own copy went with js/mam-properties-map.js, so
+// there is one place that decides where a serviceType's profile lives.
 const PROFESSIONAL_PAGES = { engineer: 'engineer.html', designer: 'designer.html', lawyer: 'lawyer.html', landscaping: 'landscaping.html', cleaning: 'cleaning.html' };
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -109,18 +117,45 @@ function resolveActionHref(a) {
   return null;
 }
 
+// Voice mode is an INTENT that outlives a page, even though the
+// microphone stream cannot. A full document navigation destroys the
+// MediaStream and the SpeechRecognition object with the document; nothing
+// can carry those across. What survives here is only the fact that the
+// visitor had voice mode on, so the next page can offer to resume it --
+// see the resume handling at the end of the voice block, and section J of
+// the requirements.
+const VOICE_INTENT_KEY = 'darwesh_mam_voice_intent';
+
+// One MAM per page, enforced rather than assumed. Two launchers would
+// mean two conversations, two recognition instances competing for one
+// microphone, and two voices reading the same reply.
+let mounted = false;
+export function isMamMounted() { return mounted; }
+
 /**
  * @param {Object} opts
  * @param {Element} opts.orbEl The orb itself -- this module wires its
  *   click/keyboard activation to open/toggle the panel; the caller
  *   never has to do that itself.
+ * @param {Element[]} [opts.micEls] Extra mic buttons outside the panel
+ *   (the dock's) to drive from the SAME voice state as the panel's own.
  * @param {import('./mam-companion.js').MamCompanion} opts.companion
  * @param {() => string} [opts.getLanguage]
+ * @param {(state: {handsFree: boolean, listening: boolean}) => void} [opts.onVoiceUi]
+ * @param {(text: string|null) => void} [opts.onResumeHint]
+ * @param {(isOpen: boolean) => void} [opts.onOpenState] Told whenever the
+ *   overlay opens/closes, so the caller can collapse the compact dock
+ *   while the expanded state is on screen.
  * @param {Object} opts.pageContext Structured, ID-only context (never
  *   scraped DOM) -- same shape as backend/app/mam/schemas.py's
  *   PageContext: {page, listingId?, projectId?, professionalId?, serviceType?}.
  */
-export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }) {
+export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, pageContext, onVoiceUi, onResumeHint, onOpenState }) {
+  if (mounted) {
+    console.warn('[mam-chat-panel] already mounted on this page -- ignoring the second mount');
+    return null;
+  }
+  mounted = true;
   const currentLang = currentLangFactory(getLanguage);
   ensureStylesheet();
 
@@ -223,8 +258,20 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
   // ---- open/close -- panel state is never destroyed, only hidden;
   // conversation/session survive close/reopen for the whole page visit,
   // exactly like map.html's own dock. ----------------------------------
-  function open() { panel.hidden = false; }
-  function close() { panel.hidden = true; }
+  // The compact dock and this overlay are two states of ONE surface, not
+  // two things on screen at once: the overlay is the dock expanded. Both
+  // are fixed-position and the visitor can park the dock anywhere, so
+  // leaving the dock up would sooner or later put it on top of the
+  // conversation (or the conversation on top of it, swallowing taps meant
+  // for the dock -- which is exactly what happened before this). The
+  // caller is told which state we are in and collapses the dock while the
+  // overlay is up; the overlay's own close button brings it back.
+  function setOpenState(isOpen) {
+    panel.hidden = !isOpen;
+    if (onOpenState) onOpenState(isOpen);
+  }
+  function open() { setOpenState(true); }
+  function close() { setOpenState(false); }
   function toggle() { if (panel.hidden) { open(); input.focus(); } else close(); }
   closeBtn.addEventListener('click', close);
   if (orbEl) orbEl.addEventListener('click', toggle);
@@ -389,10 +436,18 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     return en.length ? en[0] : null;
   }
   let fallbackNoteShown = false;
+  let ttsBlockedNoteShown = false;
   // onDone fires when the reply has finished being spoken -- or straight
   // away when there is nothing to speak. The hands-free loop chains on it,
-  // so it must fire on EVERY path, including the disabled/unsupported ones;
-  // a path that silently returns would strand the loop mid-turn.
+  // so it must fire on EVERY path, including the disabled/unsupported ones
+  // and the browser-refused one; a path that silently returns would strand
+  // the loop mid-turn with the microphone shut and no way back.
+  //
+  // "Refused" is a real state, not a theoretical one: a browser that has
+  // not seen a user gesture on this document simply never fires `start`
+  // on the utterance -- no error event, no exception, nothing. A watchdog
+  // is the only way to notice, so one runs on every spoken reply and is
+  // cleared the moment speech genuinely begins.
   function speak(text, { onDone } = {}) {
     if (!voiceOutputEnabled || !window.speechSynthesis || !text) { if (onDone) onDone(); return; }
     window.speechSynthesis.cancel();
@@ -408,9 +463,40 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
       log.appendChild(note);
       scrollLogToBottom();
     }
-    utterance.addEventListener('start', () => companion.setState('speaking'));
-    utterance.addEventListener('end', () => { companion.setState('idle'); if (onDone) onDone(); });
-    utterance.addEventListener('error', () => { companion.setState('idle'); if (onDone) onDone(); });
+    // Exactly one of these paths may finish the turn, however many events
+    // the engine decides to fire (some fire `end` after `error`).
+    let settled = false;
+    let watchdog = null;
+    function settle() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      companion.setState('idle');
+      if (onDone) onDone();
+    }
+    utterance.addEventListener('start', () => {
+      clearTimeout(watchdog);          // speech really began -- not blocked
+      companion.setState('speaking');
+    });
+    utterance.addEventListener('end', settle);
+    utterance.addEventListener('error', settle);
+    watchdog = setTimeout(() => {
+      if (settled) return;
+      // Nothing started within a generous window: the browser is refusing
+      // to speak (autoplay/gesture policy, or no usable voice). Say so
+      // once, honestly, rather than leaving a silent assistant that looks
+      // broken -- and let the loop continue rather than hang.
+      if (!ttsBlockedNoteShown) {
+        ttsBlockedNoteShown = true;
+        const note = document.createElement('p');
+        note.className = 'mamcp-fallback-note';
+        note.textContent = tr('mam.speechBlockedNote', 'Your browser is not letting MAM speak aloud yet. Replies are shown here as text; tap anywhere on the page and try voice again to allow it.');
+        log.appendChild(note);
+        scrollLogToBottom();
+      }
+      try { window.speechSynthesis.cancel(); } catch { /* nothing queued */ }
+      settle();
+    }, 2500);
     window.speechSynthesis.speak(utterance);
   }
   function updateVoiceToggleUI() {
@@ -517,9 +603,8 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
   form.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(input.value); });
   input.addEventListener('focus', open);
 
-  // ---- Voice input (STT) -- browser SpeechRecognition only, the same
-  // honest, graceful-fallback pattern already proven on map.html's own
-  // dock (js/mam-properties-map.js): if the browser/platform has no
+  // ---- Voice input (STT) -- browser SpeechRecognition only, and honest
+  // about it: if the browser/platform has no
   // SpeechRecognition constructor, the mic button simply never appears
   // -- never a fake "listening" state with nothing behind it. There is
   // no dedicated Kurdish speech-recognition service wired up, so a
@@ -528,7 +613,31 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
   // already does; this is a known, reported limitation, not a claim of
   // native Kurdish STT. ---------------------------------------------------
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SpeechRecognitionCtor) {
+  // Every mic control on the page -- the panel's own plus the dock's --
+  // driven from ONE state. Two buttons for one microphone must never be
+  // able to disagree about whether it is open.
+  const allMicEls = [micBtn, ...micEls.filter(Boolean)];
+
+  // Surfaced to the caller so a host page can offer voice from its own
+  // control without reaching into this module's internals -- and so
+  // "unsupported" is a fact it can read rather than guess at.
+  const voiceApi = { isSupported: false, toggleHandsFree: () => {} };
+
+  function clearVoiceIntent() {
+    try { sessionStorage.removeItem(VOICE_INTENT_KEY); } catch { /* storage disabled */ }
+  }
+
+  if (!SpeechRecognitionCtor) {
+    // No recognition in this browser. The mic controls stay hidden rather
+    // than showing a button that would pretend to listen -- and a voice
+    // intent carried from a browser that DID have it is dropped, so no
+    // page offers to resume something it cannot do.
+    allMicEls.forEach((el) => { el.hidden = true; });
+    clearVoiceIntent();
+    if (onResumeHint) onResumeHint(null);
+  } else {
+    // ONE instance for the life of the page. A second one would compete
+    // for the same microphone and deliver the same utterance twice.
     const recognition = new SpeechRecognitionCtor();
     // `continuous` stays FALSE on purpose. The browser's own continuous
     // mode keeps the microphone stream open straight through MAM's spoken
@@ -545,15 +654,25 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     //
     //   listening -> processing -> speaking -> listening -> ...
     //
-    // A second click ends it. Previously the mic was push-to-talk: it
-    // captured exactly one utterance and stopped, so a back-and-forth
-    // meant reaching for the button before every single sentence.
+    // A second click ends it. The mic is never push-to-talk: nothing has
+    // to be held, released, or pressed again between sentences.
     let listening = false;
     let handsFree = false;
+    // Set between calling recognition.start() and the browser confirming
+    // it. Without it, a fast end->restart can call start() twice before
+    // the first has taken effect, which throws InvalidStateError and (on
+    // some builds) leaves two capture sessions running.
+    let starting = false;
     // A run of silences ends the mode instead of holding the microphone
     // open forever -- someone who walked away should not leave it live.
     let silentRounds = 0;
     const MAX_SILENT_ROUNDS = 3;
+    // Engines can deliver the same final result twice (a `result` event
+    // repeated as the session closes). Sending it twice would put the
+    // same question in the log twice and burn a backend turn on it.
+    let lastTranscript = '';
+    let lastTranscriptAt = 0;
+    const DUPLICATE_WINDOW_MS = 2500;
 
     function speechLangTag() {
       const lang = currentLang();
@@ -561,20 +680,31 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     }
 
     function updateMicUI() {
-      micBtn.classList.toggle('mic-listening', listening);
-      micBtn.classList.toggle('mic-handsfree', handsFree);
-      micBtn.setAttribute('aria-pressed', String(handsFree));
-      micBtn.setAttribute('aria-label', handsFree
-        ? tr('mam.handsFreeStop', 'Stop the voice conversation')
-        : tr('mam.handsFreeStart', 'Start a hands-free voice conversation'));
+      allMicEls.forEach((el) => {
+        el.classList.toggle('mic-listening', listening);
+        el.classList.toggle('is-listening', listening);
+        el.classList.toggle('mic-handsfree', handsFree);
+        el.classList.toggle('is-handsfree', handsFree);
+        el.setAttribute('aria-pressed', String(handsFree));
+        el.setAttribute('aria-label', handsFree
+          ? tr('mam.handsFreeStop', 'Stop the voice conversation')
+          : tr('mam.handsFreeStart', 'Start a hands-free voice conversation'));
+      });
+      if (onVoiceUi) onVoiceUi({ handsFree, listening });
+    }
+
+    function voiceProblem(messageKey, fallback) {
+      open();
+      addAssistantBubble({ message: tr(messageKey, fallback) }, { failed: true });
     }
 
     function startListening() {
-      if (listening) return;
+      if (listening || starting) return;
       // Never listen while MAM is still speaking, or its own voice becomes
       // the next question.
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       recognition.lang = speechLangTag();
+      starting = true;
       try {
         recognition.start();
         listening = true;
@@ -584,8 +714,11 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
         // Already started, or the mic was refused: drop the mode rather
         // than leaving a button that claims to be listening.
         listening = false;
+        starting = false;
         endHandsFree();
+        return;
       }
+      starting = false;
       updateMicUI();
     }
 
@@ -598,17 +731,22 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     function endHandsFree() {
       handsFree = false;
       silentRounds = 0;
+      clearVoiceIntent();
+      if (onResumeHint) onResumeHint(null);
+      // abort(), not stop(): stop() still delivers whatever it heard, so
+      // an explicit Stop could be followed by one more question the
+      // visitor never meant to ask.
       try { recognition.abort(); } catch { /* not running */ }
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       stopListening();
     }
 
-    micBtn.hidden = false;
-    updateMicUI();
-    micBtn.addEventListener('click', () => {
-      if (handsFree) { endHandsFree(); return; }
+    function beginHandsFree() {
+      if (handsFree) return;
       handsFree = true;
       silentRounds = 0;
+      if (onResumeHint) onResumeHint(null);
+      try { sessionStorage.setItem(VOICE_INTENT_KEY, '1'); } catch { /* storage disabled */ }
       // The point of the mode is a spoken conversation, so replies are
       // read aloud while it is on even if the visitor had voice output
       // switched off for typing. The stored preference is left alone --
@@ -618,17 +756,35 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
         updateVoiceToggleUI();
       }
       startListening();
+    }
+
+    function toggleHandsFree() {
+      if (handsFree) { endHandsFree(); return; }
+      beginHandsFree();
+    }
+    voiceApi.isSupported = true;
+    voiceApi.toggleHandsFree = toggleHandsFree;
+
+    allMicEls.forEach((el) => {
+      el.hidden = false;
+      el.addEventListener('click', toggleHandsFree);
     });
+    updateMicUI();
 
     recognition.addEventListener('result', (e) => {
-      const transcript = e.results[0][0].transcript;
+      const transcript = (e.results[0][0].transcript || '').trim();
       stopListening();
-      if (!transcript || !transcript.trim()) return;
+      if (!transcript) return;
+      const now = Date.now();
+      if (transcript === lastTranscript && now - lastTranscriptAt < DUPLICATE_WINDOW_MS) return;
+      lastTranscript = transcript;
+      lastTranscriptAt = now;
       silentRounds = 0;
       sendMessage(transcript, {
         viaVoice: true,
         // Chained off the end of the spoken reply, so the next turn opens
-        // the mic exactly when MAM stops talking.
+        // the mic exactly when MAM stops talking -- never while it is
+        // still speaking, which is what would feed its own voice back in.
         onReplySpoken: () => { if (handsFree) startListening(); },
         // A failed turn ends the mode: looping on an error would just
         // re-ask into a broken connection.
@@ -648,16 +804,71 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
     });
 
     recognition.addEventListener('error', (e) => {
+      const kind = (e && e.error) || '';
       // 'no-speech' is ordinary silence and is handled by the end handler
-      // that follows it; anything else (denied permission, no device, a
-      // network failure) is a real stop.
-      if (e && e.error === 'no-speech') { stopListening(); return; }
+      // that follows it -- not a failure worth telling anyone about.
+      if (kind === 'no-speech') { stopListening(); return; }
+      // 'aborted' is this module's own endHandsFree() calling abort();
+      // reporting it would mean an error bubble on every deliberate stop.
+      if (kind === 'aborted') { stopListening(); return; }
       endHandsFree();
+      // Everything else is a real, distinct condition the visitor can act
+      // on -- never a generic "voice failed".
+      if (kind === 'not-allowed' || kind === 'service-not-allowed') {
+        voiceProblem('mam.micDenied', 'Microphone access is blocked. Allow the microphone for this site in your browser settings, then try voice again.');
+      } else if (kind === 'audio-capture') {
+        voiceProblem('mam.micUnavailable', "No microphone was found. Connect one, or type your question instead.");
+      } else if (kind === 'network') {
+        voiceProblem('mam.micNetwork', "Speech recognition couldn't reach its service. Check your connection, or type your question instead.");
+      } else {
+        voiceProblem('mam.micFailed', "Voice input stopped unexpectedly. You can try again, or type your question.");
+      }
+    });
+
+    // ---- resuming voice after a page navigation (section J) -----------
+    // The browser destroyed the previous page's microphone stream and its
+    // SpeechRecognition object along with the document -- nothing can
+    // carry those across, and this module does not pretend otherwise.
+    // What did survive is the session, the conversation and the INTENT.
+    //
+    // Autostarting from that intent alone would be wrong twice over: most
+    // browsers refuse to open a microphone without a user gesture on the
+    // new document, and silently reopening a mic on a page the visitor
+    // merely navigated to is not something to do behind their back. So
+    // the dock says voice is paused and one tap resumes it.
+    let carriedVoiceIntent = false;
+    try { carriedVoiceIntent = sessionStorage.getItem(VOICE_INTENT_KEY) === '1'; } catch { /* storage disabled */ }
+    if (carriedVoiceIntent && onResumeHint) {
+      onResumeHint(tr('mam.voiceResume', 'Voice mode is paused — tap the microphone to continue talking.'));
+    }
+  }
+
+  // ---- suggested prompts ----------------------------------------------
+  // Carried over from the map dock this panel replaced, so the same four
+  // starting points exist everywhere instead of only on the map. They are
+  // hidden as soon as there is a real conversation to look at.
+  const CHIPS = [
+    ['drm.ai.chip1', 'Houses for sale in Erbil'],
+    ['drm.ai.chip2', 'Apartments for rent in Kirkuk'],
+    ['drm.ai.chip3', 'Under 150 million'],
+    ['drm.ai.chip4', '3 bedrooms'],
+  ];
+  function renderChips() {
+    chipsEl.textContent = '';
+    if (log.querySelector('.mamcp-bubble')) return;   // a conversation is under way
+    CHIPS.forEach(([key, fallback]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mamcp-chip';
+      btn.textContent = tr(key, fallback);
+      btn.addEventListener('click', () => { sendMessage(btn.textContent); renderChips(); });
+      chipsEl.appendChild(btn);
     });
   }
 
   document.addEventListener('darwesh:langchange', () => {
     input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM about the market…');
+    renderChips();
   });
 
   // Redraw whatever was said before this page loaded. Runs last so every
@@ -672,8 +883,24 @@ export function mountMamChatPanel({ orbEl, companion, getLanguage, pageContext }
       else addAssistantBubble({ message: t.text, cards: Array.isArray(t.cards) ? t.cards : [] });
     });
   })();
+  renderChips();
 
-  return { open, close, toggle, sendMessage };
+  // ---- entry points from elsewhere on the site --------------------------
+  // index.html's hero search, about.html/services.html CTAs and the footer
+  // all link to `map.html?ai=1[&q=...]`. That contract used to be handled
+  // by the map's own dock; it lives here now so those links keep working
+  // and behave the same way on every page.
+  const bootParams = new URLSearchParams(window.location.search);
+  if (bootParams.get('ai') === '1' || bootParams.get('mam') === '1') open();
+  const initialQuery = bootParams.get('q');
+  if (initialQuery) sendMessage(initialQuery);
+
+  return {
+    open, close, toggle, sendMessage,
+    /** Present only where the browser really has speech recognition. */
+    toggleHandsFree: voiceApi.toggleHandsFree,
+    isVoiceSupported: voiceApi.isSupported
+  };
 }
 
 function ensureStylesheet() {

@@ -14,6 +14,26 @@
 // Pure CSS animation -- no canvas/WebGL/Three.js, so this is safe to mount
 // on any page without a rendering-budget cost.
 
+// This module's own stylesheet, loaded by the module itself.
+//
+// It used to be every host page's job to remember a <link> to
+// css/mam-companion.css, and eight of them (buy, rent, sell, build,
+// renovate, design, insights, promo) did not -- so the orb mounted there
+// with none of its styling at all: no size, no plasma, no states, an
+// invisible div where the assistant should be. Loading it here is what
+// actually makes the "portable to any page" claim in the docstring above
+// true. Pages that already carry the <link> are detected by href rather
+// than by a marker attribute, so nothing loads twice.
+function ensureStylesheet() {
+  const already = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+    .some((l) => (l.getAttribute('href') || '').includes('mam-companion.css'));
+  if (already) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = new URL('../css/mam-companion.css', import.meta.url).href;
+  document.head.appendChild(link);
+}
+
 const VALID_STATES = new Set(['idle', 'listening', 'thinking', 'speaking', 'result-ready', 'error']);
 
 const STATE_LABELS = {
@@ -42,12 +62,14 @@ export class MamCompanion {
    *   keyboard-operable control (role="button", tabindex, Enter/Space
    *   activation) instead of a pure status indicator (role="img", not
    *   focusable) -- set this wherever the host page actually wires a
-   *   click handler onto the orb (see js/mam-properties-map.js and
-   *   js/mam-companion-launcher.js); leave it false on a page like
-   *   a host page where the orb is ambient status only and the page
-   *   itself is already the full interactive surface.
+   *   click handler DIRECTLY onto the orb. Leave it false when the orb
+   *   sits inside a control that is already focusable and announced --
+   *   which is what js/mam-dock.js does, so the tab order has one entry
+   *   for one action rather than two -- or when the orb is ambient
+   *   status only.
    */
   constructor({ mountTarget, getLanguage, interactive } = {}) {
+    ensureStylesheet();
     this._getLanguage = typeof getLanguage === 'function' ? getLanguage : () => 'en';
     this._state = 'idle';
     this._settleTimer = null;

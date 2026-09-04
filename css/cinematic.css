@@ -1710,11 +1710,11 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .map-drawer.is-dragging { transition: none; }   /* follow the finger exactly */
 .cine-scope .map-drawer.is-open { --drawer-x: 0%; }
 
-/* Compact mode: while a boundary is being drawn the map has to stay
- * usable, so the drawer narrows to just the Area search group instead of
- * closing. Same DOM, same controls -- nothing is duplicated elsewhere. */
-.cine-scope .map-drawer[data-mode="compact"] { width: min(196px, 62vw); }
-.cine-scope .map-drawer[data-mode="compact"] .drawer-group:not([data-group="area"]) { display: none; }
+/* (A `data-mode="compact"` drawer width used to live here: the polygon
+ * tool needed Undo/Finish reachable across many vertex clicks, so the
+ * drawer narrowed instead of closing. The circle tool is one gesture with
+ * no mid-draw controls, so arming simply closes the drawer and hands the
+ * whole map to the gesture -- nothing sets data-mode any more.) */
 
 @media (prefers-reduced-motion: reduce) {
   .cine-scope .map-drawer { transition: none; }
@@ -1858,13 +1858,13 @@ body.cine-intro-open { overflow: hidden; }
 }
 .cine-scope .tool-row[aria-pressed="true"] .ctl-svg { color: #17150F; }
 
-.cine-scope .tool-row-sub { min-height: 38px; font-size: 12.5px; padding-inline-start: 16px; }
-.cine-scope .tool-row-primary { border-color: rgba(184,154,99,0.45); }
 .cine-scope .tool-row-danger .ctl-svg { color: #D98C6A; }
 
-/* The draw sub-actions only exist mid-drawing. */
-.cine-scope .draw-actions { display: none; flex-direction: column; gap: 4px; }
-.cine-scope .draw-actions.show { display: flex; }
+/* (.tool-row-sub, .tool-row-primary and .draw-actions were removed with
+ * the polygon tool: they styled only its Undo point / Finish sub-actions,
+ * which the one-gesture circle has no equivalent of. Verified
+ * unreferenced across every .html/.css/.js in the repo before deleting,
+ * rather than left as rules matching nothing.) */
 
 /* ---- Segmented map-type control -------------------------------------- */
 .cine-scope .map-drawer .map-type-switch {

@@ -292,19 +292,37 @@ violation reporting. -->
       display: none; align-items: center; gap: 6px; cursor: pointer; border: none;
     }
     .search-this-area-chip.show { display: flex; }
-    /* Draw-area (polygon) — vertex points and the two contextual actions
-       (finish/undo) shown only while actively placing points. */
-    .draw-vertex-dot { width: 9px; height: 9px; border-radius: 999px; background: #B89A63; border: 2px solid #17150F; box-shadow: 0 1px 4px rgba(0,0,0,0.4); }
-    .draw-actions { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1150; display: none; gap: 8px; }
-    .draw-actions.show { display: flex; }
-    .draw-action-btn {
-      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
-      padding: 9px 16px; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.4); border: none; cursor: pointer;
-      display: flex; align-items: center; gap: 6px;
+    /* Draw-area (circle) — centre + radius, established in ONE press-drag-
+       release gesture. There are no vertex dots, no in-progress segment
+       preview and no Undo/Finish step: the pointer release IS the commit,
+       so the only contextual controls a finished area needs are Redraw and
+       Clear (both live in the drawer's Area search group).
+
+       While armed, the map container owns the gesture outright --
+       `touch-action: none` stops the browser from claiming the drag as a
+       scroll/pan on touch, and Leaflet's own dragging handler is disabled
+       in setDrawMode() so the map cannot pan out from under the circle
+       being sized. Both are restored the moment the gesture ends. */
+    #map.draw-mode { cursor: crosshair; touch-action: none; }
+    #map.draw-mode .leaflet-grab,
+    #map.draw-mode .leaflet-interactive { cursor: crosshair; }
+    /* The centre of the circle being sized. Non-interactive (it is drawn
+       with a Leaflet divIcon whose marker sets interactive:false), purely
+       a visual anchor for the radius the pointer is dragging out. */
+    .draw-centre-dot {
+      width: 11px; height: 11px; border-radius: 999px; background: #B89A63;
+      border: 2px solid #17150F; box-shadow: 0 0 0 3px rgba(184,154,99,0.25), 0 1px 4px rgba(0,0,0,0.45);
     }
-    .draw-action-finish { background: #2e7d32; color: #fff; }
-    .draw-action-finish:disabled { opacity: .5; cursor: not-allowed; }
-    .draw-action-undo { background: #17150F; color: #F2EEE5; border: 1px solid #5D482B; }
+    /* Live radius readout, pinned to the map while the gesture is in
+       flight so the user can see the distance they are choosing. */
+    .draw-radius-badge {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 1150; background: #17150Fe6; color: #F2EEE5; border: 1px solid #B89A63;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.03em;
+      padding: 8px 14px; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      display: none; pointer-events: none; white-space: nowrap;
+    }
+    .draw-radius-badge.show { display: block; }
     /* Marker clusters — a lightweight, hand-rolled grid cluster (no
        external clustering library) so many nearby price pins collapse
        into one readable, on-brand badge instead of an unreadable pile;
@@ -326,174 +344,23 @@ violation reporting. -->
     .map-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     @media (min-width: 768px) { .map-toast { bottom: 1.5rem; } }
 
-    /* ---- MAM companion vs. the map-tools edge handle --------------------
-     * css/mam-companion.css docks the orb at right:20px, top:50% -- which
-     * is exactly where this page's edge handle now sits. Two controls
-     * were landing on the same 92px band at the trailing edge.
+    /* ---- MAM -------------------------------------------------------------
+     * Nothing page-scoped is needed here any more.
      *
-     * Scoped to this page because the handle only exists here: the orb
-     * drops below the handle's band, and while the drawer is open it
-     * fades out entirely rather than sitting on top of the panel. The
-     * MamCompanion instance is untouched -- this is placement only, so
-     * none of its state/behaviour changes. */
-    .mamco-root { top: 76%; transition: opacity .25s ease, transform .3s ease; }
-    body[data-map-drawer="open"] .mamco-root {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateY(-50%) translateX(12px);
-    }
-    @media (max-width: 767px) {
-      /* Mobile already re-anchors the orb near the header, well clear of
-         the handle -- leave that placement alone. */
-      .mamco-root { top: 148px; }
-    }
-
-    /* ---- MAM AI ---------------------------------------------------------
-     * A floating assistant dock layered OVER the live map/results -- an
-     * original Darwesh implementation. The interaction shape (a compact
-     * search bar that expands into a conversation panel, both staying on
-     * top of the real search behind them) is the only thing taken as
-     * reference from Zillow's own AI search UX; every asset, string, and
-     * pixel value below is this codebase's own cinematic dark-luxury
-     * palette (see css/cinematic.css), not copied markup/CSS. This is the
-     * ONE public map's own AI dock -- MAM has no separate map of its own. */
-    #drmAiWrap {
-      position: fixed; z-index: 1150; left: 50%; transform: translateX(-50%);
-      bottom: 20px; width: min(92vw, 640px);
-      display: flex; flex-direction: column; gap: 10px; align-items: stretch;
-      pointer-events: none;
-    }
-    #drmAiWrap > * { pointer-events: auto; }
-    .drm-ai-chips {
-      display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-start;
-      overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
-      padding: 0 2px; scroll-padding: 0 2px;
-    }
-    .drm-ai-chips::-webkit-scrollbar { display: none; }
-    @media (min-width: 768px) { .drm-ai-chips { justify-content: center; } }
-    .drm-ai-chip {
-      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
-      background: #17150Fcc; backdrop-filter: blur(6px); color: #F2EEE5; border: 1px solid #5D482B;
-      border-radius: 999px; padding: 7px 14px; cursor: pointer; white-space: nowrap; flex: none;
-      scroll-snap-align: start;
-    }
-    .drm-ai-chip:hover { border-color: #B89A63; }
-    .drm-ai-chips { scroll-snap-type: x proximity; }
-    .drm-ai-bar {
-      display: flex; align-items: center; gap: 8px;
-      background: #17150Ff2; backdrop-filter: blur(10px); border: 1px solid #5D482B;
-      border-radius: 999px; padding: 7px 7px 7px 16px; box-shadow: 0 8px 28px rgba(0,0,0,.4);
-    }
-    /* The dock's mark is the SAME living body as the full MAM orb
-       (css/mam-companion.css), scaled down -- two counter-rotating
-       blurred gradient layers on non-harmonic periods -- so the small
-       launcher and the large assistant read as one identity rather than
-       a logo and an animation. Kept local to this element because the
-       dock's mark is a <span>, not a MamCompanion instance. */
-    .drm-ai-mark {
-      width: 22px; height: 22px; border-radius: 999px; flex: none; position: relative;
-      overflow: hidden; isolation: isolate;
-      background: radial-gradient(circle at 50% 52%, #2A2417 0%, #14120C 70%, #0C0B07 100%);
-      border: 1px solid #5D482B;
-      box-shadow: inset 0 0 6px rgba(0,0,0,0.8), 0 0 10px -3px rgba(184,154,99,0.5);
-    }
-    .drm-ai-mark::before,
-    .drm-ai-mark::after {
-      content: ''; position: absolute; inset: -34%; border-radius: 999px;
-    }
-    .drm-ai-mark::before {
-      background:
-        radial-gradient(circle at 50% 50%, rgba(255,246,224,0.95) 0%, rgba(240,206,132,0.6) 15%, transparent 50%),
-        radial-gradient(circle at 34% 62%, rgba(224,166,74,0.55) 0%, transparent 42%);
-      filter: blur(2.5px);
-      animation: drmMarkA 13s linear infinite;
-    }
-    .drm-ai-mark::after {
-      background:
-        radial-gradient(circle at 62% 58%, rgba(216,188,128,0.5) 0%, transparent 40%),
-        radial-gradient(circle at 38% 34%, rgba(142,116,72,0.6) 0%, transparent 45%);
-      filter: blur(3.5px); mix-blend-mode: screen;
-      animation: drmMarkB 21s linear infinite;
-    }
-    @keyframes drmMarkA {
-      0% { transform: rotate(0deg) scale(1); }
-      50% { transform: rotate(180deg) scale(1.09); }
-      100% { transform: rotate(360deg) scale(1); }
-    }
-    @keyframes drmMarkB {
-      0% { transform: rotate(360deg) scale(1.06); }
-      50% { transform: rotate(180deg) scale(0.94); }
-      100% { transform: rotate(0deg) scale(1.06); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .drm-ai-mark::before, .drm-ai-mark::after { animation: none; }
-    }
-    #drmAiInput { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: #F2EEE5; font-family: 'Inter', sans-serif; font-size: 14px; }
-    #drmAiInput::placeholder { color: #A79F91; }
-    .drm-ai-icon-btn { flex: none; width: 34px; height: 34px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
-    .drm-ai-send { background: #B89A63; color: #090A0A; }
-    .drm-ai-send:disabled { opacity: .5; cursor: not-allowed; }
-    .drm-ai-mic { background: transparent; color: #F2EEE5; border: 1px solid #5D482B; }
-    .drm-ai-mic.mic-listening { background: #E5787A; border-color: #E5787A; color: #090A0A; }
-
-    #drmAiPanel {
-      display: flex; flex-direction: column; background: #17150Ff5; backdrop-filter: blur(10px);
-      border: 1px solid #5D482B; border-radius: 20px; box-shadow: 0 12px 40px rgba(0,0,0,.45);
-      max-height: 56vh; overflow: hidden;
-    }
-    .drm-ai-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #5D482B; flex: none; }
-    .drm-ai-panel-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; color: #F2EEE5; letter-spacing: .04em; text-transform: uppercase; }
-    .drm-ai-close { background: none; border: none; color: #A79F91; cursor: pointer; padding: 4px; border-radius: 999px; display: flex; }
-    .drm-ai-close:hover { color: #F2EEE5; }
-    #drmAiLog { flex: 1; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-    .drm-ai-bubble { border-radius: 16px; padding: 10px 14px; max-width: 88%; font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.45; }
-    .drm-ai-bubble-user { align-self: flex-end; background: #B89A63; color: #090A0A; border-end-end-radius: 4px; }
-    .drm-ai-bubble-assistant { align-self: flex-start; background: #221E15; color: #F2EEE5; border: 1px solid #5D482B; border-start-start-radius: 4px; }
-    .drm-ai-bubble-error { border-color: #E5787A; }
-    .drm-ai-retry { margin-top: 8px; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #B89A63; background: none; border: 1px solid #5D482B; border-radius: 999px; padding: 5px 12px; cursor: pointer; }
-    .drm-ai-thinking { display: flex; gap: 4px; padding: 10px 14px; }
-    .drm-ai-dot { width: 6px; height: 6px; border-radius: 999px; background: #8E7448; animation: drm-ai-dot-bounce 1.2s infinite; }
-    .drm-ai-dot:nth-child(2) { animation-delay: .15s; }
-    .drm-ai-dot:nth-child(3) { animation-delay: .3s; }
-    @keyframes drm-ai-dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { .drm-ai-dot { animation: none; opacity: .8; } }
-
-    .drm-ai-ref-cards { display: flex; gap: 8px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
-    .drm-ai-ref-card { flex: none; width: 132px; border-radius: 12px; overflow: hidden; background: #1C1912; border: 1px solid #5D482B; text-align: start; cursor: pointer; text-decoration: none; display: block; }
-    .drm-ai-ref-card-media { height: 68px; background: #221E15; }
-    .drm-ai-ref-card-media img { width: 100%; height: 100%; object-fit: cover; }
-    .drm-ai-ref-card-body { padding: 6px 8px 8px; }
-    .drm-ai-ref-card-title { font-size: 11px; font-weight: 700; color: #F2EEE5; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-    .drm-ai-ref-card-price { font-size: 11px; font-weight: 700; color: #B89A63; margin-top: 3px; }
-
-    @media (max-width: 767px) {
-      #drmAiWrap { bottom: calc(6rem + 62px + env(safe-area-inset-bottom)); width: calc(100vw - 24px); }
-      #drmAiPanel { max-height: 62vh; }
-    }
-    /* #drmAiPanel/.drm-ai-chips set their own `display` above -- both an
-       ID selector and a same-specificity-as-.hidden class selector that
-       happens to be defined AFTER css/tailwind.css in the cascade, either
-       of which would otherwise beat Tailwind's plain `.hidden{display:
-       none}` utility and leave the panel visible while "closed." This is
-       the one, explicit place that guarantees `hidden` always wins. */
-    #drmAiPanel.hidden, .drm-ai-chips.hidden { display: none !important; }
-    /* The AI dock floats fixed over the bottom of the list panel (by
-       design, matching the layered "assistant over live results" shape
-       this is inspired by) -- this reserves enough scroll room that the
-       last real card can still be scrolled fully clear of it, rather
-       than staying permanently obscured. */
+     * This block used to hold ~130 lines: placement overrides pushing the
+     * standalone .mamco-root orb clear of the edge handle it collided
+     * with, plus a complete second assistant dock (#drmAiWrap and the
+     * .drm-ai-* bar/panel/bubbles/cards) that only this page had. Both are
+     * gone with js/mam-properties-map.js. The one shared surface --
+     * js/mam-dock.js + js/mam-chat-panel.js, mounted by
+     * js/mam-companion-launcher.js at the bottom of this file -- brings
+     * its own stylesheets, positions itself, remembers where the visitor
+     * put it, and keeps clear of the controls below via data-mam-avoid.
+     *
+     * The list panel still reserves room at its foot so the last card can
+     * be scrolled clear of the dock resting over it. */
     #listPanel { padding-bottom: 180px; }
     @media (min-width: 768px) { #listPanel { padding-bottom: 96px; } }
-    /* css/mam-companion.css deliberately docks to the same PHYSICAL edge
-       in both directions (see its own comment) -- the right choice on a
-       page with nothing competing for that edge. Here, though, the list
-       panel itself moves to the right in RTL (matching reading
-       direction), which would put the companion right on top of it.
-       This page-scoped override keeps the companion over the map side
-       instead, in both directions -- a host page restyling the shared
-       module for its own layout, not a change to the module's default. */
-    html[dir="rtl"] .mamco-root { right: auto; left: 20px; }
-    @media (max-width: 767px) { html[dir="rtl"] .mamco-root { left: 10px; right: auto; } }
   </style>
 </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
@@ -631,6 +498,10 @@ violation reporting. -->
 <!-- Map panel -->
 <div id="mapPanel" class="relative w-full md:w-1/2 lg:w-3/5 h-full order-1 md:order-2">
 <div id="map" class="w-full h-full"></div>
+<!-- Live radius readout while a search circle is being dragged out.
+     aria-live so the distance is announced as it changes, rather than
+     being a purely visual affordance. -->
+<div id="drawRadiusBadge" class="draw-radius-badge" role="status" aria-live="polite"></div>
 <!-- ===================================================================
      MAP TOOLS -- an edge drawer, not a floating toolbar.
      ===================================================================
@@ -645,7 +516,12 @@ violation reporting. -->
      there is exactly one place to look. The only controls left outside
      are Leaflet's own zoom buttons.
      =================================================================== -->
-<button id="mapEdgeHandle" type="button" class="map-edge-handle"
+<!-- data-mam-avoid: the shared MAM dock keeps clear of anything carrying
+     this attribute when it docks (js/mam-dock.js). It is the whole
+     contract between a page and the dock -- the dock knows nothing about
+     map tools, and this page knows nothing about how the dock positions
+     itself. -->
+<button id="mapEdgeHandle" type="button" class="map-edge-handle" data-mam-avoid=""
         aria-label="Map tools" title="Map tools" aria-expanded="false" aria-controls="mapDrawer"
         data-i18n-aria="map.mapTools" data-i18n-title="map.mapTools">
 <span class="meh-grip" aria-hidden="true"></span>
@@ -705,18 +581,14 @@ violation reporting. -->
 <svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
 <span class="tool-label" data-i18n="map.drawArea">Draw Area</span>
 </button>
-<!-- Only meaningful mid-drawing, so it is revealed rather than sitting
-     there permanently disabled. -->
-<div class="draw-actions" id="drawActions">
-<button type="button" id="drawUndoBtn" class="tool-row tool-row-sub">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
-<span class="tool-label" data-i18n="map.undoPoint">Undo point</span>
+<!-- Both appear only once a circle actually exists. A one-gesture circle
+     has nothing to undo mid-draw and nothing to finish -- the pointer
+     release already committed it -- so Redraw and Clear are the only
+     actions a finished area can meaningfully offer. -->
+<button id="redrawSearchAreaBtn" type="button" class="tool-row" style="display:none;" title="Redraw area" aria-label="Redraw area" data-i18n-title="map.redrawArea" data-i18n-aria="map.redrawArea">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5V2M19.5 12H22"/></svg>
+<span class="tool-label" data-i18n="map.redrawArea">Redraw area</span>
 </button>
-<button type="button" id="drawFinishBtn" class="tool-row tool-row-sub tool-row-primary" disabled="">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m4 12 5 5L20 6"/></svg>
-<span class="tool-label" data-i18n="map.finishArea">Finish</span>
-</button>
-</div>
 <button id="clearSearchAreaBtn" type="button" class="tool-row tool-row-danger" style="display:none;">
 <svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
 <span class="tool-label" data-i18n="map.clearSearchArea">Clear area</span>
@@ -735,7 +607,7 @@ violation reporting. -->
 </div>
 </aside>
 <!-- Map Legend -->
-<div class="map-legend" id="mapLegend">
+<div class="map-legend" id="mapLegend" data-mam-avoid="">
 <button type="button" id="legendToggleBtn" class="map-legend-title flex items-center justify-between w-full" style="cursor:pointer; background:none; border:none; padding:0;" aria-expanded="true">
 <span data-i18n="map.legendTitle">Map Key</span>
 <span class="material-symbols-outlined" id="legendToggleIcon" style="font-size:16px;">expand_less</span>
@@ -801,34 +673,15 @@ violation reporting. -->
 </div>
 </div>
 
-<!-- MAM AI -- floating dock over the live map/results (js/mam-properties-map.js).
-     Never a separate page: applies real filters to this page's own
-     search state and shows real result cards, staying on this page
-     throughout. This is the ONE public map's AI -- it has no map of its own. -->
-<div id="drmAiWrap">
-<div id="drmAiPanel" class="hidden" role="log" aria-live="polite" aria-label="MAM conversation">
-<div class="drm-ai-panel-header">
-<span class="drm-ai-panel-title">MAM</span>
-<button id="drmAiCloseBtn" type="button" class="drm-ai-close" aria-label="Close">
-<span class="material-symbols-outlined" style="font-size:20px;">close</span>
-</button>
-</div>
-<div id="drmAiLog"></div>
-</div>
-<div id="drmAiChips" class="drm-ai-chips"></div>
-<form id="drmAiForm" class="drm-ai-bar">
-<span class="drm-ai-mark" aria-hidden="true"></span>
-<input id="drmAiInput" type="text" autocomplete="off" maxlength="1000" data-i18n-placeholder="drm.ai.placeholder" placeholder="Ask MAM about properties…" aria-label="Ask MAM about properties"/>
-<button id="drmAiMicBtn" type="button" class="drm-ai-icon-btn drm-ai-mic hidden" aria-label="Speak your question">
-<span class="material-symbols-outlined" id="drmAiMicIcon" style="font-size:18px;">mic</span>
-</button>
-<button id="drmAiSendBtn" type="submit" class="drm-ai-icon-btn drm-ai-send" aria-label="Send message">
-<span class="material-symbols-outlined" style="font-size:18px;">send</span>
-</button>
-</form>
-</div>
-
-<script type="module" src="./js/mam-properties-map.js"></script>
+<!-- MAM -- the site-wide compact assistant (js/mam-companion-launcher.js).
+     Identical module, session and conversation as every other page: this
+     page used to run its own parallel implementation
+     (js/mam-properties-map.js, now removed) with a separate session id and
+     a second orb of its own. `data-page` is the only thing this page
+     contributes; MAM's replies still drive the real search here through
+     window.DarweshPropertiesMap below, exactly as before. -->
+<div id="mamCompanionLauncher" data-page="properties_map"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
 
 <script>
 function layoutMain() {
@@ -1043,16 +896,23 @@ loadListings();
 
 const revealed = new Set();
 let drawMode = false;
-// Polygon boundary the user hand-draws (click/tap to add each vertex).
-// searchPolygonPoints holds the FINALIZED boundary used for filtering;
-// drawPreviewPoints holds the in-progress vertices while still drawing.
-let searchPolygonPoints = null;
-let searchPolygonLayer = null;
-let drawPreviewPoints = [];
-let drawPreviewLayer = null;
-let drawVertexMarkers = [];
+// The area search is a CIRCLE: one centre and one radius, chosen in a
+// single press-drag-release gesture.
+//
+// searchCircle is the FINALIZED area used for filtering -- {centre:
+// L.LatLng, radius: metres}. searchCircleLayer is the one L.Circle drawn
+// for it; there is never more than one, because every path that creates
+// a circle removes the previous layer first (see drawCircleLayer()).
+//
+// The radius is stored in METRES, not pixels, which is what keeps the
+// area geographically coherent across zoom changes: L.Circle's own
+// radius is metres, and the filter compares metres to metres (see
+// spatialMatch()). Nothing here is ever derived from screen distance.
+let searchCircle = null;
+let searchCircleLayer = null;
+let drawCentreMarker = null;
 // "Search this area" viewport-bounds snapshot -- mutually exclusive with
-// the drawn polygon (see spatialMatch()); set only when the user
+// the drawn circle (see spatialMatch()); set only when the user
 // explicitly clicks the debounced "Search this area" chip, never on
 // every pan/zoom.
 let viewportSearchBounds = null;
@@ -1535,30 +1395,29 @@ function buildMarkers() {
   buildNeighborhoodMarkers(visible);
 }
 
-// Standard ray-casting point-in-polygon test (odd number of ray
-// crossings = inside). `point` is [lat,lng]; `poly` is an array of
-// [lat,lng] vertices -- exactly what the hand-drawn boundary and
-// `L.LatLng`s already are, no external geometry library needed.
-function pointInPolygon(point, poly) {
-  const [y, x] = point;
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const yi = poly[i][0], xi = poly[i][1];
-    const yj = poly[j][0], xj = poly[j][1];
-    const intersects = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
-// Spatial region filter -- exactly one of a hand-drawn polygon boundary
-// OR a "search this area" viewport-bounds snapshot can be active at a
-// time (drawing a new boundary clears the viewport snapshot and vice
-// versa, see setDrawMode()/searchThisAreaBtn's handler), so this is a
-// single check rather than two independent ones.
+// Spatial region filter -- exactly one of a drawn search CIRCLE or a
+// "search this area" viewport-bounds snapshot can be active at a time
+// (drawing a new circle clears the viewport snapshot and vice versa, see
+// setDrawMode()/searchThisAreaBtn's handler), so this is a single check
+// rather than two independent ones.
+//
+// The circle test is GEOGRAPHIC, never a pixel approximation: Leaflet's
+// map.distance() is CRS.Earth's own great-circle distance in metres, and
+// searchCircle.radius is the same metres L.Circle was drawn with. Two
+// consequences that matter:
+//   * the result does not change when the user zooms -- the same
+//     listings match at z10 and at z16, because no screen coordinate is
+//     involved on either side of the comparison;
+//   * the boundary the user sees IS the boundary that filters, since
+//     L.Circle renders that same metre radius.
+//
+// l.lat/l.lng here are the PUBLIC, deliberately-coarsened coordinates
+// (publicLat/publicLng, ~2dp) that publicPinOf() produced -- LOC-01.
+// This filter never has, and never needs, an exact coordinate: nothing
+// on this page reads listings/{id}/private/location at all.
 function spatialMatch(l) {
-  if (searchPolygonPoints && searchPolygonPoints.length >= 3) {
-    return pointInPolygon([l.lat, l.lng], searchPolygonPoints);
+  if (searchCircle) {
+    return map.distance(searchCircle.centre, L.latLng(l.lat, l.lng)) <= searchCircle.radius;
   }
   if (viewportSearchBounds) {
     return viewportSearchBounds.contains([l.lat, l.lng]);
@@ -1895,7 +1754,7 @@ function renderList() {
       if (el.dataset.id === activeId) {
         // The already-centered/active card is the one clicking opens --
         // reuses the existing real listing detail page (js/mam-v2.js and
-        // js/mam-properties-map.js's own reference cards already link
+        // js/mam-chat-panel.js's own reference cards already link
         // here), never a second property-detail system. A NON-active
         // card click below just brings it to center first instead.
         window.location.href = 'listing.html?id=' + encodeURIComponent(el.dataset.id);
@@ -2474,11 +2333,13 @@ mapDrawerCloseBtn.addEventListener('click', () => { setDrawerOpen(false); mapEdg
 // so the two paths cannot both fire and fight.
 document.addEventListener('pointerdown', (e) => {
   if (!drawerOpen) return;
-  // While a boundary is being drawn, clicks on the map ARE the task: each
-  // one drops a vertex. Closing the drawer on them would hide Undo and
-  // Finish behind the handle after the very first point. Draw mode ends
-  // through Finish, Escape or the Draw Area toggle instead.
-  if (drawMode) return;
+  // No draw-mode exemption is needed here any more. The circle tool
+  // closes the drawer the moment it is armed (setDrawMode below) because
+  // a one-gesture circle has no mid-draw controls to keep on screen, so
+  // a press on the map while armed both starts the circle and closes
+  // whatever was open -- which is what should happen. The old polygon
+  // tool needed the opposite (it kept Undo/Finish reachable across many
+  // vertex clicks) and that exemption has gone with it.
   // A pointer event's target is normally an Element (SVG included, since
   // SVGElement extends Element and so has closest()), but guard anyway --
   // a target that isn't one cannot be inside the drawer, so it counts as
@@ -2490,41 +2351,116 @@ document.addEventListener('pointerdown', (e) => {
 mapDrawerScrim.addEventListener('click', () => { if (drawerOpen) setDrawerOpen(false); });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
+  if (e.key !== 'Escape') return;
+  // Escape backs out of the innermost thing first: an armed/in-flight
+  // circle, otherwise the drawer.
+  if (drawMode) { setDrawMode(false); return; }
+  if (drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
 });
 
 const drawSearchBtn = document.getElementById('drawSearchBtn');
+const redrawSearchAreaBtn = document.getElementById('redrawSearchAreaBtn');
 const clearSearchAreaBtn = document.getElementById('clearSearchAreaBtn');
 const mapEl = document.getElementById('map');
-const drawActionsEl = document.getElementById('drawActions');
-const drawFinishBtn = document.getElementById('drawFinishBtn');
-const drawUndoBtn = document.getElementById('drawUndoBtn');
+const drawRadiusBadge = document.getElementById('drawRadiusBadge');
 
 // ---------------------------------------------------------------------
-// Draw Area -- a real freehand polygon boundary, not a fixed circle.
-// Works identically for mouse and touch: Leaflet's own 'click' event
-// already fires from a plain tap on touch devices (no separate
-// touchstart/touchmove/touchend wiring needed, unlike the old drag-based
-// circle tool this replaces), so one handler covers both input types.
-// Each click/tap adds one vertex; Finish closes the boundary (requires
-// >=3 points); Undo removes the last point while still drawing; the
-// existing "Clear Search Area" chip removes a finished boundary.
+// Draw Area -- a CIRCLE, chosen with one press-drag-release gesture.
+//
+// Press sets the centre, dragging outward sets the radius, releasing
+// commits it. There is no vertex-by-vertex boundary, no Undo step and no
+// Finish button: the release IS the commit, so the only things a
+// finished area offers are Redraw and Clear.
+//
+// One code path serves mouse, touch and pen, because it is written
+// against Pointer Events rather than either mouse or touch events. Three
+// things have to be true for the gesture to survive on a touch screen,
+// and all three are done explicitly rather than left to chance:
+//
+//   1. `touch-action: none` on the armed map (see #map.draw-mode in this
+//      file's CSS) -- otherwise the browser claims the drag as a scroll
+//      before a single pointermove is delivered.
+//   2. Leaflet's own dragging/doubleClickZoom handlers are disabled
+//      while armed, so the map cannot pan out from under the circle
+//      being sized, and re-enabled the instant the mode ends.
+//   3. setPointerCapture on the map container, so a drag that leaves the
+//      map (over the listing panel, off the window edge) still delivers
+//      its moves and its release here instead of being lost.
 // ---------------------------------------------------------------------
-function redrawPreview() {
-  if (drawPreviewLayer) { map.removeLayer(drawPreviewLayer); drawPreviewLayer = null; }
-  drawVertexMarkers.forEach(m => map.removeLayer(m));
-  drawVertexMarkers = [];
-  if (drawPreviewPoints.length >= 2) {
-    drawPreviewLayer = L.polygon(drawPreviewPoints, {
-      color: '#8E7448', weight: 2, dashArray: '6 4', fillColor: '#B89A63', fillOpacity: 0.15
-    }).addTo(map);
-  }
-  drawPreviewPoints.forEach(pt => {
-    const m = L.marker(pt, { icon: L.divIcon({ className: '', html: '<div class="draw-vertex-dot"></div>', iconSize: [9, 9], iconAnchor: [4, 4] }), interactive: false });
-    m.addTo(map);
-    drawVertexMarkers.push(m);
-  });
-  drawFinishBtn.disabled = drawPreviewPoints.length < 3;
+const MIN_RADIUS_M = 50;      // below this a "drag" is really a stray tap
+let drawGesture = null;       // {pointerId, centre} while a circle is being sized
+// The area a redraw is about to replace. Arming does NOT throw the
+// existing circle away -- it stays on the map, still filtering, until a
+// new gesture actually starts; and if that gesture is abandoned or comes
+// out too small, it is put back. Discarding on arm would mean pressing
+// "Redraw area" and then changing your mind cost you the area you had.
+let replacedCircle = null;
+
+function fmtRadius(metres) {
+  if (metres >= 1000) return trf('map.radiusKm', '{n} km', { n: (metres / 1000).toFixed(1) });
+  return trf('map.radiusM', '{n} m', { n: Math.round(metres) });
+}
+
+// The ONE place a circle layer is created, so there can never be two on
+// the map: whatever was there is removed first, every time.
+function drawCircleLayer(centre, radius, { preview }) {
+  if (searchCircleLayer) { map.removeLayer(searchCircleLayer); searchCircleLayer = null; }
+  searchCircleLayer = L.circle(centre, {
+    radius,
+    // Non-interactive on purpose: the circle is an overlay describing the
+    // filter, not a control. If it swallowed clicks it would sit between
+    // the visitor and the price markers inside it -- the same mistake the
+    // approximate-location halo avoids for the same reason.
+    interactive: false,
+    color: '#B89A63',
+    weight: preview ? 1.5 : 2,
+    opacity: preview ? 0.85 : 0.95,
+    dashArray: preview ? '5 4' : null,
+    fillColor: '#B89A63',
+    fillOpacity: preview ? 0.08 : 0.12
+  }).addTo(map);
+  return searchCircleLayer;
+}
+
+function removeCircleLayers() {
+  if (searchCircleLayer) { map.removeLayer(searchCircleLayer); searchCircleLayer = null; }
+  if (drawCentreMarker) { map.removeLayer(drawCentreMarker); drawCentreMarker = null; }
+}
+
+// Puts back the circle a since-abandoned redraw was going to replace, so
+// an abandoned gesture leaves the map exactly as it found it. Filtering
+// is unaffected either way -- searchCircle only ever changes on commit.
+function restoreReplacedCircle() {
+  removeCircleLayers();
+  if (!replacedCircle) return;
+  searchCircle = replacedCircle;
+  drawCircleLayer(searchCircle.centre, searchCircle.radius, { preview: false });
+  replacedCircle = null;
+}
+
+// Area-search group: "Draw Area" while there is nothing to act on,
+// "Redraw area" + "Clear area" once a circle exists. Never both states at
+// once, and never a control for an action that does not apply.
+//
+// Clear is the one control shared with the other spatial filter: a
+// "Search this area" viewport snapshot is also an active area constraint
+// the visitor needs a way out of, even though it has no circle to redraw.
+// This is the single place any of the three visibilities is decided, so
+// the two filters cannot leave a stale button behind.
+function updateAreaControls() {
+  const hasCircle = !!searchCircle;
+  drawSearchBtn.style.display = hasCircle ? 'none' : 'flex';
+  redrawSearchAreaBtn.style.display = hasCircle ? 'flex' : 'none';
+  clearSearchAreaBtn.style.display = (hasCircle || viewportSearchBounds) ? 'flex' : 'none';
+}
+
+function showRadiusBadge(metres) {
+  drawRadiusBadge.textContent = fmtRadius(metres);
+  drawRadiusBadge.classList.add('show');
+}
+function hideRadiusBadge() {
+  drawRadiusBadge.classList.remove('show');
+  drawRadiusBadge.textContent = '';
 }
 
 function setDrawMode(on) {
@@ -2533,71 +2469,137 @@ function setDrawMode(on) {
   drawSearchBtn.classList.toggle('active', drawMode);
   // The button is a toggle, so its pressed state has to be announced, not
   // just painted. Every entry and exit from draw mode funnels through this
-  // one function (the toggle click and Finish both call it), so setting it
-  // here keeps the announced state and the visual state from ever drifting
-  // apart.
+  // one function, so the announced state and the visual state cannot drift.
   drawSearchBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
-  drawActionsEl.classList.toggle('show', drawMode);
-  // Drawing needs the map AND needs Undo/Finish within reach, so the
-  // drawer narrows to just the Area search group rather than closing.
-  // Same controls, same DOM nodes -- nothing is duplicated onto the map.
-  mapDrawer.dataset.mode = drawMode ? 'compact' : 'full';
+  redrawSearchAreaBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
   mapEdgeHandle.dataset.drawing = drawMode ? '1' : '0';
-  if (drawMode) setDrawerOpen(true, { silent: true });
+  // The circle gesture needs every pixel of the map, and the MAM dock
+  // floats over it. This hides the dock for the duration -- it is not
+  // unmounted, so the conversation, its position and any voice state are
+  // all still there when the circle is finished. js/mam-dock.js listens
+  // for this; nothing here reaches into that module.
+  document.dispatchEvent(new CustomEvent('darwesh:mam-suppress', { detail: { suppressed: drawMode } }));
+
   if (drawMode) {
-    // Starting a new boundary replaces any previous one -- only one
-    // spatial filter (drawn polygon OR viewport snapshot) is ever
-    // active at a time.
-    if (searchPolygonLayer) { map.removeLayer(searchPolygonLayer); searchPolygonLayer = null; }
-    searchPolygonPoints = null;
-    viewportSearchBounds = null;
+    // The gesture needs the whole map, and there is nothing to keep on
+    // screen while it happens -- so the drawer gets out of the way rather
+    // than narrowing. (The polygon tool did the opposite because Undo and
+    // Finish had to stay reachable between vertex clicks.)
+    setDrawerOpen(false, { silent: true });
+    // Leaflet must not pan while the pointer is dragging out a radius.
+    map.dragging.disable();
+    map.doubleClickZoom.disable();
+    // Only one spatial filter (drawn circle OR viewport snapshot) is ever
+    // active, so arming drops the viewport snapshot straight away. The
+    // existing circle, by contrast, survives until a replacement is
+    // actually drawn -- see replacedCircle.
+    if (viewportSearchBounds) { viewportSearchBounds = null; refresh(); }
     document.getElementById('searchThisAreaBtn').classList.remove('show');
     document.getElementById('searchThisAreaBtn').disabled = true;
     mapEdgeHandle.dataset.attention = '0';
-    clearSearchAreaBtn.style.display = 'none';
-    drawPreviewPoints = [];
-    redrawPreview();
-    showToast(tr('map.tapToAddPoint', 'Tap the map to add points, then Finish'), 'edit');
+    updateAreaControls();
+    showToast(tr('map.dragToSetRadius', 'Press the map and drag out to set your search radius'), 'edit');
   } else {
-    drawPreviewPoints = [];
-    redrawPreview();
+    // Normal map interaction resumes immediately -- pan, pinch and
+    // double-click zoom all behave exactly as they did before arming.
+    map.dragging.enable();
+    map.doubleClickZoom.enable();
+    hideRadiusBadge();
+    if (drawGesture) {
+      // Abandoned mid-gesture (Escape, or the toggle pressed again).
+      try { mapEl.releasePointerCapture(drawGesture.pointerId); } catch { /* already released */ }
+      drawGesture = null;
+      restoreReplacedCircle();
+    }
+    replacedCircle = null;
+    updateAreaControls();
   }
 }
+
 drawSearchBtn.addEventListener('click', () => setDrawMode(!drawMode));
+redrawSearchAreaBtn.addEventListener('click', () => setDrawMode(true));
 
-map.on('click', (e) => {
-  if (!drawMode) return;
-  drawPreviewPoints.push([e.latlng.lat, e.latlng.lng]);
-  redrawPreview();
-});
+// ---- the gesture itself ---------------------------------------------
+// Bound to the map container rather than to Leaflet's own event bus so
+// the raw pointer stream (with capture, coalesced moves and pointerId) is
+// available; Leaflet's synthetic click/mousedown wrappers cannot express
+// press-drag-release the way this needs.
+mapEl.addEventListener('pointerdown', (e) => {
+  if (!drawMode || drawGesture) return;
+  if (e.button !== 0 && e.pointerType === 'mouse') return;   // left button / any touch or pen
+  // A press that started on map furniture (zoom buttons, attribution,
+  // the drawer or its handle) is that control's business, not a circle.
+  if (e.target && typeof e.target.closest === 'function' &&
+      e.target.closest('.leaflet-control, #mapDrawer, #mapEdgeHandle, .map-drawer-scrim')) return;
 
-drawUndoBtn.addEventListener('click', () => {
-  drawPreviewPoints.pop();
-  redrawPreview();
-});
+  const centre = map.mouseEventToLatLng(e);
+  drawGesture = { pointerId: e.pointerId, centre };
+  try { mapEl.setPointerCapture(e.pointerId); } catch { /* capture unsupported -- moves still arrive */ }
+  e.preventDefault();
 
-drawFinishBtn.addEventListener('click', () => {
-  if (drawPreviewPoints.length < 3) return;
-  searchPolygonPoints = drawPreviewPoints.slice();
-  if (searchPolygonLayer) { map.removeLayer(searchPolygonLayer); }
-  searchPolygonLayer = L.polygon(searchPolygonPoints, {
-    color: '#8E7448', weight: 2.5, fillColor: '#B89A63', fillOpacity: 0.12
+  // A replacement is now genuinely under way: set the old area aside (so
+  // an abandoned gesture can restore it) and take it off the map, since
+  // from here on the circle being drawn is the one on screen.
+  replacedCircle = searchCircle;
+  searchCircle = null;
+  removeCircleLayers();
+
+  drawCentreMarker = L.marker(centre, {
+    icon: L.divIcon({ className: '', html: '<div class="draw-centre-dot"></div>', iconSize: [11, 11], iconAnchor: [5.5, 5.5] }),
+    interactive: false
   }).addTo(map);
-  drawPreviewPoints = [];
-  redrawPreview();
+  drawCircleLayer(centre, 0, { preview: true });
+  showRadiusBadge(0);
+});
+
+mapEl.addEventListener('pointermove', (e) => {
+  if (!drawGesture || e.pointerId !== drawGesture.pointerId) return;
+  e.preventDefault();
+  // Metres, from Leaflet's own great-circle distance -- never a pixel
+  // delta, so the radius means the same thing at every zoom level.
+  const radius = map.distance(drawGesture.centre, map.mouseEventToLatLng(e));
+  if (searchCircleLayer) searchCircleLayer.setRadius(radius);
+  showRadiusBadge(radius);
+});
+
+function finishGesture(e, { cancelled } = {}) {
+  if (!drawGesture || e.pointerId !== drawGesture.pointerId) return;
+  const centre = drawGesture.centre;
+  const radius = cancelled ? 0 : map.distance(centre, map.mouseEventToLatLng(e));
+  try { mapEl.releasePointerCapture(drawGesture.pointerId); } catch { /* already released */ }
+  drawGesture = null;
+  hideRadiusBadge();
+
+  if (radius < MIN_RADIUS_M) {
+    // A tap, or a cancelled gesture -- not an area. Put back whatever was
+    // there and stay armed, so the next real drag still works, rather
+    // than committing a circle nobody asked for or silently dropping out
+    // of the mode.
+    restoreReplacedCircle();
+    updateAreaControls();
+    if (!cancelled) showToast(tr('map.areaTooSmall', 'Drag further out to set a search radius'), 'edit');
+    return;
+  }
+
+  searchCircle = { centre, radius };
+  replacedCircle = null;   // committed -- there is nothing to restore now
+  if (drawCentreMarker) { map.removeLayer(drawCentreMarker); drawCentreMarker = null; }
+  drawCircleLayer(centre, radius, { preview: false });
   setDrawMode(false);
-  clearSearchAreaBtn.style.display = 'flex';
-  showToast(tr('map.searchAreaApplied', 'Search area applied'), 'check_circle');
+  showToast(trf('map.searchAreaAppliedRadius', 'Searching within {r}', { r: fmtRadius(radius) }), 'check_circle');
   updateUrlState(true);
   refresh();
-});
+}
+
+mapEl.addEventListener('pointerup', (e) => finishGesture(e));
+mapEl.addEventListener('pointercancel', (e) => finishGesture(e, { cancelled: true }));
 
 clearSearchAreaBtn.addEventListener('click', () => {
-  if (searchPolygonLayer) { map.removeLayer(searchPolygonLayer); searchPolygonLayer = null; }
-  searchPolygonPoints = null;
+  removeCircleLayers();
+  searchCircle = null;
   viewportSearchBounds = null;
   lastFilteredBounds = null;
-  clearSearchAreaBtn.style.display = 'none';
+  updateAreaControls();
   showToast(tr('map.searchAreaCleared', 'Search area cleared'), 'close');
   updateUrlState(true);
   refresh();
@@ -2620,7 +2622,7 @@ map.on('moveend zoomend', () => {
   buildMarkers(); // re-cluster/re-adapt marker density for the new zoom/viewport
   clearTimeout(moveDebounceTimer);
   moveDebounceTimer = setTimeout(() => {
-    if (searchPolygonPoints) return; // a drawn boundary takes precedence -- no viewport chip while one is active
+    if (searchCircle) return; // a drawn circle takes precedence -- no viewport chip while one is active
     const bounds = map.getBounds();
     if (lastFilteredBounds && lastFilteredBounds.contains(bounds.getCenter()) &&
         Math.abs(lastFilteredBounds.getNorth() - bounds.getNorth()) < 0.02) {
@@ -2639,7 +2641,7 @@ searchThisAreaBtn.addEventListener('click', () => {
   searchThisAreaBtn.classList.remove('show');
   searchThisAreaBtn.disabled = true;
   mapEdgeHandle.dataset.attention = '0';
-  clearSearchAreaBtn.style.display = 'flex';
+  updateAreaControls();
   refresh();
 });
 
@@ -2900,7 +2902,7 @@ window.addEventListener('popstate', () => {
 });
 
 // ---------------------------------------------------------------------
-// MAM AI hook (js/mam-properties-map.js). The ONE way the AI module is
+// MAM AI hook (js/mam-chat-panel.js's applyMapAction). The ONE way MAM is
 // allowed to touch this page's real search state -- it never re-
 // implements filtering itself, it only ever calls this with the exact
 // filter keys backend/app/mam/orchestrator.py's _search_filters_action
