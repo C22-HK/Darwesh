@@ -13,9 +13,9 @@
 // since this is a different menu, not another language surface) -- there
 // is exactly one clickable nav LABEL for the map, with Buy/Rent reachable
 // as its two modes, never a second or third label. MAM is not a
-// standalone nav destination -- it lives inside this one map
-// (js/mam-properties-map.js) instead, see docs/MAM_V2_ARCHITECTURE.md
-// section 21. Before this file existed, every page hand-duplicated its
+// standalone nav destination -- it is a compact assistant present on
+// every page (js/mam-companion-launcher.js), see
+// docs/MAM_V2_ARCHITECTURE.md section 21. Before this file existed, every page hand-duplicated its
 // own <header> markup and they had drifted: different nav link sets,
 // different labels, and only some pages had the flag-based language
 // selector while others still had a plain globe icon. This is the single
