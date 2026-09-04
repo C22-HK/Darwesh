@@ -58,17 +58,9 @@ def normalize_text(text: str) -> str:
     out = out.replace("ة", "ه")
     out = out.replace("ؤ", "و")
     out = re.sub(r"[‌‎‏]", " ", out)
+    out = "".join(str(_ARABIC_INDIC_DIGITS.index(c)) if c in _ARABIC_INDIC_DIGITS else c for c in out)
     out = "".join(
-        str(_ARABIC_INDIC_DIGITS.index(c)) if c in _ARABIC_INDIC_DIGITS else c
-        for c in out
-    )
-    out = "".join(
-        (
-            str(_EXTENDED_ARABIC_INDIC_DIGITS.index(c))
-            if c in _EXTENDED_ARABIC_INDIC_DIGITS
-            else c
-        )
-        for c in out
+        (str(_EXTENDED_ARABIC_INDIC_DIGITS.index(c)) if c in _EXTENDED_ARABIC_INDIC_DIGITS else c) for c in out
     )
     out = re.sub(r"\s+", " ", out).strip()
     return out.lower()
@@ -202,11 +194,7 @@ def extract_price(text_norm: str) -> dict | None:
     )
     value: float | None = None
     if magnitude_match:
-        multiplier = (
-            1_000_000
-            if re.search(r"ملیۆن|میلیون|مليون|million", magnitude_match.group(2))
-            else 1_000
-        )
+        multiplier = 1_000_000 if re.search(r"ملیۆن|میلیون|مليون|million", magnitude_match.group(2)) else 1_000
         value = float(magnitude_match.group(1)) * multiplier
     else:
         has_currency_context = (
@@ -222,20 +210,14 @@ def extract_price(text_norm: str) -> dict | None:
         return None
     mentions_dollars = bool(re.search(r"\$|dollar|دۆلار|دولار|usd", text_norm))
     mentions_arabic_script = bool(re.search(r"[؀-ۿ]", text_norm))
-    usd_value = (
-        value / IQD_PER_USD
-        if (not mentions_dollars and mentions_arabic_script)
-        else value
-    )
+    usd_value = value / IQD_PER_USD if (not mentions_dollars and mentions_arabic_script) else value
     is_max = any(w in text_norm for w in MAX_PRICE_WORDS)
     is_min = (not is_max) and any(w in text_norm for w in MIN_PRICE_WORDS)
     return {"usdValue": usd_value, "isMax": is_max, "isMin": is_min}
 
 
 def extract_bedrooms(text_norm: str) -> int | None:
-    match = re.search(
-        r"(\d+)\s*(bedroom|bed|ژووری نوستن|ژوور|غرفه نوم|غرفه)", text_norm
-    )
+    match = re.search(r"(\d+)\s*(bedroom|bed|ژووری نوستن|ژوور|غرفه نوم|غرفه)", text_norm)
     return int(match.group(1)) if match else None
 
 
@@ -277,9 +259,7 @@ def resolve_intent(message: str) -> ResolvedIntent | None:
     # City alone was standing in for "specific enough" before; requiring
     # two signals in its absence keeps the same specificity bar rather
     # than resolving on a single loose keyword.
-    other_signal_count = sum(
-        1 for s in (property_type, deal_type, price, bedrooms) if s
-    )
+    other_signal_count = sum(1 for s in (property_type, deal_type, price, bedrooms) if s)
     if (city and other_signal_count >= 1) or (not city and other_signal_count >= 2):
         args: dict = {}
         if city:
@@ -296,20 +276,14 @@ def resolve_intent(message: str) -> ResolvedIntent | None:
             args["minBeds"] = bedrooms
         return ResolvedIntent(tool_name="search_properties", arguments=args)
 
-    if re.search(
-        r"worth|value|valuation|نرخی خانوو|هەڵسەنگاندن|بەهای خانوو|تقییم|قیمه", norm
-    ):
-        return ResolvedIntent(
-            tool_name="get_market_summary", arguments={"city": city} if city else {}
-        )
+    if re.search(r"worth|value|valuation|نرخی خانوو|هەڵسەنگاندن|بەهای خانوو|تقییم|قیمه", norm):
+        return ResolvedIntent(tool_name="get_market_summary", arguments={"city": city} if city else {})
 
     if any(k in norm for k in SERVICE_KEYWORDS):
         return ResolvedIntent(tool_name="search_services", arguments={})
 
     if any(k in norm for k in MAP_KEYWORDS):
-        return ResolvedIntent(
-            tool_name="open_on_map", arguments={"city": city} if city else {}
-        )
+        return ResolvedIntent(tool_name="open_on_map", arguments={"city": city} if city else {})
 
     if city:
         return ResolvedIntent(tool_name="get_market_summary", arguments={"city": city})

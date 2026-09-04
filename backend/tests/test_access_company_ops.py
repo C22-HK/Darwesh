@@ -45,8 +45,12 @@ async def _seed_user(db, uid: str) -> None:
     db.collection("users").document(uid).set({"role": "customer", "createdAt": time.time()})
 
 
-async def _invite_and_accept(ops, *, company_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool = False) -> None:
-    await ops.invite_employee(company_id=company_id, target_uid=target_uid, caller_uid=caller_uid, caller_is_admin=caller_is_admin)
+async def _invite_and_accept(
+    ops, *, company_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool = False
+) -> None:
+    await ops.invite_employee(
+        company_id=company_id, target_uid=target_uid, caller_uid=caller_uid, caller_is_admin=caller_is_admin
+    )
     await ops.accept_invitation(company_id=company_id, caller_uid=target_uid)
 
 
@@ -128,7 +132,9 @@ async def test_approve_membership_by_owner_activates_it(db, ops):
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
     await ops.request_membership(company_id=company_id, caller_uid=employee)
 
-    await ops.approve_membership(company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
+    await ops.approve_membership(
+        company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert record.get("status") == "active"
@@ -143,7 +149,9 @@ async def test_approve_membership_by_non_owner_non_admin_is_forbidden(db, ops):
     await ops.request_membership(company_id=company_id, caller_uid=employee)
 
     with pytest.raises(ForbiddenError):
-        await ops.approve_membership(company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False)
+        await ops.approve_membership(
+            company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False
+        )
 
 
 async def test_reject_membership_deletes_pending_record(db, ops):
@@ -153,7 +161,9 @@ async def test_reject_membership_deletes_pending_record(db, ops):
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
     await ops.request_membership(company_id=company_id, caller_uid=employee)
 
-    await ops.reject_membership(company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
+    await ops.reject_membership(
+        company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert not record.exists
@@ -179,14 +189,18 @@ async def test_invite_employee_by_non_owner_non_admin_is_forbidden(db, ops):
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
 
     with pytest.raises(ForbiddenError):
-        await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False)
+        await ops.invite_employee(
+            company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False
+        )
 
 
 async def test_invite_employee_rejects_a_uid_with_no_real_user_profile(ops):
     owner = _uid("owner")
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
     with pytest.raises(NotFoundError):
-        await ops.invite_employee(company_id=company_id, target_uid=_uid("ghost"), caller_uid=owner, caller_is_admin=False)
+        await ops.invite_employee(
+            company_id=company_id, target_uid=_uid("ghost"), caller_uid=owner, caller_is_admin=False
+        )
 
 
 async def test_invite_employee_cannot_target_the_owner(db, ops):
@@ -233,7 +247,9 @@ async def test_revoke_invitation_by_owner_removes_it(db, ops):
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
     await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
 
-    await ops.revoke_invitation(company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False)
+    await ops.revoke_invitation(
+        company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert not record.exists
@@ -259,7 +275,9 @@ async def test_remove_employee_by_admin_works_even_without_ownerid_match(db, ops
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
     await _invite_and_accept(ops, company_id=company_id, target_uid=employee, caller_uid=owner)
 
-    await ops.remove_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+    await ops.remove_employee(
+        company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert not record.exists
@@ -295,7 +313,9 @@ async def test_admin_can_invite_an_employee_to_a_legacy_ownerless_company(db, op
     employee = _uid("employee")
     await _seed_user(db, employee)
 
-    await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+    await ops.invite_employee(
+        company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert record.get("status") == "invited"
@@ -307,7 +327,9 @@ async def test_admin_can_approve_membership_at_a_legacy_ownerless_company(db, op
     await _seed_user(db, employee)
     await ops.request_membership(company_id=company_id, caller_uid=employee)
 
-    await ops.approve_membership(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+    await ops.approve_membership(
+        company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert record.get("status") == "active"
@@ -317,10 +339,14 @@ async def test_admin_can_remove_an_employee_from_a_legacy_ownerless_company(db, 
     company_id = _seed_legacy_company(db)
     employee = _uid("employee")
     await _seed_user(db, employee)
-    await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+    await ops.invite_employee(
+        company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True
+    )
     await ops.accept_invitation(company_id=company_id, caller_uid=employee)
 
-    await ops.remove_employee(company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True)
+    await ops.remove_employee(
+        company_id=company_id, target_uid=employee, caller_uid=_uid("admin"), caller_is_admin=True
+    )
 
     record = db.collection("companies").document(company_id).collection("employees").document(employee).get()
     assert not record.exists
@@ -337,7 +363,9 @@ async def test_non_admin_stranger_is_forbidden_not_crashed_on_a_legacy_ownerless
     await _seed_user(db, employee)
 
     with pytest.raises(ForbiddenError):
-        await ops.invite_employee(company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False)
+        await ops.invite_employee(
+            company_id=company_id, target_uid=employee, caller_uid=stranger, caller_is_admin=False
+        )
 
 
 async def test_request_membership_at_a_legacy_ownerless_company_does_not_crash(db, ops):
@@ -364,7 +392,9 @@ async def test_list_my_companies_includes_owned_and_active_and_pending_and_invit
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
     await _invite_and_accept(ops, company_id=company_id, target_uid=active_employee, caller_uid=owner)
     await ops.request_membership(company_id=company_id, caller_uid=pending_employee)
-    await ops.invite_employee(company_id=company_id, target_uid=invited_employee, caller_uid=owner, caller_is_admin=False)
+    await ops.invite_employee(
+        company_id=company_id, target_uid=invited_employee, caller_uid=owner, caller_is_admin=False
+    )
 
     owner_result = await ops.list_my_companies(uid=owner)
     assert [r["companyId"] for r in owner_result] == [company_id]
@@ -429,7 +459,9 @@ async def test_concurrent_approve_and_reject_only_one_wins(db, ops):
     await ops.request_membership(company_id=company_id, caller_uid=employee)
 
     results = await asyncio.gather(
-        ops.approve_membership(company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False),
+        ops.approve_membership(
+            company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False
+        ),
         ops.reject_membership(company_id=company_id, target_uid=employee, caller_uid=owner, caller_is_admin=False),
         return_exceptions=True,
     )

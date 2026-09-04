@@ -85,9 +85,7 @@ async def test_sorani_min_price_filters_real_listings():
     tools, db = make_tools()
     seed_listing(db, "cheap", city="Erbil", price=50000, propertyType="house")
     seed_listing(db, "expensive", city="Erbil", price=250000, propertyType="house")
-    result = await tools.search_properties(
-        PUBLIC_CALLER, city="Erbil", property_type="house", min_price=150000
-    )
+    result = await tools.search_properties(PUBLIC_CALLER, city="Erbil", property_type="house", min_price=150000)
     ids = {r["listingId"] for r in result["results"]}
     assert ids == {"expensive"}
 

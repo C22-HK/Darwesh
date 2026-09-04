@@ -252,9 +252,7 @@ class PermissionOps:
             }
 
             if organization_id:
-                result["organization"] = self._resolve_organization_block(
-                    organization_id, uid, global_permissions
-                )
+                result["organization"] = self._resolve_organization_block(organization_id, uid, global_permissions)
 
             return result
 

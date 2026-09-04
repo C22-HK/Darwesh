@@ -38,7 +38,9 @@ class SessionTurn:
 class SessionState:
     session_id: str
     turns: list[SessionTurn] = field(default_factory=list)
-    last_result_ids: list[str] = field(default_factory=list)  # the last search's listing ids, for "compare the first two"
+    last_result_ids: list[str] = field(
+        default_factory=list
+    )  # the last search's listing ids, for "compare the first two"
     updated_at: float = field(default_factory=time.monotonic)
 
     def append(self, role: str, text: str) -> None:

@@ -181,7 +181,11 @@ async def test_search_services_returns_static_catalog():
     tools, _ = make_tools()
     result = await tools.search_services(PUBLIC_CALLER)
     assert {s["service_type"] for s in result["services"]} == {
-        "engineer", "designer", "lawyer", "landscaping", "cleaning",
+        "engineer",
+        "designer",
+        "lawyer",
+        "landscaping",
+        "cleaning",
     }
 
 

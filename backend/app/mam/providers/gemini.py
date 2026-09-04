@@ -163,8 +163,7 @@ def _history_to_contents(history: list[ChatTurn]) -> list[Content]:
                     Content(
                         role="model",
                         parts=[
-                            Part.from_function_call(name=tc.tool_name, args=tc.arguments)
-                            for tc in turn.tool_calls
+                            Part.from_function_call(name=tc.tool_name, args=tc.arguments) for tc in turn.tool_calls
                         ],
                     )
                 )
@@ -174,7 +173,11 @@ def _history_to_contents(history: list[ChatTurn]) -> list[Content]:
             contents.append(
                 Content(
                     role="tool",
-                    parts=[Part.from_function_response(name=turn.tool_name or "", response=_decode_tool_content(turn.content))],
+                    parts=[
+                        Part.from_function_response(
+                            name=turn.tool_name or "", response=_decode_tool_content(turn.content)
+                        )
+                    ],
                 )
             )
         # An unrecognized role is silently skipped rather than raising --
@@ -210,7 +213,9 @@ def _parse_response(response: Any) -> ProviderResponse:
     content = getattr(candidates[0], "content", None)
     parts = getattr(content, "parts", None) or []
     finish_reason_raw = getattr(candidates[0], "finish_reason", None)
-    finish_reason = str(finish_reason_raw.value if hasattr(finish_reason_raw, "value") else finish_reason_raw or "stop").lower()
+    finish_reason = str(
+        finish_reason_raw.value if hasattr(finish_reason_raw, "value") else finish_reason_raw or "stop"
+    ).lower()
 
     tool_calls: list[ToolCallRequest] = []
     text_parts: list[str] = []
