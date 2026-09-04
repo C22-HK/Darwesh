@@ -51,10 +51,27 @@ def test_max_sessions_evicts_oldest_first(monkeypatch):
     store = SessionStore()
     monkeypatch.setattr("app.mam.session.MAX_SESSIONS", 2)
 
+    # The clock is pinned BEFORE the first session exists, and every
+    # timestamp below is inside SESSION_TTL_SECONDS of the last one, so
+    # the only thing that can remove a session here is the MAX_SESSIONS
+    # cap -- which is what this test is about.
+    #
+    # Previously s1 was created before any patch, so it took the real
+    # monotonic clock while the eviction sweep read the patched one. That
+    # made the test depend on the host's uptime: the sweep at "now =
+    # 2000.0" computed an age of 2000 - <uptime> seconds for both s1 and
+    # s2, so on a machine up for less than ~200s -- a fresh CI runner --
+    # both were discarded as EXPIRED before the cap was ever consulted,
+    # leaving only s3. Where uptime was higher the arithmetic went the
+    # other way and the test passed, but for the wrong reason: s1 was
+    # being aged out, not evicted.
+    clock = {"now": 1000.0}
+    monkeypatch.setattr("app.mam.session.time.monotonic", lambda: clock["now"])
+
     first = store.get_or_create("s1")
-    monkeypatch.setattr("app.mam.session.time.monotonic", lambda: 1000.0)
+    clock["now"] = 1001.0
     store.get_or_create("s2")
-    monkeypatch.setattr("app.mam.session.time.monotonic", lambda: 2000.0)
+    clock["now"] = 1002.0
     store.get_or_create("s3")
 
     assert "s1" not in store._sessions
