@@ -84,8 +84,70 @@ export const SERVICE_CATALOG = [
     profileHref: 'cleaning.html',
     directoryHref: 'service.html?type=cleaning',
     ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Cleaning Providers'
+  },
+  {
+    // Maintenance was added to js/professional-roles.js in Phase 3B --
+    // with a real maintenance.html profile page, a real signup path, and
+    // a real `maintenance` value in firestore.rules' serviceProviders
+    // serviceType enum -- but this catalog was never updated to match.
+    // The role therefore existed everywhere EXCEPT the one place
+    // visitors discover services from. Adding it here closes that drift;
+    // the header comment above (written when only five roles existed) is
+    // corrected by this entry rather than by rewriting history.
+    key: 'maintenance',
+    serviceType: 'maintenance',
+    icon: 'handyman',
+    fallbackIcon: 'handyman',
+    titleKey: 'svc.maintenance.title', title: 'Maintenance & Repair',
+    taglineKey: 'svc.maintenance.tagline', tagline: 'Repairs, upkeep, and property maintenance from verified providers.',
+    profileHref: 'maintenance.html',
+    directoryHref: 'service.html?type=maintenance',
+    ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Maintenance Providers'
+  },
+  {
+    // INSTALLMENT is the one service here that is NOT a serviceProviders
+    // role, and deliberately so: nobody signs up as "an installment
+    // provider". What actually exists is developer PROJECTS that offer
+    // instalment terms -- firestore.rules' projects/{projectId} already
+    // allowlists and type-validates installmentAvailable,
+    // minDownPaymentPercent, monthlyInstallmentFrom and
+    // paymentPeriodMonths, and the collection is `allow read: if true`.
+    //
+    // So this entry has no `serviceType` and no provider profile page.
+    // `countSource` below is what lets it live in the same catalog
+    // without special-casing the renderer: services whose supply is a
+    // provider head-count keep the default serviceProviders count, and
+    // this one counts real qualifying projects instead.
+    key: 'installment',
+    serviceType: null,
+    icon: 'payments',
+    fallbackIcon: 'payments',
+    titleKey: 'svc.installment.title', title: 'Installments',
+    taglineKey: 'svc.installment.tagline', tagline: 'Properties offered on real instalment plans, with the terms published by the developer.',
+    profileHref: null,
+    directoryHref: 'installments.html',
+    ctaKey: 'svc.cta.browseInstallments', ctaFallback: 'Browse Installment Offers',
+    countSource: { collection: 'projects', field: 'installmentAvailable', value: true },
+    // The Service Universe's default zero/unknown copy describes a pool
+    // of professionals ("Providers will appear here as they join"). That
+    // would be a false description of this service, whose supply is
+    // published developer projects -- so it carries its own wording.
+    zeroCountKey: 'svc.installment.noneYet', zeroCountFallback: 'No installment offers are published yet',
+    unknownCountKey: 'svc.installment.explore', unknownCountFallback: 'Explore published installment offers'
   }
 ];
+
+/**
+ * How to count real supply for a service. Provider services count
+ * serviceProviders of their role; anything that declares its own
+ * countSource (see `installment`) uses that instead. Returning a
+ * descriptor rather than running the query keeps this module free of
+ * Firestore imports, exactly as it was before.
+ * @returns {{collection: string, field: string, value: *}}
+ */
+export function countSourceFor(svc) {
+  return svc.countSource || { collection: 'serviceProviders', field: 'serviceType', value: svc.serviceType };
+}
 
 export function getService(key) {
   return SERVICE_CATALOG.find((s) => s.key === key) || null;
