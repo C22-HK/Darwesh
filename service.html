@@ -119,6 +119,21 @@
   if (!svc) {
     hideAll();
     el('unknownTypeState').classList.remove('hidden');
+  } else if (!svc.serviceType) {
+    // This page is the serviceProviders directory, and it only works for
+    // services whose supply IS a set of provider documents. The catalog
+    // also carries services backed by something else entirely
+    // (Installments is backed by developer `projects`, not by anyone who
+    // signs up as a provider), and those declare no serviceType.
+    //
+    // Without this branch such a service would query
+    // serviceProviders where serviceType == null -- always empty -- and
+    // then render provider cards pointing at `null?id=...`, a dead link
+    // built from a missing profileHref. Instead, hand the visitor to the
+    // page that really does serve this service. Nothing links here for
+    // these services; this is the hand-typed-URL path, and it should
+    // land somewhere real rather than on an empty directory.
+    window.location.replace(svc.directoryHref);
   } else {
     document.title = `Darwesh Group - ${tr(svc.titleKey, svc.title)}`;
     el('svcEyebrow').textContent = tr('svc.directoryEyebrow', 'Darwesh Service Providers');

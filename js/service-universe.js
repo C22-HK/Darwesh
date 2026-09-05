@@ -35,7 +35,7 @@
 // fallback copy in the info column instead (see renderFocusedInfo), same
 // pattern buy.html already uses for its own optional Firestore-backed
 // enhancements.
-import { SERVICE_CATALOG } from './service-catalog.js';
+import { SERVICE_CATALOG, countSourceFor } from './service-catalog.js';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 function esc(s) {
@@ -462,10 +462,15 @@ function build(mount) {
   function renderFocusedInfo(svc) {
     const c = counts.get(svc.key);
     let statsHtml;
+    // The default copy talks about professionals, because for every
+    // provider-backed service the supply IS professionals. A service
+    // counting something else (Installments counts developer projects)
+    // supplies its own wording rather than being described as a pool of
+    // people who have not signed up.
     if (c === 'error' || c === undefined) {
-      statsHtml = `<p class="su-info-fallback">${esc(tr('svc.exploreProfessionals', 'Explore available professionals'))}</p>`;
+      statsHtml = `<p class="su-info-fallback">${esc(tr(svc.unknownCountKey || 'svc.exploreProfessionals', svc.unknownCountFallback || 'Explore available professionals'))}</p>`;
     } else if (c.total === 0) {
-      statsHtml = `<p class="su-info-fallback">${esc(tr('svc.noneYetShort', 'Providers will appear here as they join Darwesh'))}</p>`;
+      statsHtml = `<p class="su-info-fallback">${esc(tr(svc.zeroCountKey || 'svc.noneYetShort', svc.zeroCountFallback || 'Providers will appear here as they join Darwesh'))}</p>`;
     } else {
       statsHtml = `
         <div class="su-info-stats">
@@ -519,10 +524,15 @@ function build(mount) {
     }
     await Promise.all(SERVICE_CATALOG.map(async (svc) => {
       try {
-        const base = collection(db, 'serviceProviders');
+        // Which collection actually holds this service's supply is the
+        // catalog's decision, not this loop's -- provider services count
+        // serviceProviders by role, Installments counts real qualifying
+        // projects. Same bounded pair of aggregation queries either way.
+        const src = countSourceFor(svc);
+        const base = collection(db, src.collection);
         const [totalSnap, verifiedSnap] = await Promise.all([
-          getCountFromServer(query(base, where('serviceType', '==', svc.serviceType))),
-          getCountFromServer(query(base, where('serviceType', '==', svc.serviceType), where('verified', '==', true)))
+          getCountFromServer(query(base, where(src.field, '==', src.value))),
+          getCountFromServer(query(base, where(src.field, '==', src.value), where('verified', '==', true)))
         ]);
         counts.set(svc.key, { total: totalSnap.data().count, verified: verifiedSnap.data().count });
       } catch {
