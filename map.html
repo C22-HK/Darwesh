@@ -1127,6 +1127,9 @@ async function toggleFavorite(id) {
 // Works for guests too (no account required), not just logged-in users.
 // ---------------------------------------------------------------------
 let viewingListingId = null;
+// Remembers the pre-open focus so closing hands the keyboard back to the
+// control that opened the dialog rather than the top of the document.
+let viewingModalReturnFocus = null;
 
 function openViewingModal(id) {
   viewingListingId = id;
@@ -1137,13 +1140,22 @@ function openViewingModal(id) {
   if (favAuth && favAuth.currentUser && favAuth.currentUser.email) {
     document.getElementById('viewingEmail').value = favAuth.currentUser.email;
   }
+  viewingModalReturnFocus = document.activeElement;
   document.getElementById('viewingModalOverlay').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  // Focus has to move INTO the dialog: while the overlay is up, whatever
+  // opened it (a wheel card's button, a map popup) is behind the backdrop
+  // but still keyboard-focused, so Tab would walk the page underneath.
+  document.getElementById('viewingName').focus();
 }
 
 function closeViewingModal() {
   document.getElementById('viewingModalOverlay').classList.add('hidden');
   document.body.style.overflow = '';
+  if (viewingModalReturnFocus && typeof viewingModalReturnFocus.focus === 'function') {
+    viewingModalReturnFocus.focus();
+  }
+  viewingModalReturnFocus = null;
 }
 
 document.getElementById('viewingModalClose').addEventListener('click', closeViewingModal);
@@ -1485,7 +1497,13 @@ function buildNeighborhoodMarkers(visibleListings) {
     const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
     const lng = g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length;
     const marker = L.marker([lat, lng], { icon: neighborhoodIcon(), zIndexOffset: -500 });
-    marker.bindTooltip(g.name, { permanent: true, direction: 'top', offset: [0, -6], className: 'neighborhood-label' });
+    // escapeHtml is REQUIRED here, not decorative: Leaflet renders a
+    // STRING tooltip via node.innerHTML (DivOverlay._updateContent), so
+    // this label is an HTML sink. g.name is a listing's district/address
+    // -- an agent-writable Firestore field that firestore.rules validates
+    // for type and length, never for content -- which made this a stored
+    // XSS on a public page before it was escaped.
+    marker.bindTooltip(escapeHtml(g.name), { permanent: true, direction: 'top', offset: [0, -6], className: 'neighborhood-label' });
     marker.addTo(map);
     markers['nbhd-' + key] = marker;
   });
@@ -2664,8 +2682,13 @@ mapDrawerScrim.addEventListener('click', () => { if (drawerOpen) setDrawerOpen(f
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  // Escape backs out of the innermost thing first: an armed/in-flight
-  // circle, otherwise the drawer.
+  // Escape backs out of the innermost thing first: the Request Viewing
+  // dialog (a modal over everything else), then an armed/in-flight
+  // circle, then the drawer.
+  if (!document.getElementById('viewingModalOverlay').classList.contains('hidden')) {
+    closeViewingModal();
+    return;
+  }
   if (drawMode) { setDrawMode(false); return; }
   if (drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
 });

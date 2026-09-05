@@ -446,22 +446,44 @@ violation reporting. -->
   // Request Viewing — writes a real submission doc to Firestore, same
   // as map.html, so staff see it in admin.html's Customer Services tab.
   // ---------------------------------------------------------------------
+  // Remembers what was focused before the modal opened so focus can be
+  // handed back on close -- without this, dismissing the dialog drops
+  // the keyboard user at the top of the document.
+  let viewingModalReturnFocus = null;
   function openViewingModal() {
     if (!listing) return;
     document.getElementById('viewingModalListingLine').textContent = `${listing.title || listing.address}, ${listing.city}`;
     document.getElementById('viewingRequestError').classList.add('hidden');
     document.getElementById('viewingRequestForm').reset();
     if (currentUser && currentUser.email) document.getElementById('viewingEmail').value = currentUser.email;
+    viewingModalReturnFocus = document.activeElement;
     document.getElementById('viewingModalOverlay').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+    // Focus has to move INTO the dialog: while the overlay is up, the
+    // trigger behind it is inert to the mouse but still keyboard-focused,
+    // so Tab would otherwise walk the page underneath the backdrop.
+    document.getElementById('viewingName').focus();
   }
   function closeViewingModal() {
     document.getElementById('viewingModalOverlay').classList.add('hidden');
     document.body.style.overflow = '';
+    if (viewingModalReturnFocus && typeof viewingModalReturnFocus.focus === 'function') {
+      viewingModalReturnFocus.focus();
+    }
+    viewingModalReturnFocus = null;
   }
   document.getElementById('listingContactBtn').addEventListener('click', openViewingModal);
   document.getElementById('viewingModalClose').addEventListener('click', closeViewingModal);
   document.getElementById('viewingModalBackdrop').addEventListener('click', closeViewingModal);
+  // Escape closes the dialog, matching the close button and the backdrop
+  // click that were already wired. Bound once at document level and
+  // gated on the overlay actually being open, so it never swallows
+  // Escape from anything else on the page.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (document.getElementById('viewingModalOverlay').classList.contains('hidden')) return;
+    closeViewingModal();
+  });
 
   document.getElementById('viewingRequestForm').addEventListener('submit', async (e) => {
     e.preventDefault();
