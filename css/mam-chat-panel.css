@@ -22,7 +22,22 @@
   z-index: 1200;
   display: flex;
   flex-direction: column;
-  background: var(--mamco-surface, #17150F)f5;
+  /* This was `var(--mamco-surface, #17150F)f5` -- an attempt to write the
+     token with an `f5` alpha suffix appended. That does not work: var()
+     substitutes a whole token, so the declaration resolved to the two
+     tokens `#17150F f5`, which is not a valid background. A declaration
+     containing var() that is invalid AFTER substitution is "invalid at
+     computed-value time" and falls back to the property's initial value
+     -- so the panel's background computed to `transparent`, leaving only
+     the backdrop blur. That is what made the composer look like a pale
+     translucent sheet with unreadable near-white text on top of it:
+     the surface the palette was designed against had silently vanished.
+     color-mix is the same technique css/mam-dock.css already uses for
+     exactly this; the plain declaration above it is the fallback for
+     engines without color-mix, which get a fully opaque panel rather
+     than a transparent one. */
+  background: var(--mamco-surface, #17150F);
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 96%, transparent);
   backdrop-filter: blur(10px);
   border: 1px solid var(--mamco-outline, #5D482B);
   border-radius: 20px;
@@ -132,8 +147,39 @@
 .mamcp-chip:hover { border-color: var(--mamco-accent, #B89A63); }
 
 .mamcp-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--mamco-outline, #5D482B); flex: none; }
-.mamcp-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--mamco-glow, #F2EEE5); font-family: 'Inter', sans-serif; font-size: 13.5px; }
-.mamcp-input::placeholder { color: #A79F91; }
+/* The composer sits on the panel's own dark surface, so entered text is
+   the brightest thing in the bar and the placeholder is deliberately a
+   step down from it -- never the same value, so "what I typed" and "what
+   the field suggests" can always be told apart.
+   -webkit-text-fill-color is set explicitly alongside `color` because it
+   WINS over `color` in WebKit/Blink wherever both apply; leaving it to
+   default is what lets a UA disabled-input style wash the text out.
+   caret-color is pinned for the same reason: the caret otherwise inherits
+   a value that can vanish against this surface. */
+.mamcp-input {
+  flex: 1; min-width: 0;
+  background: transparent; border: none; outline: none;
+  color: var(--mamco-glow, #F2EEE5);
+  -webkit-text-fill-color: var(--mamco-glow, #F2EEE5);
+  caret-color: var(--mamco-accent, #B89A63);
+  font-family: 'Inter', sans-serif; font-size: 13.5px;
+  /* The field carries whatever the visitor actually types -- Kurdish or
+     Arabic text stays right-to-left and English left-to-right in the SAME
+     input, without the panel having to know which language is selected. */
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.mamcp-input::placeholder { color: #A79F91; -webkit-text-fill-color: #A79F91; opacity: 1; }
+/* The composer is disabled for the moment a turn is in flight. Chromium
+   and Safari both apply their own washed-out -webkit-text-fill-color to a
+   disabled input, which would make the text the visitor just typed fade
+   out precisely while they are waiting -- so the readable values are
+   restated here rather than left to the UA. */
+.mamcp-input:disabled {
+  color: var(--mamco-glow, #F2EEE5);
+  -webkit-text-fill-color: var(--mamco-glow, #F2EEE5);
+  opacity: .7;
+}
 .mamcp-bar-btn { flex: none; width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
 .mamcp-send { background: var(--mamco-accent, #B89A63); color: #090A0A; }
 .mamcp-send:disabled { opacity: .5; cursor: not-allowed; }
