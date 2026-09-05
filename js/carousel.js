@@ -91,6 +91,13 @@
    *   (overflow-x:auto/scroll + scroll-snap already set in CSS).
    * @param {HTMLElement} [opts.prevBtn]
    * @param {HTMLElement} [opts.nextBtn]
+   * @param {boolean} [opts.depth] Opt-in "center-forward" depth tracking:
+   *   writes a `--depth` custom property (0 = centered on the track, 1 =
+   *   at the horizontal edge) onto each direct child, read by
+   *   css/cinematic.css to drive the focused-card-forward /
+   *   neighbors-recede look. Piggybacks on this same scroll/resize
+   *   listener (no second listener, no extra rAF loop) -- only carousels
+   *   that ask for it pay the extra getBoundingClientRect() cost per item.
    */
   function initCarousel(opts) {
     const track = opts.track;
@@ -98,14 +105,32 @@
     track.dataset.carouselInit = '1';
     const prevBtn = opts.prevBtn || null;
     const nextBtn = opts.nextBtn || null;
+    const depthEnabled = !!opts.depth;
 
     function go(forward) {
       track.scrollBy({ left: readingOrderDelta(track, forward), behavior: reducedMotion() ? 'auto' : 'smooth' });
     }
 
+    function updateDepth() {
+      if (!depthEnabled) return;
+      const items = track.children;
+      if (!items.length) return;
+      const trackRect = track.getBoundingClientRect();
+      const centerX = trackRect.left + trackRect.width / 2;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const r = item.getBoundingClientRect();
+        const itemCenter = r.left + r.width / 2;
+        const reach = trackRect.width / 2 + r.width / 2;
+        const dist = reach > 0 ? Math.min(1, Math.abs(itemCenter - centerX) / reach) : 0;
+        item.style.setProperty('--depth', dist.toFixed(3));
+      }
+    }
+
     function updateEdges() {
       if (prevBtn) prevBtn.disabled = atStart(track);
       if (nextBtn) nextBtn.disabled = atEnd(track);
+      updateDepth();
     }
 
     if (prevBtn) prevBtn.addEventListener('click', () => go(false));
