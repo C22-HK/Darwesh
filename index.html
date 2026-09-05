@@ -463,8 +463,13 @@ function renderCityBrowseGrid() {
     // loading -> a quiet placeholder that reserves the number's width;
     // error   -> no number at all (the link still works, we just aren't
     //            going to assert a count we don't have).
+    // ready with a real count -> show it; ready with ZERO -> show nothing
+    // at all. A row of cities each captioned "0" is not information, it
+    // reads as a broken widget, and the brief is explicit: show a real
+    // property count if available, otherwise omit the count. The city
+    // still links to its real filtered search either way.
     const countMarkup = cityCountsState === 'ready'
-      ? `<span class="font-data-mono text-data-mono">${count}</span>`
+      ? (count > 0 ? `<span class="font-data-mono text-data-mono">${count}</span>` : '')
       : cityCountsState === 'loading'
         ? `<span class="ds-skeleton ds-skeleton--count" aria-hidden="true"></span>`
         : (window.t && window.t('common.unavailable')) || '—';
@@ -646,9 +651,22 @@ function renderPropertyRail(opts) {
   }
 
   // Ready. An empty array here is a real, trustworthy "we have none yet".
+  // EMPTY STATE. A bare sentence used to sit here, which let the whole
+  // scene collapse to a strip of dead space and took the cinematic
+  // composition down with it. This is a real panel instead: it keeps the
+  // scene's visual mass, states the truth plainly, and offers only
+  // destinations that genuinely exist (the live map, and the real sell
+  // flow). It fabricates no listing and shows no placeholder card.
   grid.innerHTML = (opts.listings && opts.listings.length)
     ? opts.listings.map(featuredCard).join('')
-    : `<p class="px-margin-mobile md:px-margin-desktop font-body-md text-body-md text-on-surface-variant">${(window.t && window.t('index.noFeaturedYet')) || 'No listings yet — check back soon.'}</p>`;
+    : `<div class="home-rail-empty">
+         <span class="home-rail-empty-glyph material-symbols-outlined" aria-hidden="true">explore</span>
+         <p class="home-rail-empty-title">${(window.t && window.t('index.noFeaturedYet')) || 'No listings yet — check back soon.'}</p>
+         <div class="home-rail-empty-actions">
+           <a class="home-rail-empty-cta" href="map.html">${(window.t && window.t('nav.exploreMap')) || 'Explore the map'}</a>
+           <a class="home-rail-empty-cta is-quiet" href="sell.html">${(window.t && window.t('nav.sell')) || 'Sell'}</a>
+         </div>
+       </div>`;
   window.DarweshReveal && window.DarweshReveal.observeAll(grid.children);
 
   if (!grid.dataset.carouselInit) {
