@@ -19,10 +19,44 @@
 # in FirebaseResetLinkGenerator's docstring.
 from __future__ import annotations
 
+import itertools
 import json
 
 from firebase_admin import credentials
 from google.auth import exceptions as google_auth_exceptions
+
+# Monotonic, process-wide sequence behind unique_app_name(). A plain
+# counter rather than id(): see that function's docstring.
+_app_name_seq = itertools.count()
+
+
+def unique_app_name(prefix: str) -> str:
+    """Returns a name for firebase_admin.initialize_app() that is unique
+    for the lifetime of this process.
+
+    Every Admin-SDK-backed client in this backend deliberately gets its
+    own named app (rather than the '[DEFAULT]' one) so that several can
+    coexist in the same process -- and, more sharply, in the same pytest
+    run -- without tripping the SDK's single-app-per-name rule.
+
+    These names used to be built from id(self), which is NOT safe for
+    this: id() is a memory address, and it is only unique among objects
+    that are alive at the same moment. firebase_admin keeps every
+    initialized app in a process-global registry that nothing here ever
+    deletes from, so an app's registry entry outlives the Python wrapper
+    whose address named it. Once that wrapper is collected, CPython is
+    free to hand the same address to the next instance -- which then
+    computes a name already taken by the registry and dies with
+    "Firebase app named ... already exists". That is a real failure that
+    was intermittently reddening CI: construct, drop, construct again is
+    exactly what a test suite does, and it reproduces within a handful of
+    iterations.
+
+    A counter has no such reuse: it is never handed out twice, whether or
+    not the previous holder is still alive. next() on an itertools.count
+    is a single C-level operation, so concurrent callers cannot observe
+    the same value either."""
+    return f"{prefix}-{next(_app_name_seq)}"
 
 
 def build_firebase_credentials(service_account_json: str, project_id: str) -> tuple[credentials.Base, dict | None]:
