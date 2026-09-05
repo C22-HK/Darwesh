@@ -2082,7 +2082,11 @@ async function loadNearbyAmenities(lat, lng, map = adminPinMap, statusElId = 'ne
         iconAnchor: [12, 12]
       })
     }).addTo(map);
-    marker.bindTooltip(`${poi.name} — ${(poi.dist / 1000).toFixed(2)} km`);
+    // poi.name comes from Overpass/OpenStreetMap -- third-party data any
+    // OSM contributor can edit -- and a STRING tooltip is rendered by
+    // Leaflet via innerHTML, so it is escaped like any other untrusted
+    // string this page displays.
+    marker.bindTooltip(`${escapeAdmin(poi.name)} — ${(poi.dist / 1000).toFixed(2)} km`);
     layers.push(marker);
 
     const label = L.marker([(origin.lat + poiLatLng.lat) / 2, (origin.lng + poiLatLng.lng) / 2], {
@@ -3129,7 +3133,11 @@ function buildReqMapNeighborhoods(visibleListings) {
     const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
     const lng = g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length;
     const marker = L.marker([lat, lng], { icon: reqMapNeighborhoodIcon(), zIndexOffset: -500, interactive: false });
-    marker.bindTooltip(g.name, { permanent: true, direction: 'top', offset: [0, -5], className: 'req-nbhd-label' });
+    // Escaped for the same reason as every other Firestore-sourced string
+    // on this page: Leaflet renders a STRING tooltip through innerHTML
+    // (DivOverlay._updateContent), so g.name -- a listing's agent-written
+    // address -- is an HTML sink, not plain text.
+    marker.bindTooltip(escapeAdmin(g.name), { permanent: true, direction: 'top', offset: [0, -5], className: 'req-nbhd-label' });
     marker.addTo(dashRequestsMap);
     dashRequestsPinMarkers.push(marker);
   });

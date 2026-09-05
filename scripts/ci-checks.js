@@ -253,6 +253,77 @@ if (!haloFn) {
 });
 if (!mapChecks) ok('map controls are inline-SVG + labelled, and no public page reads private/location');
 
+// --- 7. Leaflet tooltip/popup HTML sinks --------------------------------
+//
+// Leaflet renders a STRING passed to bindTooltip()/bindPopup() with
+// `node.innerHTML = content` (DivOverlay._updateContent in leaflet-src.js).
+// A tooltip is therefore an HTML sink, not a text node -- which is easy to
+// miss, because every OTHER place these pages render Firestore text already
+// goes through escapeHtml/escapeAdmin and *looks* like plain text here.
+//
+// This caught a real stored XSS: map.html bound a neighbourhood tooltip to
+// `l.district || l.address` -- agent-writable listing fields that
+// firestore.rules validates for type and length but never for content --
+// so a listing address containing markup executed for every visitor to the
+// public Properties Map.
+//
+// What this flags is the shape that actually bit: a DATA FIELD handed
+// straight to the sink (`g.name`, `l.address`, `poi.name`), or a template
+// literal that interpolates one without escaping it.
+//
+// What it deliberately does not flag: a call to a popup-builder function
+// or a variable holding markup that builder produced. Those assemble whole
+// cards and escape each field internally (reqMapListingPopup,
+// reqMapSubmissionPopup, agent-dashboard's popupHtml, map.html's card()) --
+// a static rule cannot follow them, so they stay a review responsibility,
+// and the builders themselves are covered by the escaping conventions in
+// js/escape-html.js.
+const ESCAPED = /(escapeHtml|escapeAdmin|escapeFin|\besc\s*\()/;
+const I18N_CALL = /\b(tr|trAdmin|trDash|trf)\s*\(/;
+const NUMERIC = /\.(toFixed|toLocaleString|length)\b|^\$\{\s*[\d\s+\-*/().]+\s*\}$/;
+// `something.field` / `a.b.c` on its own -- a raw data read.
+const BARE_FIELD_READ = /^\s*[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+\s*$/;
+let tooltipSinkIssues = false;
+htmlFiles.forEach(f => {
+  const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  const re = /\.(bindTooltip|bindPopup)\(/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    // Prose in a `//` comment describing the sink is not a call site.
+    const lineStart = src.lastIndexOf('\n', m.index) + 1;
+    const before = src.slice(lineStart, m.index);
+    if (/^\s*(\/\/|\*)/.test(before)) continue;
+
+    // Argument text up to the first depth-0 comma (or closing paren) --
+    // enough to classify without a full JS parse.
+    const rest = src.slice(m.index + m[0].length);
+    let depth = 0, arg = '';
+    for (const ch of rest) {
+      if (ch === '(' || ch === '[' || ch === '{') depth++;
+      else if (ch === ')' || ch === ']' || ch === '}') { if (depth === 0) break; depth--; }
+      else if (ch === ',' && depth === 0) break;
+      arg += ch;
+      if (arg.length > 400) break;
+    }
+
+    let bad = null;
+    if (BARE_FIELD_READ.test(arg) && !ESCAPED.test(arg)) {
+      bad = arg.trim();
+    } else if (/^\s*`/.test(arg)) {
+      const unsafe = (arg.match(/\$\{[^}]*\}/g) || []).filter(
+        i => !ESCAPED.test(i) && !I18N_CALL.test(i) && !NUMERIC.test(i)
+      );
+      if (unsafe.length) bad = unsafe.join(' ');
+    }
+    if (!bad) continue;
+
+    const line = src.slice(0, m.index).split('\n').length;
+    fail(`${f}:${line}: ${m[1]}() renders its string content via innerHTML -- escape it (escapeHtml/escapeAdmin), got: ${bad.slice(0, 60)}`);
+    tooltipSinkIssues = true;
+  }
+});
+if (!tooltipSinkIssues) ok('every Leaflet bindTooltip/bindPopup renders escaped or literal content');
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log('');
