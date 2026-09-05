@@ -858,14 +858,32 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     }
   }
   function speak(text, { onDone } = {}) {
-    if (!voiceOutputEnabled || !text) { if (onDone) onDone(); return; }
-    stopKurdishAudio();
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (soraniVoiceActive() && kurdishVoice.ttsAvailable) {
-      speakWithKurdishTts(text, { onDone });
-      return;
+    // onDone fires exactly once, on every path. The latch matters now that
+    // sendMessage() speaks from inside its own try/catch: a speech engine
+    // that throws must not be able to turn a reply that was already
+    // rendered and recorded into a "that didn't go through" error bubble,
+    // and must not strand the hands-free loop either. The failure is still
+    // reported (console + the watchdog's own visible note) rather than
+    // silently discarded -- speech breaking is worth knowing about; it
+    // just isn't the chat turn's problem.
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; if (onDone) onDone(); };
+    if (!voiceOutputEnabled || !text) { finish(); return; }
+    try {
+      stopKurdishAudio();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (soraniVoiceActive() && kurdishVoice.ttsAvailable) {
+        Promise.resolve(speakWithKurdishTts(text, { onDone: finish })).catch((err) => {
+          console.warn('MAM: Kurdish TTS failed', err);
+          finish();
+        });
+        return;
+      }
+      speakWithBrowserVoice(text, { onDone: finish });
+    } catch (err) {
+      console.warn('MAM: speech synthesis failed', err);
+      finish();
     }
-    speakWithBrowserVoice(text, { onDone });
   }
   function speakWithBrowserVoice(text, { onDone } = {}) {
     if (!window.speechSynthesis) { if (onDone) onDone(); return; }
@@ -919,6 +937,39 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     }, 2500);
     window.speechSynthesis.speak(utterance);
   }
+  // ---- speaking across a navigation -------------------------------------
+  // A full document navigation destroys this document and, with it, every
+  // utterance and <audio> element it owns. Nothing can carry browser
+  // speech across that -- so the only honest ordering is to say the short
+  // acknowledgement FIRST and navigate once it has genuinely finished (or
+  // genuinely failed). The bug this replaces did the opposite: the action's
+  // run() called location.href and only then called speak(), so the reply
+  // was handed to a document that was already going away.
+  //
+  // speak() already invokes onDone on EVERY path -- voice off, no engine,
+  // ended, errored, and the watchdog's "the browser refused to start"
+  // case -- so the hand-off normally happens the moment speech really
+  // ends, and synchronously (no added delay at all) when voice output is
+  // off. The cap below is purely a safety net for an engine that fires
+  // neither `end` nor `error`: navigation must still happen, so broken TTS
+  // can never strand a visitor on the page they asked to leave. It sits
+  // just above speakWithBrowserVoice's own 2500ms watchdog so that the
+  // watchdog -- which explains itself to the visitor -- wins the race in
+  // the case they both cover.
+  const NAV_SPEECH_CAP_MS = 3000;
+  function speakThenNavigate(text, navigate, { onDone } = {}) {
+    let handedOff = false;
+    const go = () => {
+      if (handedOff) return;   // whichever of speech/cap arrives first wins, once
+      handedOff = true;
+      clearTimeout(cap);
+      if (onDone) onDone();
+      navigate();
+    };
+    const cap = setTimeout(go, NAV_SPEECH_CAP_MS);
+    speak(text, { onDone: go });
+  }
+
   function updateVoiceToggleUI() {
     voiceToggleIcon.innerHTML = voiceOutputEnabled ? ICON_VOLUME_ON_SVG : ICON_VOLUME_OFF_SVG;
     voiceToggleBtn.setAttribute('aria-pressed', String(voiceOutputEnabled));
@@ -945,8 +996,16 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // map.html's own URL query state, and the visitor is taken there, so a
   // search made from Home lands exactly like the same search made
   // directly on the map. -------------------------------------------------
+  //
+  // Anything that can be applied to the map IN PLACE is applied here and
+  // now. Anything that needs a real navigation is RETURNED as a thunk
+  // instead of being performed, so the caller decides when to run it --
+  // which is what lets the spoken reply finish first (see
+  // speakThenNavigate). Returns null when the action was fully handled in
+  // place, or was a no-op.
+  /** @returns {(() => void)|null} */
   function applyMapAction(mapAction) {
-    if (!mapAction || mapAction.target !== 'map.html') return;
+    if (!mapAction || mapAction.target !== 'map.html') return null;
     const onMapPage = window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function';
     if (onMapPage) {
       if (mapAction.filters && Object.keys(mapAction.filters).length) {
@@ -955,13 +1014,14 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (mapAction.focusListingId && typeof window.DarweshPropertiesMap.focusListing === 'function') {
         window.DarweshPropertiesMap.focusListing(mapAction.focusListingId);
       }
-      return;
+      return null;
     }
     const hasFilters = mapAction.filters && Object.keys(mapAction.filters).length;
-    if (!hasFilters && !mapAction.focusListingId) return;
+    if (!hasFilters && !mapAction.focusListingId) return null;
     const params = filtersToMapUrlParams(mapAction.filters || {});
     if (mapAction.focusListingId) params.set('listing', String(mapAction.focusListingId));
-    location.href = 'map.html' + (params.toString() ? '?' + params.toString() : '');
+    const href = 'map.html' + (params.toString() ? '?' + params.toString() : '');
+    return () => { location.href = href; };
   }
 
   // ---- direct commands -- the small, deterministic action layer --------
@@ -976,13 +1036,22 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // through this SAME sendMessage(), so a direct command works identically
   // either way, in the same session/transcript as everything else.
   function executeDirectCommand(command) {
+    // `navigates` marks the descriptors whose run() destroys this
+    // document. sendMessage speaks their acknowledgement BEFORE running
+    // them (see speakThenNavigate); everything without the flag stays
+    // same-page and runs immediately, so collapsing MAM or clearing
+    // filters never waits on speech.
     if (command.type === 'navigate') {
       const page = resolvePage(command.page);
       if (!page) return null;
-      return { confirm: trf('mam.actionOpenedPage', 'Opening {page}…', { page: command.page }), run: () => { location.href = page; } };
+      return {
+        confirm: trf('mam.actionOpenedPage', 'Opening {page}…', { page: command.page }),
+        navigates: true,
+        run: () => { location.href = page; }
+      };
     }
     if (command.type === 'back') {
-      return { confirm: tr('mam.actionWentBack', 'Going back…'), run: () => { history.back(); } };
+      return { confirm: tr('mam.actionWentBack', 'Going back…'), navigates: true, run: () => { history.back(); } };
     }
     if (command.type === 'clear_filters') {
       if (window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.clearFilters === 'function') {
@@ -1035,9 +1104,19 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         addAssistantBubble({ message: resolved.confirm });
         recordTurn({ role: 'assistant', text: resolved.confirm, cards: [] });
       }
-      resolved.run();
-      if (viaVoice && resolved.confirm) speak(resolved.confirm, { onDone: onReplySpoken });
-      else if (onReplySpoken) onReplySpoken();
+      if (resolved.navigates) {
+        // Say it, THEN leave -- running the navigation first is what used
+        // to throw the acknowledgement away mid-sentence.
+        speakThenNavigate(resolved.confirm || '', resolved.run, { onDone: onReplySpoken });
+      } else {
+        resolved.run();
+        // speak() is the single gate on whether anything is said: it
+        // returns immediately (calling onDone) when voice output is off,
+        // so this is never a surprise voice -- and, unlike before, a
+        // visitor who turned the speaker on gets TYPED replies read out
+        // too, which is what the toggle has always claimed to do.
+        speak(resolved.confirm || '', { onDone: onReplySpoken });
+      }
       return;
     }
 
@@ -1064,10 +1143,24 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (data.sessionId) setSessionId(data.sessionId);
       addAssistantBubble(data);
       recordTurn({ role: 'assistant', text: data.message || '', cards: Array.isArray(data.cards) ? data.cards : [] });
-      applyMapAction(data.mapAction);
+      const navigateForAction = applyMapAction(data.mapAction);
       companion.setState('result-ready');
-      if (lastTurnWasVoice && data.message) speak(data.message, { onDone: onReplySpoken });
-      else if (onReplySpoken) onReplySpoken();   // nothing to say -- keep the loop moving
+      // Whether anything is spoken is speak()'s own decision (voice output
+      // on, or this turn came in by voice -- beginHandsFree turns the
+      // preference on for the duration of a spoken conversation). The call
+      // used to be gated on `lastTurnWasVoice` here as well, which meant a
+      // visitor who switched the speaker on and then TYPED got silence:
+      // the toggle set a preference nothing downstream ever consulted.
+      if (navigateForAction) {
+        // This reply also moves the visitor to the map. Speak first so the
+        // sentence is not cut off by the document going away; the cap in
+        // speakThenNavigate bounds how long a long reply can hold up the
+        // navigation, and the full text stays visible in the transcript,
+        // which the destination page restores without re-speaking it.
+        speakThenNavigate(data.message || '', navigateForAction, { onDone: onReplySpoken });
+      } else {
+        speak(data.message || '', { onDone: onReplySpoken });
+      }
     } catch (err) {
       if (thisController.signal.aborted) { hideThinking(); return; }
       hideThinking();
