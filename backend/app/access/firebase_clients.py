@@ -13,13 +13,13 @@ from __future__ import annotations
 import firebase_admin
 from firebase_admin import firestore as fb_firestore
 
-from app.auth.firebase_credentials import build_firebase_credentials
+from app.auth.firebase_credentials import build_firebase_credentials, unique_app_name
 
 
 class AccessFirebaseClients:
     def __init__(self, service_account_json: str = "", project_id: str = "") -> None:
         cred, options = build_firebase_credentials(service_account_json, project_id)
-        self._app = firebase_admin.initialize_app(cred, options=options, name=f"darwesh-access-{id(self)}")
+        self._app = firebase_admin.initialize_app(cred, options=options, name=unique_app_name("darwesh-access"))
         self._db = fb_firestore.client(self._app)
 
     @property

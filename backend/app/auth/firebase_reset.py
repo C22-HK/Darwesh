@@ -11,7 +11,7 @@ import firebase_admin
 from firebase_admin import auth as fb_auth
 from firebase_admin import firestore as fb_firestore
 
-from app.auth.firebase_credentials import build_firebase_credentials
+from app.auth.firebase_credentials import build_firebase_credentials, unique_app_name
 from app.auth.reset import ErrUserNotFound
 
 
@@ -40,8 +40,9 @@ class FirebaseResetLinkGenerator:
         # A unique app name (rather than the '[DEFAULT]' app) avoids
         # colliding with any other firebase_admin app this process
         # initializes -- e.g. under pytest, where more than one Handler
-        # gets built across test cases.
-        self._app = firebase_admin.initialize_app(cred, options=options, name=f"darwesh-reset-{id(self)}")
+        # gets built across test cases. unique_app_name is a counter, not
+        # id(): see its docstring for why an address is not unique enough.
+        self._app = firebase_admin.initialize_app(cred, options=options, name=unique_app_name("darwesh-reset"))
         self._continue_url = continue_url
         self._db = fb_firestore.client(self._app)
 

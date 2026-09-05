@@ -16,7 +16,7 @@ import firebase_admin
 from firebase_admin import auth as fb_auth
 from firebase_admin import firestore as fb_firestore
 
-from app.auth.firebase_credentials import build_firebase_credentials
+from app.auth.firebase_credentials import build_firebase_credentials, unique_app_name
 
 
 class UidResolver(Protocol):
@@ -68,7 +68,7 @@ class FirebaseAccountOps:
         only needed (and only used) when service_account_json is empty
         -- see build_firebase_credentials."""
         cred, options = build_firebase_credentials(service_account_json, project_id)
-        self._app = firebase_admin.initialize_app(cred, options=options, name=f"darwesh-otp-{id(self)}")
+        self._app = firebase_admin.initialize_app(cred, options=options, name=unique_app_name("darwesh-otp"))
         self._db = fb_firestore.client(self._app)
 
     @property
