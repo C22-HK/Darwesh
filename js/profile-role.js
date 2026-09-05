@@ -37,6 +37,7 @@ import { doc, collection } from 'https://www.gstatic.com/firebasejs/12.18.0/fire
 import { mountTabs, renderEmptyState, renderErrorState, withBusyButton } from './profile-shell.js';
 import { allowsPortfolio, roleIcon } from './professional-roles.js';
 import { wireMediaInput } from './profile-media.js';
+import { renderCompletion } from './profile-completion.js';
 import { seedDoc, readSeed } from './data-cache.js';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -70,6 +71,14 @@ export function initServiceProviderProfile(config) {
   let isOwnerView = false;
   let isAdminView = false;
   let tabsController = null;
+  // Two facts the completion card needs that do not live on the provider
+  // document. Both start false and are only ever set from a REAL read --
+  // never assumed -- so an unfilled step is never shown as done. The
+  // contact one in particular is owner-only data: a visitor's render can
+  // never flip it, because the read that sets it is itself owner-gated by
+  // firestore.rules.
+  let contactDetailsSaved = false;
+  let hasWorkItems = false;
 
   onAuthStateChanged(auth, async (user) => {
     currentUser = user;
@@ -236,6 +245,21 @@ export function initServiceProviderProfile(config) {
     if (isOwnerView) {
       show('editProfileBtn');
     }
+    // Owner-only completion guidance. renderCompletion enforces the
+    // owner check itself, so a visitor (or an admin looking at someone
+    // else's profile) never sees a score -- completion is a to-do list for
+    // the person filling the profile in, not a public quality rating.
+    // Computed from the document already in memory: no extra reads.
+    renderCompletion(el('profileCompletion'), {
+      data: providerData,
+      serviceType,
+      isOwnerView,
+      extra: { hasContactSaved: contactDetailsSaved, hasPortfolioItems: hasWorkItems },
+      // Every step lands the owner in the editor, already on the right
+      // tab -- a missing-step list that cannot be acted on is just a
+      // complaint.
+      onStepClick: () => { const b = el('editProfileBtn'); if (b) b.click(); }
+    });
     if (isAdminView) {
       show('adminViewingNote');
       const verifyBtn = el('verifyToggleBtn');
@@ -522,6 +546,9 @@ export function initServiceProviderProfile(config) {
         el('pcPhone').value = d.phone || '';
         el('pcWhatsapp').value = d.whatsapp || '';
         el('pcEmail').value = d.email || '';
+        // A document with no actual channel in it is not a completed
+        // step -- the owner may have saved an empty form.
+        contactDetailsSaved = !!(d.phone || d.whatsapp || d.email);
       }
     } catch { /* no document yet, or transient -- leave the form empty */ }
 
