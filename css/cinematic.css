@@ -461,43 +461,92 @@ html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
 [data-cine3d] {
   --sp: var(--section-progress, 0.5);
   --d: max(calc(var(--sp) - 0.5), calc(0.5 - var(--sp)));
+  /* --e ("entering", 1 at sp=0 fading to 0 at sp=0.5) and --l ("leaving",
+   * 0 at sp=0.5 rising to 1 at sp=1) split --d's symmetric "distance from
+   * center" into a direction-aware pair, so a section can carry a
+   * DIFFERENT recipe for approaching the viewport vs. departing it
+   * (translateY sign flips; scale/opacity/translateZ can still share the
+   * same depth read on both sides) -- this is what makes the entering
+   * vs. leaving states in the section-by-section rules below genuinely
+   * distinct instead of one symmetric wobble. */
+  --e: max(0, calc((0.5 - var(--sp)) * 2));
+  --l: max(0, calc((var(--sp) - 0.5) * 2));
 }
-/* A + C: Hero. Text/search recede+darken as the section leaves (sp > 0.5);
- * the background layer (hero-media, below) moves at a slower, larger-range
- * rate for a real parallax read. The search bar itself carries no 3D
- * transform at all (kept out of both layers) so it is always crisp. */
+/* A + C: Hero. This is the very first thing on the page -- it is already
+ * on-screen at sp~0.5-0.6 the moment the page loads, so it has no real
+ * "entering" phase to speak of; --hl ("hero leaving", 0 at sp<=0.5 rising
+ * to 1 at sp=1) drives its recede-into-depth read as the user scrolls
+ * past it. The background layer (hero-media, below) moves at a slower,
+ * larger, CONTINUOUS rate for a real parallax read (not gated by --hl --
+ * a background plate reads as parallax precisely because it never fully
+ * stops). The search bar itself carries no 3D transform at all (kept out
+ * of both layers) so it is always crisp. */
 [data-cine3d="hero"] {
+  --hl: max(0, calc((var(--sp) - 0.5) * 2));
   transform: perspective(1400px)
-    translate3d(0, calc((var(--sp) - 0.5) * 34px), calc(max(0, var(--sp) - 0.5) * -110px))
-    scale(calc(1 - max(0, var(--sp) - 0.5) * 0.08));
-  opacity: calc(1 - max(0, var(--sp) - 0.5) * 0.85);
+    translate3d(0, calc(var(--hl) * 50px), calc(var(--hl) * -160px))
+    scale(calc(1 - var(--hl) * 0.09));
+  opacity: calc(1 - var(--hl) * 0.55);
 }
 [data-cine3d="hero-media"] {
-  transform: translate3d(0, calc((var(--sp) - 0.5) * 52px), 0) scale(1.06);
+  transform: translate3d(0, calc((var(--sp) - 0.5) * 90px), 0) scale(calc(1.06 + var(--hl, 0) * 0.04));
 }
-/* A: category rail / city track / fast-sale / active cards -- the whole
- * grid rises forward from depth on entry, recedes on exit. */
+.cine-scope .home-hero-media::after { opacity: calc(0.7 + var(--hl, 0) * 0.3); }
+/* A: category rail / city track / fast-sale / active cards. Distinct
+ * entering vs. leaving read (see --e/--l above): still visibly BELOW and
+ * receded while approaching from under the viewport's fold (positive
+ * translateY, negative translateZ, gently scaled down, opacity slightly
+ * reduced), fully forward/crisp/at rest while active, then recedes
+ * UPWARD and away as the next section rises over it (negative
+ * translateY, negative translateZ again, scaled down a touch more,
+ * opacity reduced more) -- a real depth handoff between consecutive
+ * sections instead of a flat vertical slide. */
 [data-cine3d="rail"],
 [data-cine3d="cards"] {
   transform: perspective(1400px)
-    translate3d(0, calc(var(--d) * 30px), calc(var(--d) * -70px))
-    scale(calc(1 - var(--d) * 0.05));
-  opacity: calc(1 - var(--d) * 0.5);
+    translate3d(0, calc(var(--e) * 90px - var(--l) * 70px), calc(var(--d) * -220px))
+    scale(calc(1 - var(--e) * 0.06 - var(--l) * 0.08));
+  opacity: calc(1 - var(--e) * 0.25 - var(--l) * 0.5);
+}
+
+/* Tablet tier: same recipe, meaningfully dialed back -- "desktop shows
+ * the full cinematic effect, tablet reduced" -- rather than the mobile
+ * tier's near-flat treatment below. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  [data-cine3d="hero"] {
+    transform: perspective(1400px)
+      translate3d(0, calc(var(--hl, 0) * 30px), calc(var(--hl, 0) * -95px))
+      scale(calc(1 - var(--hl, 0) * 0.055));
+    opacity: calc(1 - var(--hl, 0) * 0.4);
+  }
+  [data-cine3d="hero-media"] {
+    transform: translate3d(0, calc((var(--sp) - 0.5) * 55px), 0) scale(calc(1.05 + var(--hl, 0) * 0.025));
+  }
+  [data-cine3d="rail"],
+  [data-cine3d="cards"] {
+    transform: perspective(1400px)
+      translate3d(0, calc(var(--e) * 50px - var(--l) * 40px), calc(var(--d) * -125px))
+      scale(calc(1 - var(--e) * 0.035 - var(--l) * 0.045));
+    opacity: calc(1 - var(--e) * 0.16 - var(--l) * 0.3);
+  }
 }
 
 /* Mobile tier (js/cine-scroll-3d.js toggles this on <html> via
  * matchMedia): a gentle vertical reveal + very light fade only -- no
  * scale, no rotateX, no translateZ, so it stays smooth and battery-light
  * on a phone rather than running the full desktop recipe at a smaller
- * viewport. */
+ * viewport. Deliberately much lighter than the tablet tier above, not
+ * just a scaled-down copy of it. */
 .cine3d-mobile [data-cine3d] {
   transform: translate3d(0, calc(var(--d, 0) * 12px), 0) !important;
   opacity: calc(1 - var(--d, 0) * 0.22) !important;
 }
 .cine3d-mobile [data-cine3d="hero-media"] { transform: none !important; }
+.cine3d-mobile .home-hero-media::after { opacity: 0.75 !important; }
 
 @media (prefers-reduced-motion: reduce) {
   [data-cine3d] { --section-progress: 1; transform: none !important; opacity: 1 !important; }
+  .cine-scope .home-hero-media::after { opacity: 0.7 !important; }
 }
 
 /* Desktop-only, pointer-only (never touch) subtle card tilt -- opt in per
@@ -550,15 +599,72 @@ html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
   .cine-card-reveal { opacity: 1; transform: none; transition: none; transition-delay: 0ms; }
 }
 
-/* ---- City circles: a static (non-scroll-driven) depth rhythm -- every
- * third circle sits a touch forward, matching the "focused city gently
- * forward, neighbors slightly recessed" brief without needing real
- * scroll-position center-tracking per carousel (out of scope for the
- * perf budget this page targets -- see the shared carousel's own
- * comments). Purely decorative at rest; .cine-card-reveal above still
- * drives its entrance. */
-.cine-scope .home-city-circle:nth-child(3n+1) .home-city-circle-media {
-  transform: scale(1.03) translateZ(4px);
+/* =========================================================================
+ * Real center-forward depth carousel (category rail + city discovery
+ * only, per the brief's scope) -- js/carousel.js's initCarousel({depth:
+ * true}) computes each direct child's horizontal distance from the
+ * track's own center on every scroll/resize (piggybacked on the scroll
+ * listener it already has, no second listener) and writes it to that
+ * child's `--depth` custom property: 0 = centered/focused, 1 = at the
+ * track's horizontal edge. Whichever card currently sits in the middle
+ * of the track reads at full scale/opacity/forward depth; its neighbors
+ * recede smoothly as `--depth` rises, and rebalance continuously as the
+ * user scrolls/swipes -- CSS-only from that one JS-written variable, the
+ * same "one write, many CSS consumers" pattern as --section-progress
+ * above. ID-scoped selectors (rather than relying on source order) so
+ * these always win over `.cine-card-reveal.cine-in-view`'s one-shot
+ * `transform: none` regardless of where either rule sits in the file. */
+#categoryTrack .home-category-card {
+  transform: perspective(1000px)
+    translate3d(0, calc(var(--depth, 0) * 8px), calc(var(--depth, 0) * -60px))
+    scale(calc(1 - var(--depth, 0) * 0.1));
+  opacity: calc(1 - var(--depth, 0) * 0.3);
+  transition: transform 200ms var(--ease-premium, ease), opacity 200ms var(--ease-premium, ease);
+}
+/* City circles: only the circular image gets the depth treatment (scale
+ * + subtle translateZ/Y) -- the name/count labels beneath stay
+ * untransformed so they remain stable and readable at every scroll
+ * position, per the brief. */
+#cityBrowseGrid .home-city-circle-media {
+  transform: scale(calc(1.08 - var(--depth, 0) * 0.18)) translateZ(calc(var(--depth, 0) * -50px));
+  opacity: calc(1 - var(--depth, 0) * 0.3);
+  transition: transform 220ms var(--ease-premium, ease), opacity 220ms var(--ease-premium, ease);
+}
+#cityBrowseGrid .home-city-circle {
+  transform: translate3d(0, calc(var(--depth, 0) * 6px), 0);
+  transition: transform 220ms var(--ease-premium, ease);
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+  #categoryTrack .home-category-card {
+    transform: perspective(1000px)
+      translate3d(0, calc(var(--depth, 0) * 5px), calc(var(--depth, 0) * -35px))
+      scale(calc(1 - var(--depth, 0) * 0.06));
+    opacity: calc(1 - var(--depth, 0) * 0.18);
+  }
+  #cityBrowseGrid .home-city-circle-media {
+    transform: scale(calc(1.05 - var(--depth, 0) * 0.1)) translateZ(calc(var(--depth, 0) * -25px));
+    opacity: calc(1 - var(--depth, 0) * 0.18);
+  }
+}
+@media (max-width: 767px) {
+  #categoryTrack .home-category-card {
+    transform: none;
+    opacity: calc(1 - var(--depth, 0) * 0.12);
+  }
+  #cityBrowseGrid .home-city-circle-media {
+    transform: scale(calc(1.02 - var(--depth, 0) * 0.05));
+    opacity: calc(1 - var(--depth, 0) * 0.12);
+  }
+  #cityBrowseGrid .home-city-circle { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #categoryTrack .home-category-card,
+  #cityBrowseGrid .home-city-circle-media,
+  #cityBrowseGrid .home-city-circle {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+  }
 }
 
 /* =========================================================================
@@ -1072,10 +1178,28 @@ body.cine-intro-open { overflow: hidden; }
   position: sticky;
   top: 5rem;
 }
+/* --focus (unchanged tent shape: ramps 0->1 over the first third, holds
+ * at 1 through the middle third, ramps back to 0 over the final third)
+ * still drives the whole pinned card's rise/hold/release. --stage1..4
+ * are four narrower, EARLIER, overlapping ramps within that same first
+ * third, each keyed to a different child of the pinned card, so the
+ * scene assembles as a real sequence during the rise instead of
+ * everything fading in together: (1) background texture reveals first,
+ * (2) the oversized numeral scales into focus, (3) the supporting copy
+ * follows, (4) the QR/CTA arrives last -- then all four hold at 1
+ * through the plateau and release together on --fall, same as --focus. */
 [data-cine3d="promo"] {
   --rise: min(1, calc(var(--sp) / 0.32));
   --fall: max(0, calc((var(--sp) - 0.68) / 0.32));
   --focus: max(0, min(var(--rise), calc(1 - var(--fall))));
+  --stage1: max(0, min(1, calc(var(--sp) / 0.14)));
+  --stage2: max(0, min(1, calc((var(--sp) - 0.06) / 0.2)));
+  --stage3: max(0, min(1, calc((var(--sp) - 0.16) / 0.22)));
+  --stage4: max(0, min(1, calc((var(--sp) - 0.26) / 0.24)));
+  --reveal1: max(0, min(var(--stage1), calc(1 - var(--fall))));
+  --reveal2: max(0, min(var(--stage2), calc(1 - var(--fall))));
+  --reveal3: max(0, min(var(--stage3), calc(1 - var(--fall))));
+  --reveal4: max(0, min(var(--stage4), calc(1 - var(--fall))));
 }
 [data-cine3d="promo"] .cine-pin-content {
   transform: perspective(1400px)
@@ -1083,11 +1207,28 @@ body.cine-intro-open { overflow: hidden; }
     scale(calc(0.94 + var(--focus) * 0.06));
   opacity: calc(0.4 + var(--focus) * 0.6);
 }
-/* C: the background texture drifts at its own, slower/continuous rate
- * (never held by --focus) -- a real parallax crossfade against the
- * pinned, focus-driven foreground above it. */
+/* C: the background texture drifts at its own, slower/continuous
+ * parallax rate (never held by --focus), but its reveal (stage 1 of the
+ * sequence) still fades it in from the pin's own base opacity. */
 [data-cine3d="promo"] .home-percent-media {
   transform: translate3d(0, calc((var(--sp) - 0.5) * 40px), 0) scale(1.08);
+  opacity: calc(0.14 * var(--reveal1, 1));
+}
+/* Stage 2: the numeral scales/fades into focus on top of the pinned
+ * card's own overall rise. */
+[data-cine3d="promo"] .home-percent-figure {
+  opacity: var(--reveal2, 1);
+  transform: scale(calc(0.72 + var(--reveal2, 1) * 0.28));
+}
+/* Stage 3: supporting copy (badge/title/body/link) rises in just after. */
+[data-cine3d="promo"] .home-promo-copy {
+  opacity: var(--reveal3, 1);
+  transform: translate3d(0, calc((1 - var(--reveal3, 1)) * 24px), 0);
+}
+/* Stage 4: QR/CTA arrives last, completing the scene. */
+[data-cine3d="promo"] .home-promo-qr {
+  opacity: var(--reveal4, 1);
+  transform: translate3d(0, calc((1 - var(--reveal4, 1)) * 20px), 0) scale(calc(0.85 + var(--reveal4, 1) * 0.15));
 }
 @media (min-width: 768px) {
   .cine-scope .cine-pin-stage { min-height: 190vh; }
@@ -1100,11 +1241,20 @@ body.cine-intro-open { overflow: hidden; }
 @media (max-width: 767px) {
   .cine-scope .cine-pin-content { position: static; }
 }
-.cine3d-mobile [data-cine3d="promo"] { --focus: 1; }
+.cine3d-mobile [data-cine3d="promo"] {
+  --focus: 1;
+  --reveal1: 1;
+  --reveal2: 1;
+  --reveal3: 1;
+  --reveal4: 1;
+}
 .cine3d-mobile [data-cine3d="promo"] .home-percent-media { transform: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .cine-scope .cine-pin-content { position: static; transform: none !important; opacity: 1 !important; }
-  [data-cine3d="promo"] .home-percent-media { transform: none !important; }
+  [data-cine3d="promo"] .home-percent-media,
+  [data-cine3d="promo"] .home-percent-figure,
+  [data-cine3d="promo"] .home-promo-copy,
+  [data-cine3d="promo"] .home-promo-qr { transform: none !important; opacity: 1 !important; }
 }
 
 /* ---- Mobile bottom nav ------------------------------------------------------ */
