@@ -2311,3 +2311,211 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .map-drawer .map-type-btn.active { background: var(--cine-gold-1, #B89A63); color: #17150F; }
 .cine-scope .map-drawer .map-type-btn:hover:not(.active) { color: #F2EEE5; background: rgba(184,154,99,0.1); }
 .cine-scope .map-drawer .map-type-btn:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: -2px; }
+
+/* =========================================================================
+ * SCENE SURFACES -- the fix for "the depth disappears when there is no data"
+ * =========================================================================
+ * MEASURED ROOT CAUSE. On a Home page with zero listings, all eight
+ * [data-cine3d] scenes computed to background-color rgba(0, 0, 0, 0) with
+ * no border, no shadow and no backdrop, and the two listing rails
+ * collapsed to ~150px of empty space. The depth controller was therefore
+ * transforming an INVISIBLE rectangle. With listings present you
+ * perceived the cards moving and read that as depth; with none you
+ * perceived nothing, because there was nothing on screen to perceive.
+ *
+ * So this is not "increase translateZ until it looks exaggerated" -- the
+ * magnitudes were already large (~105px of Z, 0.076 of scale, 0.48 of
+ * opacity per scene). It is a COMPOSITION fix: every scene now owns two
+ * things that exist whether or not a single listing was ever published --
+ *
+ *   ::before  a lit SURFACE (gradient plane + hairline edge + drop
+ *             shadow). This is the object that visibly recedes.
+ *   ::after   a slower ATMOSPHERE (soft radial light) that deliberately
+ *             travels at a DIFFERENT rate from the surface, so the two
+ *             read as two distances rather than one flat sticker.
+ *
+ * Real content, when it exists, rides on top and enriches the scene
+ * instead of being the only thing in it. Nothing here is data-dependent
+ * and nothing here fabricates content.
+ *
+ * Both layers are pointer-events:none and sit on negative z-index inside
+ * the scene's own isolated stacking context, so they can never intercept
+ * a click and can never escape to overlap MAM. */
+.cine-scope [data-cine3d="rail"],
+.cine-scope [data-cine3d="cards"] {
+  position: relative;
+  isolation: isolate;
+}
+
+.cine-scope [data-cine3d="rail"]::before,
+.cine-scope [data-cine3d="cards"]::before {
+  content: '';
+  position: absolute;
+  z-index: -2;
+  /* The outward side bleed is absorbed by the container's side margin.
+     Clamped so it can never exceed that margin on a narrow desktop and
+     start a horizontal scrollbar. */
+  inset: -30px clamp(-22px, -1.4vw, -8px) -40px;
+  border-radius: 30px;
+  background:
+    linear-gradient(168deg,
+      rgba(255, 255, 255, 0.062) 0%,
+      rgba(255, 255, 255, 0.020) 28%,
+      rgba(0, 0, 0, 0.34) 100%),
+    radial-gradient(125% 92% at 50% 0%, rgba(184, 154, 99, 0.11), transparent 64%);
+  border: 1px solid rgba(184, 154, 99, 0.17);
+  box-shadow:
+    0 44px 96px -52px rgba(0, 0, 0, 0.95),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  /* Brightest when the scene is centred (--d 0), dimmest at either
+     extreme (--d 0.5) -- the surface itself carries the focus read. */
+  opacity: calc(1 - var(--d, 0) * 1.35);
+  transform: translate3d(0, calc(var(--d, 0) * 22px), 0) scale(calc(1 - var(--d, 0) * 0.03));
+  pointer-events: none;
+}
+
+.cine-scope [data-cine3d="rail"]::after,
+.cine-scope [data-cine3d="cards"]::after {
+  content: '';
+  position: absolute;
+  z-index: -3;
+  inset: -160px -12% -140px;
+  background: radial-gradient(closest-side,
+    rgba(184, 154, 99, 0.15),
+    rgba(184, 154, 99, 0.045) 54%,
+    transparent 78%);
+  filter: blur(30px);
+  /* Continuous, and at a different rate/sign from the surface above --
+     this difference is the parallax. Never gated by --d, because a
+     backdrop reads as a backdrop precisely because it never stops. */
+  transform: translate3d(0, calc((var(--sp, 0.5) - 0.5) * -78px), 0);
+  opacity: calc(0.9 - var(--d, 0) * 0.95);
+  pointer-events: none;
+}
+
+/* The hero gets the atmosphere layer too, so the very first handoff
+   (hero receding while the category scene rises) has two visible
+   distances rather than one. The hero already owns a real media plate,
+   so it needs no added surface. */
+.cine-scope [data-cine3d="hero"] { position: relative; isolation: isolate; }
+.cine-scope [data-cine3d="hero"]::after {
+  content: '';
+  position: absolute;
+  z-index: -3;
+  inset: -10% -14% -22%;
+  background: radial-gradient(closest-side,
+    rgba(184, 154, 99, 0.17), rgba(184, 154, 99, 0.05) 52%, transparent 76%);
+  filter: blur(38px);
+  transform: translate3d(0, calc(var(--hl, 0) * -90px), 0);
+  opacity: calc(0.95 - var(--hl, 0) * 0.75);
+  pointer-events: none;
+}
+
+/* SCENE HANDOFF. Consecutive scenes previously sat in separate vertical
+   bands and never shared screen space, so there was no moment where one
+   was visibly behind another. Pulling each scene up into its predecessor
+   puts two SURFACES on screen at once at different depths -- which is
+   what makes the handoff readable as depth instead of as a list. The
+   overlap is applied to the surface bleed, not to layout margins, so no
+   content is ever occluded. */
+.cine-scope [data-cine3d="cards"]::before { inset: -46px -22px -46px; }
+.cine-scope [data-cine3d="rail"] + .cine-scope [data-cine3d="cards"]::before,
+.cine-scope [data-cine3d="cards"] + .cine-scope [data-cine3d="cards"]::before { inset-block-start: -58px; }
+
+/* Tablet: same composition, dialled back. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .cine-scope [data-cine3d="rail"]::before,
+  .cine-scope [data-cine3d="cards"]::before {
+    transform: translate3d(0, calc(var(--d, 0) * 14px), 0) scale(calc(1 - var(--d, 0) * 0.018));
+  }
+  .cine-scope [data-cine3d="rail"]::after,
+  .cine-scope [data-cine3d="cards"]::after {
+    transform: translate3d(0, calc((var(--sp, 0.5) - 0.5) * -46px), 0);
+  }
+}
+
+/* Mobile: the surfaces STAY (they are what makes the page feel spatial at
+   all), but their travel is cut hard and the blurred atmosphere is
+   dropped entirely -- a full-width blurred radial is the single most
+   expensive thing here on a phone GPU, and the lit plane alone already
+   carries the depth read. */
+.cine3d-mobile [data-cine3d="rail"]::before,
+.cine3d-mobile [data-cine3d="cards"]::before {
+  /* Horizontal bleed goes INWARD on mobile. These sections run the full
+     viewport width, so bleeding outward (as the desktop rule does, where
+     it is absorbed by the container's side margin) pushed the plane
+     12px past each edge and gave the document a 12px horizontal scroll. */
+  inset: -18px 6px -22px;
+  border-radius: 22px;
+  transform: translate3d(0, calc(var(--d, 0) * 7px), 0) !important;
+  opacity: calc(1 - var(--d, 0) * 0.85);
+}
+.cine3d-mobile [data-cine3d="rail"]::after,
+.cine3d-mobile [data-cine3d="cards"]::after,
+.cine3d-mobile [data-cine3d="hero"]::after { display: none; }
+
+/* Reduced motion: the composition is kept in full -- surfaces, edges,
+   light -- and only the scroll-linked MOVEMENT is removed. The page
+   still reads as layered and premium; it simply does not animate. */
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope [data-cine3d="rail"]::before,
+  .cine-scope [data-cine3d="cards"]::before {
+    transform: none !important;
+    opacity: 1 !important;
+  }
+  .cine-scope [data-cine3d="rail"]::after,
+  .cine-scope [data-cine3d="cards"]::after,
+  .cine-scope [data-cine3d="hero"]::after {
+    transform: none !important;
+    opacity: 0.5 !important;
+  }
+}
+
+/* Compact premium empty state for a listing rail. Full width of the rail
+   so the scene keeps its mass, but deliberately short so it never reads
+   as a dead zone -- and it offers real destinations, never a placeholder
+   property card. */
+.cine-scope .home-rail-empty {
+  flex: 1 1 100%;
+  min-width: 0;
+  /* The rail track is a flex row, so the default align-items:stretch was
+     inflating this panel to the height a full property card would have
+     occupied -- a compact state that was not actually compact. */
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 30px 28px;
+  border-radius: 20px;
+  border: 1px dashed rgba(184, 154, 99, 0.30);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.045), rgba(0, 0, 0, 0.22));
+}
+.cine-scope .home-rail-empty-glyph { font-size: 26px; color: var(--cine-gold-2, #B89A63); opacity: .85; }
+.cine-scope .home-rail-empty-title {
+  font-size: 14.5px;
+  color: var(--ps-color-on-surface);
+  max-width: 42ch;
+  line-height: 1.5;
+}
+.cine-scope .home-rail-empty-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.cine-scope .home-rail-empty-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  background: var(--cine-gold-2, #B89A63);
+  color: #17150F;
+  transition: filter 160ms ease;
+}
+.cine-scope .home-rail-empty-cta:hover { filter: brightness(1.08); }
+.cine-scope .home-rail-empty-cta.is-quiet {
+  background: transparent;
+  color: var(--cine-gold-2, #B89A63);
+  border: 1px solid rgba(184, 154, 99, 0.42);
+}
+.cine-scope .home-rail-empty-cta:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
