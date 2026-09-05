@@ -77,6 +77,21 @@
       // Batch 2: writes.
       for (let i = 0; i < els.length; i++) {
         els[i].style.setProperty('--section-progress', values[i].toFixed(4));
+        // OCCLUSION ORDER. Occlusion -- one thing visibly covering another
+        // -- is the strongest depth cue human vision has, and it is the one
+        // the earlier passes never used: the scenes all sat in their own
+        // vertical bands and no plane ever crossed another, so nothing was
+        // ever "in front". Paint order now follows distance from the centre
+        // of the viewport, so the scene the user is actually looking at
+        // overlaps the ones leaving above and arriving below.
+        //
+        // Written here rather than derived in CSS because z-index needs an
+        // integer and calc() on a custom property is only reliable behind
+        // @property registration. It costs one extra style write per scene
+        // per frame, inside the existing write batch -- no extra layout
+        // read, no second loop.
+        const centred = 1 - Math.abs(values[i] - 0.5) * 2;
+        els[i].style.zIndex = String(10 + Math.round(centred * 40));
       }
     }
 
