@@ -24,6 +24,12 @@ violation reporting. -->
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
+<!-- The provider cards and filter chips rendered by
+     js/provider-discovery.js are defined here, alongside the rest of the
+     service-family vocabulary. Without this sheet the discovery UI still
+     renders its DOM but falls back to browser defaults -- bare text where
+     cards should be. -->
+<link href="css/service-universe.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -86,46 +92,26 @@ violation reporting. -->
   </div>
 </div>
 
-<!-- REAL provider discovery. Before this, renovate.html carried no outbound
-     content link at all -- it was a dead end. Each card opens the existing
-     service.html directory for a role that genuinely exists in
-     js/professional-roles.js and firestore.rules' serviceProviders enum;
-     nothing here invents a role or a provider count. -->
+<!-- REAL provider discovery. These are the actual signed-up
+     professionals, not links to a role: js/provider-discovery.js queries
+     serviceProviders for the four renovation-relevant roles and renders
+     one card per real document, with city / role / verified filters over
+     that same bounded set. No invented provider, rating, job count or
+     availability -- the serviceProviders schema defines none of those. -->
 <section class="w-full max-w-container-max px-margin-mobile md:px-margin-desktop mt-stack-lg" aria-labelledby="renovateProvidersHeading">
   <h2 id="renovateProvidersHeading" class="font-headline-md text-headline-md text-primary mb-2" data-i18n="renovate.providersTitle">Find the right professionals</h2>
   <p class="font-body-md text-body-md text-on-surface-variant mb-5 max-w-2xl" data-i18n="renovate.providersSubtitle">Real Darwesh professionals who take on renovation work. Every profile below is a genuine signed-up provider.</p>
-  <div class="ps-grid">
-    <a class="ps-card p-5 flex items-start gap-3 hover:shadow-lg transition-shadow" href="service.html?type=designer">
-      <span class="material-symbols-outlined text-secondary text-[22px]" aria-hidden="true">palette</span>
-      <span>
-        <span class="block font-body-md text-[14px] text-on-surface font-semibold" data-i18n="svc.designer.title">Interior & Architectural Design</span>
-        <span class="block font-body-md text-[12.5px] text-on-surface-variant mt-1" data-i18n="renovate.provider.designer">Redesign and interior work.</span>
-      </span>
-    </a>
-    <a class="ps-card p-5 flex items-start gap-3 hover:shadow-lg transition-shadow" href="service.html?type=engineer">
-      <span class="material-symbols-outlined text-secondary text-[22px]" aria-hidden="true">architecture</span>
-      <span>
-        <span class="block font-body-md text-[14px] text-on-surface font-semibold" data-i18n="svc.engineer.title">Engineering</span>
-        <span class="block font-body-md text-[12.5px] text-on-surface-variant mt-1" data-i18n="renovate.provider.engineer">Structural assessment and engineering.</span>
-      </span>
-    </a>
-    <a class="ps-card p-5 flex items-start gap-3 hover:shadow-lg transition-shadow" href="service.html?type=maintenance">
-      <span class="material-symbols-outlined text-secondary text-[22px]" aria-hidden="true">handyman</span>
-      <span>
-        <span class="block font-body-md text-[14px] text-on-surface font-semibold" data-i18n="svc.maintenance.title">Maintenance & Repair</span>
-        <span class="block font-body-md text-[12.5px] text-on-surface-variant mt-1" data-i18n="renovate.provider.maintenance">Repairs, fittings and upkeep.</span>
-      </span>
-    </a>
-    <a class="ps-card p-5 flex items-start gap-3 hover:shadow-lg transition-shadow" href="service.html?type=cleaning">
-      <span class="material-symbols-outlined text-secondary text-[22px]" aria-hidden="true">cleaning_services</span>
-      <span>
-        <span class="block font-body-md text-[14px] text-on-surface font-semibold" data-i18n="svc.cleaning.title">Cleaning</span>
-        <span class="block font-body-md text-[12.5px] text-on-surface-variant mt-1" data-i18n="renovate.provider.cleaning">Post-renovation cleaning.</span>
-      </span>
-    </a>
-  </div>
+  <div id="renovateProviders"></div>
 </section>
 </main>
+<script type="module">
+  import { mountProviderDiscovery } from './js/provider-discovery.js';
+  mountProviderDiscovery(document.getElementById('renovateProviders'), {
+    services: ['designer', 'engineer', 'maintenance', 'cleaning'],
+    emptyTitleKey: 'renovate.providersEmpty',
+    emptyTitleFallback: 'No verified renovation professionals have joined Darwesh yet.'
+  });
+</script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
 <script src="./js/i18n.js"></script>
