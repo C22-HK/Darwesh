@@ -19,11 +19,13 @@ rules_version = '2';
 // - listing-photos/{token}/{fileName} — photos uploaded from the Add/Edit
 //   Listing form in admin.html and agent-dashboard.html. Both require a
 //   signed-in agent or admin already (enforced by those pages' own auth
-//   gates), so this only requires request.auth != null rather than
-//   checking a specific role — Storage rules can't cheaply check the
-//   Firestore listings doc's agentId the way firestore.rules does for
-//   the listing itself, and every signed-in user on this project is
-//   already an agent or admin (customers never reach these pages).
+//   gates); the rule itself also cross-checks the caller's
+//   users/{uid}.role via firestore.get() (same pattern as isAdmin()
+//   below) rather than trusting request.auth != null alone — Storage
+//   rules can't cheaply check the Firestore listings doc's agentId the
+//   way firestore.rules does for the listing itself, but it CAN cheaply
+//   confirm the caller is an agent or admin at all, which a plain
+//   signed-in customer or other self-registered account type is not.
 //
 // - agent-photos/{uid}/{fileName} — an agent's own profile photo,
 //   uploaded from agent-dashboard.html. Unlike listing-photos, this one
@@ -35,6 +37,15 @@ rules_version = '2';
 // - customer-photos/{uid}/{fileName} — a regular customer's own profile
 //   photo, uploaded from account.html. Same owner-only pattern as
 //   agent-photos.
+//
+// - company-logos/{companyId}/{fileName} — Phase 3's Real Estate Office
+//   profile logo, uploaded from office.html. Unlike listing-photos, this
+//   DOES cheaply check real ownership via firestore.get() (the same
+//   cross-service pattern isAdmin() below already uses) against
+//   companies/{companyId}.ownerId — a company with no ownerId at all
+//   (an admin-created legacy/unclaimed office, see firestore.rules'
+//   Phase 3 comment on the companies match block) is therefore writable
+//   here only by an admin, never self-claimable by anyone else.
 //
 // - sell-verification/{token}/{fileName} — the live selfie captured on
 //   sell.html's Identity Verification step. This one is deliberately NOT
@@ -51,6 +62,12 @@ rules_version = '2';
 //   authenticated getBytes()/getBlob() and render that as a local blob
 //   URL instead.
 //
+// - professional-work/{profileId}/{fileName} — Designer publishing (see
+//   the match block below for the full rationale): image/jpeg|png|webp
+//   only, owner-checked via firestore.get() against
+//   serviceProviders/{profileId}, and the one path in this file where
+//   deletion is actually allowed.
+//
 // The size/type checks are the only real guardrail against abuse at this
 // layer beyond that.
 service firebase.storage {
@@ -58,6 +75,10 @@ service firebase.storage {
     function isAdmin() {
       return request.auth != null
         && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isAgentOrAdmin() {
+      return request.auth != null
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['agent', 'admin'];
     }
     match /sell-submissions/{token}/{fileName} {
       allow read: if true;
@@ -73,7 +94,18 @@ service firebase.storage {
     }
     match /listing-photos/{token}/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
+      // BUG FIX (site-wide bug hunt): this used to only check
+      // request.auth != null, on the assumption that "every signed-in
+      // user on this project is already an agent or admin (customers
+      // never reach these pages)" -- that stopped being true once
+      // self-registered non-agent account types (individual_customer,
+      // professional_engineer, org_owner_*, etc.) existed. Any of those
+      // signed-in users could write arbitrary images into this public,
+      // unauthenticated-read path directly via the SDK, bypassing the
+      // Add/Edit Listing form's own UI gate. Tightened to a real
+      // firestore.get() role cross-check, the same pattern company-logos
+      // and professional-work below already use.
+      allow write: if isAgentOrAdmin()
                      && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
@@ -91,6 +123,172 @@ service firebase.storage {
                      && request.resource.size < 10 * 1024 * 1024
                      && request.resource.contentType.matches('image/.*');
       allow delete: if false;
+    }
+    // company-logos/{companyId}/{fileName} -- Phase 3's Real Estate
+    // Office profile logo upload. Unlike listing-photos (any agent or
+    // admin), this checks REAL ownership via a Firestore cross-check,
+    // the same firestore.get() pattern this file already uses for
+    // isAdmin() -- a customer or an unrelated agent cannot upload into
+    // another office's logo path. Mirrors
+    // firestore.rules' companies.ownerId lock: an ownerless company
+    // (see that file's Phase 3 comment) has no matching uid here
+    // either, so it is only writable by an admin, never self-claimable
+    // by uploading a file into its path.
+    match /company-logos/{companyId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (
+                          isAdmin()
+                          || firestore.get(/databases/(default)/documents/companies/$(companyId)).data.get('ownerId', null) == request.auth.uid
+                        )
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType.matches('image/.*');
+      allow delete: if false;
+    }
+
+    // professional-work/{profileId}/{fileName} -- Designer publishing
+    // (DESIGNER PUBLISHING phase). Same firestore.get() cross-check
+    // pattern as company-logos above, against serviceProviders/{profileId}
+    // instead of companies/{companyId}, additionally requiring
+    // serviceType=='designer' so this path can't be used by any other
+    // service-provider type while publishing is Designer-only (a
+    // stray upload here without a matching professionalPosts.serviceType
+    // gate at the Firestore layer would just be an orphaned file, but
+    // there is no reason to allow it at all).
+    //
+    // Deliberately narrower than every existing path in this file:
+    // image/jpeg|png|webp ONLY (no bare `image/.*` -- excludes
+    // image/svg+xml, which can carry an embedded <script> and is a real
+    // stored-XSS vector if ever rendered directly rather than as an
+    // <img>/background-image). Content-type is what Firebase Storage
+    // itself derives from the actual upload, never the client-supplied
+    // filename.
+    //
+    // The one path in this file where `allow delete` is NOT
+    // unconditionally false -- Designer publishing is user-manageable
+    // content the owner can genuinely take down (an explicit "Delete
+    // own work" requirement), unlike every other path here, which are
+    // permanent business records (listing photos, a company's logo,
+    // sell-form evidence) this codebase intentionally never lets any
+    // client delete.
+    match /professional-work/{profileId}/{fileName} {
+      function isOwnedDesignerProfile() {
+        return firestore.get(/databases/(default)/documents/serviceProviders/$(profileId)).data.get('ownerId', null) == request.auth.uid
+            && firestore.get(/databases/(default)/documents/serviceProviders/$(profileId)).data.get('serviceType', null) == 'designer';
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isOwnedDesignerProfile())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isOwnedDesignerProfile());
+    }
+
+    // professional-media/{providerId}/{kind}/{fileName} -- PHASE 3A.
+    // The shared profile-media path for EVERY service-provider role
+    // (engineer, designer, lawyer, landscaping, cleaning, maintenance):
+    // one avatar and one cover image per profile.
+    //
+    // {kind} is deliberately limited to 'photo' and 'cover' this phase.
+    // 'work' is NOT accepted: portfolio publishing for roles beyond
+    // Designer stays closed until a real server-side rate limiter exists
+    // (approved Phase 3C). Adding a value to this list later is a purely
+    // additive rule change; opening it now would enable an unbounded
+    // upload surface with no limiter behind it, which is exactly what was
+    // rejected. professional-work/ below is untouched -- Designer
+    // publishing keeps working exactly as it does today.
+    //
+    // CONDITION ORDER IS DELIBERATE. Every cheap, local, self-contained
+    // check (auth, kind, filename, size, content type) is evaluated BEFORE
+    // ownsProvider()'s cross-service firestore.get(). Rules short-circuit
+    // &&, so a bad MIME type or an oversized file is rejected without ever
+    // spending a Firestore read -- cheaper in production, and it means
+    // those denials are verifiable in a sandbox that cannot service
+    // firestore.get() at all (see tests/storage/helpers.mjs).
+    match /professional-media/{providerId}/{kind}/{fileName} {
+      function ownsProvider() {
+        return firestore.get(/databases/(default)/documents/serviceProviders/$(providerId))
+                 .data.get('ownerId', null) == request.auth.uid;
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && kind in ['photo', 'cover']
+                     // The client uploads crypto.randomUUID() + extension and
+                     // never the user's own filename. This bounds what can
+                     // reach the object name regardless.
+                     && fileName.matches('^[A-Za-z0-9._-]{1,120}$')
+                     && request.resource.size < 10 * 1024 * 1024
+                     // image/jpeg|png|webp ONLY -- no bare image/.*, which
+                     // would admit image/svg+xml. SVG can carry an embedded
+                     // <script> and this path is public-read, so it is a real
+                     // stored-XSS vector. Same decision as professional-work/.
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp']
+                     && (isAdmin() || ownsProvider());
+      allow delete: if request.auth != null && (isAdmin() || ownsProvider());
+    }
+
+    // ---- Real-estate Projects/Buildings/Units/Floor Plans (Phase 1:
+    // rules + schema only, no upload UI yet -- see firestore.rules'
+    // matching section for the full architecture). Four fully separate,
+    // isolated paths -- NONE of them touch or weaken professional-work/
+    // above, which keeps its own untouched ownership check. Each path's
+    // ownership check cross-references the SAME organization membership
+    // Firestore already gates the corresponding metadata write on
+    // (org owner OR an active member -- coarse membership-level here,
+    // matching this file's existing granularity everywhere else; the
+    // fine-grained per-key permission check stays a Firestore-rules-only
+    // concept, same as company-logos/professional-work never re-check a
+    // permission map either). Image-only (jpeg/png/webp -- explicitly
+    // no SVG, same stored-XSS reasoning as professional-work/), 10MB cap,
+    // matching every existing path in this file. No PDF/brochure support
+    // this phase (deferred, per the approved architecture).
+    function isActiveOrgMember(orgId) {
+      return firestore.get(/databases/(default)/documents/organizations/$(orgId)).data.get('ownerId', null) == request.auth.uid
+          || firestore.get(/databases/(default)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'pending') == 'active';
+    }
+    match /project-media/{projectId}/{fileName} {
+      function isProjectOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/projects/$(projectId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isProjectOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isProjectOrgMember());
+    }
+    match /building-media/{projectId}/{buildingId}/{fileName} {
+      function isBuildingOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/projects/$(projectId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isBuildingOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isBuildingOrgMember());
+    }
+    match /floorplan-media/{projectId}/{planId}/{fileName} {
+      function isFloorPlanOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/projects/$(projectId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isFloorPlanOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isFloorPlanOrgMember());
+    }
+    match /unit-media/{unitId}/{fileName} {
+      function isUnitOrgMember() {
+        return isActiveOrgMember(firestore.get(/databases/(default)/documents/units/$(unitId)).data.organizationId);
+      }
+      allow read: if true;
+      allow write: if request.auth != null
+                     && (isAdmin() || isUnitOrgMember())
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if request.auth != null && (isAdmin() || isUnitOrgMember());
     }
   }
 }

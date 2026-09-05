@@ -2,54 +2,83 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting.
+'wasm-unsafe-eval' (script-src): grepped this codebase's own maps-related
+files for eval()/new Function()/string-form setTimeout and found none.
+Google's own Maps JavaScript API bundle (loaded from maps.googleapis.com,
+third-party code) compiles WebAssembly as part of its modern rendering
+engine, which a CSP with neither 'unsafe-eval' nor 'wasm-unsafe-eval'
+blocks (reported by Chrome as a generic "script-src ... eval" violation).
+'wasm-unsafe-eval' is the CSP-standard, narrower grant purpose-built for
+this: it permits WebAssembly.compile()/instantiate() ONLY, not eval(),
+new Function(), or string-form setTimeout/setInterval the way the broader
+'unsafe-eval' would. Deliberately not using 'unsafe-eval' here.
+
+https://*.googleapis.com / https://*.gstatic.com (img-src, connect-src):
+same fix as admin.html -- once a key is configured here
+and the Google path is enabled, the SDK's own async tile/asset requests
+need Google-operated subdomains this policy only partially named (just
+the bootstrap loader's own host, maps.googleapis.com, and
+maps.gstatic.com). Google's own published CSP guidance for the Maps
+JavaScript API recommends the wildcarded https://*.googleapis.com /
+https://*.gstatic.com precisely because it does not publish, and can
+change without notice, which specific subdomain serves tiles/imagery for
+a given rendering path. js/maps-core.js reports any securitypolicyviolation
+naming a google/gstatic domain to the console (blockedURI is origin-only
+for cross-origin resources by spec, so this can never leak the API key). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<script src="./js/currency.js"></script>
+<!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
+it runs before any script on this page that imports maps-core.js.
+Gitignored, generated at deploy time (see js/maps-config.local.example.js
+and .github/workflows/deploy-pages.yml) -- absent locally until you copy
+the example, in which case the pin picker and team map fall back to
+their original Leaflet implementation gracefully (see initMap()/
+ensureTeamMapEngine() below). -->
+<script src="./js/maps-config.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Agent Dashboard</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<!-- css/cinematic.css: only for its unscoped .lang-select/.lang-toggle-btn/
+.lang-flag/.lang-menu/.lang-option structural (layout-only, zero color)
+rules the flag-based language selector below needs -- everything else in
+that file is scoped under .cine-scope, a class this page's <body>
+deliberately does not opt into, so none of its color/premium-theme rules
+can affect this page. Not adding css/profile-tokens.css alongside it --
+that would make this page's own bg-primary/text-on-surface-variant/etc.
+classes start resolving through a different color system than the one
+they currently render with, a real, wide-reaching visual change this
+change is not meant to make. -->
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff", "on-secondary-fixed-variant": "#5d4201", "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900", "on-primary-fixed": "#0b1d2d", "primary": "#041627",
-                        "error": "#ba1a1a", "inverse-primary": "#b7c8de", "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a", "tertiary-fixed": "#6bfe9c", "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c", "primary-fixed": "#d2e4fb", "on-primary": "#ffffff",
-                        "surface": "#f7f9ff", "surface-container-high": "#e5e8ee", "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a", "on-secondary": "#ffffff", "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6", "on-error": "#ffffff", "outline-variant": "#c4c6cd",
-                        "outline": "#74777d", "primary-container": "#1a2b3c", "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183", "primary-fixed-dim": "#b7c8de", "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176", "secondary-fixed": "#ffdea5", "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08", "surface-container-lowest": "#ffffff", "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8", "on-tertiary-container": "#00a656", "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff", "on-tertiary-fixed-variant": "#005228", "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073", "on-secondary-container": "#785a1a", "surface-container": "#ebeef3",
-                        "background": "#f7f9ff", "on-surface": "#181c20"
-                    },
-                    "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
-                    "spacing": { "gutter": "24px", "stack-lg": "32px", "stack-md": "16px", "margin-desktop": "48px", "stack-sm": "8px", "container-max": "1280px", "margin-mobile": "16px", "unit": "8px" },
-                    "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "label-caps": ["IBM Plex Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-mono": ["Inter"], "display-lg": ["Plus Jakarta Sans"] },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <style>
   body { min-height: 100dvh; }
   #agentPinMap { background: #e5e8ee; }
+  /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
+     well-documented conflict with Google Maps' own internally-rendered
+     <img> tiles/UI assets under .gm-style, once a key is configured and
+     the Google path is enabled here. Purely additive, zero effect outside
+     .gm-style (the Leaflet maps this page runs by default are unaffected
+     -- Leaflet doesn't use this class). */
+  .gm-style img { max-width: none; }
   .listings-tab { font-family: 'IBM Plex Sans', sans-serif; font-size: 12.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; padding: 10px 4px; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; margin-right: 24px; }
   .listings-tab.active { color: #041627; border-bottom-color: #775a19; }
   .listings-panel.hidden { display: none; }
@@ -114,13 +143,24 @@
       <a href="index.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" data-i18n="agentDash.viewSite">View Site</a>
       <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="agentNameLabel"></span>
       <div class="relative">
-<button aria-label="Language" class="lang-toggle-btn font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" type="button">
-<span class="material-symbols-outlined text-[18px]">language</span>
+<button aria-label="Language" class="lang-toggle-btn text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
 </button>
-<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg z-50">
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
 </div>
 </div>
       <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button" data-i18n="common.logOut">Log out</button>
@@ -134,7 +174,7 @@
         <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
           <div id="agentPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
             <span class="material-symbols-outlined text-on-primary text-[44px]" id="agentPhotoIcon">badge</span>
-            <img id="agentPhotoImg" class="hidden w-full h-full object-cover"/>
+            <img id="agentPhotoImg" class="hidden w-full h-full object-cover" decoding="async"/>
           </div>
           <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
             <span class="material-symbols-outlined text-[16px]">photo_camera</span>
@@ -240,7 +280,7 @@
               <span class="material-symbols-outlined" style="font-size:20px;">upload_file</span>
               <input id="fImgUpload" type="file" accept="image/*" class="hidden"/>
             </label>
-            <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;"/>
+            <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;" decoding="async"/>
           </div>
           <p id="fImgUploadStatus" class="hidden font-body-md text-[11.5px] mt-1" style="color:#8192a7;"></p>
         </div>
@@ -251,7 +291,10 @@
         </div>
 
         <div class="flex items-center gap-5 mb-5">
-          <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fVerified" type="checkbox" class="rounded"/><span data-i18n="common.verified">Verified</span></label>
+          <!-- Verified is reviewer/admin-only (AUTHZ-03) -- an agent can no
+               longer set it on their own listing, so there's no control for
+               it here; firestore.rules rejects any agent write that even
+               attempts to change this field. -->
           <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fPrivate" type="checkbox" class="rounded"/><span data-i18n="agentDash.privateHideLocation">Private (hide exact location)</span></label>
         </div>
 
@@ -370,7 +413,7 @@
             </div>
             <div class="flex gap-2">
               <input id="finTxNote" class="admin-input flex-1" data-i18n-placeholder="agentDash.finTxNotePlaceholder" placeholder="Note (optional)"/>
-              <button type="submit" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex-none" data-i18n="common.add">Add</button>
+              <button type="submit" id="finTxSubmitBtn" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex-none" data-i18n="common.add">Add</button>
             </div>
           </form>
           <p id="finTxError" class="text-error text-[13px] mb-3 hidden"></p>
@@ -391,18 +434,45 @@
 </div>
 
 <script type="module">
-  import { auth, db, storage } from './js/firebase-init.js';
+  import { auth, db, storage, getDoc, setDoc, addDoc, updateDoc, deleteDoc, getDocs } from './js/firebase-init.js';
+  import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
+
+  // LOC-01: which coordinate the Team Map plots. The bulk view uses the
+  // ~1.1 km public pair (fetching each listing's precise sub-document
+  // would be an N+1 read per render); the `l.lat` branch keeps
+  // not-yet-backfilled legacy documents rendering during the migration.
+  function teamMapCoords(l) {
+    const lat = (typeof l.lat === 'number') ? l.lat : l.publicLat;
+    const lng = (typeof l.lng === 'number') ? l.lng : l.publicLng;
+    return (typeof lat === 'number' && typeof lng === 'number') ? { lat, lng } : null;
+  }
   import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import {
-    doc, getDoc, collection, addDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp
+    doc, collection, query, where, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, LISTING_IMAGE, PROFILE_IMAGE, createUploadGate } from './js/image-compress.js';
+
+  // One gate per input. Each upload mints its own Storage path, so two
+  // overlapping runs would orphan an object and race over the saved URL.
+  const listingImgGate = createUploadGate();
+  const agentPhotoGate = createUploadGate();
 
   function trDash(key, fallback) { return (window.t && window.t(key)) || fallback; }
   let currentUid = null;
   let currentAgentName = '';
   let currentCompanyId = null;
-  let agentPinMap, agentPinMarker, pinLat = null, pinLng = null;
+  let pinLat = null, pinLng = null;
+  // Dual-engine abstraction (Production Rebuild Phase 1 of 3, Part F):
+  // whichever engine actually initializes in initMap() below assigns
+  // itself here -- every other call site in this file goes through
+  // pinMapEngine rather than touching a Leaflet- or Google-specific API
+  // directly, the same conservative "wrap, don't rewrite" strategy
+  // already proven for sell.html's picker (see its own comment for the
+  // full rationale: the existing Leaflet path is never modified, only
+  // wrapped, so there is zero regression risk from a Google Maps path
+  // that cannot be end-to-end verified in this sandbox).
+  let pinMapEngine = null;
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
@@ -417,7 +487,7 @@
       document.getElementById('listingsPanel-' + tab.dataset.tab).classList.remove('hidden');
       if (tab.dataset.tab === 'team') loadTeamListings();
       if (tab.dataset.tab === 'map') {
-        setTimeout(() => { if (agentTeamMap) agentTeamMap.invalidateSize(); }, 50);
+        setTimeout(() => { if (teamMapEngine) teamMapEngine.invalidate(); }, 50);
         renderAgentTeamMap();
       }
       if (tab.dataset.tab === 'finances') loadFinances();
@@ -437,39 +507,159 @@
     }).addTo(map);
   }
 
-  function initMap() {
-    agentPinMap = L.map('agentPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-    L.control.zoom({ position: 'bottomright' }).addTo(agentPinMap);
-    addBaseTiles(agentPinMap);
-    agentPinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
-    setTimeout(() => agentPinMap.invalidateSize(), 150);
+  function makeLeafletPinEngine() {
+    const map = L.map('agentPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    addBaseTiles(map);
+    let marker = null;
+    map.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
+    setTimeout(() => map.invalidateSize(), 150);
+    return {
+      place(lat, lng) { if (marker) marker.setLatLng([lat, lng]); else marker = L.marker([lat, lng]).addTo(map); },
+      clear() { if (marker) { map.removeLayer(marker); marker = null; } },
+      panZoom(lat, lng, zoom) { map.setView([lat, lng], zoom); },
+      invalidate() { map.invalidateSize(); },
+    };
+  }
+
+  async function makeGooglePinEngine() {
+    const { initMap: initGoogleMap, createMarker } = await import('./js/maps-core.js');
+    const map = await initGoogleMap(document.getElementById('agentPinMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+    if (!map) return null;
+    const google = window.google;
+    let marker = null;
+    map.addListener('click', (e) => setPin(e.latLng.lat(), e.latLng.lng()));
+    return {
+      place(lat, lng) {
+        if (marker) { marker.position ? (marker.position = { lat, lng }) : marker.setPosition({ lat, lng }); }
+        else marker = createMarker(google, map, { lat, lng }, { forceAdvanced: false });
+      },
+      clear() { if (marker) { marker.setMap ? marker.setMap(null) : (marker.map = null); marker = null; } },
+      panZoom(lat, lng, zoom) { map.panTo({ lat, lng }); map.setZoom(zoom); },
+      invalidate() { google.maps.event.trigger(map, 'resize'); },
+    };
+  }
+
+  async function initMap() {
+    try {
+      const { isConfigured } = await import('./js/maps-core.js');
+      if (isConfigured()) {
+        const engine = await makeGooglePinEngine();
+        if (engine) { pinMapEngine = engine; return; }
+      }
+    } catch (err) {
+      console.error('[agent-dashboard] Google Maps pin picker failed to initialize, falling back to the built-in map', err);
+    }
+    pinMapEngine = makeLeafletPinEngine();
   }
 
   // Team Map — every pinned listing belonging to this agent's company
   // (same scoping as loadTeamListings), tagged in a different color for
   // "mine" vs "teammates'" so an agent can see their own coverage next
   // to the rest of the team at a glance.
-  let agentTeamMap = null;
-  let agentTeamMapMarkers = [];
+  // Dual-engine (Part F, same rationale as pinMapEngine above): a
+  // teamMapEngine is lazily created on first render, then reused --
+  // whichever engine actually initializes stays fixed for the page's
+  // lifetime (the config doesn't change mid-session), exposing just the
+  // handful of operations this read-only overview map needs: place a
+  // labeled marker, clear them all, and fit the view to what's shown.
+  let teamMapEngine = null;
+
+  function makeLeafletTeamEngine() {
+    const map = L.map('agentTeamMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    addBaseTiles(map);
+    let markers = [];
+    return {
+      invalidate() { map.invalidateSize(); },
+      clearMarkers() { markers.forEach(m => map.removeLayer(m)); markers = []; },
+      addMarker(lat, lng, tagClass, tagLabel, popupHtml) {
+        const marker = L.marker([lat, lng], {
+          icon: L.divIcon({ className: '', iconSize: null, iconAnchor: [30, 15], html: `<div class="team-map-tag ${tagClass}">${tagLabel}</div>` })
+        }).addTo(map);
+        marker.bindPopup(popupHtml);
+        markers.push(marker);
+      },
+      fitToMarkers(points) {
+        if (points.length) map.fitBounds(L.latLngBounds(points).pad(0.25), { maxZoom: 13 });
+      },
+    };
+  }
+
+  async function makeGoogleTeamEngine() {
+    const { initMap: initGoogleMap } = await import('./js/maps-core.js');
+    const map = await initGoogleMap(document.getElementById('agentTeamMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+    if (!map) return null;
+    const google = window.google;
+    let overlays = [];
+    const infoWindow = new google.maps.InfoWindow();
+    return {
+      invalidate() { google.maps.event.trigger(map, 'resize'); },
+      clearMarkers() { overlays.forEach((o) => o.setMap(null)); overlays = []; },
+      addMarker(lat, lng, tagClass, tagLabel, popupHtml) {
+        const el = document.createElement('div');
+        el.className = `team-map-tag ${tagClass}`;
+        el.textContent = tagLabel;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => { infoWindow.setContent(popupHtml); infoWindow.setPosition({ lat, lng }); infoWindow.open(map); });
+        class Overlay extends google.maps.OverlayView {
+          onAdd() { this.getPanes().overlayMouseTarget.appendChild(el); }
+          draw() {
+            const proj = this.getProjection();
+            if (!proj) return;
+            const point = proj.fromLatLngToDivPixel(new google.maps.LatLng(lat, lng));
+            if (point) { el.style.position = 'absolute'; el.style.left = point.x + 'px'; el.style.top = point.y + 'px'; el.style.transform = 'translate(-50%,-50%)'; }
+          }
+          onRemove() { el.remove(); }
+        }
+        const overlay = new Overlay();
+        overlay.setMap(map);
+        overlays.push(overlay);
+      },
+      fitToMarkers(points) {
+        if (!points.length) return;
+        const bounds = new google.maps.LatLngBounds();
+        points.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
+        map.fitBounds(bounds, 40);
+      },
+    };
+  }
+
+  async function ensureTeamMapEngine() {
+    if (teamMapEngine) return teamMapEngine;
+    try {
+      const { isConfigured } = await import('./js/maps-core.js');
+      if (isConfigured()) {
+        const engine = await makeGoogleTeamEngine();
+        if (engine) { teamMapEngine = engine; return teamMapEngine; }
+      }
+    } catch (err) {
+      console.error('[agent-dashboard] Google Maps team map failed to initialize, falling back to the built-in map', err);
+    }
+    teamMapEngine = makeLeafletTeamEngine();
+    return teamMapEngine;
+  }
 
   async function renderAgentTeamMap() {
-    if (!agentTeamMap) {
-      agentTeamMap = L.map('agentTeamMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-      L.control.zoom({ position: 'bottomright' }).addTo(agentTeamMap);
-      addBaseTiles(agentTeamMap);
-    }
-    agentTeamMap.invalidateSize();
+    const engine = await ensureTeamMapEngine();
+    engine.invalidate();
+    engine.clearMarkers();
 
-    agentTeamMapMarkers.forEach(m => agentTeamMap.removeLayer(m));
-    agentTeamMapMarkers = [];
-
-    const snap = await getDocs(collection(db, 'listings'));
+    // Same two-query split as loadTeamListings() (AUTHZ-01): a colleague's
+    // PRIVATE listing is only visible here if it's also the viewer's own
+    // (isListingOwnerOrAdmin) -- a teammate's private pin, unlike before,
+    // is no longer shown at its real location on this map.
+    const [publicTeamSnap, ownSnap] = await Promise.all([
+      getPublicTeamListingsSnap(),
+      getOwnListingsSnap()
+    ]);
+    const byId = new Map();
+    publicTeamSnap.forEach(d => byId.set(d.id, d.data()));
+    ownSnap.forEach(d => byId.set(d.id, d.data()));
     const listings = [];
-    snap.forEach(d => {
-      const l = d.data();
-      if ((!l.companyId || l.companyId === currentCompanyId) && l.lat != null && l.lng != null) {
-        listings.push({ id: d.id, ...l });
-      }
+    byId.forEach((l, id) => {
+      const c = teamMapCoords(l);
+      if (c) listings.push({ id, ...l, _mapLat: c.lat, _mapLng: c.lng });
     });
 
     listings.forEach(l => {
@@ -477,36 +667,27 @@
       const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
       const extraClasses = (isMine ? ' mine' : '') + (l.private ? ' private' : '');
       const priceLabel = '$' + Number(l.price).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
-      const marker = L.marker([l.lat, l.lng], {
-        icon: L.divIcon({
-          className: '', iconSize: null, iconAnchor: [30, 15],
-          html: `<div class="team-map-tag ${statusClass}${extraClasses}">${priceLabel}</div>`
-        })
-      }).addTo(agentTeamMap);
       const badges = [
         l.verified ? `<span class="badge badge-verified">${trDash('common.verified', 'Verified')}</span>` : '',
         l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#7a3fc2;">${trDash('map.privateListing', 'Private')}</span>` : ''
       ].filter(Boolean).join(' ');
-      marker.bindPopup(`
+      const popupHtml = `
         <div style="font-family:'Inter',sans-serif;min-width:160px;">
-          <strong style="display:block;margin-bottom:2px;">${l.title || ''}</strong>
-          <span style="color:#44474c;font-size:12.5px;">${l.address || ''}, ${l.city || ''}</span><br/>
-          <span style="font-size:12.5px;">${isMine ? trDash('agentDash.youBadge','You') : (l.agentName || trDash('agentDash.unknownAgent','Unknown agent'))}</span>
+          <strong style="display:block;margin-bottom:2px;">${escapeFin(l.title)}</strong>
+          <span style="color:#44474c;font-size:12.5px;">${escapeFin(l.address)}, ${escapeFin(l.city)}</span><br/>
+          <span style="font-size:12.5px;">${isMine ? trDash('agentDash.youBadge','You') : (escapeFin(l.agentName) || trDash('agentDash.unknownAgent','Unknown agent'))}</span>
           ${badges ? `<div style="margin-top:4px;">${badges}</div>` : ''}
         </div>
-      `);
-      agentTeamMapMarkers.push(marker);
+      `;
+      engine.addMarker(l._mapLat, l._mapLng, statusClass + extraClasses, priceLabel, popupHtml);
     });
 
-    if (listings.length) {
-      agentTeamMap.fitBounds(L.latLngBounds(listings.map(l => [l.lat, l.lng])).pad(0.25), { maxZoom: 13 });
-    }
+    engine.fitToMarkers(listings.map(l => [l._mapLat, l._mapLng]));
   }
 
   function setPin(lat, lng) {
     pinLat = lat; pinLng = lng;
-    if (agentPinMarker) { agentPinMarker.setLatLng([lat, lng]); }
-    else { agentPinMarker = L.marker([lat, lng]).addTo(agentPinMap); }
+    if (pinMapEngine) pinMapEngine.place(lat, lng);
     document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
   }
 
@@ -520,7 +701,7 @@
     document.getElementById('priceLabel').textContent = trDash('agentDash.priceLabel','Price');
     pinLat = null; pinLng = null;
     document.getElementById('pinReadout').textContent = trDash('agentDash.noPinYet','No location pinned yet');
-    if (agentPinMarker) { agentPinMap.removeLayer(agentPinMarker); agentPinMarker = null; }
+    if (pinMapEngine) pinMapEngine.clear();
     updateImgPreview();
   }
   document.getElementById('formCancelBtn').addEventListener('click', resetForm);
@@ -551,6 +732,7 @@
   document.getElementById('fImgUpload').addEventListener('change', async function () {
     const file = this.files[0];
     if (!file) return;
+    if (!listingImgGate.begin()) return;
     const statusEl = document.getElementById('fImgUploadStatus');
     statusEl.textContent = trDash('agentDash.uploadingPhoto', 'Uploading...');
     statusEl.classList.remove('hidden');
@@ -558,7 +740,10 @@
       const token = crypto.randomUUID();
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const fileRef = storageRef(storage, `listing-photos/${token}/${safeName}`);
-      await withUploadTimeout(uploadBytes(fileRef, file));
+      // Listing photos keep the most detail of any preset -- they are the
+      // hero image on listing.html.
+      const upload = await compressImage(file, LISTING_IMAGE);
+      await withUploadTimeout(uploadBytes(fileRef, upload));
       const url = await withUploadTimeout(getDownloadURL(fileRef));
       document.getElementById('fImg').value = url;
       updateImgPreview();
@@ -566,6 +751,7 @@
     } catch (err) {
       statusEl.textContent = trDash('agentDash.uploadFailed', 'Upload failed: ') + err.message;
     } finally {
+      listingImgGate.end();
       this.value = '';
     }
   });
@@ -585,13 +771,15 @@
   document.getElementById('agentPhotoUpload').addEventListener('change', async function () {
     const file = this.files[0];
     if (!file || !currentUid) return;
+    if (!agentPhotoGate.begin()) return;
     const statusEl = document.getElementById('agentPhotoStatus');
     statusEl.textContent = trDash('agentDash.uploadingPhoto', 'Uploading...');
     statusEl.classList.remove('hidden');
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const fileRef = storageRef(storage, `agent-photos/${currentUid}/${Date.now()}-${safeName}`);
-      await withUploadTimeout(uploadBytes(fileRef, file));
+      const upload = await compressImage(file, PROFILE_IMAGE);
+      await withUploadTimeout(uploadBytes(fileRef, upload));
       const url = await withUploadTimeout(getDownloadURL(fileRef));
       await updateDoc(doc(db, 'users', currentUid), { photoURL: url });
       setAgentPhoto(url);
@@ -599,6 +787,7 @@
     } catch (err) {
       statusEl.textContent = trDash('agentDash.uploadFailed', 'Upload failed: ') + err.message;
     } finally {
+      agentPhotoGate.end();
       this.value = '';
     }
   });
@@ -614,7 +803,10 @@
     // converted and rounded right here, at the moment of save.
     const enteredPrice = Number(document.getElementById('fPrice').value);
     const priceCurrency = document.getElementById('fPriceCurrency').value;
-    const price = priceCurrency === 'IQD' ? Math.round(enteredPrice / 1310) : enteredPrice;
+    // Shared conversion -- see js/currency.js. Identical arithmetic to
+  // the inline `Math.round(enteredPrice / 1310)` it replaces; the rate
+  // and rounding now live in exactly one place.
+  const price = window.darweshUsdFromEntered(enteredPrice, priceCurrency);
 
     if (!title || !address || !price || pinLat === null || pinLng === null) {
       errEl.textContent = trDash('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
@@ -627,7 +819,10 @@
     const data = {
       title, address,
       city: document.getElementById('fCity').value,
-      lat: pinLat, lng: pinLng,
+      // LOC-01: only the ~1.1 km rounded pair goes on the publicly-readable
+      // listing document; the real pin is written to
+      // listings/{id}/private/location right after this save succeeds.
+      ...publicCoordsFrom(pinLat, pinLng),
       dealType: document.getElementById('fDealType').value,
       propertyType: document.getElementById('fPropertyType').value,
       price,
@@ -636,7 +831,6 @@
       sqft: Number(document.getElementById('fSqft').value) || 0,
       img: document.getElementById('fImg').value.trim(),
       amenities: document.getElementById('fAmenities').value.split(',').map(s => s.trim()).filter(Boolean),
-      verified: document.getElementById('fVerified').checked,
       private: document.getElementById('fPrivate').checked,
       agentId: currentUid,
       agentName: currentAgentName,
@@ -645,12 +839,22 @@
     };
 
     try {
+      // LOC-01: precise pin written after the listing exists -- the rules
+      // resolve ownership by reading the parent listing, so a location
+      // write that precedes it is denied by design.
+      let savedListingId = editingId;
       if (editingId) {
         await updateDoc(doc(db, 'listings', editingId), data);
+        invalidateListingMemos();
       } else {
         data.status = 'active';
         data.createdAt = serverTimestamp();
-        await addDoc(collection(db, 'listings'), data);
+        const created = await addDoc(collection(db, 'listings'), data);
+        invalidateListingMemos();
+        savedListingId = created.id;
+      }
+      if (savedListingId) {
+        await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
       }
       resetForm();
       loadMyListings();
@@ -676,10 +880,19 @@
     document.getElementById('fImg').value = l.img || '';
     updateImgPreview();
     document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
-    document.getElementById('fVerified').checked = !!l.verified;
     document.getElementById('fPrivate').checked = !!l.private;
-    setPin(l.lat, l.lng);
-    agentPinMap.setView([l.lat, l.lng], 13);
+    // LOC-01: start from the approximate public pin, then upgrade to the
+    // agent's own precise stored pin (one read, for one listing, that only
+    // this listing's agent/admin is allowed to make) so re-saving never
+    // silently degrades an existing listing's location.
+    const approx = teamMapCoords(l);
+    if (approx) { setPin(approx.lat, approx.lng); if (pinMapEngine) pinMapEngine.panZoom(approx.lat, approx.lng, 13); }
+    fetchPreciseLocation({ doc, getDoc }, db, l.id).then((precise) => {
+      if (!precise) return;
+      if (document.getElementById('editingId').value !== l.id) return;
+      setPin(precise.lat, precise.lng);
+      if (pinMapEngine) pinMapEngine.panZoom(precise.lat, precise.lng, 15);
+    });
     document.getElementById('formTitle').textContent = trDash('agentDash.editListing','Edit Listing');
     document.getElementById('formSubmitBtn').textContent = trDash('agentDash.updateListingBtn','Update Listing');
     document.getElementById('formCancelBtn').classList.remove('hidden');
@@ -690,6 +903,7 @@
     if (!confirm(trDash('agentDash.deleteConfirm','Delete this listing? It will be removed from the public site immediately.'))) return;
     try {
       await deleteDoc(doc(db, 'listings', id));
+      invalidateListingMemos();
       loadMyListings();
     } catch (err) {
       console.error('[agent-dashboard] deleteListing failed', err.code || err.name, err.message);
@@ -697,11 +911,51 @@
     }
   };
 
+  // ---- Per-session query reuse (perf pass 3/3) -------------------------
+  //
+  // Four separate places asked for `listings where agentId == currentUid`
+  // (this function, the team map, the team list and the finances tab) and
+  // two asked for the company's public listings. Tab switching re-ran them
+  // every time, so one dashboard session issued the same query up to four
+  // times.
+  //
+  // These memos are NOT an authorization shortcut. They hold the result of
+  // a query the server already evaluated under firestore.rules FOR THIS
+  // uid, and they are keyed on that uid and company id: if either changes,
+  // the memo is discarded rather than reused. Nothing here decides what a
+  // caller may see -- Firestore still does, on every fetch that actually
+  // happens.
+  //
+  // They are also invalidated after every write this page performs
+  // (create/update/delete), so an agent never sees their own change
+  // missing from a tab they switch to afterwards.
+  let ownListingsMemo = null;   // { uid, snap }
+  let teamListingsMemo = null;  // { companyId, snap }
+
+  async function getOwnListingsSnap({ force = false } = {}) {
+    if (!force && ownListingsMemo && ownListingsMemo.uid === currentUid) return ownListingsMemo.snap;
+    const snap = await getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)));
+    ownListingsMemo = { uid: currentUid, snap };
+    return snap;
+  }
+
+  async function getPublicTeamListingsSnap({ force = false } = {}) {
+    if (!force && teamListingsMemo && teamListingsMemo.companyId === currentCompanyId) return teamListingsMemo.snap;
+    const snap = await getDocs(query(collection(db, 'listings'),
+      where('companyId', '==', currentCompanyId),
+      where('private', '==', false),
+      where('status', '==', 'active')));
+    teamListingsMemo = { companyId: currentCompanyId, snap };
+    return snap;
+  }
+
+  /** Called after any listing write so no tab can render pre-write data. */
+  function invalidateListingMemos() { ownListingsMemo = null; teamListingsMemo = null; }
+
   async function loadMyListings() {
     const body = document.getElementById('listingsBody');
     const empty = document.getElementById('listingsEmpty');
-    const q = query(collection(db, 'listings'), where('agentId', '==', currentUid));
-    const snap = await getDocs(q);
+    const snap = await getOwnListingsSnap();
     document.getElementById('statMyListings').textContent = snap.size + ' ' + (snap.size === 1 ? trDash('agentDash.listingSingular','listing') : trDash('agentDash.listingPlural','listings'));
     if (snap.empty) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
@@ -711,12 +965,12 @@
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>
-          <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
-          <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+          <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeFin(l.title)}</p>
+          <p class="font-body-md text-[12px] text-on-surface-variant">${escapeFin(l.address)}, ${escapeFin(l.city)}</p>
         </td>
         <td>
           <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trDash('common.forSale','For Sale') : trDash('common.forRent','For Rent')}</span>
-          <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+          <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeFin(l.propertyType)}</div>
         </td>
         <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
         <td>
@@ -753,6 +1007,7 @@
     const newStatus = l.status === 'closed' ? 'active' : 'closed';
     try {
       await updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() });
+      invalidateListingMemos();
       loadMyListings();
     } catch (err) {
       console.error('[agent-dashboard] toggleListingStatus failed', err.code || err.name, err.message);
@@ -763,16 +1018,25 @@
   async function loadTeamListings() {
     const body = document.getElementById('teamListingsBody');
     const empty = document.getElementById('teamListingsEmpty');
-    const snap = await getDocs(collection(db, 'listings'));
-    // Scope to this agent's own company. Listings created before the
-    // company field existed have no companyId at all — treat those as
-    // belonging here too, rather than having them vanish from the team
-    // view just because they predate this change.
-    const rows = [];
-    snap.forEach(d => {
-      const l = d.data();
-      if (!l.companyId || l.companyId === currentCompanyId) rows.push(l);
-    });
+    // firestore.rules (AUTHZ-01) only lets a teammate see a colleague's
+    // listing when it's public+active (private==false, status=='active'),
+    // never their private/closed ones -- a single unfiltered fetch across
+    // the whole collection is denied outright now. So this is two queries,
+    // merged client-side: the company's public listings (everyone's, minus
+    // whichever of their own aren't public), plus the viewer's own
+    // listings regardless of visibility (covered by the owner branch of
+    // the same rule). Note: a listing predating the companyId field
+    // entirely can no longer be matched by an equality where() clause, so
+    // it won't appear here unless it's also the viewer's own -- a legacy
+    // data gap, not a security concern; see AUTHORIZATION_REMEDIATION.md.
+    const [publicTeamSnap, ownSnap] = await Promise.all([
+      getPublicTeamListingsSnap(),
+      getOwnListingsSnap()
+    ]);
+    const byId = new Map();
+    publicTeamSnap.forEach(d => byId.set(d.id, d.data()));
+    ownSnap.forEach(d => byId.set(d.id, d.data()));
+    const rows = [...byId.values()];
     document.getElementById('statTeamListings').textContent = rows.length + ' ' + (rows.length === 1 ? trDash('agentDash.teamListingSingular','team listing') : trDash('agentDash.teamListingPlural','team listings'));
     if (rows.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
     empty.classList.add('hidden');
@@ -783,13 +1047,13 @@
       const isMine = l.agentId === currentUid;
       tr.innerHTML = `
         <td>
-          <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
-          <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+          <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeFin(l.title)}</p>
+          <p class="font-body-md text-[12px] text-on-surface-variant">${escapeFin(l.address)}, ${escapeFin(l.city)}</p>
         </td>
-        <td>${isMine ? '<span class="font-label-caps text-label-caps text-secondary">' + trDash('agentDash.youBadge','You') + '</span>' : (l.agentName || trDash('agentDash.unknownAgent','Unknown agent'))}</td>
+        <td>${isMine ? '<span class="font-label-caps text-label-caps text-secondary">' + trDash('agentDash.youBadge','You') + '</span>' : (escapeFin(l.agentName) || trDash('agentDash.unknownAgent','Unknown agent'))}</td>
         <td>
           <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trDash('common.forSale','For Sale') : trDash('common.forRent','For Rent')}</span>
-          <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+          <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeFin(l.propertyType)}</div>
         </td>
         <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
         <td>
@@ -813,10 +1077,14 @@
   // ---------------------------------------------------------------------
   let agentCommissionRate = 0;
 
+  // Safe for both text-node content and quoted attribute values -- see
+  // js/escape-html.js's own comment (CLIENT-06,
+  // CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+  // div.textContent-round-trip form of this function wasn't.
   function escapeFin(str) {
-    const div = document.createElement('div');
-    div.textContent = str == null ? '' : String(str);
-    return div.innerHTML;
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
   }
 
   const FIN_CATEGORIES = {
@@ -840,7 +1108,7 @@
   async function loadFinances() {
     document.getElementById('finCommissionRate').value = agentCommissionRate;
 
-    const listingsSnap = await getDocs(query(collection(db, 'listings'), where('agentId', '==', currentUid)));
+    const listingsSnap = await getOwnListingsSnap();
     const closedDeals = [];
     listingsSnap.forEach(d => { const l = d.data(); if (l.status === 'closed') closedDeals.push(l); });
 
@@ -924,6 +1192,13 @@
   document.getElementById('finTxForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('finTxError');
+    const submitBtn = document.getElementById('finTxSubmitBtn');
+    // BL-08 fix: this handler had no in-flight guard at all -- a rapid
+    // double-click (or a slow network prompting a second click) fired
+    // addDoc() twice, creating a duplicate ledger entry. Disabled for
+    // the duration of the write, same pattern sell.html's own submit
+    // button already uses.
+    if (submitBtn.disabled) return;
     const amount = Number(document.getElementById('finTxAmount').value);
     const date = document.getElementById('finTxDate').value;
     if (!amount || amount <= 0 || !date) {
@@ -941,6 +1216,7 @@
       note: document.getElementById('finTxNote').value.trim(),
       createdAt: serverTimestamp()
     };
+    submitBtn.disabled = true;
     try {
       await addDoc(collection(db, 'agentTransactions'), data);
       document.getElementById('finTxForm').reset();
@@ -950,6 +1226,8 @@
     } catch (err) {
       errEl.textContent = trDash('agentDash.finTxSaveFailed', 'Could not save this entry: ') + err.message;
       errEl.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
     }
   });
 
@@ -985,7 +1263,7 @@
       document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
       loadMyListings();
       loadTeamListings();
-      if (agentTeamMap) renderAgentTeamMap();
+      if (teamMapEngine) renderAgentTeamMap();
     });
   });
 </script>

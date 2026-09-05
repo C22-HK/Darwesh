@@ -2,177 +2,145 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Log In</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff", "on-secondary-fixed-variant": "#5d4201", "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900", "on-primary-fixed": "#0b1d2d", "primary": "#041627",
-                        "error": "#ba1a1a", "inverse-primary": "#b7c8de", "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a", "tertiary-fixed": "#6bfe9c", "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c", "primary-fixed": "#d2e4fb", "on-primary": "#ffffff",
-                        "surface": "#f7f9ff", "surface-container-high": "#e5e8ee", "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a", "on-secondary": "#ffffff", "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6", "on-error": "#ffffff", "outline-variant": "#c4c6cd",
-                        "outline": "#74777d", "primary-container": "#1a2b3c", "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183", "primary-fixed-dim": "#b7c8de", "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176", "secondary-fixed": "#ffdea5", "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08", "surface-container-lowest": "#ffffff", "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8", "on-tertiary-container": "#00a656", "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff", "on-tertiary-fixed-variant": "#005228", "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073", "on-secondary-container": "#785a1a", "surface-container": "#ebeef3",
-                        "background": "#f7f9ff", "on-surface": "#181c20"
-                    },
-                    "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
-                    "spacing": { "gutter": "24px", "stack-lg": "32px", "stack-md": "16px", "margin-desktop": "48px", "stack-sm": "8px", "container-max": "1280px", "margin-mobile": "16px", "unit": "8px" },
-                    "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "label-caps": ["IBM Plex Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-mono": ["Inter"], "display-lg": ["Plus Jakarta Sans"] },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
 <style>
   body { min-height: 100dvh; }
-  .auth-input { width: 100%; border: 1px solid #c4c6cd; border-radius: 8px; padding: 11px 14px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; transition: border-color .15s ease; }
-  .auth-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
-  .auth-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
-  .auth-card { background: #ffffff; border: 1px solid #e0e3e8; border-radius: 20px; padding: 32px 28px; box-shadow: 0 4px 24px rgba(4,22,39,0.06); }
-  .auth-input-wrap { position: relative; }
-  .auth-input-wrap .auth-input { padding-left: 40px; }
-  .auth-input-wrap .auth-input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 19px; color: #9aa1ab; pointer-events: none; }
-  .auth-input-wrap .auth-input.has-toggle { padding-right: 40px; }
-  .auth-toggle-visibility { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: #9aa1ab; display: flex; align-items: center; justify-content: center; transition: background-color .15s ease, color .15s ease; }
-  .auth-toggle-visibility:hover { background: #f1f4f9; color: #44474c; }
-  .auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; }
-  @keyframes auth-spin { to { transform: rotate(360deg); } }
-  .auth-card { animation: auth-card-in .35s ease both; }
-  @keyframes auth-card-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  #forgotModalOverlay .forgot-modal-panel { transition: transform .2s ease, opacity .2s ease; transform: scale(.97); opacity: 0; }
-  #forgotModalOverlay.modal-open .forgot-modal-panel { transform: scale(1); opacity: 1; }
-  #forgotModalOverlay { transition: opacity .2s ease; opacity: 0; }
-  #forgotModalOverlay.modal-open { opacity: 1; }
 </style>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
 
-<header class="flex items-center justify-between h-16 border-b border-outline-variant bg-surface-bright px-4">
-  <div class="w-10"></div>
-  <a href="index.html" class="font-headline-md text-headline-md font-bold text-primary">Darwesh Group</a>
-  <div class="relative w-10 flex justify-end">
-<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high transition-colors text-on-surface-variant" type="button">
-<span class="material-symbols-outlined text-[20px]">language</span>
-</button>
-<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
-</div>
-</div>
-</header>
+<div class="auth-split">
 
-<main class="flex items-center justify-center px-4 py-12">
-  <div class="w-full max-w-md">
-    <div class="text-center mb-6">
-      <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.logInTitle">Log in</p>
-      <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.logInSubtitle">Access your favorites, submissions, and saved searches.</p>
+  <div class="auth-visual" aria-hidden="true">
+    <div class="auth-visual-glow"></div>
+    <div class="auth-visual-inner">
+      <div class="auth-visual-wordmark">
+        <span class="material-symbols-outlined" style="font-size:18px;">apartment</span>
+        Darwesh Group
+      </div>
+      <p class="auth-visual-title" data-i18n="auth.visual.loginHeadline">Welcome back</p>
+      <p class="auth-visual-subtitle" data-i18n="auth.visual.loginSubtitle">Your favorites, submissions, and saved searches are exactly where you left them.</p>
+
+      <div class="auth-visual-stage">
+        <div class="auth-visual-card c1"><span class="material-symbols-outlined auth-visual-icon">home_work</span></div>
+        <div class="auth-visual-card c2"><span class="material-symbols-outlined auth-visual-icon">favorite</span></div>
+        <div class="auth-visual-card c3"><span class="material-symbols-outlined auth-visual-icon">notifications_active</span></div>
+      </div>
+
+      <div class="auth-trust-row">
+        <span class="auth-trust-badge"><span class="material-symbols-outlined">verified_user</span><span data-i18n="auth.visual.trustSecure">Secure</span></span>
+        <span class="auth-trust-badge"><span class="material-symbols-outlined">fact_check</span><span data-i18n="auth.visual.trustVerified">Verified Listings</span></span>
+      </div>
     </div>
+  </div>
 
-    <div class="auth-card">
-      <form id="loginForm" class="space-y-4">
-        <div>
-          <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">mail</span>
-            <input id="fEmail" class="auth-input" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
-          </div>
-        </div>
-        <div>
-          <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
-          <div class="auth-input-wrap">
-            <span class="material-symbols-outlined auth-input-icon">lock</span>
-            <input id="fPassword" class="auth-input has-toggle" required type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
-            <button type="button" class="auth-toggle-visibility" id="toggleFPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
-              <span class="material-symbols-outlined" id="toggleFPasswordIcon" style="font-size:19px;">visibility</span>
+  <div class="auth-form-side">
+    <div class="auth-form-side-inner">
+
+      <header class="flex items-center mb-6">
+        <a href="index.html" class="font-headline-md text-headline-md font-bold text-primary lg:hidden">Darwesh Group</a>
+        <div class="lang-select ms-auto">
+          <button aria-label="Language" class="lang-toggle-btn" type="button">
+            <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async">EN</span>
+            <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async">KU</span>
+            <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async">AR</span>
+          </button>
+          <div class="lang-menu hidden absolute end-0 top-full mt-2 z-50">
+            <button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+              <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async">
+              <span>کوردی</span>
+              <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+            </button>
+            <button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+              <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async">
+              <span>العربية</span>
+              <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+            </button>
+            <button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+              <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async">
+              <span>English</span>
+              <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
             </button>
           </div>
         </div>
-        <div class="flex items-center justify-between -mt-1">
-          <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface cursor-pointer select-none">
-            <input id="rememberMe" type="checkbox" class="rounded" checked/>
-            <span data-i18n="auth.rememberMe">Remember me</span>
-          </label>
-          <button id="forgotBtn" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" type="button" data-i18n="auth.forgotPassword">Forgot password?</button>
-        </div>
-        <p id="authError" class="hidden text-error text-[13px]"></p>
-        <button id="submitBtn" class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center" type="submit">
-          <span class="auth-spinner hidden" id="submitSpinner"></span>
-          <span id="submitBtnLabel" data-i18n="auth.logInBtn">Log In</span>
-        </button>
-      </form>
+      </header>
+
+      <div class="mb-6">
+        <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.logInTitle">Log in</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.logInSubtitle">Access your favorites, submissions, and saved searches.</p>
+      </div>
+
+      <div class="auth-card">
+        <form id="loginForm" class="space-y-4">
+          <div>
+            <label class="auth-label" for="fEmail" data-i18n="auth.email">Email</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">mail</span>
+              <input id="fEmail" class="auth-input" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+            </div>
+          </div>
+          <div>
+            <label class="auth-label" for="fPassword" data-i18n="auth.password">Password</label>
+            <div class="auth-input-wrap">
+              <span class="material-symbols-outlined auth-input-icon">lock</span>
+              <input id="fPassword" class="auth-input has-toggle" required type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"/>
+              <button type="button" class="auth-toggle-visibility" id="toggleFPassword" aria-label="Show password" data-i18n-aria="auth.showPassword" title="Show password">
+                <span class="material-symbols-outlined" id="toggleFPasswordIcon" style="font-size:19px;">visibility</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center justify-between -mt-1">
+            <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface cursor-pointer select-none">
+              <input id="rememberMe" type="checkbox" class="rounded" checked/>
+              <span data-i18n="auth.rememberMe">Remember me</span>
+            </label>
+            <a href="reset-password.html" class="font-label-caps text-label-caps text-secondary hover:text-primary transition-colors" data-i18n="auth.forgotPassword">Forgot password?</a>
+          </div>
+          <p id="authError" class="hidden text-error text-[13px]" role="alert"></p>
+          <button id="submitBtn" class="ps-btn auth-btn-primary" type="submit">
+            <span class="auth-spinner hidden" id="submitSpinner"></span>
+            <span id="submitBtnLabel" data-i18n="auth.logInBtn">Log In</span>
+          </button>
+        </form>
+      </div>
+
+      <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
+        <span data-i18n="auth.noAccount">Don't have an account?</span> <a href="signup.html" class="text-secondary font-medium hover:underline" data-i18n="auth.signUpLink">Sign up</a>
+      </p>
+      <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="nav.backToSite">Back to site</a>
     </div>
-
-    <p class="font-body-md text-[13px] text-on-surface-variant text-center mt-6">
-      <span data-i18n="auth.noAccount">Don't have an account?</span> <a href="signup.html" class="text-secondary font-medium hover:underline" data-i18n="auth.signUpLink">Sign up</a>
-    </p>
-    <a href="index.html" class="block text-center mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="nav.backToSite">Back to site</a>
   </div>
-</main>
-
-<!-- Forgot Password Modal -->
-<div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="forgotModalOverlay">
-<div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="forgotModalBackdrop"></div>
-<div class="forgot-modal-panel relative bg-surface-container-lowest w-full md:max-w-sm rounded-t-2xl md:rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
-<button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="forgotModalClose" type="button">
-<span class="material-symbols-outlined">close</span>
-</button>
-<div id="forgotModalFormView">
-<h2 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.resetPasswordTitle">Reset your password</h2>
-<p class="font-body-md text-body-md text-on-surface-variant mb-stack-md text-[13px]" data-i18n="auth.resetPasswordSubtitle">Enter the email on your account and we'll send you a link to reset your password.</p>
-<form id="forgotForm">
-<div class="mb-4">
-<label class="auth-label" for="resetEmail" data-i18n="auth.email">Email</label>
-<div class="auth-input-wrap">
-<span class="material-symbols-outlined auth-input-icon">mail</span>
-<input class="auth-input" id="resetEmail" required type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false"/>
-</div>
-</div>
-<p id="forgotError" class="text-error text-[13px] mb-3 hidden"></p>
-<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2" id="forgotSubmitBtn" type="submit">
-<span class="material-symbols-outlined text-[18px]">send</span>
-<span data-i18n="auth.sendResetLink">Send Reset Link</span>
-</button>
-</form>
-</div>
-<div class="hidden text-center py-4" id="forgotModalSuccessView">
-<div class="w-14 h-14 rounded-full bg-tertiary-container/40 flex items-center justify-center mx-auto mb-4">
-<span class="material-symbols-outlined text-[28px] text-on-tertiary-container">mark_email_read</span>
-</div>
-<h2 class="font-headline-md text-headline-md text-primary mb-2" data-i18n="auth.resetLinkSentTitle">Check your inbox</h2>
-<p class="font-body-md text-body-md text-on-surface-variant text-[13.5px] mb-6" id="forgotModalSuccessBody"></p>
-<button class="w-full border border-outline-variant rounded-lg py-3 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" id="forgotModalDoneBtn" type="button" data-i18n="common.close">Close</button>
-</div>
-</div>
 </div>
 
 <script src="./js/i18n.js"></script>
+<script src="./js/cursor-follower.js"></script>
 <script type="module">
-  import { auth, db } from './js/firebase-init.js';
-  import { signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { auth, db, getDoc } from './js/firebase-init.js';
+  import { signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 
   // Already logged in? Skip straight to the right dashboard instead of
   // showing the login form again.
@@ -229,21 +197,6 @@
     }
   }
 
-  // auth/invalid-email and auth/too-many-requests are legitimate to show
-  // distinctly (a malformed email or a rate-limit isn't an enumeration
-  // risk). auth/user-not-found is deliberately NOT handled here — it's
-  // intercepted before it ever reaches this function (see the forgotForm
-  // submit handler below) and shown the exact same success message as a
-  // real send, so this flow can never be used to check whether an email
-  // is registered.
-  function friendlyResetError(code) {
-    switch (code) {
-      case 'auth/invalid-email': return tr('auth.errBadEmail', "That email address doesn't look right.");
-      case 'auth/too-many-requests': return tr('auth.errTooMany', 'Too many attempts — please wait a moment and try again.');
-      default: return tr('auth.errResetGeneric', 'Something went wrong sending the reset email. Please try again.');
-    }
-  }
-
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errEl.classList.add('hidden');
@@ -290,92 +243,6 @@
       console.error('[login] sign-in failed', err.code || err.name, err.message);
       showError(friendlyLoginError(err.code));
       setSubmitLoading(false, '', tr('auth.logInBtn', 'Log In'));
-    }
-  });
-
-  // ---------------------------------------------------------------------
-  // Forgot Password modal — a dedicated flow with its own email field and
-  // its own error/success messaging, instead of reusing the login form's
-  // email input and reusing friendlyLoginError() (which used to show the
-  // wrong message — "Incorrect email or password" — for a flow that has
-  // no password to check).
-  // ---------------------------------------------------------------------
-  const forgotOverlay = document.getElementById('forgotModalOverlay');
-  const forgotFormView = document.getElementById('forgotModalFormView');
-  const forgotSuccessView = document.getElementById('forgotModalSuccessView');
-  const forgotForm = document.getElementById('forgotForm');
-  const forgotError = document.getElementById('forgotError');
-  const forgotSubmitBtn = document.getElementById('forgotSubmitBtn');
-  const resetEmailInput = document.getElementById('resetEmail');
-
-  function openForgotModal() {
-    forgotFormView.classList.remove('hidden');
-    forgotSuccessView.classList.add('hidden');
-    forgotError.classList.add('hidden');
-    forgotForm.reset();
-    resetEmailInput.value = document.getElementById('fEmail').value.trim();
-    forgotOverlay.classList.remove('hidden');
-    document.body.style.overflow = 'hidden';
-    // Two-step so the transition (opacity/scale) actually plays instead of
-    // jumping straight to its end state — the browser needs a frame with
-    // "hidden" already removed but "modal-open" not yet added.
-    requestAnimationFrame(() => forgotOverlay.classList.add('modal-open'));
-    resetEmailInput.focus();
-  }
-  function closeForgotModal() {
-    forgotOverlay.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    setTimeout(() => forgotOverlay.classList.add('hidden'), 200);
-  }
-
-  document.getElementById('forgotBtn').addEventListener('click', openForgotModal);
-  document.getElementById('forgotModalClose').addEventListener('click', closeForgotModal);
-  document.getElementById('forgotModalBackdrop').addEventListener('click', closeForgotModal);
-  document.getElementById('forgotModalDoneBtn').addEventListener('click', closeForgotModal);
-
-  // Point the reset link at our own reset-password.html instead of
-  // Firebase's default hosted handler (<project>.firebaseapp.com/__/auth/
-  // action) — some networks/DNS resolvers block *.firebaseapp.com
-  // outright, which made the emailed link fail to load at all even
-  // though the email itself arrived fine. handleCodeInApp: true makes
-  // Firebase link straight to our page with the oobCode as a query
-  // param; reset-password.html calls verifyPasswordResetCode /
-  // confirmPasswordReset itself using the same Firebase Auth SDK.
-  const resetActionCodeSettings = {
-    url: window.location.origin + '/reset-password.html',
-    handleCodeInApp: true
-  };
-
-  function showForgotSuccess(email) {
-    document.getElementById('forgotModalSuccessBody').textContent =
-      tr('auth.resetLinkSentBody', 'If an account exists for') + ' ' + email + tr('auth.resetLinkSentBodySuffix', ", we've sent a link to reset your password.");
-    forgotFormView.classList.add('hidden');
-    forgotSuccessView.classList.remove('hidden');
-  }
-
-  forgotForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    forgotError.classList.add('hidden');
-    const email = resetEmailInput.value.trim().toLowerCase();
-    forgotSubmitBtn.disabled = true;
-    try {
-      await sendPasswordResetEmail(auth, email, resetActionCodeSettings);
-      showForgotSuccess(email);
-    } catch (err) {
-      // No account with this email must look identical to a real send —
-      // otherwise this form becomes a way to check which emails are
-      // registered. auth/invalid-email and auth/too-many-requests are
-      // fine to show distinctly (format/rate-limit feedback, not an
-      // account-existence signal).
-      if (err.code === 'auth/user-not-found') {
-        showForgotSuccess(email);
-      } else {
-        console.error('[login] password reset request failed', err.code || err.name, err.message);
-        forgotError.textContent = friendlyResetError(err.code);
-        forgotError.classList.remove('hidden');
-      }
-    } finally {
-      forgotSubmitBtn.disabled = false;
     }
   });
 </script>

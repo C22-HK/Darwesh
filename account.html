@@ -2,72 +2,75 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - My Account</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/mam-companion.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff", "on-secondary-fixed-variant": "#5d4201", "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900", "on-primary-fixed": "#0b1d2d", "primary": "#041627",
-                        "error": "#ba1a1a", "inverse-primary": "#b7c8de", "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a", "tertiary-fixed": "#6bfe9c", "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c", "primary-fixed": "#d2e4fb", "on-primary": "#ffffff",
-                        "surface": "#f7f9ff", "surface-container-high": "#e5e8ee", "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a", "on-secondary": "#ffffff", "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6", "on-error": "#ffffff", "outline-variant": "#c4c6cd",
-                        "outline": "#74777d", "primary-container": "#1a2b3c", "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183", "primary-fixed-dim": "#b7c8de", "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176", "secondary-fixed": "#ffdea5", "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08", "surface-container-lowest": "#ffffff", "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8", "on-tertiary-container": "#00a656", "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff", "on-tertiary-fixed-variant": "#005228", "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073", "on-secondary-container": "#785a1a", "surface-container": "#ebeef3",
-                        "background": "#f7f9ff", "on-surface": "#181c20"
-                    },
-                    "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
-                    "spacing": { "gutter": "24px", "stack-lg": "32px", "stack-md": "16px", "margin-desktop": "48px", "stack-sm": "8px", "container-max": "1280px", "margin-mobile": "16px", "unit": "8px" },
-                    "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "label-caps": ["IBM Plex Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-mono": ["Inter"], "display-lg": ["Plus Jakarta Sans"] },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
 <style>
   body { min-height: 100dvh; }
-  .acct-tab { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; padding: 12px 4px; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; margin-right: 28px; }
-  .acct-tab.active { color: #041627; border-bottom-color: #775a19; }
+  .acct-tab { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #A79F91; padding: 12px 4px; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; margin-right: 28px; }
+  .acct-tab.active { color: #F2EEE5; border-bottom-color: #B89A63; }
   .acct-panel { display: none; }
   .acct-panel.active { display: block; }
-  .fav-card { background: #ffffff; border: 1px solid #e5e8ee; border-radius: 12px; overflow: hidden; }
+  .fav-card { background: #17150F; border: 1px solid #5D482B; border-radius: 12px; overflow: hidden; }
   .status-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
-  .status-pending { background: #fed488; color: #5d4201; }
-  .settings-input { border: 1px solid #c4c6cd; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; }
-  .settings-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
+  .status-pending { background: #8E7448; color: #090A0A; }
+  .settings-input { border: 1px solid #5D482B; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #F2EEE5; background: #17150F; }
+  .settings-input:focus { outline: 2px solid #B89A63; outline-offset: 1px; }
 </style>
+<script src="./js/icon-fallback.js"></script>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
 
 <div id="loadingGate" class="fixed inset-0 flex items-center justify-center bg-background z-50">
-  <p class="font-body-md text-on-surface-variant">Loading your account…</p>
+  <p class="font-body-md text-on-surface-variant" data-i18n="acct.loading">Loading your account…</p>
 </div>
 
 <div id="accountContent" class="hidden">
   <header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
     <a href="index.html" class="font-headline-md text-[20px] text-primary font-bold">Darwesh Group</a>
     <div class="flex items-center gap-4">
-      <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline">Map</a>
-      <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button">Log out</button>
+      <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.map">Map</a>
+      <div class="relative">
+        <button aria-label="Language" class="lang-toggle-btn" type="button">
+          <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+          <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+          <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
+        </button>
+        <div class="lang-menu hidden absolute end-0 top-full mt-2 z-50">
+          <button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+            <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+          <button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+            <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+          <button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+            <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+        </div>
+      </div>
+      <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button" data-i18n="common.logOut">Log out</button>
     </div>
   </header>
 
@@ -80,7 +83,7 @@
         <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
           <div id="acctPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
             <span class="material-symbols-outlined text-on-primary text-[44px]" id="acctPhotoIcon">person</span>
-            <img id="acctPhotoImg" class="hidden w-full h-full object-cover"/>
+            <img id="acctPhotoImg" class="hidden w-full h-full object-cover" decoding="async"/>
           </div>
           <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
             <span class="material-symbols-outlined text-[16px]">photo_camera</span>
@@ -106,11 +109,11 @@
     </section>
 
     <div class="flex border-b border-outline-variant mb-6">
-      <button class="acct-tab active" data-tab="favorites" type="button">Favorites</button>
-      <button class="acct-tab" data-tab="submissions" type="button">My Submissions</button>
-      <button class="acct-tab" data-tab="searches" type="button">Saved Searches</button>
-      <button class="acct-tab" data-tab="agent" type="button">My Agent</button>
-      <button class="acct-tab" data-tab="settings" type="button">Settings</button>
+      <button class="acct-tab active" data-tab="favorites" type="button" data-i18n="acct.tabFavorites">Favorites</button>
+      <button class="acct-tab" data-tab="submissions" type="button" data-i18n="acct.tabSubmissions">My Submissions</button>
+      <button class="acct-tab" data-tab="searches" type="button" data-i18n="acct.tabSearches">Saved Searches</button>
+      <button class="acct-tab" data-tab="agent" type="button" data-i18n="acct.tabAgent">My Agent</button>
+      <button class="acct-tab" data-tab="settings" type="button" data-i18n="acct.tabSettings">Settings</button>
     </div>
 
     <!-- My Agent -->
@@ -125,9 +128,9 @@
             <p class="font-body-md text-[13px] text-on-surface-variant" id="agentEmail">—</p>
           </div>
         </div>
-        <p class="font-label-caps text-label-caps text-secondary mb-3">Listings from your agent</p>
+        <p class="font-label-caps text-label-caps text-secondary mb-3" data-i18n="acct.agentListings">Listings from your agent</p>
         <div id="agentListingsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-        <p id="agentListingsEmpty" class="hidden font-body-md text-[13px] text-on-surface-variant py-4">Your agent hasn't added any listings yet.</p>
+        <p id="agentListingsEmpty" class="hidden font-body-md text-[13px] text-on-surface-variant py-4" data-i18n="acct.agentListingsEmpty">Your agent hasn't added any listings yet.</p>
       </div>
       <p id="agentEmpty" class="hidden font-body-md text-[14px] text-on-surface-variant py-8 text-center">
         You don't have an assigned agent yet. Contact the Darwesh Group office to get connected with one, or browse <a href="map.html" class="text-secondary hover:underline">Map</a> in the meantime.
@@ -163,22 +166,22 @@
       <div class="max-w-lg">
         <div class="fav-card mb-5">
           <div class="px-5 py-4 border-b border-outline-variant">
-            <p class="font-body-md text-[14px] text-on-surface font-medium mb-3">Display name</p>
+            <p class="font-body-md text-[14px] text-on-surface font-medium mb-3" data-i18n="acct.displayName">Display name</p>
             <div class="flex gap-2">
               <input id="displayNameInput" class="settings-input flex-1" type="text"/>
-              <button id="saveNameBtn" class="bg-primary text-on-primary px-4 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="button">Save</button>
+              <button id="saveNameBtn" class="bg-primary text-on-primary px-4 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="button" data-i18n="common.save">Save</button>
             </div>
-            <p id="nameSaveMsg" class="hidden text-[12px] mt-2" style="color:#006300;">Saved.</p>
+            <p id="nameSaveMsg" class="hidden text-[12px] mt-2" style="color:#7FB89A;" data-i18n="acct.saved">Saved.</p>
           </div>
           <div class="px-5 py-4 flex items-center justify-between gap-3">
             <div>
-              <p class="font-body-md text-[14px] text-on-surface font-medium">Password</p>
-              <p class="font-body-md text-[12.5px] text-on-surface-variant">We'll email you a link to set a new one.</p>
+              <p class="font-body-md text-[14px] text-on-surface font-medium" data-i18n="acct.password">Password</p>
+              <p class="font-body-md text-[12.5px] text-on-surface-variant" data-i18n="acct.passwordHint">We'll email you a link to set a new one.</p>
             </div>
-            <button id="resetPasswordBtn" class="flex-none border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" type="button">Send Reset Email</button>
+            <button id="resetPasswordBtn" class="flex-none border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" type="button" data-i18n="acct.sendResetEmail">Send Reset Email</button>
           </div>
         </div>
-        <p id="resetPasswordMsg" class="hidden text-[12px] mb-5" style="color:#006300;">Reset email sent — check your inbox.</p>
+        <p id="resetPasswordMsg" class="hidden text-[12px] mb-5" style="color:#7FB89A;" data-i18n="acct.resetSent">Reset email sent — check your inbox.</p>
         <button id="settingsLogoutBtn" class="w-full py-3 rounded-lg border border-error text-error font-label-caps text-label-caps hover:bg-error-container transition-colors flex items-center justify-center gap-2" type="button">
           <span class="material-symbols-outlined text-[18px]">logout</span>Sign Out
         </button>
@@ -188,10 +191,16 @@
 </div>
 
 <script type="module">
-  import { auth, db, storage } from './js/firebase-init.js';
+  import { auth, db, storage, getDoc, updateDoc, getDocs, deleteDoc } from './js/firebase-init.js';
   import { onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { doc, getDoc, updateDoc, collection, getDocs, deleteDoc, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { doc, collection, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, PROFILE_IMAGE, createUploadGate } from './js/image-compress.js';
+
+  // Blocks a second pick while the first upload is still running -- each
+  // attempt mints its own Storage path, so overlapping runs would orphan
+  // an object and race over which URL lands on the user document.
+  const acctPhotoGate = createUploadGate();
 
   document.querySelectorAll('.acct-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -236,13 +245,17 @@
     document.getElementById('acctPhotoUpload').addEventListener('change', async function () {
       const file = this.files[0];
       if (!file) return;
+      if (!acctPhotoGate.begin()) return;
       const statusEl = document.getElementById('acctPhotoStatus');
       statusEl.textContent = 'Uploading...';
       statusEl.classList.remove('hidden');
       try {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileRef = storageRef(storage, `customer-photos/${uid}/${Date.now()}-${safeName}`);
-        await withUploadTimeout(uploadBytes(fileRef, file));
+        // An avatar is never shown above a few hundred px; uploading a raw
+        // 12MP camera file for it is pure latency.
+        const upload = await compressImage(file, PROFILE_IMAGE);
+        await withUploadTimeout(uploadBytes(fileRef, upload));
         const url = await withUploadTimeout(getDownloadURL(fileRef));
         await updateDoc(doc(db, 'users', uid), { photoURL: url });
         setAcctPhoto(url);
@@ -250,6 +263,7 @@
       } catch (err) {
         statusEl.textContent = 'Upload failed: ' + err.message;
       } finally {
+        acctPhotoGate.end();
         this.value = '';
       }
     });
@@ -379,7 +393,14 @@
 
     const grid = document.getElementById('agentListingsGrid');
     const listingsEmpty = document.getElementById('agentListingsEmpty');
-    const q = query(collection(db, 'listings'), where('agentId', '==', profile.assignedAgentId));
+    // AUTHZ-01: agentId alone isn't enough to satisfy firestore.rules for a
+    // non-owner, non-admin viewer (a customer here) -- also constrain to
+    // the agent's public/active listings, matching what this viewer could
+    // legitimately see anyway.
+    const q = query(collection(db, 'listings'),
+      where('agentId', '==', profile.assignedAgentId),
+      where('private', '==', false),
+      where('status', '==', 'active'));
     const snap = await getDocs(q);
     if (snap.empty) { listingsEmpty.classList.remove('hidden'); return; }
     listingsEmpty.classList.add('hidden');
@@ -458,4 +479,7 @@
   });
 </script>
 <script type="module" src="./js/error-monitor.js"></script>
+<script src="./js/i18n.js"></script>
+<div id="mamCompanionLauncher"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
 </body></html>

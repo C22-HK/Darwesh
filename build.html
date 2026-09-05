@@ -2,212 +2,38 @@
 
 <html lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Build Services</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&amp;family=Inter:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-          darkMode: "class",
-          theme: {
-            extend: {
-              "colors": {
-                      "primary-container": "#1a2b3c",
-                      "on-tertiary-container": "#00a656",
-                      "on-primary-fixed-variant": "#38485a",
-                      "error": "#ba1a1a",
-                      "primary": "#041627",
-                      "on-tertiary": "#ffffff",
-                      "primary-fixed-dim": "#b7c8de",
-                      "on-tertiary-fixed-variant": "#005228",
-                      "surface-container-lowest": "#ffffff",
-                      "tertiary": "#001a08",
-                      "on-primary": "#ffffff",
-                      "surface-container-high": "#e5e8ee",
-                      "secondary-fixed-dim": "#e9c176",
-                      "tertiary-fixed-dim": "#4ae183",
-                      "on-surface": "#181c20",
-                      "surface": "#f7f9ff",
-                      "on-tertiary-fixed": "#00210c",
-                      "on-primary-fixed": "#0b1d2d",
-                      "secondary-container": "#fed488",
-                      "surface-dim": "#d7dadf",
-                      "inverse-on-surface": "#eef1f6",
-                      "surface-container-low": "#f1f4f9",
-                      "tertiary-container": "#003115",
-                      "primary-fixed": "#d2e4fb",
-                      "on-secondary-container": "#785a1a",
-                      "surface-bright": "#f7f9ff",
-                      "on-secondary": "#ffffff",
-                      "on-error": "#ffffff",
-                      "surface-container-highest": "#e0e3e8",
-                      "on-secondary-fixed-variant": "#5d4201",
-                      "error-container": "#ffdad6",
-                      "tertiary-fixed": "#6bfe9c",
-                      "on-background": "#181c20",
-                      "surface-tint": "#4f6073",
-                      "inverse-primary": "#b7c8de",
-                      "surface-container": "#ebeef3",
-                      "background": "#f7f9ff",
-                      "outline": "#74777d",
-                      "on-error-container": "#93000a",
-                      "surface-variant": "#e0e3e8",
-                      "on-primary-container": "#8192a7",
-                      "on-secondary-fixed": "#261900",
-                      "on-surface-variant": "#44474c",
-                      "secondary-fixed": "#ffdea5",
-                      "secondary": "#775a19",
-                      "outline-variant": "#c4c6cd",
-                      "inverse-surface": "#2d3135"
-              },
-              "borderRadius": {
-                      "DEFAULT": "0.125rem",
-                      "lg": "0.25rem",
-                      "xl": "0.5rem",
-                      "full": "0.75rem"
-              },
-              "spacing": {
-                      "container-max": "1280px",
-                      "margin-desktop": "48px",
-                      "stack-md": "16px",
-                      "unit": "8px",
-                      "margin-mobile": "16px",
-                      "gutter": "24px",
-                      "stack-lg": "32px",
-                      "stack-sm": "8px"
-              },
-              "fontFamily": {
-                      "headline-md": [
-                              "Plus Jakarta Sans"
-                      ],
-                      "label-caps": [
-                              "IBM Plex Sans"
-                      ],
-                      "data-mono": [
-                              "Inter"
-                      ],
-                      "display-lg": [
-                              "Plus Jakarta Sans"
-                      ],
-                      "body-lg": [
-                              "Inter"
-                      ],
-                      "body-md": [
-                              "Inter"
-                      ],
-                      "display-lg-mobile": [
-                              "Plus Jakarta Sans"
-                      ]
-              },
-              "fontSize": {
-                      "headline-md": [
-                              "24px",
-                              {
-                                      "lineHeight": "32px",
-                                      "fontWeight": "600"
-                              }
-                      ],
-                      "label-caps": [
-                              "12px",
-                              {
-                                      "lineHeight": "16px",
-                                      "letterSpacing": "0.05em",
-                                      "fontWeight": "600"
-                              }
-                      ],
-                      "data-mono": [
-                              "14px",
-                              {
-                                      "lineHeight": "20px",
-                                      "fontWeight": "500"
-                              }
-                      ],
-                      "display-lg": [
-                              "48px",
-                              {
-                                      "lineHeight": "60px",
-                                      "letterSpacing": "-0.02em",
-                                      "fontWeight": "700"
-                              }
-                      ],
-                      "body-lg": [
-                              "18px",
-                              {
-                                      "lineHeight": "28px",
-                                      "fontWeight": "400"
-                              }
-                      ],
-                      "body-md": [
-                              "16px",
-                              {
-                                      "lineHeight": "24px",
-                                      "fontWeight": "400"
-                              }
-                      ],
-                      "display-lg-mobile": [
-                              "32px",
-                              {
-                                      "lineHeight": "40px",
-                                      "fontWeight": "700"
-                              }
-                      ]
-              }
-            }
-          }
-        }
-      </script>
 </head>
-<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md text-body-md pt-16 md:pt-20 pb-20 md:pb-0">
+<body class="cine-scope bg-background text-on-background min-h-screen flex flex-col font-body-md text-body-md pt-16 md:pt-20 pb-20 md:pb-0">
 <!-- TopAppBar (Web & Mobile Header) -->
-<header class="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant flex justify-between items-center h-16 px-margin-mobile md:px-margin-desktop transition-colors">
-<div class="flex items-center gap-4">
-<button class="md:hidden text-primary hover:bg-surface-container-low p-2 rounded-full transition-colors active:opacity-80">
-<span class="material-symbols-outlined" data-icon="menu">menu</span>
-</button>
-<h1 class="font-headline-md text-headline-md font-bold text-primary tracking-tight">Darwesh Group</h1>
-<div class="relative">
-<button aria-label="Language" class="lang-toggle-btn md:hidden text-primary hover:bg-surface-container-low p-2 rounded-full transition-colors active:opacity-80" type="button">
-<span class="material-symbols-outlined">language</span>
-</button>
-<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
-</div>
-</div>
-</div>
-<!-- Desktop Nav -->
-<nav class="hidden md:flex gap-8">
-<a class="text-on-surface-variant hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors font-label-caps text-label-caps flex flex-col items-center" href="index.html">
-<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
-                <span data-i18n="nav.home">Home</span>
-            </a>
-<a class="text-on-surface-variant hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors font-label-caps text-label-caps flex flex-col items-center" href="map.html">
-<span class="material-symbols-outlined mb-1" data-icon="map">map</span>
-                <span data-i18n="nav.map">Map</span>
-            </a>
-<span id="citiesNavSlot" class="flex flex-col items-center justify-center px-4 py-2"></span>
-<a class="text-secondary font-bold hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors font-label-caps text-label-caps flex flex-col items-center" href="services.html">
-<span class="material-symbols-outlined mb-1" data-icon="handyman" style="font-variation-settings: 'FILL' 1;">handyman</span>
-                <span data-i18n="nav.services">Services</span>
-            </a>
-<a class="text-on-surface-variant hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors font-label-caps text-label-caps flex flex-col items-center" href="about.html">
-<span class="material-symbols-outlined mb-1" data-icon="info">info</span>
-                <span data-i18n="nav.about">About</span>
-            </a>
-<a id="navProfileIconLink" class="text-on-surface-variant hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors font-label-caps text-label-caps flex flex-col items-center" href="login.html">
-<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
-                <span id="navProfileIconLabel">Profile</span>
-            </a>
-</nav>
-<div class="w-8 h-8 rounded-full bg-surface-container overflow-hidden border border-outline-variant">
-<img alt="User Profile" class="w-full h-full object-cover" data-alt="A professional headshot of a person looking at the camera, well-lit studio lighting, corporate modern style, deep navy and light blue accents in background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDZd8-h2Mmefe0p8okn73mx23J7tNxLkYUt7YT-wjlXeXj-at64Md4pCD8myHlQKGKXYl_EsE9b-6LRYG3Jau5Zjp5NbYeOHySk735tWaojmLVgeJROXT6rSxcnGDVmBxb8owuPZ_qd6T7om60T3ZS5AtKMg0jJesB0GudYzb1YgjMws0Y6_KTEVmyo6rmgQ7ChpZGTHzZBFLYUU4i9Kg0IsSiSL0BCNelE2bR_J5tqiGpL61dqAQeM"/>
-</div>
-</header>
+<div id="siteHeader" data-active="services"></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active="services"></div>
+<script src="./js/site-mobile-nav.js"></script>
 <!-- Main Content Canvas -->
 <main class="flex-grow flex flex-col items-center w-full pb-stack-lg">
 <!-- Hero Blueprint Header -->
@@ -234,7 +60,7 @@
 <div>
 <div class="flex items-center gap-2 mb-2">
 <span class="material-symbols-outlined text-secondary text-sm" data-icon="verified" style="font-variation-settings: 'FILL' 1;">verified</span>
-<span class="font-label-caps text-label-caps text-secondary uppercase tracking-wider">Active Project</span>
+<span class="font-label-caps text-label-caps text-secondary uppercase tracking-wider" data-i18n="bld.activeProject">Active Project</span>
 </div>
 <h2 class="font-headline-md text-headline-md text-primary mb-1">Erbil Pearl Tower</h2>
 <p class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1">
@@ -251,7 +77,7 @@
 <!-- Milestone Progress -->
 <div class="p-gutter bg-surface">
 <div class="flex justify-between items-center mb-stack-sm">
-<h3 class="font-data-mono text-data-mono text-primary font-semibold">Project Timeline</h3>
+<h3 class="font-data-mono text-data-mono text-primary font-semibold" data-i18n="bld.projectTimeline">Project Timeline</h3>
 <span class="font-data-mono text-data-mono text-on-surface-variant">45% Complete</span>
 </div>
 <div class="w-full h-2 bg-surface-variant rounded-full overflow-hidden mb-stack-md flex">
@@ -265,24 +91,24 @@
 <div class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center mb-2 shadow-md">
 <span class="material-symbols-outlined text-[12px]" data-icon="check">check</span>
 </div>
-<span class="font-label-caps text-label-caps text-primary">Permits</span>
-<span class="text-[10px] text-on-surface-variant">Done</span>
+<span class="font-label-caps text-label-caps text-primary" data-i18n="bld.permits">Permits</span>
+<span class="text-[10px] text-on-surface-variant" data-i18n="bld.done">Done</span>
 </div>
 <div class="relative z-10 flex flex-col items-center text-center group cursor-pointer">
 <div class="w-6 h-6 rounded-full bg-secondary text-primary font-bold flex items-center justify-center mb-2 shadow-md ring-4 ring-secondary/20">
 <span class="w-2 h-2 rounded-full bg-primary"></span>
 </div>
-<span class="font-label-caps text-label-caps text-primary">Foundation</span>
-<span class="text-[10px] text-secondary font-medium">In Progress</span>
+<span class="font-label-caps text-label-caps text-primary" data-i18n="bld.foundation">Foundation</span>
+<span class="text-[10px] text-secondary font-medium" data-i18n="bld.inProgress">In Progress</span>
 </div>
 <div class="relative z-10 flex flex-col items-center text-center group cursor-pointer opacity-50">
 <div class="w-6 h-6 rounded-full bg-surface border-2 border-outline-variant flex items-center justify-center mb-2"></div>
-<span class="font-label-caps text-label-caps text-on-surface-variant">Structure</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="bld.structure">Structure</span>
 <span class="text-[10px] text-on-surface-variant">Est. Oct 24</span>
 </div>
 <div class="relative z-10 flex flex-col items-center text-center group cursor-pointer opacity-50">
 <div class="w-6 h-6 rounded-full bg-surface border-2 border-outline-variant flex items-center justify-center mb-2"></div>
-<span class="font-label-caps text-label-caps text-on-surface-variant">Handover</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="bld.handover">Handover</span>
 <span class="text-[10px] text-on-surface-variant">Est. Q2 '25</span>
 </div>
 </div>
@@ -295,18 +121,18 @@
 <span class="material-symbols-outlined text-outline" data-icon="folder_open">folder_open</span>
                             Architectural Blueprints
                         </h3>
-<button class="text-secondary font-label-caps text-label-caps hover:underline">View All Documents</button>
+<button class="text-secondary font-label-caps text-label-caps hover:underline" data-i18n="bld.viewAllDocuments">View All Documents</button>
 </div>
 <div class="grid grid-cols-2 md:grid-cols-3 gap-unit">
 <div class="relative aspect-video rounded-lg overflow-hidden border border-surface-variant group cursor-pointer">
-<img alt="Floor Plan V2" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="A detailed close-up of a digital architectural floor plan on a tablet screen, showing precise measurements and room layouts. Technical, modern, well-lit." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMlP7sGwkErxkwXGgLOee1DKr9W0QQqr_zJBIGUerj_JgH6NFSHAOOETKxYuzuSEuaIiPszZnp8mLfNnwaZJm2tSbIeOq-msyC8q33KRnXQEmmGTeOiwJHbZc3vShOrfv2OtryIL6kvILnABIs27Fisw4dmPD4irltpFvqigYdEXIwe-STN9wzF7iYhifR4ASNxFQ3-k13YyyrtGF3wQ1yfrZhAEqT_oT_VS3-f8GxnDrps6d5AazK"/>
+<img alt="Floor Plan V2" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="A detailed close-up of a digital architectural floor plan on a tablet screen, showing precise measurements and room layouts. Technical, modern, well-lit." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAMlP7sGwkErxkwXGgLOee1DKr9W0QQqr_zJBIGUerj_JgH6NFSHAOOETKxYuzuSEuaIiPszZnp8mLfNnwaZJm2tSbIeOq-msyC8q33KRnXQEmmGTeOiwJHbZc3vShOrfv2OtryIL6kvILnABIs27Fisw4dmPD4irltpFvqigYdEXIwe-STN9wzF7iYhifR4ASNxFQ3-k13YyyrtGF3wQ1yfrZhAEqT_oT_VS3-f8GxnDrps6d5AazK" decoding="async"/>
 <div class="absolute inset-0 bg-primary/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
 <span class="material-symbols-outlined text-on-primary" data-icon="zoom_in">zoom_in</span>
 </div>
 <div class="absolute bottom-2 left-2 bg-surface/90 backdrop-blur px-2 py-1 rounded text-xs font-data-mono font-medium text-primary">Floor Plan V2</div>
 </div>
 <div class="relative aspect-video rounded-lg overflow-hidden border border-surface-variant group cursor-pointer">
-<img alt="Elevation Render" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="A 3D architectural rendering of a modern high-rise building exterior, showing glass facades and structural elements. Realistic lighting, dusk setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMU9u1o5aj1ygC_DAOqTGdbny3DN2SZi1JCAtE2Jip2ih_lAkpXQSz0XFTvSpwYa7W0cGB4mLQ3qJDf6I_Qr3fP2c9UbPNCx5bV7T0nsyRwBQets9jAaapT-0l8n9KSmH-iteb7fR0VG2wxlKFKq5YrqL5Yy796ScwziYmb6zn6aE512cG56PDWy0l_01zkIqk67UyHvch4Xs84W2NqrLxiV55j-sUR67iQzkebq7k_vdMOCxUcuFN"/>
+<img alt="Elevation Render" class="w-full h-full object-cover transition-transform group-hover:scale-105" data-alt="A 3D architectural rendering of a modern high-rise building exterior, showing glass facades and structural elements. Realistic lighting, dusk setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMU9u1o5aj1ygC_DAOqTGdbny3DN2SZi1JCAtE2Jip2ih_lAkpXQSz0XFTvSpwYa7W0cGB4mLQ3qJDf6I_Qr3fP2c9UbPNCx5bV7T0nsyRwBQets9jAaapT-0l8n9KSmH-iteb7fR0VG2wxlKFKq5YrqL5Yy796ScwziYmb6zn6aE512cG56PDWy0l_01zkIqk67UyHvch4Xs84W2NqrLxiV55j-sUR67iQzkebq7k_vdMOCxUcuFN" decoding="async"/>
 <div class="absolute inset-0 bg-primary/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
 <span class="material-symbols-outlined text-on-primary" data-icon="zoom_in">zoom_in</span>
 </div>
@@ -315,7 +141,7 @@
 <div class="relative aspect-video rounded-lg overflow-hidden border border-surface-variant flex items-center justify-center bg-surface-container-low hover:bg-surface-container transition-colors cursor-pointer border-dashed">
 <div class="flex flex-col items-center text-on-surface-variant">
 <span class="material-symbols-outlined mb-1" data-icon="upload_file">upload_file</span>
-<span class="font-label-caps text-label-caps">Upload Revision</span>
+<span class="font-label-caps text-label-caps" data-i18n="bld.uploadRevision">Upload Revision</span>
 </div>
 </div>
 </div>
@@ -331,20 +157,20 @@
                         Budget Tracking
                     </h3>
 <div class="mb-stack-md relative z-10">
-<p class="font-label-caps text-label-caps text-primary-fixed-dim mb-1 uppercase tracking-widest">Allocated Budget</p>
+<p class="font-label-caps text-label-caps text-primary-fixed-dim mb-1 uppercase tracking-widest" data-i18n="bld.allocatedBudget">Allocated Budget</p>
 <p class="font-display-lg-mobile text-[28px] font-bold text-on-primary tracking-tight">$4.2M</p>
 </div>
 <div class="space-y-3 relative z-10">
 <div class="flex justify-between items-center pb-2 border-b border-outline/20">
-<span class="font-body-md text-sm text-primary-fixed-dim">Materials</span>
+<span class="font-body-md text-sm text-primary-fixed-dim" data-i18n="bld.materials">Materials</span>
 <span class="font-data-mono text-sm text-on-primary">$1.8M</span>
 </div>
 <div class="flex justify-between items-center pb-2 border-b border-outline/20">
-<span class="font-body-md text-sm text-primary-fixed-dim">Labor</span>
+<span class="font-body-md text-sm text-primary-fixed-dim" data-i18n="bld.labor">Labor</span>
 <span class="font-data-mono text-sm text-on-primary">$1.2M</span>
 </div>
 <div class="flex justify-between items-center">
-<span class="font-body-md text-sm text-primary-fixed-dim">Remaining</span>
+<span class="font-body-md text-sm text-primary-fixed-dim" data-i18n="bld.remaining">Remaining</span>
 <span class="font-data-mono text-sm text-tertiary-fixed font-bold">$1.2M</span>
 </div>
 </div>
@@ -362,11 +188,11 @@
 <div class="flex flex-col gap-4">
 <div class="flex items-center gap-3">
 <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-surface bg-surface-variant">
-<img alt="Lead Architect" class="w-full h-full object-cover" data-alt="Portrait of a professional architect, middle-aged male, wearing a hard hat and safety vest, looking confident. Bright outdoor construction site lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA0QCvA92zuDAbh8kA6oL0a2RcYstrJDgpVpzOjgNSC4zbn_JhZTFXScKSxNUa4oOPeMR7eYrpjLzbTh5MaFtRj5BpeHOwCnNsVtQNdb_rmDks2kGrbcqps8Z8dNXqePG-gqqoALX06NXl373UZRh86u8wMVs_CzVEeEDm4y9HalFeoLVJ0IInfaiv7uzRGrEJc1aKKIVyPW14w_zn_pCM5Islg1FDsqdCX-mMQ_RwGg6dPsLEf0Olq"/>
+<img alt="Lead Architect" class="w-full h-full object-cover" data-alt="Portrait of a professional architect, middle-aged male, wearing a hard hat and safety vest, looking confident. Bright outdoor construction site lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA0QCvA92zuDAbh8kA6oL0a2RcYstrJDgpVpzOjgNSC4zbn_JhZTFXScKSxNUa4oOPeMR7eYrpjLzbTh5MaFtRj5BpeHOwCnNsVtQNdb_rmDks2kGrbcqps8Z8dNXqePG-gqqoALX06NXl373UZRh86u8wMVs_CzVEeEDm4y9HalFeoLVJ0IInfaiv7uzRGrEJc1aKKIVyPW14w_zn_pCM5Islg1FDsqdCX-mMQ_RwGg6dPsLEf0Olq" decoding="async"/>
 </div>
 <div class="flex-grow">
 <h4 class="font-body-md font-semibold text-primary">Dr. Kawa Amin</h4>
-<p class="font-label-caps text-[10px] text-on-surface-variant">Lead Architect</p>
+<p class="font-label-caps text-[10px] text-on-surface-variant" data-i18n="bld.leadArchitect">Lead Architect</p>
 </div>
 <button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary hover:bg-surface-variant transition-colors">
 <span class="material-symbols-outlined text-sm" data-icon="mail">mail</span>
@@ -374,11 +200,11 @@
 </div>
 <div class="flex items-center gap-3">
 <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-surface bg-surface-variant">
-<img alt="Structural Engineer" class="w-full h-full object-cover" data-alt="Portrait of a female structural engineer, wearing glasses and a business casual outfit, reviewing documents on a tablet. Modern office setting, soft natural light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOVUtVVdlkiMLJJ13DUO444z8gaNSyzLb1CD-EwkAyHdEVIUkQRcNc7NjOWXwA8bKEkOaiEAdFbI0Au5zSCKI987JSnUEsM5jj9lCwkUk8VlW4u9Rz2VwsMhZM61vGJW6Lh0E1IhJJnKwrGqxj5ZYI4TSEg3iM9CkKxCWzBwpNErwAAsxNN9e5WNn1aCkS96SyG0skZIGy5XN41rvwmMQ0B9i_YGbpxUM0UMQ6v4efNWYqiI1Y9RJg"/>
+<img alt="Structural Engineer" class="w-full h-full object-cover" data-alt="Portrait of a female structural engineer, wearing glasses and a business casual outfit, reviewing documents on a tablet. Modern office setting, soft natural light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBOVUtVVdlkiMLJJ13DUO444z8gaNSyzLb1CD-EwkAyHdEVIUkQRcNc7NjOWXwA8bKEkOaiEAdFbI0Au5zSCKI987JSnUEsM5jj9lCwkUk8VlW4u9Rz2VwsMhZM61vGJW6Lh0E1IhJJnKwrGqxj5ZYI4TSEg3iM9CkKxCWzBwpNErwAAsxNN9e5WNn1aCkS96SyG0skZIGy5XN41rvwmMQ0B9i_YGbpxUM0UMQ6v4efNWYqiI1Y9RJg" decoding="async"/>
 </div>
 <div class="flex-grow">
 <h4 class="font-body-md font-semibold text-primary">Eng. Tara Jaff</h4>
-<p class="font-label-caps text-[10px] text-on-surface-variant">Structural Engineer</p>
+<p class="font-label-caps text-[10px] text-on-surface-variant" data-i18n="bld.structuralEngineer">Structural Engineer</p>
 </div>
 <button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary hover:bg-surface-variant transition-colors">
 <span class="material-symbols-outlined text-sm" data-icon="mail">mail</span>
@@ -389,27 +215,10 @@
 </div>
 </div>
 </main>
-<!-- BottomNavBar (Mobile Nav Shell) -->
-<nav class="md:hidden fixed bottom-0 w-full z-50 bg-surface border-t border-outline-variant shadow-lg flex justify-around items-center h-20 pb-safe">
-<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all p-2 rounded-lg w-16" href="index.html">
-<span class="material-symbols-outlined mb-1" data-icon="home">home</span>
-<span class="font-label-caps text-[10px]" data-i18n="nav.home">Home</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all p-2 rounded-lg w-16" href="map.html">
-<span class="material-symbols-outlined mb-1" data-icon="map">map</span>
-<span class="font-label-caps text-[10px]" data-i18n="nav.map">Map</span>
-</a>
-<a class="flex flex-col items-center justify-center text-secondary font-bold hover:bg-surface-container-high transition-all p-2 rounded-lg w-16 active:scale-95 duration-150" href="services.html">
-<span class="material-symbols-outlined mb-1" data-icon="handyman" style="font-variation-settings: 'FILL' 1;">handyman</span>
-<span class="font-label-caps text-[10px]" data-i18n="nav.services">Services</span>
-</a>
-<a id="navProfileLinkMobile" class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-all p-2 rounded-lg w-16" href="login.html">
-<span class="material-symbols-outlined mb-1" data-icon="person">person</span>
-<span id="navProfileLabelMobile" class="font-label-caps text-[10px]">Profile</span>
-</a>
-</nav>
 <script type="module" src="./js/nav-auth.js"></script>
-<script type="module" src="./js/city-nav.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
 <script src="./js/i18n.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
+<div id="mamCompanionLauncher" data-page="build"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
 </body></html>

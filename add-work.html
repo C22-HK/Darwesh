@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Add Work</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-16 pb-24 md:pb-0">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8 max-w-2xl mx-auto">
+
+  <!-- Loading state -->
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:220px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:28px;width:220px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:120px;"></div>
+  </div>
+
+  <!-- Sign-in-required state -->
+  <div id="signinRequiredState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">lock</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="rp.signInRequired">Sign in to view this profile.</p>
+    <a href="login.html" class="inline-block mt-4 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="rp.logIn">Log in</a>
+  </div>
+
+  <!-- Not authorized -- signed in but no owned Designer profile -->
+  <div id="notAuthorizedState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">block</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="pwork.notAuthorized">This page is only available to Darwesh Designer profiles.</p>
+  </div>
+
+  <!-- Editing a post that doesn't exist / isn't owned by this user -->
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">image_not_supported</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="pwork.detailNotFound">Project not found</p>
+  </div>
+
+  <!-- Publish / edit form -->
+  <div id="formState" class="hidden">
+    <h1 id="formHeading" class="font-headline-md text-[22px] md:text-[26px] font-bold text-on-surface mb-1" data-i18n="pwork.addWorkHeading">Add Work</h1>
+    <p class="pwork-form-subtitle mb-6" data-i18n="pwork.addWorkSubtitle">Share your latest project with the Darwesh design community.</p>
+
+    <form id="workForm">
+      <!-- 1. Media -->
+      <div class="pwork-form-section">
+        <p class="pwork-section-heading mb-4"><span class="pwork-section-number" aria-hidden="true">1</span><span data-i18n="pwork.sectionMedia">Media</span></p>
+
+        <label class="ps-field-label" data-i18n="pwork.fieldCover">Cover image</label>
+        <p class="pwork-progress mb-2" data-i18n="pwork.fieldRequired">Required</p>
+        <button type="button" id="coverZone" class="pwork-cover-zone" aria-label="Cover image">
+          <span id="coverPlaceholder" class="pwork-cover-placeholder">
+            <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+            <span data-i18n="pwork.coverPick">Click to choose a cover image</span>
+          </span>
+          <img id="coverPreview" class="hidden" alt="" decoding="async"/>
+          <span id="coverRemoveBtn" class="pwork-remove-btn hidden" role="button" aria-label="Remove cover image" tabindex="0">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          </span>
+        </button>
+        <input id="coverInput" type="file" accept="image/jpeg,image/png,image/webp" class="hidden"/>
+
+        <div class="mt-6">
+          <label class="ps-field-label" data-i18n="pwork.fieldGallery">Gallery images</label>
+          <p class="pwork-progress mb-1" data-i18n="pwork.fieldOptional">Optional</p>
+          <p class="pwork-gallery-caption" data-i18n="pwork.galleryCaption">Up to 10 images · JPEG, PNG, or WebP</p>
+          <div id="galleryEmpty" class="pwork-gallery-empty" role="button" aria-label="Add gallery images" tabindex="0">
+            <span class="material-symbols-outlined" aria-hidden="true">add_photo_alternate</span>
+            <span data-i18n="pwork.galleryPick">Add gallery images</span>
+          </div>
+          <div id="galleryGrid" class="pwork-thumb-grid hidden"></div>
+          <input id="galleryInput" type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden"/>
+        </div>
+      </div>
+
+      <!-- 2. Project Details -->
+      <div class="pwork-form-section">
+        <p class="pwork-section-heading mb-4"><span class="pwork-section-number" aria-hidden="true">2</span><span data-i18n="pwork.sectionDetails">Project Details</span></p>
+
+        <label class="ps-field-label" for="workTitle" data-i18n="pwork.fieldTitle">Project title</label>
+        <p class="pwork-progress mb-2" data-i18n="pwork.fieldRequired">Required</p>
+        <input id="workTitle" class="ps-input" type="text" maxlength="200" required/>
+
+        <div class="mt-5">
+          <label class="ps-field-label" for="workCategory" data-i18n="pwork.fieldCategory">Category</label>
+          <p class="pwork-progress mb-2" data-i18n="pwork.fieldRequired">Required</p>
+          <select id="workCategory" class="ps-input" required></select>
+        </div>
+
+        <div class="mt-5">
+          <label class="ps-field-label" for="workDescription" data-i18n="pwork.fieldDescription">Description</label>
+          <p class="pwork-progress mb-2" data-i18n="pwork.fieldOptional">Optional</p>
+          <textarea id="workDescription" class="ps-input" rows="4" maxlength="4000"></textarea>
+        </div>
+      </div>
+
+      <!-- 3. Location & Date -->
+      <div class="pwork-form-section">
+        <p class="pwork-section-heading mb-4"><span class="pwork-section-number" aria-hidden="true">3</span><span data-i18n="pwork.sectionLocation">Location &amp; Date</span></p>
+
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="ps-field-label" for="workCity" data-i18n="rp.editCity">City</label>
+            <p class="pwork-progress mb-2" data-i18n="pwork.fieldOptional">Optional</p>
+            <input id="workCity" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="workDistrict" data-i18n="rp.editDistrict">District</label>
+            <p class="pwork-progress mb-2" data-i18n="pwork.fieldOptional">Optional</p>
+            <input id="workDistrict" class="ps-input" type="text" maxlength="200"/>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <label class="ps-field-label" for="workProjectDate" data-i18n="pwork.fieldProjectDate">Project date</label>
+          <p class="pwork-progress mb-2" data-i18n="pwork.fieldOptional">Optional</p>
+          <input id="workProjectDate" class="ps-input" type="date"/>
+        </div>
+      </div>
+
+      <p id="formError" class="hidden text-[13px] mt-6" style="color:#ba1a1a;"></p>
+      <p id="formProgress" class="pwork-progress hidden mt-6" aria-live="polite"></p>
+
+      <div class="flex gap-2 mt-6">
+        <button type="submit" id="publishBtn" class="ps-btn bg-secondary text-on-secondary px-6 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="pwork.publish">Publish</button>
+        <a id="cancelLink" href="designer.html" class="ps-btn border border-outline-variant px-6 py-2.5 rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="rp.cancel">Cancel</a>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script type="module">
+  import { auth, db, addDoc, updateDoc } from './js/firebase-init.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+  import { doc, collection, deleteField } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+  import {
+    fetchPost, resolveCreator, DESIGNER_CATEGORIES, categoryLabel,
+    isAllowedImageFile, uploadProfessionalWorkImage, deleteProfessionalWorkImage,
+    MAX_GALLERY_IMAGES, esc
+  } from './js/professional-content.js';
+  import { withBusyButton } from './js/profile-shell.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  const el = (id) => document.getElementById(id);
+  function show(id) { el(id).classList.remove('hidden'); }
+  function hide(id) { el(id).classList.add('hidden'); }
+  function hideStates() {
+    ['loadingState', 'signinRequiredState', 'notAuthorizedState', 'notFoundState', 'formState'].forEach(hide);
+  }
+
+  const editingPostId = new URLSearchParams(window.location.search).get('id');
+
+  let currentUser = null;
+  let myProfileId = null;
+  let existingPost = null;
+
+  // Cover state: either an existing URL (edit mode, unchanged), a freshly
+  // picked File (not yet uploaded), or neither.
+  let coverExistingUrl = null;
+  let coverFile = null;
+  let coverPreviewObjectUrl = null;
+
+  // Gallery state: ordered list of { key, kind: 'existing'|'new', url?,
+  // file?, previewUrl? }. `removedExistingUrls` tracks existing images the
+  // user explicitly removed during an edit, for best-effort Storage
+  // cleanup AFTER a successful save (never before -- if the save fails,
+  // the still-referenced images must not be deleted).
+  let galleryItems = [];
+  let removedExistingUrls = [];
+
+  function populateCategorySelect() {
+    const select = el('workCategory');
+    select.innerHTML = `<option value="" disabled selected data-i18n="pwork.categoryPlaceholder">${tr('pwork.categoryPlaceholder', 'Choose a category')}</option>`
+      + DESIGNER_CATEGORIES.map((c) => `<option value="${c}">${categoryLabel(c)}</option>`).join('');
+  }
+
+  function renderCover() {
+    const placeholder = el('coverPlaceholder');
+    const preview = el('coverPreview');
+    const removeBtn = el('coverRemoveBtn');
+    const url = coverPreviewObjectUrl || coverExistingUrl;
+    if (url) {
+      preview.src = url;
+      preview.classList.remove('hidden');
+      placeholder.classList.add('hidden');
+      removeBtn.classList.remove('hidden');
+    } else {
+      preview.classList.add('hidden');
+      preview.removeAttribute('src');
+      placeholder.classList.remove('hidden');
+      removeBtn.classList.add('hidden');
+    }
+  }
+
+  function renderGallery() {
+    const grid = el('galleryGrid');
+    const emptyZone = el('galleryEmpty');
+
+    if (!galleryItems.length) {
+      grid.classList.add('hidden');
+      emptyZone.classList.remove('hidden');
+      return;
+    }
+    emptyZone.classList.add('hidden');
+    grid.classList.remove('hidden');
+
+    const thumbs = galleryItems.map((item) => `
+      <div class="pwork-thumb" data-key="${item.key}">
+        <img src="${esc(item.previewUrl || item.url)}" alt="" loading="lazy" decoding="async"/>
+        <span class="pwork-remove-btn" role="button" aria-label="Remove image" tabindex="0" data-remove-key="${item.key}">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </span>
+      </div>
+    `).join('');
+    const addTile = galleryItems.length < MAX_GALLERY_IMAGES
+      ? `<button type="button" id="galleryAddTile" class="pwork-thumb pwork-thumb-add" aria-label="Add more gallery images">
+           <span class="material-symbols-outlined" aria-hidden="true">add</span>
+           <span>${galleryItems.length}/${MAX_GALLERY_IMAGES}</span>
+         </button>`
+      : '';
+    grid.innerHTML = thumbs + addTile;
+    const tile = el('galleryAddTile');
+    if (tile) tile.addEventListener('click', () => el('galleryInput').click());
+    grid.querySelectorAll('[data-remove-key]').forEach((btn) => {
+      const activate = () => removeGalleryItem(btn.dataset.removeKey);
+      btn.addEventListener('click', activate);
+      btn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+    });
+  }
+
+  function removeGalleryItem(key) {
+    const idx = galleryItems.findIndex((it) => it.key === key);
+    if (idx === -1) return;
+    const [item] = galleryItems.splice(idx, 1);
+    if (item.kind === 'new') URL.revokeObjectURL(item.previewUrl);
+    else removedExistingUrls.push(item.url);
+    renderGallery();
+  }
+
+  el('coverZone').addEventListener('click', () => el('coverInput').click());
+  el('galleryEmpty').addEventListener('click', () => el('galleryInput').click());
+  el('galleryEmpty').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el('galleryInput').click(); }
+  });
+  el('coverRemoveBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (coverPreviewObjectUrl) URL.revokeObjectURL(coverPreviewObjectUrl);
+    coverPreviewObjectUrl = null;
+    coverFile = null;
+    coverExistingUrl = null;
+    renderCover();
+  });
+  el('coverRemoveBtn').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); el('coverRemoveBtn').click(); }
+  });
+  el('coverInput').addEventListener('change', function () {
+    const file = this.files[0];
+    this.value = '';
+    if (!file) return;
+    if (!isAllowedImageFile(file)) {
+      showError(tr('pwork.errorImageInvalid', 'Please choose a JPEG, PNG, or WebP image under 10MB.'));
+      return;
+    }
+    if (coverPreviewObjectUrl) URL.revokeObjectURL(coverPreviewObjectUrl);
+    coverFile = file;
+    coverExistingUrl = null;
+    coverPreviewObjectUrl = URL.createObjectURL(file);
+    renderCover();
+  });
+
+  el('galleryInput').addEventListener('change', function () {
+    const files = Array.from(this.files || []);
+    this.value = '';
+    const remaining = MAX_GALLERY_IMAGES - galleryItems.length;
+    let rejected = false;
+    files.slice(0, remaining).forEach((file) => {
+      if (!isAllowedImageFile(file)) { rejected = true; return; }
+      galleryItems.push({ key: `new-${Date.now()}-${Math.random()}`, kind: 'new', file, previewUrl: URL.createObjectURL(file) });
+    });
+    if (rejected) showError(tr('pwork.errorImageInvalid', 'Please choose a JPEG, PNG, or WebP image under 10MB.'));
+    renderGallery();
+  });
+
+  function showError(msg) {
+    const el2 = el('formError');
+    el2.textContent = msg;
+    el2.classList.remove('hidden');
+  }
+  function clearError() { el('formError').classList.add('hidden'); }
+  function setProgress(msg) {
+    const p = el('formProgress');
+    if (msg) { p.textContent = msg; p.classList.remove('hidden'); } else { p.classList.add('hidden'); }
+  }
+
+  function buildPayload(forCreate) {
+    const base = {
+      status: 'published',
+      title: el('workTitle').value.trim(),
+      category: el('workCategory').value,
+      coverImageUrl: null, // filled in by caller after upload resolves
+      media: null,
+      updatedAt: Date.now() / 1000
+    };
+    const optionals = {
+      description: el('workDescription').value.trim(),
+      city: el('workCity').value.trim(),
+      district: el('workDistrict').value.trim(),
+      projectDate: el('workProjectDate').value.trim()
+    };
+    for (const [key, val] of Object.entries(optionals)) {
+      if (val) base[key] = val;
+      else if (!forCreate) base[key] = deleteField();
+    }
+    if (forCreate) {
+      base.ownerId = currentUser.uid;
+      base.profileId = myProfileId;
+      base.profileType = 'designer';
+      base.createdAt = Date.now() / 1000;
+    }
+    return base;
+  }
+
+  el('workForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const btn = el('publishBtn');
+    withBusyButton(btn, async () => {
+      clearError();
+      const title = el('workTitle').value.trim();
+      const category = el('workCategory').value;
+      if (!title) { showError(tr('pwork.errorTitleRequired', 'Please enter a project title.')); return; }
+      if (!category) { showError(tr('pwork.errorCategoryRequired', 'Please choose a category.')); return; }
+      if (!coverFile && !coverExistingUrl) { showError(tr('pwork.errorCoverRequired', 'A cover image is required.')); return; }
+
+      const uploadedThisAttempt = [];
+      try {
+        setProgress(tr('pwork.progressCover', 'Uploading cover image...'));
+        const coverUrl = coverFile
+          ? await uploadProfessionalWorkImage(myProfileId, coverFile).then((u) => { uploadedThisAttempt.push(u); return u; })
+          : coverExistingUrl;
+
+        const galleryUrls = [];
+        for (let i = 0; i < galleryItems.length; i++) {
+          const item = galleryItems[i];
+          if (item.kind === 'existing') { galleryUrls.push(item.url); continue; }
+          setProgress(tr('pwork.progressGallery', 'Uploading gallery image...') + ` (${i + 1}/${galleryItems.length})`);
+          const url = await uploadProfessionalWorkImage(myProfileId, item.file);
+          uploadedThisAttempt.push(url);
+          galleryUrls.push(url);
+        }
+
+        setProgress(tr('pwork.progressPublishing', 'Publishing...'));
+        const payload = buildPayload(!editingPostId);
+        payload.coverImageUrl = coverUrl;
+        payload.media = galleryUrls.map((url, order) => ({ url, type: 'image', order }));
+
+        let finalId = editingPostId;
+        if (editingPostId) {
+          await updateDoc(doc(db, 'professionalPosts', editingPostId), payload);
+        } else {
+          const created = await addDoc(collection(db, 'professionalPosts'), payload);
+          finalId = created.id;
+        }
+
+        // Best-effort cleanup, only now that the write actually
+        // succeeded -- never before (a failed write must leave every
+        // still-referenced image intact).
+        await Promise.allSettled(removedExistingUrls.map(deleteProfessionalWorkImage));
+
+        setProgress(null);
+        window.location.href = `work.html?id=${encodeURIComponent(finalId)}`;
+      } catch (err) {
+        setProgress(null);
+        await Promise.allSettled(uploadedThisAttempt.map(deleteProfessionalWorkImage));
+        showError(tr('rp.errorGeneric', 'Something went wrong. Please try again.'));
+      }
+    });
+  });
+
+  async function load() {
+    populateCategorySelect();
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user;
+      if (!user) { hideStates(); show('signinRequiredState'); return; }
+
+      hideStates();
+      show('loadingState');
+
+      try {
+        const profile = await resolveCreator(user.uid);
+        if (!profile || profile.ownerId !== user.uid || profile.serviceType !== 'designer') {
+          hideStates();
+          show('notAuthorizedState');
+          return;
+        }
+        myProfileId = user.uid;
+      } catch {
+        hideStates();
+        show('notAuthorizedState');
+        return;
+      }
+
+      if (editingPostId) {
+        const post = await fetchPost(editingPostId);
+        if (!post || post.ownerId !== currentUser.uid) {
+          hideStates();
+          show('notFoundState');
+          return;
+        }
+        existingPost = post;
+        el('formHeading').textContent = tr('pwork.editWork', 'Edit Work');
+        el('formHeading').removeAttribute('data-i18n');
+        el('publishBtn').textContent = tr('pwork.saveChanges', 'Save Changes');
+        el('publishBtn').removeAttribute('data-i18n');
+        el('cancelLink').href = `work.html?id=${encodeURIComponent(editingPostId)}`;
+        el('workTitle').value = post.title || '';
+        el('workCategory').value = post.category || '';
+        el('workDescription').value = post.description || '';
+        el('workCity').value = post.city || '';
+        el('workDistrict').value = post.district || '';
+        el('workProjectDate').value = post.projectDate || '';
+        coverExistingUrl = post.coverImageUrl || null;
+        galleryItems = (Array.isArray(post.media) ? post.media : [])
+          .filter((m) => m && m.url)
+          .map((m, i) => ({ key: `existing-${i}`, kind: 'existing', url: m.url }));
+      }
+
+      renderCover();
+      renderGallery();
+      hideStates();
+      show('formState');
+    });
+  }
+
+  load();
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/i18n.js"></script>
+</body></html>

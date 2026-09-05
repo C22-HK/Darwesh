@@ -34,6 +34,188 @@ service cloud.firestore {
         : null;
     }
 
+    // ---- Profile Architecture: accountType / activeOrganizationId / permissions ----
+    // Phase 1 (data model + rules only) additions. `role` above is
+    // UNCHANGED and remains the sole source of truth for isAgent()/
+    // isAdmin() -- everything below is a second, additive layer that
+    // never widens what `role` already grants, per the Multi-Type
+    // Profile Architecture plan §2.1/§2.5/§3 ("profile type, role,
+    // organization membership and permissions must remain separated";
+    // "UI hiding is not authorization").
+    function myAccountType() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('accountType', null)
+        : null;
+    }
+    // Phase 2.2: `myOrganizationId()` (Phase 1) was dead code -- grepped
+    // the whole repo, confirmed it was never called by any rule, never
+    // written by any frontend/backend code path, and never held real
+    // data (zero production writers of users/{uid}.organizationId
+    // existed). Removed rather than kept under a new name: a rules
+    // helper reading this field would invite exactly the mistake this
+    // phase exists to prevent -- a resolved-permissions-style lookup
+    // that looks authoritative but isn't. The field itself is kept
+    // (renamed to `activeOrganizationId` in the users/{uid} rule below)
+    // as a pure UX/navigation pointer -- "which org am I currently
+    // working in" -- resolved and validated server-side per request by
+    // app.access.permission_ops/organization_ops (GET /me/organizations,
+    // POST /me/active-organization), never by a rules function, and
+    // NEVER checked by any authorization rule in this file. Organization
+    // membership/ownership authorization continues to come exclusively
+    // from organizations/{orgId}/members/{uid} (isOrgMember(),
+    // hasOrgPermission()) and organizations/{orgId}.ownerId (orgOwnerId())
+    // above -- unchanged.
+    // accountType is self-settable ONLY to one of these descriptive,
+    // non-authoritative values at signup (write-once, then admin/backend
+    // only -- see the users/{uid} rule below). 'admin' is deliberately
+    // EXCLUDED here -- that value is only ever assigned by an admin, even
+    // though, per fail-closed design, self-declaring it would grant
+    // nothing by itself (myPermissions() never trusts accountType alone).
+    function isValidSelfAccountType(v) {
+      return v in [
+        'individual_customer', 'real_estate_agent', 'office_owner', 'office_employee',
+        'professional_engineer', 'professional_designer', 'professional_lawyer',
+        'professional_landscaping', 'cleaning_individual', 'cleaning_team_or_company_owner',
+        'org_owner_residential_community', 'org_owner_developer',
+        'org_owner_finance_provider', 'org_owner_furniture_store'
+      ];
+    }
+    // Protected permissions (verbatim list from the approved architecture
+    // plan) can NEVER be resolved true by hasPermission() below, for
+    // ANY caller including one whose rolePermissionDefaults/
+    // permissionOverrides somehow contained a protected:true entry --
+    // defense in depth on top of the write-side guarantee that those two
+    // collections/fields are themselves never directly client-writable
+    // (see §2.6 below: they are backend/Admin-SDK-only). A protected
+    // action must always be gated by isAdmin() directly at its call
+    // site, never by hasPermission().
+    function isProtectedPermissionKey(key) {
+      return key in [
+        'admin_access', 'manage_roles', 'manage_permissions', 'verify_profiles',
+        'suspend_users', 'change_organization_owner', 'manage_platform_security'
+      ];
+    }
+    // Resolved-permission computation, mirroring myRole()'s exact shape.
+    // FAIL-CLOSED BY CONSTRUCTION: a missing/null accountType short-
+    // circuits every branch below to {} via `&&`'s short-circuit
+    // evaluation (no path ever falls through to any role's real
+    // defaults), and every .get(key, false) defaults an unset key to
+    // false rather than throwing or defaulting to true. There is no
+    // code path here that can resolve to "true" for a key that isn't
+    // explicitly, affirmatively granted.
+    function roleDefaultPermissions() {
+      return myAccountType() != null && exists(/databases/$(database)/documents/rolePermissionDefaults/$(myAccountType()))
+        ? get(/databases/$(database)/documents/rolePermissionDefaults/$(myAccountType())).data.get('permissions', {})
+        : {};
+    }
+    function myPermissionOverrides() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissionOverrides', {})
+        : {};
+    }
+    function hasPermission(key) {
+      return isSignedIn()
+          && !isProtectedPermissionKey(key)
+          && myPermissionOverrides().get(key, roleDefaultPermissions().get(key, false)) == true;
+    }
+    // Ownership lookups for the new collections below -- same
+    // "read the referenced doc's own identity field" pattern as
+    // myCompanyId(), used so a request/product/member rule can check
+    // who owns the PARENT resource without trusting anything the
+    // request itself claims.
+    function orgOwnerId(orgId) {
+      return exists(/databases/$(database)/documents/organizations/$(orgId))
+        ? get(/databases/$(database)/documents/organizations/$(orgId)).data.ownerId
+        : null;
+    }
+    // Phase 2.1 fix: this previously only checked exists() -- a PENDING
+    // self-request or an INVITED-but-not-yet-accepted record satisfied
+    // isOrgMember() the same as a real, active member, letting a mere
+    // applicant pass the org-membership gate on `products` before ever
+    // being approved. Now requires status=='active' explicitly (the
+    // owner, checked first via orgOwnerId(), has no member doc at all
+    // and is unaffected by this).
+    function isOrgMember(orgId) {
+      return isSignedIn() && (
+        orgOwnerId(orgId) == request.auth.uid
+        || (
+          exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+          && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'pending') == 'active'
+        )
+      );
+    }
+    // Phase 2.1: an ACTIVE member's own org-scoped permission grants
+    // (organizations/{orgId}/members/{uid}.permissions, writable only by
+    // the trusted backend -- see the members match block below). {} for
+    // anyone not an active member, by construction (never pending,
+    // invited, rejected, or removed -- a removed/rejected record doesn't
+    // exist at all, per organization_ops.py's delete-on-reject/-remove
+    // design, so exists() alone already excludes those two states; the
+    // explicit status=='active' check here excludes 'pending'/'invited').
+    function orgMemberPermissions(orgId) {
+      return isSignedIn()
+          && exists(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid))
+          && get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('status', 'pending') == 'active'
+        ? get(/databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid)).data.get('permissions', {})
+        : {};
+    }
+    // Phase 2.1: org-scoped permission check -- ADDITIVE union of the
+    // caller's global hasPermission(key) (their own accountType
+    // defaults/overrides, unscoped) with this SPECIFIC org's own grant
+    // to them, if any. An org-scoped grant can only ever ADD a
+    // capability beyond the caller's global defaults for actions taken
+    // inside that one org -- it can never revoke a globally-granted
+    // permission, and (like hasPermission()) a protected key can never
+    // resolve true through this path either, regardless of source. This
+    // is what makes organization_ops.update_member_permissions'
+    // (Phase 2) org-scoped grants actually consulted at write time,
+    // reconciled with the same union model
+    // app.access.permission_resolver.resolve_organization_permissions
+    // mirrors on the backend's /me/permissions read side.
+    function hasOrgPermission(orgId, key) {
+      return isSignedIn()
+          && !isProtectedPermissionKey(key)
+          && (hasPermission(key) || orgMemberPermissions(orgId).get(key, false) == true);
+    }
+    function providerOwnerId(providerId) {
+      return exists(/databases/$(database)/documents/serviceProviders/$(providerId))
+        ? get(/databases/$(database)/documents/serviceProviders/$(providerId)).data.ownerId
+        : null;
+    }
+    // PHASE 3A -- a download URL that really belongs to THIS project's own
+    // Storage bucket. Stricter than professionalPosts' existing
+    // isStorageUrl(), which checks only the firebasestorage.googleapis.com
+    // host and would therefore accept any Firebase project's bucket on the
+    // internet (tracked as an open item in
+    // docs/PROFESSIONAL_CONTENT_ARCHITECTURE.md §7/§12).
+    //
+    // Applied ONLY to serviceProviders.coverImageUrl, a field introduced by
+    // this phase with no legacy data behind it. It is deliberately NOT
+    // applied to photoOrLogoUrl: that field has never had any format
+    // validation, and this codebase already carries Google OAuth avatars on
+    // lh3.googleusercontent.com (signup.html, account.html), so tightening it
+    // here would reject the next profile save of any provider whose photo
+    // came from their Google account. That needs a read-only audit of live
+    // values first and is tracked as its own task -- not smuggled into a
+    // phase whose whole point is being purely additive.
+    //
+    // Both bucket spellings are accepted because Google addresses the same
+    // default bucket under both: darwesh-group.firebasestorage.app is what
+    // js/firebase-init.js configures and therefore what the SDK mints today,
+    // while the older <project>.appspot.com alias still resolves. Accepting
+    // one and not the other would reject legitimate uploads if the SDK's
+    // minted host ever changes; both are still this project's bucket and
+    // nobody else's.
+    function isOwnStorageUrl(v) {
+      return v is string
+          && v.matches('^https://firebasestorage\\.googleapis\\.com/v0/b/darwesh-group\\.(firebasestorage\\.app|appspot\\.com)/o/.*$');
+    }
+    function companyOwnerId(companyId) {
+      return exists(/databases/$(database)/documents/companies/$(companyId))
+        ? get(/databases/$(database)/documents/companies/$(companyId)).data.get('ownerId', null)
+        : null;
+    }
+
     // ---- Companies ----
     // A real estate company using this platform. Every user and listing
     // is tagged with a companyId. Any signed-in user can CREATE a new
@@ -41,10 +223,87 @@ service cloud.firestore {
     // time a name is used — but only if it doesn't already exist, so a
     // later signup can't overwrite an established company's name.
     // Editing or deleting an existing company is admin-only.
+    //
+    // Phase 3: additive schema extension only (no field renamed/removed,
+    // no change to the `role`/`agentId`/`companyId` authorization
+    // invariants above) -- mirrors organizations/{orgId}'s own
+    // ownerId-locked, backend-mediated-membership pattern exactly, so a
+    // real estate office can get the same premium profile treatment
+    // (logo/verified/description/contactInfo/real team roster) the four
+    // org_owner_* types already have, without touching the legacy
+    // companyId/agentId authorization surface those still rely on
+    // (BL-01/BL-04, unchanged). `ownerId` is OPTIONAL at create (unlike
+    // organizations, where it's required) specifically so admin.html's
+    // existing "Add Agent" flow (admin.html:3146-3151, which creates a
+    // company doc under the ADMIN's own session with no ownerId at all)
+    // keeps working completely unchanged -- an admin-created company
+    // stays ownerless until a real office_owner claims it through a
+    // future, separately-approved flow; it is NEVER inferable from
+    // company name, admin session, or any other signal (BL-04
+    // precedent). Once set, `ownerId` is locked for EVERY client-SDK
+    // update, including isAdmin() -- same backend-mediated-ownership-
+    // transfer reasoning as organizations.ownerId -- so an ownerless
+    // legacy company cannot be self-claimed by a normal signed-in update
+    // either; only a future, separately-approved backend endpoint may
+    // assign it (see PHASE3_PROFILE_FIELD_CONTRACT.md's migration note
+    // for the backfill plan, not executed this phase).
     match /companies/{companyId} {
+      function isCompanyOwnerNow() {
+        return isSignedIn() && resource.data.get('ownerId', null) == request.auth.uid;
+      }
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && !exists(/databases/$(database)/documents/companies/$(companyId));
-      allow update, delete: if isAdmin();
+      allow create: if isSignedIn()
+                    && !exists(/databases/$(database)/documents/companies/$(companyId))
+                    && (!('ownerId' in request.resource.data) || request.resource.data.ownerId == request.auth.uid)
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.get('verified', false) == false
+                    && (!('location' in request.resource.data) || request.resource.data.location is map)
+                    && (!('contactInfo' in request.resource.data) || request.resource.data.contactInfo is map)
+                    && request.resource.data.keys().hasOnly([
+                         'name', 'address', 'ownerId', 'description', 'logoUrl',
+                         'coverImageUrl', 'city', 'district', 'location',
+                         'contactInfo', 'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // ownerId locked both directions via .get(,null) so a legacy
+      // ownerless doc (missing the field entirely) stays ownerless
+      // through this path -- see the block comment above.
+      allow update: if request.resource.data.get('ownerId', null) == resource.data.get('ownerId', null)
+                    && (
+                         isAdmin()
+                         || (isCompanyOwnerNow()
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && (!('location' in request.resource.data) || request.resource.data.location is map)
+                             && (!('contactInfo' in request.resource.data) || request.resource.data.contactInfo is map)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'name', 'address', 'description', 'logoUrl', 'coverImageUrl',
+                                    'city', 'district', 'location', 'contactInfo', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      // Explicit, queryable roster of an office's employees -- separate
+      // subcollection NAME from organizations/{orgId}/members on purpose
+      // (not "members"), so a collection-group query over one never
+      // accidentally returns docs from the other; same shape and same
+      // security posture otherwise. An employee's presence here IS the
+      // approval record (mirrors organizations/{orgId}/members'
+      // comment) -- never client-writable by anyone, including
+      // isAdmin(); only the backend's Admin SDK credential
+      // (app.access.company_ops) creates/edits/removes an entry. This is
+      // ADDITIVE to, not a replacement for, the existing
+      // users/{uid}.companyId pointer that BL-01/BL-04's listing
+      // authorization already relies on -- that legacy pointer is
+      // unchanged and still the sole source of listing-level agent/
+      // company authorization; this subcollection only adds a real,
+      // queryable membership-status record for profile display.
+      match /employees/{employeeUid} {
+        allow read: if isAdmin()
+                    || (isSignedIn() && companyOwnerId(companyId) == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid == employeeUid);
+        allow write: if false;
+      }
     }
 
     // ---- User profiles ----
@@ -62,12 +321,127 @@ service cloud.firestore {
     // can change someone else's role, company, or agent assignment.
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin() || resource.data.role == 'agent';
-      allow create: if isOwner(uid) && request.resource.data.role == 'customer';
-      allow update: if (isOwner(uid)
-                          && request.resource.data.role == resource.data.role
-                          && request.resource.data.assignedAgentId == resource.data.assignedAgentId
-                          && request.resource.data.companyId == resource.data.companyId)
-                    || isAdmin();
+      // requestedRole records a signup applicant's stated interest in
+      // becoming an agent (shown to admins as a "Wants Agent Access"
+      // signal in admin.html) -- it is never trusted as an actual grant
+      // (role above is the only field that matters for privilege), but
+      // its own value is still constrained here to the two real options
+      // rather than left open to any string a client cares to write.
+      //
+      // CREATE_ALLOWED_FIELDS below is an explicit allowlist (not a
+      // denylist of just the dangerous ones) -- matches every field the
+      // two real create paths actually send: the backend's Admin-SDK
+      // signup flow (bypasses rules entirely, but this is the shape a
+      // direct client create must also match) and admin.html's Add
+      // Agent self-create step. An unlisted field (e.g. a client
+      // sending `isAdmin: true` alongside a legitimate-looking
+      // create) is rejected outright rather than silently accepted.
+      //
+      // BL-04 fix (BUSINESS_LOGIC_REMEDIATION.md): a self-create can
+      // only set companyId directly when that company does NOT already
+      // exist -- i.e. this signup is founding a brand-new company, the
+      // one case where "typed this name first" is itself a meaningful
+      // claim. Claiming an EXISTING company's id at create time is
+      // rejected outright, for every caller, including admin.html's own
+      // Add Agent flow (which resolves the company from the admin's own
+      // trusted session first, then sets companyId in a SEPARATE update
+      // under that trusted session -- see admin.html's comment at the
+      // self-create call site). A signup that only wants to request
+      // joining an existing company records that as
+      // requestedCompanyId/requestedCompanyName instead (untrusted,
+      // informational, granted no access by this rule) -- an admin must
+      // explicitly set the real companyId later (admin.html's role-
+      // promotion flow) for that request to become real access.
+      // accountType (Profile Architecture Phase 1): self-settable ONLY to
+      // one of the non-'admin' descriptive values (isValidSelfAccountType)
+      // at signup -- purely a UI-routing hint, never itself checked by
+      // any authorization rule (hasPermission()/myPermissions() ignore it
+      // unless a matching rolePermissionDefaults doc exists, and that
+      // collection is backend-only-writable, see below). activeOrganizationId
+      // (Phase 2.2 -- renamed from the never-written, never-read
+      // `organizationId`; see the removed myOrganizationId() comment
+      // above for why) and permissionOverrides are deliberately NOT in
+      // the create allowlist at all -- a brand-new user can never self-
+      // claim an active organization or grant themselves any permission
+      // override at signup; both are admin/backend-assigned only, after
+      // the fact (activeOrganizationId's real write path is the
+      // backend's POST /me/active-organization, which independently
+      // re-validates real membership every time -- see
+      // app.access.organization_ops.set_active_organization).
+      allow create: if isOwner(uid) && request.resource.data.role == 'customer'
+                    && (!('requestedRole' in request.resource.data)
+                        || request.resource.data.requestedRole in ['customer', 'agent'])
+                    && (!('companyId' in request.resource.data)
+                        || request.resource.data.companyId == null
+                        || !exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)))
+                    && (!('accountType' in request.resource.data)
+                        || isValidSelfAccountType(request.resource.data.accountType))
+                    && request.resource.data.keys().hasOnly([
+                         'email', 'displayName', 'firstName', 'lastName', 'phone',
+                         'role', 'requestedRole', 'companyId', 'requestedCompanyId', 'requestedCompanyName',
+                         'accountType',
+                         'phoneVerified', 'phoneVerifiedAt', 'emailVerified', 'createdAt'
+                       ]);
+      // .get(field, null) rather than direct dot access for every locked
+      // field below -- Firestore rules THROWS (and denies the whole
+      // request) on a direct reference to a key that doesn't exist on
+      // the document, rather than treating it as unset/null the way
+      // JavaScript would. assignedAgentId is never actually set by any
+      // write path in this codebase (grep confirms it -- read-only,
+      // meant to be set by hand later), and requestedRole is absent on
+      // any account created via admin.html's "Add Agent" flow -- a
+      // direct comparison on either would have permanently denied every
+      // self-edit those accounts ever make (found and verified against
+      // a real Firestore emulator, not assumed), regardless of which
+      // field the edit actually touched.
+      //
+      // UPDATE_ALLOWED_FIELDS is an explicit allowlist, not a denylist
+      // of the four privileged fields -- account.html only ever needs
+      // to change displayName/photoURL, so anything else (including a
+      // field name this ruleset has never heard of, like `isAdmin` or
+      // `verified`) is rejected outright for a self-edit, closing the
+      // mass-assignment gap a pure denylist leaves open. isAdmin() below
+      // still bypasses this for the real administrative-update path.
+      // BL-03 fix (BUSINESS_LOGIC_REMEDIATION.md): commissionRate was
+      // never in this allowlist at all, so agent-dashboard.html's own
+      // "Save Rate" button silently failed for every real account --
+      // added here, bounded to a sane 0-100 percentage (no such bound
+      // existed anywhere before; this is the one place the field is
+      // ever meant to be set, so it's a reasonable, narrowly-scoped
+      // place to add it, not an invented business limit elsewhere).
+      // permissionOverrides (Profile Architecture Phase 1): locked to its
+      // prior value for EVERY client-SDK update, including an isAdmin()
+      // session -- per explicit instruction, permission/access
+      // configuration must be backend/Admin-SDK-mediated only, with no
+      // client-writable path at all, not even an admin-gated one. Only
+      // the backend's Admin SDK credential (bypasses these rules
+      // entirely, same as create_user_profile/ensure_company today) may
+      // ever change it -- see §2.6 of the architecture plan. accountType
+      // and activeOrganizationId stay in the isAdmin()-bypassable branch
+      // below (same admin-direct-write precedent as role/companyId
+      // today) -- they are UI-routing/navigation-pointer fields, never
+      // themselves a permission or membership grant (myPermissions()/
+      // isOrgMember()/hasOrgPermission() never read or trust either one
+      // -- organization authorization comes exclusively from
+      // organizations/{orgId}/members/{uid} and .ownerId, unaffected by
+      // whatever this field currently says).
+      allow update: if request.resource.data.get('permissionOverrides', {}) == resource.data.get('permissionOverrides', {})
+                    && (
+                         (isOwner(uid)
+                           && request.resource.data.role == resource.data.role
+                           && request.resource.data.get('assignedAgentId', null) == resource.data.get('assignedAgentId', null)
+                           && request.resource.data.get('companyId', null) == resource.data.get('companyId', null)
+                           && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
+                           && request.resource.data.get('accountType', null) == resource.data.get('accountType', null)
+                           && request.resource.data.get('activeOrganizationId', null) == resource.data.get('activeOrganizationId', null)
+                           && (!('commissionRate' in request.resource.data)
+                               || ((request.resource.data.commissionRate is int || request.resource.data.commissionRate is float)
+                                   && request.resource.data.commissionRate >= 0
+                                   && request.resource.data.commissionRate <= 100))
+                           && request.resource.data.diff(resource.data).affectedKeys()
+                                .hasOnly(['displayName', 'photoURL', 'commissionRate']))
+                         || isAdmin()
+                       );
       allow delete: if isAdmin();
 
       // Per-user favorites and saved searches — only that user (ever) reads/writes.
@@ -80,19 +454,354 @@ service cloud.firestore {
     }
 
     // ---- Listings ----
-    // Publicly readable (Map/Buy show these to every visitor, logged in
-    // or not) — this platform doesn't yet separate public browsing by
-    // company, only the agent-facing Team Listings view does that. Only
-    // an agent can create a listing (assigned to themself and tagged
-    // with their own company), and only that same agent — or an admin —
-    // can edit/delete it.
+    // Publicly readable ONLY when actually meant to be public: `status`
+    // must be the one value that means "on the market" (`active` --
+    // the only two values this app's own code ever writes are `active`
+    // and `closed`, confirmed by grepping every listing-writing page;
+    // no `draft`/`pending` status exists in the real schema, so none is
+    // invented here -- an allowlist on `status` rather than a denylist
+    // on `closed` means any future non-public status added later is
+    // excluded by default, not by remembering to update this rule), and
+    // `private` must not be set. A listing failing either check is
+    // visible only to its own agent or an admin -- not to another,
+    // unrelated agent, and not merely by being signed in.
+    //
+    // IMPORTANT Firestore semantics: allow get and allow list use the
+    // SAME condition below on purpose. Because that condition reads
+    // resource.data (not just request.auth), Firestore requires every
+    // query against this collection to be structured so it can prove
+    // the condition holds for every document the query could possibly
+    // return -- an unconstrained getDocs(collection(db,'listings'))
+    // with no where() clause is rejected outright for a non-admin,
+    // non-listing-owner caller, not silently filtered. Public pages
+    // must query with where('private','==',false) and
+    // where('status','==','active') for their read to succeed; an
+    // agent's own "my listings" query (already where('agentId','==',
+    // <their own uid>)) or an admin's unfiltered read still work,
+    // since those satisfy the isListingOwnerOrAdmin() branch instead.
+    //
+    // Plain dot-access below (not .get(field, default)) is deliberate
+    // and load-bearing: empirically verified against the Firestore
+    // emulator that resource.data.get(field, default) defeats the
+    // query-provability analysis above -- a rule written that way still
+    // denies a direct get() correctly, but silently ALLOWS an
+    // unconstrained list() to return every document, including private
+    // ones, which is exactly the leak this rule exists to close. Plain
+    // access forces Firestore to require the matching where() clause.
+    // This does mean a listing document that somehow lacks `private` or
+    // `status` entirely would throw on access and read as denied (fails
+    // closed, not open) for anyone but its own agent/admin -- CREATE
+    // below now requires both fields for every new listing so this can
+    // only affect pre-existing legacy documents, if any; see
+    // AUTHORIZATION_REMEDIATION.md.
+    function isListingPubliclyVisible() {
+      return resource.data.private == false
+          && resource.data.status == 'active';
+    }
+    function isListingOwnerOrAdmin() {
+      return isAdmin()
+          || (isAgent() && resource.data.agentId == request.auth.uid)
+          || (isOrgMember(resource.data.publisherOrgId) && hasOrgPermission(resource.data.publisherOrgId, 'publish_unit_listing'));
+    }
+    // ---- Public-map location privacy (LOC-01) --------------------------
+    // Firestore rules are DOCUMENT-level for reads: a rule can allow or
+    // deny reading a listing, but it can never return that listing with
+    // one field stripped out. So a public listing doc simply must not
+    // contain a coordinate precise enough to point at a specific
+    // building -- there is no rule that could hide it afterwards.
+    //
+    // The split: `listings/{id}` carries only `publicLat`/`publicLng`
+    // (rounded to 2 decimal places, a ~1.1 km grid -- an "approximate area", the
+    // same precision level the public map is allowed to draw), and the
+    // real surveyed pin lives in `listings/{id}/private/location`, a
+    // separate document whose own read rule is the owner/admin check
+    // below. Admin's intelligence/requests maps and an agent's own team
+    // map keep full precision by reading that sub-document under their
+    // existing authorization; the public map never can.
+    //
+    // NOTE: the rounding itself is enforced in the write paths
+    // (admin.html, agent-dashboard.html and the backfill script), not
+    // here -- a rules-layer float-equality check on rounded values is
+    // fragile enough to risk rejecting legitimate writes, and an agent
+    // over-sharing their OWN listing's position is not the exposure this
+    // control exists to close (that is: every public listing's exact pin
+    // being readable by every anonymous visitor).
+    // The invariant that actually closes LOC-01: a publicly-readable
+    // listing document must never contain a building-level coordinate,
+    // whoever is writing it. Enforced on both create and update, outside
+    // the per-role branches (so the unrestricted admin branch is covered
+    // too). Legacy documents written before this rule still carry lat/lng
+    // until the backfill script strips them -- shipping this rule alone
+    // does NOT close the exposure; the data migration is what does.
+    function hasNoPreciseCoordFields() {
+      return !('lat' in request.resource.data) && !('lng' in request.resource.data);
+    }
+    function isValidPublicCoordPair(d) {
+      return (!('publicLat' in d) || ((d.publicLat is int || d.publicLat is float) && d.publicLat >= -90 && d.publicLat <= 90))
+          && (!('publicLng' in d) || ((d.publicLng is int || d.publicLng is float) && d.publicLng >= -180 && d.publicLng <= 180));
+    }
+    // Read/write gate for `listings/{id}/private/location`. Mirrors
+    // isListingOwnerOrAdmin() exactly, but reads the PARENT listing via
+    // get() since `resource.data` inside a subcollection rule refers to
+    // the sub-document, not the listing. Fails closed when the parent
+    // doesn't exist -- which also forces the correct write ordering
+    // (create the listing first, then its location doc), since rules
+    // evaluate each write in a batch against pre-commit state.
+    function canAccessListingPreciseLocation(listingId) {
+      return exists(/databases/$(database)/documents/listings/$(listingId))
+          && (
+            isAdmin()
+            || (isAgent() && get(/databases/$(database)/documents/listings/$(listingId)).data.agentId == request.auth.uid)
+            || (
+              isOrgMember(get(/databases/$(database)/documents/listings/$(listingId)).data.get('publisherOrgId', ''))
+              && hasOrgPermission(get(/databases/$(database)/documents/listings/$(listingId)).data.get('publisherOrgId', ''), 'publish_unit_listing')
+            )
+          );
+    }
+    // BL-05 fix (BUSINESS_LOGIC_REMEDIATION.md): when admin.html converts
+    // a sell submission into a real listing, the new doc carries a
+    // sourceSubmissionId -- this re-enforces, at the rules layer, that
+    // the referenced submission is a real 'sell' submission not already
+    // converted, independent of admin.html's own client-side transaction
+    // guard (defense in depth: a direct API call, or a future bug in
+    // that transaction, still can't create two listings from the same
+    // submission). A create with no sourceSubmissionId at all (the
+    // ordinary "Add Listing" path) is unaffected.
+    function isValidSourceSubmissionOrNone() {
+      return !('sourceSubmissionId' in request.resource.data)
+          || (
+            get(/databases/$(database)/documents/submissions/$(request.resource.data.sourceSubmissionId)).data.type == 'sell'
+            && !('convertedListingId' in get(/databases/$(database)/documents/submissions/$(request.resource.data.sourceSubmissionId)).data)
+          );
+    }
+    // Part 13 / BL-05 numeric business-constraint fix: previously NONE
+    // of this was enforced anywhere but a client-side form check (not a
+    // security boundary) -- a negative/absurd price, or a negative
+    // beds/baths/sqft, was accepted at the rules layer without question,
+    // for both an agent's own listing and (more importantly) whatever a
+    // submission's attacker-controllable numeric fields carried once
+    // copied into admin.html's Add Listing form. `price` is required and
+    // must be a positive number; beds/baths/sqft, when present, must be
+    // non-negative numbers. No arbitrary maximum is imposed -- no such
+    // product requirement exists in this app's own source.
+    function hasSaneListingNumbers() {
+      return 'price' in request.resource.data
+          && (request.resource.data.price is int || request.resource.data.price is float)
+          && request.resource.data.price > 0
+          && (!('beds' in request.resource.data) || request.resource.data.beds is int || request.resource.data.beds is float)
+          && (!('beds' in request.resource.data) || request.resource.data.beds >= 0)
+          && (!('baths' in request.resource.data) || request.resource.data.baths is int || request.resource.data.baths is float)
+          && (!('baths' in request.resource.data) || request.resource.data.baths >= 0)
+          && (!('sqft' in request.resource.data) || request.resource.data.sqft is int || request.resource.data.sqft is float)
+          && (!('sqft' in request.resource.data) || request.resource.data.sqft >= 0);
+    }
+    // ---- Unit-backed listing support (additive, optional -- see
+    // architecture delta §B). `listings` stays the SINGLE marketplace
+    // collection; a Unit-originated listing is just an ordinary listings
+    // doc carrying two extra optional fields (`unitId`, `publisherOrgId`)
+    // that every existing agent/admin listing simply never sets. price/
+    // dealType/status must MIRROR the referenced Unit's own canonical
+    // priceAmount/listingType at every write that touches them -- the
+    // exact mechanism that makes "unit price=X, listing price=Y" drift
+    // structurally impossible rather than merely discouraged.
+    function isValidUnitBackedListingCore(data) {
+      let unit = get(/databases/$(database)/documents/units/$(data.unitId)).data;
+      return data.publisherOrgId is string
+          && unit.organizationId == data.publisherOrgId
+          && data.price == unit.priceAmount
+          && data.dealType == unit.listingType
+          && !('agentId' in data)
+          && !('companyId' in data);
+    }
+    // A unit-backed listing may only carry status:'active' if it holds
+    // the matching activeListingLocks reservation for THIS exact listing
+    // id -- see that collection's own comment for the full uniqueness
+    // argument. A listing created/kept at status:'closed' never needs a
+    // lock at all (an inert historical record, not competing for the
+    // active slot).
+    function unitBackedListingCanBeActive(data, thisListingId) {
+      return data.status != 'active'
+          || (
+               exists(/databases/$(database)/documents/activeListingLocks/$(data.unitId + '_' + data.dealType))
+               && get(/databases/$(database)/documents/activeListingLocks/$(data.unitId + '_' + data.dealType)).data.activeListingId == thisListingId
+             );
+    }
+    // Estate linkage (additive, per the Production Rebuild Phase 1
+    // Estate<->Listing relationship): purely a reference, not a mirrored
+    // field like unitId/priceAmount -- Estate has no price/status of its
+    // own to drift out of sync with, so no lock/equality mechanism is
+    // needed here. Multiple Listings referencing the same estateId over
+    // time is the explicitly desired "listing history" behavior, not an
+    // error case.
+    function isValidOptionalEstateRef(data) {
+      return !('estateId' in data)
+          || (data.estateId is string && exists(/databases/$(database)/documents/estates/$(data.estateId)));
+    }
     match /listings/{listingId} {
-      allow read: if true;
-      allow create: if (isAgent()
+      allow get, list: if isListingPubliclyVisible() || isListingOwnerOrAdmin();
+      // CREATE_ALLOWED_FIELDS: an explicit allowlist of every field the
+      // real Add/Edit Listing form (agent-dashboard.html, admin.html)
+      // actually sends at creation -- notably excludes `verified`.
+      // `verified` is a reviewer/admin-only signal (see the update rule
+      // below); an agent's own create request is rejected outright if
+      // it tries to set verified:true on their own new listing, not
+      // merely ignored -- so a request attempting to self-certify fails
+      // loudly rather than silently creating an unverified listing.
+      //
+      // The agent/admin branches below are BYTE-FOR-BYTE unchanged from
+      // before this phase -- every existing listing, and every future
+      // agent/admin-authored one, is completely unaffected by the new
+      // third branch.
+      // LOC-01: a listing document may never carry a precise `lat`/`lng`
+      // again -- not from an agent, not from an org member, and not from
+      // an admin either. This is deliberately OUTSIDE the per-role
+      // branches below (which an admin would otherwise bypass entirely,
+      // since the admin branch carries no field allowlist), making "the
+      // public document contains no building-level coordinate" a
+      // structural invariant of the collection rather than something
+      // each client is trusted to honour. The precise pin goes to
+      // listings/{id}/private/location instead.
+      allow create: if hasNoPreciseCoordFields()
+                    && isValidPublicCoordPair(request.resource.data)
+                    && (
+                    (isAdmin() && isValidSourceSubmissionOrNone() && hasSaneListingNumbers())
+                    || (isAgent()
                           && request.resource.data.agentId == request.auth.uid
-                          && request.resource.data.companyId == myCompanyId())
-                    || isAdmin();
-      allow update, delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+                          && request.resource.data.companyId == myCompanyId()
+                          && request.resource.data.get('verified', false) == false
+                          && 'private' in request.resource.data
+                          && 'status' in request.resource.data
+                          && hasSaneListingNumbers()
+                          && isValidOptionalEstateRef(request.resource.data)
+                          && request.resource.data.keys().hasOnly([
+                               'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
+                               'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                               'agentId', 'agentName', 'companyId', 'status', 'estateId', 'createdAt'
+                             ]))
+                    || (isOrgMember(request.resource.data.get('publisherOrgId', ''))
+                          && hasOrgPermission(request.resource.data.get('publisherOrgId', ''), 'publish_unit_listing')
+                          && request.resource.data.unitId is string
+                          && isValidUnitBackedListingCore(request.resource.data)
+                          && unitBackedListingCanBeActive(request.resource.data, listingId)
+                          && request.resource.data.get('verified', false) == false
+                          && 'private' in request.resource.data
+                          && 'status' in request.resource.data
+                          && hasSaneListingNumbers()
+                          && isValidOptionalEstateRef(request.resource.data)
+                          && request.resource.data.keys().hasOnly([
+                               'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
+                               'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                               'unitId', 'projectId', 'publisherOrgId', 'status', 'estateId', 'createdAt'
+                             ])));
+      // UPDATE_ALLOWED_FIELDS: same allowlist idea for edits -- an agent
+      // may change any of the normal listing fields on their own
+      // listing, but NOT who it's attributed to (BL-01 fix,
+      // BUSINESS_LOGIC_REMEDIATION.md). The original version of this
+      // rule only checked resource.data.agentId==auth.uid -- who owns
+      // it RIGHT NOW -- and never validated what the write itself
+      // claimed about ownership afterward, so an agent could silently
+      // reassign agentId/companyId to any value (including a real
+      // colleague's uid, a different real company, or a fabricated
+      // identity) in a normal edit, and an already admin-verified
+      // listing's `verified:true` would survive that swap untouched.
+      // agentId and companyId are now locked to their existing stored
+      // value AND independently re-confirmed against the caller's own
+      // identity -- an agent's edit can never move a listing to another
+      // agent or company, full stop; only isAdmin() can reassign either.
+      // agentName is locked the same way (immutable through this
+      // branch) rather than re-derived live from the agent's profile --
+      // the simpler, more robust choice given this rules file has no
+      // way to safely replicate the frontend's own
+      // "displayName || email" fallback logic; see
+      // BUSINESS_LOGIC_REMEDIATION.md for why this is flagged as an
+      // open product decision (keeping a listing's displayed agent name
+      // in sync with later profile-name changes) rather than guessed at
+      // here. Uses .get('agentName', null) rather than direct access on
+      // both sides -- unlike agentId/companyId (which the create rule's
+      // own equality checks already force to always be present, since a
+      // direct comparison there throws on a missing field too),
+      // agentName was never a required-at-create field, so a real or
+      // test-fixture document lacking it entirely is expected and must
+      // not permanently lock that listing out of every future edit.
+      // `verified` still must stay exactly what it already was on
+      // this branch, unaffected by (and no longer exploitable via) the
+      // identity lock above.
+      // estateId (Canonical Estate linkage, Part 8) is deliberately
+      // treated as immutable-after-create on both non-admin branches
+      // below, the same way unitId already is on the unit-backed branch
+      // -- it is a one-time "which physical property does this listing
+      // describe" decision made at publish time, not an ongoing editable
+      // field, and leaving it out of each branch's update allowlist
+      // while also pinning it equal to its stored value closes off an
+      // agent/org quietly re-pointing an already-published listing at a
+      // different Estate later (which would misattribute that listing's
+      // future history to the wrong property). Only isAdmin() can change
+      // it, via the unrestricted admin branch above. A Listing created
+      // before this field existed simply has no estateId, and
+      // .get(...,null) on both sides makes that unaffected by this check.
+      // LOC-01: same structural invariant as create -- no update from any
+      // role, admin included, may (re)introduce a precise lat/lng onto
+      // the publicly-readable listing document.
+      allow update: if hasNoPreciseCoordFields()
+                    && isValidPublicCoordPair(request.resource.data)
+                    && (
+                    isAdmin()
+                    || (isAgent()
+                          && hasSaneListingNumbers()
+                          && resource.data.agentId == request.auth.uid
+                          && request.resource.data.agentId == resource.data.agentId
+                          && request.resource.data.agentId == request.auth.uid
+                          && request.resource.data.get('agentName', null) == resource.data.get('agentName', null)
+                          && request.resource.data.companyId == resource.data.companyId
+                          && request.resource.data.companyId == myCompanyId()
+                          && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && request.resource.data.get('estateId', null) == resource.data.get('estateId', null)
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly([
+                                 'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
+                                 'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                                 'status', 'updatedAt'
+                               ]))
+                    || ('unitId' in resource.data
+                          && isOrgMember(resource.data.publisherOrgId)
+                          && hasOrgPermission(resource.data.publisherOrgId, 'publish_unit_listing')
+                          && hasSaneListingNumbers()
+                          && request.resource.data.unitId == resource.data.unitId
+                          && request.resource.data.publisherOrgId == resource.data.publisherOrgId
+                          && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                          && request.resource.data.get('estateId', null) == resource.data.get('estateId', null)
+                          && isValidUnitBackedListingCore(request.resource.data)
+                          && unitBackedListingCanBeActive(request.resource.data, listingId)
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly([
+                                 'title', 'address', 'city', 'publicLat', 'publicLng', 'dealType', 'propertyType',
+                                 'price', 'beds', 'baths', 'sqft', 'img', 'amenities', 'private',
+                                 'status', 'updatedAt'
+                               ])));
+      allow delete: if (isAgent() && resource.data.agentId == request.auth.uid) || isAdmin();
+
+      // ---- LOC-01: the real surveyed pin -----------------------------
+      // Separate document precisely because Firestore reads are
+      // document-level: this is the only way to let the owner/admin see
+      // a building-level coordinate while the public listing document
+      // (readable by every anonymous visitor) carries only the ~1.1 km
+      // rounded approximation. Read access mirrors isListingOwnerOrAdmin()
+      // via the parent listing; a public visitor is denied outright, with
+      // no partial-read path.
+      match /private/location {
+        allow read: if canAccessListingPreciseLocation(listingId);
+        // Whoever may create/update the parent listing may set its pin.
+        // The parent must already exist (see canAccessListingPreciseLocation),
+        // so the listing has to be written first and this second -- which
+        // is exactly what admin.html/agent-dashboard.html now do.
+        allow create, update: if canAccessListingPreciseLocation(listingId)
+                              && request.resource.data.keys().hasOnly(['lat', 'lng', 'updatedAt'])
+                              && (request.resource.data.lat is int || request.resource.data.lat is float)
+                              && (request.resource.data.lng is int || request.resource.data.lng is float)
+                              && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+                              && request.resource.data.lng >= -180 && request.resource.data.lng <= 180;
+        allow delete: if canAccessListingPreciseLocation(listingId);
+      }
     }
 
     // ---- Submissions (Sell form, viewing requests) ----
@@ -103,26 +812,97 @@ service cloud.firestore {
     // the full collection (Customer Services tab in admin.html) or change
     // a submission's status.
     match /submissions/{submissionId} {
+      // BL-06 fix (BUSINESS_LOGIC_REMEDIATION.md): a 'viewing' submission
+      // that names a listingId must reference a REAL listings document --
+      // previously nothing checked this at all, so a direct API call
+      // could forge a viewing request for a nonexistent property. This
+      // get()/exists() call is server-side only and is NOT subject to
+      // the listings collection's own read rule (a rules-internal
+      // exists() check never exposes document data to the caller), so
+      // this cannot be used to newly discover whether a private/closed
+      // listing exists -- the caller already supplied the exact id
+      // themselves, and existence alone (true either way for any real
+      // listing regardless of private/status) isn't new information.
+      // Full field-by-field cross-validation (does the submitted
+      // address/price actually match that listing?) is NOT implemented
+      // here -- documented as a remaining risk, not a silent gap; see
+      // BUSINESS_LOGIC_REMEDIATION.md.
       allow create: if request.resource.data.status == 'pending'
                     && request.resource.data.type in ['sell', 'viewing']
                     && (request.resource.data.uid == null
-                        || (isSignedIn() && request.resource.data.uid == request.auth.uid));
+                        || (isSignedIn() && request.resource.data.uid == request.auth.uid))
+                    && (request.resource.data.type != 'viewing'
+                        || !('listingId' in request.resource.data)
+                        || request.resource.data.listingId == null
+                        || exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId)));
       allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
-      // sell.html starts uploading photos (and the verification selfie) the
-      // moment they're added/captured, not when Submit is finally clicked --
-      // whatever hasn't finished by submit time keeps uploading in the
-      // background and patches this same doc afterward, so listing creation
-      // never blocks on Storage. That background patch runs as the same
-      // unauthenticated guest who created the submission (sell.html has no
-      // login requirement), so it can't be limited to isAdmin() the way
-      // other updates are -- narrowed instead to touching only the photo
-      // fields, and only while the submission is still pending (an admin
-      // has full update rights regardless, e.g. once they start reviewing).
+      // sell.html starts uploading photos the moment they're added, not
+      // when Submit is finally clicked -- whatever hasn't finished by
+      // submit time keeps uploading in the background and patches this
+      // same doc afterward, so listing creation never blocks on Storage.
+      // That background patch runs as the same unauthenticated guest who
+      // created the submission (sell.html has no login requirement), so
+      // it can't be limited to isAdmin() the way other updates are --
+      // narrowed instead to touching only the two property-photo fields,
+      // and only while the submission is still pending (an admin has
+      // full update rights regardless, e.g. once they start reviewing).
+      //
+      // verificationPhotoPath is deliberately NOT one of the guest-
+      // patchable fields here (unlike photoUrls/photoUploadToken) --
+      // this branch has no way to check WHO is calling it (guests have
+      // no uid to compare against), so allowing it here would let any
+      // unrelated, even unauthenticated, party overwrite which Storage
+      // object a DIFFERENT person's submission claims as its identity-
+      // verification photo, simply by knowing (or guessing) this
+      // document's id -- exactly the "security by obscurity based only
+      // on a Firestore document id" this was flagged for. The
+      // verification photo's path now lives only in the
+      // /verification/{token} subcollection below, gated by a real
+      // capability the caller must already hold, not by this id alone.
       allow update: if isAdmin()
                     || (resource.data.status == 'pending'
                         && request.resource.data.diff(resource.data).affectedKeys()
-                             .hasOnly(['photoUrls', 'photoUploadToken', 'verificationPhotoPath']));
+                             .hasOnly(['photoUrls', 'photoUploadToken']));
       allow delete: if isAdmin();
+
+      // Identity-verification photo metadata for this submission. The
+      // document id here MUST equal this submission's own
+      // photoUploadToken -- a value generated client-side
+      // (crypto.randomUUID(), 122 bits of entropy) at submission-
+      // creation time and never readable back from Firestore by anyone
+      // but the submission's own owner or an admin (see the parent
+      // `read` rule above -- and a guest's own submission, uid==null,
+      // isn't even readable by them). The only party who can ever
+      // construct a request that satisfies this match is therefore the
+      // same browser session that created the submission and already
+      // holds that token in memory -- a real, unguessable, server-
+      // verified capability, not the submission id itself, which can
+      // leak through many ordinary channels (a shared link, an admin
+      // screen, browser history) that were never meant to grant write
+      // access.
+      match /verification/{token} {
+        allow read: if isAdmin();
+        // BL-07 fix (BUSINESS_LOGIC_REMEDIATION.md): `path` was
+        // previously any string at all, even for the legitimate
+        // token-holder -- letting a submitter point their OWN
+        // verification record at an unrelated, already-public Storage
+        // object (e.g. a real agent's public profile photo) instead of
+        // a genuine selfie, defeating manual fraud review without
+        // needing anyone else's credentials. Now constrained to the
+        // actual shape sell.html's own upload flow produces
+        // (sell-verification/{some token}/selfie.jpg) -- this can't
+        // fully prove the referenced object is freshly-captured (that
+        // needs a Storage-triggered Cloud Function, out of scope for a
+        // rules-only fix, documented as remaining risk), but it does
+        // close off pointing at any object outside this one dedicated,
+        // admin-only-readable prefix.
+        allow write: if token == get(/databases/$(database)/documents/submissions/$(submissionId)).data.get('photoUploadToken', null)
+                      && get(/databases/$(database)/documents/submissions/$(submissionId)).data.status == 'pending'
+                      && request.resource.data.keys().hasOnly(['path', 'setAt'])
+                      && request.resource.data.path is string
+                      && request.resource.data.path.matches('^sell-verification/[^/]+/selfie[.]jpg$');
+        allow delete: if isAdmin();
+      }
     }
 
     // ---- Agent financial ledger (accounting) ----
@@ -132,10 +912,1146 @@ service cloud.firestore {
     // closed listings instead. Strictly owner-only: no agent can read or
     // write another agent's numbers; only an admin can read across all of
     // them.
+    //
+    // ALLOWED_FIELDS + basic type/positivity validation (BL-02 fix,
+    // BUSINESS_LOGIC_REMEDIATION.md). The original rule had none of
+    // this at all -- no field allowlist, and neither create nor update
+    // checked amount's type or sign, so a negative, zero, or absurd
+    // (e.g. 1e300) amount was accepted, and update didn't even
+    // re-check agentId post-write, letting an agent silently reassign
+    // their own transaction to another agent's account. `type` is
+    // locked to the two real values this app ever writes (income/
+    // expense) since that field directly decides which total a record
+    // is summed into on the dashboard; `category` and `date` are
+    // validated as non-empty/present but not further enum-restricted --
+    // no product-defined maximum `amount` exists anywhere in this
+    // app's own source, so none is invented here either, matching the
+    // same "don't invent a business limit" reasoning.
+    function isValidAgentTransaction() {
+      return request.resource.data.type in ['income', 'expense']
+          && request.resource.data.category is string
+          && request.resource.data.category.size() > 0
+          && (request.resource.data.amount is int || request.resource.data.amount is float)
+          && request.resource.data.amount > 0
+          && request.resource.data.date is string
+          && request.resource.data.date.size() > 0
+          && request.resource.data.keys().hasOnly(['agentId', 'type', 'category', 'amount', 'date', 'note', 'createdAt']);
+    }
     match /agentTransactions/{transactionId} {
       allow read: if isOwner(resource.data.agentId) || isAdmin();
-      allow create: if isAgent() && request.resource.data.agentId == request.auth.uid;
-      allow update, delete: if isOwner(resource.data.agentId) || isAdmin();
+      allow create: if isAdmin()
+                    || (isAgent()
+                          && request.resource.data.agentId == request.auth.uid
+                          && isValidAgentTransaction());
+      allow update: if isAdmin()
+                    || (isOwner(resource.data.agentId)
+                          && request.resource.data.agentId == resource.data.agentId
+                          && request.resource.data.agentId == request.auth.uid
+                          && isValidAgentTransaction());
+      allow delete: if isOwner(resource.data.agentId) || isAdmin();
+    }
+
+    // ==================================================================
+    // ---- Profile Architecture (Phase 1: data model + rules only) ----
+    // ==================================================================
+    // Everything below is new, additive collections for the Multi-Type
+    // Profile Architecture. None of it changes, weakens, or is consulted
+    // by any rule above this point -- role/isAgent()/isAdmin()/
+    // isListingOwnerOrAdmin() and every AUTHZ-01..04/BL-01..09 rule stay
+    // exactly as they were. See the approved architecture plan for the
+    // full design; this phase is data model + rules + emulator tests
+    // only -- no backend endpoint, no UI, ships nothing to production
+    // without a separate explicit request.
+
+    // ---- Organizations ----
+    // Generalizes `companies` for the four NEW business/organization
+    // types this phase introduces. Real-estate offices are NOT migrated
+    // here yet -- they keep using `companies` unchanged (see plan §2.2
+    // migration note); this collection's `type` allowlist below
+    // deliberately excludes 'real_estate_office' for that reason.
+    // Publicly readable (no isSignedIn() requirement) -- these are
+    // meant to be public storefront/organization profiles a guest can
+    // browse, the same reasoning `listings`' public-visibility branch
+    // already uses for unauthenticated browsing.
+    match /organizations/{orgId} {
+      function isOrgOwnerNow() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      allow read: if true;
+      // A signed-in user may found a brand-new organization, becoming
+      // its owner -- same "self-registration, not a transfer" reasoning
+      // `companies`' own create rule already uses. `verified` can never
+      // be self-set true at creation (admin-only, same as
+      // listings.verified). members/{ownerUid} is NOT auto-created here
+      // (Firestore rules can't fan out a second document from one
+      // write) -- ownerId on this doc is itself the authoritative owner
+      // check everywhere below (orgOwnerId()/isOrgMember()), so no
+      // membership doc is required for the owner to have full access.
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.type in [
+                         'residential_community', 'developer_project',
+                         'finance_provider', 'furniture_store'
+                       ]
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.get('verified', false) == false
+                    && (!('details' in request.resource.data) || request.resource.data.details is map)
+                    && request.resource.data.keys().hasOnly([
+                         'type', 'ownerId', 'name', 'description', 'logoUrl',
+                         'coverImageUrl', 'city', 'district', 'location',
+                         'contactInfo', 'details', 'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // ownerId is locked for EVERY client-SDK update, including
+      // isAdmin() -- ownership transfer is one of the explicitly
+      // backend-mediated categories (plan §2.6); only a future backend
+      // endpoint (Admin SDK, bypasses these rules) may reassign it.
+      // `type` is likewise locked in the owner's own branch (an owner
+      // can't relabel their org into a different business type after
+      // the fact); an admin may still adjust `verified`/`type` directly,
+      // matching the existing listings.verified admin-direct precedent.
+      allow update: if request.resource.data.ownerId == resource.data.ownerId
+                    && (
+                         isAdmin()
+                         || (isOrgOwnerNow()
+                             && request.resource.data.type == resource.data.type
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && (!('details' in request.resource.data) || request.resource.data.details is map)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'name', 'description', 'logoUrl', 'coverImageUrl',
+                                    'city', 'district', 'location', 'contactInfo',
+                                    'details', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      // Explicit, queryable membership record for non-owner staff. An
+      // employee's presence here IS the approval record (plan §2.2/§3):
+      // there is no "request to join, auto-approved" path, and an
+      // employee can never write their own entry. Organization access
+      // changes are one of the explicitly backend-mediated categories
+      // (plan §2.6) -- this subcollection is never client-writable at
+      // all, by any role, including isAdmin(); only a future backend
+      // endpoint (Admin SDK) creates/edits/removes a membership doc.
+      match /members/{memberUid} {
+        allow read: if isAdmin()
+                    || (isSignedIn() && orgOwnerId(orgId) == request.auth.uid)
+                    || (isSignedIn() && request.auth.uid == memberUid);
+        allow write: if false;
+      }
+    }
+
+    // ---- Service providers (Engineer/Designer/Lawyer/Landscaping/Cleaning) ----
+    // One collection for all five service types (plan §2.3) rather than
+    // five near-duplicated ones. Only 'cleaning' may use a non-
+    // 'individual' providerType (team/company) -- the other four are
+    // individual-only, per the approved plan.
+    match /serviceProviders/{providerId} {
+      function isProviderOwnerNow() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      // PHASE 3A -- profile media + contact-visibility validation. Both
+      // fields are optional, so every document that exists today stays valid
+      // and every current write path keeps working unchanged.
+      function isValidProfileMedia(data) {
+        return !('coverImageUrl' in data) || isOwnStorageUrl(data.coverImageUrl);
+      }
+      function isValidContactVisibility(data) {
+        return !('contactVisibility' in data)
+            || data.contactVisibility in ['public', 'onRequest'];
+      }
+      function isValidServicesOffered(data) {
+        return !('servicesOffered' in data)
+            || data.servicesOffered.hasOnly([
+                 'house_cleaning', 'apartment_cleaning', 'office_cleaning',
+                 'deep_cleaning', 'move_in_cleaning', 'move_out_cleaning',
+                 'post_construction_cleaning', 'post_renovation_cleaning',
+                 'commercial_cleaning'
+               ]);
+      }
+      allow read: if true;
+      // An individual provider's document id must equal their own uid
+      // (providerId == ownerId == uid) -- team/company cleaning
+      // providers get a separate generated id, still owner-locked.
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.serviceType in ['engineer', 'designer', 'lawyer', 'landscaping', 'cleaning', 'maintenance']
+                    && request.resource.data.providerType in ['individual', 'team', 'company']
+                    && (request.resource.data.providerType == 'individual' || request.resource.data.serviceType == 'cleaning')
+                    && (request.resource.data.providerType != 'individual' || providerId == request.auth.uid)
+                    && request.resource.data.get('verified', false) == false
+                    && isValidServicesOffered(request.resource.data)
+                    && isValidProfileMedia(request.resource.data)
+                    && isValidContactVisibility(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'serviceType', 'providerType', 'ownerId', 'displayName',
+                         'companyName', 'photoOrLogoUrl', 'description', 'city',
+                         'district', 'serviceAreas', 'experienceYears',
+                         'specialties', 'servicesOffered', 'portfolio', 'teamSize',
+                         'availableDays', 'availableHours', 'pricingModel',
+                         'verified', 'createdAt', 'updatedAt',
+                         'coverImageUrl', 'contactVisibility'
+                       ]);
+      // ownerId is locked for EVERY client-SDK update, including
+      // isAdmin() -- same backend-mediated-ownership-transfer reasoning
+      // as organizations.ownerId above.
+      allow update: if request.resource.data.ownerId == resource.data.ownerId
+                    && (
+                         isAdmin()
+                         || (isProviderOwnerNow()
+                             && request.resource.data.serviceType == resource.data.serviceType
+                             && request.resource.data.providerType == resource.data.providerType
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && isValidServicesOffered(request.resource.data)
+                             && isValidProfileMedia(request.resource.data)
+                             && isValidContactVisibility(request.resource.data)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'displayName', 'companyName', 'photoOrLogoUrl',
+                                    'description', 'city', 'district', 'serviceAreas',
+                                    'experienceYears', 'specialties', 'servicesOffered',
+                                    'portfolio', 'teamSize', 'availableDays',
+                                    'availableHours', 'pricingModel', 'updatedAt',
+                                    'coverImageUrl', 'contactVisibility'
+                                  ]))
+                       );
+      allow delete: if isAdmin() || isProviderOwnerNow();
+
+      // Incoming customer requests, scoped under this specific provider's
+      // own path -- never a flat, filterable-by-anyone collection. This
+      // is the mechanism that satisfies "a cleaning provider must not
+      // see another provider's private jobs" (plan §2.3/§3): a rule
+      // would have to be written incorrectly to leak across providerId
+      // path segments, not merely configured incorrectly.
+      // ---- PHASE 3A: the provider's real contact details ----
+      // serviceProviders/{id} is `allow read: if true`, so ANY field placed
+      // on that document is published to the world. A phone number therefore
+      // cannot live there and still be "shared according to a privacy
+      // policy" -- Firestore reads are document-level, so no rule could hide
+      // one field of a readable document. This is the same constraint, and
+      // the same split, as LOC-01's listings/{id}/private/location.
+      //
+      // The public profile carries `contactVisibility` and renders an ACTION
+      // ("request a call") rather than a number; the number itself lives
+      // here and is readable only by the provider who owns it, or an admin.
+      // Deliberately NOT readable by "any signed-in user" -- that is one
+      // throwaway account away from being public, which is the whole thing
+      // this document exists to prevent.
+      match /private/contact {
+        // exists() on the parent, exactly like
+        // canAccessListingPreciseLocation(): fails closed when the profile
+        // is gone, and forces profile-then-contact write ordering, since
+        // rules evaluate each write against pre-commit state.
+        function canAccessProviderContact() {
+          return isSignedIn()
+              && exists(/databases/$(database)/documents/serviceProviders/$(providerId))
+              && (isAdmin() || providerOwnerId(providerId) == request.auth.uid);
+        }
+        allow read: if canAccessProviderContact();
+        allow create, update: if canAccessProviderContact()
+                              && request.resource.data.keys()
+                                   .hasOnly(['phone', 'whatsapp', 'email', 'updatedAt'])
+                              && (!('phone' in request.resource.data)
+                                  || (request.resource.data.phone is string
+                                      && request.resource.data.phone.size() <= 40))
+                              && (!('whatsapp' in request.resource.data)
+                                  || (request.resource.data.whatsapp is string
+                                      && request.resource.data.whatsapp.size() <= 40))
+                              && (!('email' in request.resource.data)
+                                  || (request.resource.data.email is string
+                                      && request.resource.data.email.size() <= 320));
+        allow delete: if canAccessProviderContact();
+      }
+
+      match /requests/{requestId} {
+        allow create: if isSignedIn()
+                      && request.resource.data.customerUid == request.auth.uid
+                      && request.resource.data.get('status', 'pending') == 'pending'
+                      && request.resource.data.keys().hasOnly(['customerUid', 'status', 'message', 'contactPhone', 'createdAt']);
+        allow read: if isAdmin()
+                    || (isSignedIn() && resource.data.customerUid == request.auth.uid)
+                    || (isSignedIn() && providerOwnerId(providerId) == request.auth.uid);
+        allow update: if isAdmin()
+                      || (isSignedIn() && providerOwnerId(providerId) == request.auth.uid
+                          && request.resource.data.customerUid == resource.data.customerUid
+                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'providerNote', 'updatedAt']));
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- Professional posts (Designer publishing only, this phase) ----
+    // Implements the collection proposed in
+    // docs/PROFESSIONAL_CONTENT_ARCHITECTURE.md, scoped down to
+    // profileType=='designer' only -- Engineer/Lawyer/Landscaping/
+    // Cleaning are deliberately REJECTED at create time (not merely
+    // unbuilt in the UI), so this rule can't be silently reused by a
+    // hand-crafted request for a role whose publishing UX/category enum
+    // was never reviewed. Ownership reuses serviceProviders' own
+    // providerOwnerId() cross-reference -- "a real, already-validated
+    // serviceProviders document, owned by the caller" is the sole trust
+    // signal for "may this caller publish," exactly per plan §3.1 (never
+    // hasPermission('manage_portfolio'), which has no seeded
+    // rolePermissionDefaults yet and would fail-closed everyone out).
+    match /professionalPosts/{postId} {
+      function isPostOwnerNow() {
+        return isSignedIn() && resource.data.ownerId == request.auth.uid;
+      }
+      // MUST mirror js/professional-content.js's DESIGNER_CATEGORIES
+      // export byte-for-byte -- that file's own comment points back here.
+      function isValidCategory(v) {
+        return v in ['residential', 'apartment', 'villa', 'office', 'cafe', 'commercial', 'interior', 'exterior'];
+      }
+      // Real Storage download URLs only (never an arbitrary external
+      // string) -- narrows, but doesn't fully replace, the future
+      // exact-bucket/path check flagged in the architecture doc §7/§12.
+      function isStorageUrl(v) {
+        return v is string && v.matches('^https://firebasestorage\\.googleapis\\.com/.*$');
+      }
+      function isValidMedia(data) {
+        return !('media' in data)
+            || (data.media is list && data.media.size() <= 12);
+      }
+      function isValidContent(data) {
+        return data.title is string && data.title.size() > 0 && data.title.size() <= 200
+            && isValidCategory(data.category)
+            && isStorageUrl(data.coverImageUrl)
+            && (!('description' in data) || (data.description is string && data.description.size() <= 4000))
+            && (!('city' in data) || (data.city is string && data.city.size() <= 200))
+            && (!('district' in data) || (data.district is string && data.district.size() <= 200))
+            && (!('projectDate' in data) || (data.projectDate is string && data.projectDate.size() <= 40))
+            && isValidMedia(data);
+      }
+      // Public discovery only ever sees 'published' work -- 'hidden'
+      // (owner-only, a future self-service unpublish) and 'removed'
+      // (admin moderation only) are never exposed to anyone else. The
+      // owner can still see their own non-published post (so a removed
+      // post doesn't just silently vanish without explanation), admin
+      // sees everything for moderation.
+      allow read: if resource.data.status == 'published' || isAdmin() || isPostOwnerNow();
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.profileType == 'designer'
+                    && request.resource.data.profileId is string
+                    && providerOwnerId(request.resource.data.profileId) == request.auth.uid
+                    && get(/databases/$(database)/documents/serviceProviders/$(request.resource.data.profileId)).data.serviceType == 'designer'
+                    && request.resource.data.status in ['published', 'hidden']
+                    && isValidContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'ownerId', 'profileId', 'profileType', 'status', 'title', 'category',
+                         'description', 'city', 'district', 'coverImageUrl', 'media', 'projectDate',
+                         'createdAt', 'updatedAt'
+                       ]);
+      // ownerId/profileId/profileType/createdAt are locked two ways --
+      // an explicit `==` re-check AND their exclusion from the owner
+      // branch's affectedKeys() allowlist below -- same belt-and-
+      // suspenders defense-in-depth this file already uses for
+      // listings.agentId/companyId (BL-01). Only isAdmin() may set
+      // status to 'removed' (never in the owner's own allowed-values
+      // set) or bypass the content-shape validation, for real moderation
+      // (e.g. correcting an unsafe title) -- never a client-trusted
+      // "role" flag.
+      allow update: if isAdmin()
+                    || (isPostOwnerNow()
+                        && request.resource.data.ownerId == resource.data.ownerId
+                        && request.resource.data.profileId == resource.data.profileId
+                        && request.resource.data.profileType == resource.data.profileType
+                        && request.resource.data.createdAt == resource.data.createdAt
+                        && request.resource.data.status in ['published', 'hidden']
+                        && isValidContent(request.resource.data)
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['status', 'title', 'category', 'description', 'city', 'district',
+                                       'coverImageUrl', 'media', 'projectDate', 'updatedAt']));
+      allow delete: if isAdmin() || isPostOwnerNow();
+    }
+
+    // =========================================================================
+    // Real-estate Projects / Residential Communities / Buildings / Floor
+    // Plans / Units -- PHASE 1 (rules + schema only, per the approved
+    // "Revised Architecture Delta"). No editor/discovery UI exists yet;
+    // this section exists so it can be built against a real, tested
+    // foundation later.
+    //
+    // Core separation (explicit, load-bearing, never collapsed):
+    //   Organization (existing collection) -- a business/legal identity,
+    //     never a human account, never itself authenticatable.
+    //   Project (this section) -- the Residential Community / Development
+    //     itself. NOT a Firebase Auth user, NOT a role, NOT an account.
+    //     `organizationId` is a plain reference field; the two documents
+    //     never merge, even for a residential-community org that manages
+    //     exactly one Project.
+    //   Building/Tower, FloorPlan -- entities, never roles/accounts.
+    //   Unit -- an inventory/property entity, never a role/account.
+    //
+    // Authorization for every write below is the SAME primitive already
+    // proven by `products`: isOrgMember(organizationId) (hard membership
+    // gate -- owner or active member of THAT org, never a stranger whose
+    // own unrelated accountType happens to carry the permission) AND
+    // hasOrgPermission(organizationId, key) (the actual capability
+    // check). No new authorization concept is introduced.
+    function isValidMoney(data, field) {
+      return field in data && data[field] is int && data[field] > 0;
+    }
+    function isValidCurrency(v) {
+      return v in ['IQD', 'USD'];
+    }
+    function isValidConstructionStatus(v) {
+      return v in ['planning', 'under_construction', 'nearing_completion', 'completed'];
+    }
+    function isValidCompletionPercent(v) {
+      return (v is int || v is float) && v >= 0 && v <= 100;
+    }
+    function isValidLocationMap(v) {
+      return v is map
+          && 'lat' in v && (v.lat is int || v.lat is float)
+          && 'lng' in v && (v.lng is int || v.lng is float);
+    }
+    // A Project may only be created under an org of a real-estate-project-
+    // capable type -- deliberately excludes finance_provider/furniture_store
+    // (those manage finance products / a catalog, never Projects) and
+    // real_estate_office (offices stay on the legacy `companies` collection
+    // and publish through `listings` directly, never through Projects).
+    function orgTypeIsProjectCapable(orgId) {
+      return get(/databases/$(database)/documents/organizations/$(orgId)).data.type in ['developer_project', 'residential_community'];
+    }
+
+    match /projects/{projectId} {
+      // organizationId is immutable (checked in `update` below);
+      // createdByUid is audit-only, NEVER an authorization signal --
+      // capability always comes from the caller's CURRENT org membership/
+      // permission, re-checked live on every write, not from "did this
+      // uid create it."
+      function isValidProjectContent(data) {
+        return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+            && (!('slug' in data) || (data.slug is string && data.slug.size() <= 200))
+            && (!('description' in data) || (data.description is string && data.description.size() <= 4000))
+            && (!('constructionStatus' in data) || isValidConstructionStatus(data.constructionStatus))
+            && (!('completionPercent' in data) || isValidCompletionPercent(data.completionPercent))
+            && (!('currency' in data) || isValidCurrency(data.currency))
+            && (!('startingPrice' in data) || isValidMoney(data, 'startingPrice'))
+            && (!('priceRangeMax' in data) || isValidMoney(data, 'priceRangeMax'))
+            && (!('location' in data) || isValidLocationMap(data.location))
+            && (!('governorate' in data) || data.governorate is string)
+            && (!('city' in data) || data.city is string)
+            && (!('district' in data) || data.district is string)
+            && (!('gallery' in data) || (data.gallery is list && data.gallery.size() <= 30))
+            && (!('videos' in data) || (data.videos is list && data.videos.size() <= 10))
+            && (!('nearbyLandmarks' in data) || (data.nearbyLandmarks is list && data.nearbyLandmarks.size() <= 20))
+            && (!('otherFees' in data) || (data.otherFees is list && data.otherFees.size() <= 20))
+            && (!('amenities' in data) || data.amenities is map)
+            && (!('socialLinks' in data) || data.socialLinks is map)
+            && (!('numberOfBuildings' in data) || (data.numberOfBuildings is int && data.numberOfBuildings >= 0))
+            && (!('numberOfUnits' in data) || (data.numberOfUnits is int && data.numberOfUnits >= 0))
+            && (!('numberOfPhases' in data) || (data.numberOfPhases is int && data.numberOfPhases >= 0))
+            && (!('totalLandAreaSqm' in data) || ((data.totalLandAreaSqm is int || data.totalLandAreaSqm is float) && data.totalLandAreaSqm > 0))
+            && (!('installmentAvailable' in data) || data.installmentAvailable is bool)
+            && (!('minDownPaymentPercent' in data) || isValidCompletionPercent(data.minDownPaymentPercent))
+            && (!('monthlyInstallmentFrom' in data) || isValidMoney(data, 'monthlyInstallmentFrom'))
+            && (!('paymentPeriodMonths' in data) || (data.paymentPeriodMonths is int && data.paymentPeriodMonths >= 0));
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.organizationId is string
+                    && orgTypeIsProjectCapable(request.resource.data.organizationId)
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'create_project')
+                    && request.resource.data.get('verified', false) == false
+                    && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && isValidProjectContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'createdByUid', 'name', 'slug', 'projectType',
+                         'governorate', 'city', 'district', 'neighborhood', 'address', 'location',
+                         'nearbyLandmarks', 'description', 'masterPlanImageUrl', 'constructionStatus',
+                         'completionPercent', 'launchDate', 'expectedCompletionDate', 'handoverDate',
+                         'numberOfBuildings', 'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm',
+                         'amenities', 'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
+                         'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
+                         'financeProviderOrgId', 'serviceFee', 'otherFees', 'salesOfficePhone',
+                         'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
+                         'videos', 'virtualTourUrl', 'verified', 'createdAt', 'updatedAt'
+                       ]);
+      // organizationId/createdByUid/createdAt locked two ways (equality
+      // re-check + exclusion from the allowlist), same belt-and-suspenders
+      // pattern as listings.agentId (BL-01) and professionalPosts.ownerId.
+      allow update: if request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && (
+                         isAdmin()
+                         || (isOrgMember(resource.data.organizationId)
+                             && hasOrgPermission(resource.data.organizationId, 'edit_own_project')
+                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && isValidProjectContent(request.resource.data)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'name', 'slug', 'projectType', 'governorate', 'city', 'district',
+                                    'neighborhood', 'address', 'location', 'nearbyLandmarks', 'description',
+                                    'masterPlanImageUrl', 'constructionStatus', 'completionPercent',
+                                    'launchDate', 'expectedCompletionDate', 'handoverDate', 'numberOfBuildings',
+                                    'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm', 'amenities',
+                                    'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
+                                    'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
+                                    'financeProviderOrgId', 'serviceFee', 'otherFees', 'salesOfficePhone',
+                                    'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
+                                    'videos', 'virtualTourUrl', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      match /buildings/{buildingId} {
+        function parentProjectOrgId() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId;
+        }
+        function isValidBuildingContent(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+              && (!('number' in data) || (data.number is string && data.number.size() <= 60))
+              && (!('constructionStatus' in data) || isValidConstructionStatus(data.constructionStatus))
+              && (!('completionPercent' in data) || isValidCompletionPercent(data.completionPercent))
+              && (!('numberOfFloors' in data) || (data.numberOfFloors is int && data.numberOfFloors >= 0 && data.numberOfFloors <= 300))
+              && (!('unitsPerFloor' in data) || (data.unitsPerFloor is int && data.unitsPerFloor >= 0 && data.unitsPerFloor <= 200))
+              && (!('elevators' in data) || (data.elevators is int && data.elevators >= 0))
+              && (!('parkingSpaces' in data) || (data.parkingSpaces is int && data.parkingSpaces >= 0))
+              && (!('entrances' in data) || (data.entrances is int && data.entrances >= 0))
+              && (!('images' in data) || (data.images is list && data.images.size() <= 30))
+              && (!('position' in data) || data.position is map);
+        }
+        allow read: if true;
+        // Parent Project must exist (a direct get() on a missing doc
+        // throws, which fails the whole condition closed) and the
+        // organization authorization is derived from IT, not re-trusted
+        // from anything the client supplies about the building itself.
+        allow create: if isSignedIn()
+                      && request.resource.data.projectId == projectId
+                      && isOrgMember(parentProjectOrgId())
+                      && hasOrgPermission(parentProjectOrgId(), 'create_building')
+                      && isValidBuildingContent(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'projectId', 'name', 'number', 'constructionStatus', 'completionPercent',
+                           'numberOfFloors', 'unitsPerFloor', 'elevators', 'parkingSpaces', 'entrances',
+                           'handoverDate', 'images', 'position', 'createdAt', 'updatedAt'
+                         ]);
+        // The Project<->Building relationship can never be switched on
+        // update -- projectId locked both ways, and this match block's
+        // own path (projects/{projectId}/buildings/{buildingId}) makes a
+        // building moving to a DIFFERENT project structurally impossible
+        // anyway (that would be a different document path entirely).
+        allow update: if request.resource.data.projectId == resource.data.projectId
+                      && (
+                           isAdmin()
+                           || (isOrgMember(parentProjectOrgId())
+                               && hasOrgPermission(parentProjectOrgId(), 'edit_own_building')
+                               && isValidBuildingContent(request.resource.data)
+                               && request.resource.data.diff(resource.data).affectedKeys()
+                                    .hasOnly([
+                                      'name', 'number', 'constructionStatus', 'completionPercent',
+                                      'numberOfFloors', 'unitsPerFloor', 'elevators', 'parkingSpaces',
+                                      'entrances', 'handoverDate', 'images', 'position', 'updatedAt'
+                                    ]))
+                         );
+        allow delete: if isAdmin();
+      }
+
+      // Reusable template entity (Plan A/Plan B) -- a Unit references
+      // floorPlanId; full plan media/description is never duplicated onto
+      // every unit that uses it.
+      match /floorPlans/{planId} {
+        function parentProjectOrgIdForPlan() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId;
+        }
+        function isValidFloorPlanContent(data) {
+          return data.name is string && data.name.size() > 0 && data.name.size() <= 200
+              && (!('bedrooms' in data) || (data.bedrooms is int && data.bedrooms >= 0 && data.bedrooms <= 20))
+              && (!('bathrooms' in data) || (data.bathrooms is int && data.bathrooms >= 0 && data.bathrooms <= 20))
+              && (!('areaSqm' in data) || ((data.areaSqm is int || data.areaSqm is float) && data.areaSqm > 0))
+              && (!('description' in data) || (data.description is string && data.description.size() <= 2000))
+              && (!('galleryImages' in data) || (data.galleryImages is list && data.galleryImages.size() <= 10))
+              && (!('startingPrice' in data) || isValidMoney(data, 'startingPrice'))
+              && (!('currency' in data) || isValidCurrency(data.currency));
+        }
+        allow read: if true;
+        allow create: if isSignedIn()
+                      && request.resource.data.projectId == projectId
+                      && isOrgMember(parentProjectOrgIdForPlan())
+                      && hasOrgPermission(parentProjectOrgIdForPlan(), 'manage_floor_plans')
+                      && isValidFloorPlanContent(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'projectId', 'name', 'bedrooms', 'bathrooms', 'areaSqm', 'description',
+                           'floorPlanImageUrl', 'galleryImages', 'startingPrice', 'currency',
+                           'createdAt', 'updatedAt'
+                         ]);
+        allow update: if request.resource.data.projectId == resource.data.projectId
+                      && (
+                           isAdmin()
+                           || (isOrgMember(parentProjectOrgIdForPlan())
+                               && hasOrgPermission(parentProjectOrgIdForPlan(), 'manage_floor_plans')
+                               && isValidFloorPlanContent(request.resource.data)
+                               && request.resource.data.diff(resource.data).affectedKeys()
+                                    .hasOnly([
+                                      'name', 'bedrooms', 'bathrooms', 'areaSqm', 'description',
+                                      'floorPlanImageUrl', 'galleryImages', 'startingPrice', 'currency', 'updatedAt'
+                                    ]))
+                         );
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- Units (top-level, not nested -- see architecture delta §B/§C:
+    // discovery needs flat cross-project queries the same way `listings`
+    // already supports, and buildingId/floorPlanId stay plain reference
+    // fields, the same cross-collection-reference pattern professionalPosts
+    // already uses against serviceProviders). Floor is a scalar attribute
+    // (floorNumber/unitNumber), never its own document -- confirmed final
+    // in the architecture delta.
+    match /units/{unitId} {
+      function isValidPropertyType(v) {
+        return v in ['apartment', 'villa', 'townhouse', 'office', 'retail', 'land'];
+      }
+      function isValidListingType(v) {
+        return v in ['sale', 'rent'];
+      }
+      function isValidUnitStatus(v) {
+        return v in ['coming_soon', 'available', 'reserved', 'sold', 'rented', 'off_market'];
+      }
+      function isValidMoveInReadiness(v) {
+        return v in ['ready', 'under_construction'];
+      }
+      function buildingBelongsToProject(data) {
+        return !('buildingId' in data) || data.buildingId == null
+            || get(/databases/$(database)/documents/projects/$(data.projectId)/buildings/$(data.buildingId)).data.projectId == data.projectId;
+      }
+      function floorPlanBelongsToProject(data) {
+        return !('floorPlanId' in data) || data.floorPlanId == null
+            || get(/databases/$(database)/documents/projects/$(data.projectId)/floorPlans/$(data.floorPlanId)).data.projectId == data.projectId;
+      }
+      // Location projection (delta §C): Project stays canonical; a Unit
+      // may only ever store a location that PROVABLY matches its parent
+      // Project's CURRENT values at the moment of this write -- a client
+      // can never invent an independent location. `proj` is fetched once
+      // here (not once per field) to keep this within a sane get()-call
+      // budget for the whole rule.
+      function isValidUnitContent(data) {
+        let proj = get(/databases/$(database)/documents/projects/$(data.projectId)).data;
+        return proj.organizationId == data.organizationId
+            && data.unitNumber is string && data.unitNumber.size() > 0 && data.unitNumber.size() <= 60
+            && (!('floorNumber' in data) || data.floorNumber is int)
+            && isValidPropertyType(data.propertyType)
+            && isValidListingType(data.listingType)
+            && isValidUnitStatus(data.status)
+            && (!('moveInReadiness' in data) || isValidMoveInReadiness(data.moveInReadiness))
+            && data.priceAmount is int && data.priceAmount > 0
+            && isValidCurrency(data.currency)
+            && (!('rentPeriod' in data) || data.rentPeriod in ['monthly', 'yearly'])
+            && (!('installmentEligible' in data) || data.installmentEligible is bool)
+            && (!('totalAreaSqm' in data) || ((data.totalAreaSqm is int || data.totalAreaSqm is float) && data.totalAreaSqm > 0))
+            && (!('netAreaSqm' in data) || ((data.netAreaSqm is int || data.netAreaSqm is float) && data.netAreaSqm > 0))
+            && (!('bedrooms' in data) || (data.bedrooms is int && data.bedrooms >= 0 && data.bedrooms <= 20))
+            && (!('bathrooms' in data) || (data.bathrooms is int && data.bathrooms >= 0 && data.bathrooms <= 20))
+            && (!('livingRooms' in data) || (data.livingRooms is int && data.livingRooms >= 0 && data.livingRooms <= 10))
+            && (!('balconies' in data) || (data.balconies is int && data.balconies >= 0 && data.balconies <= 10))
+            && (!('hasKitchen' in data) || data.hasKitchen is bool)
+            && (!('buildingTotalFloors' in data) || (data.buildingTotalFloors is int && data.buildingTotalFloors >= 0))
+            && (!('parkingSpaces' in data) || (data.parkingSpaces is int && data.parkingSpaces >= 0))
+            && (!('hasStorageRoom' in data) || data.hasStorageRoom is bool)
+            && (!('gallery' in data) || (data.gallery is list && data.gallery.size() <= 30))
+            && (!('governorate' in data) || data.governorate is string)
+            && (!('city' in data) || data.city is string)
+            && (!('district' in data) || data.district is string)
+            && (!('location' in data) || isValidLocationMap(data.location))
+            && data.get('governorate', null) == proj.get('governorate', null)
+            && data.get('city', null) == proj.get('city', null)
+            && data.get('district', null) == proj.get('district', null)
+            && data.get('location', null) == proj.get('location', null)
+            && buildingBelongsToProject(data)
+            && floorPlanBelongsToProject(data);
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.organizationId is string
+                    && orgTypeIsProjectCapable(request.resource.data.organizationId)
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'create_unit')
+                    && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && isValidUnitContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'projectId', 'buildingId', 'floorPlanId', 'createdByUid',
+                         'unitNumber', 'floorNumber', 'propertyType', 'listingType', 'status',
+                         'moveInReadiness', 'priceAmount', 'currency', 'rentPeriod', 'installmentEligible',
+                         'totalAreaSqm', 'netAreaSqm', 'bedrooms', 'bathrooms', 'livingRooms',
+                         'balconies', 'hasKitchen', 'buildingTotalFloors', 'orientation',
+                         'parkingSpaces', 'hasStorageRoom', 'furnishing', 'condition', 'heating',
+                         'cooling', 'electricity', 'water', 'internet', 'coverImageUrl', 'gallery',
+                         'floorPlanImageUrl', 'videoUrl', 'virtualTourUrl', 'expectedHandoverDate',
+                         'governorate', 'city', 'district', 'location', 'createdAt', 'updatedAt'
+                       ]);
+      // organizationId/projectId/createdByUid/createdAt are all immutable
+      // -- an org can never "move" a unit into a different project or a
+      // different organization's inventory after the fact.
+      allow update: if request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.projectId == resource.data.projectId
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && (
+                         isAdmin()
+                         || (isOrgMember(resource.data.organizationId)
+                             && hasOrgPermission(resource.data.organizationId, 'edit_own_unit')
+                             && isValidUnitContent(request.resource.data)
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'buildingId', 'floorPlanId', 'unitNumber', 'floorNumber', 'propertyType',
+                                    'listingType', 'status', 'moveInReadiness', 'priceAmount', 'currency',
+                                    'rentPeriod', 'installmentEligible', 'totalAreaSqm', 'netAreaSqm',
+                                    'bedrooms', 'bathrooms', 'livingRooms', 'balconies', 'hasKitchen',
+                                    'buildingTotalFloors', 'orientation', 'parkingSpaces', 'hasStorageRoom',
+                                    'furnishing', 'condition', 'heating', 'cooling', 'electricity', 'water',
+                                    'internet', 'coverImageUrl', 'gallery', 'floorPlanImageUrl', 'videoUrl',
+                                    'virtualTourUrl', 'expectedHandoverDate', 'governorate', 'city',
+                                    'district', 'location', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+    }
+
+    // ---- Active-listing uniqueness lock (Unit -> Listing publication) --
+    // Deterministic-document-ID reservation pattern, per the architecture
+    // delta's correction: Firestore Security Rules cannot run an
+    // arbitrary "does any active listing already exist for this
+    // unit+dealType" QUERY, so uniqueness is instead proven by a single,
+    // deterministically-addressable document whose id IS the uniqueness
+    // key (`unitId + '_' + dealType`). This needs no backend/Cloud
+    // Function/transaction: Firestore classifies a write to a given
+    // document path as `create` only when that document does not yet
+    // exist, and ALL writes to a single document are serialized by
+    // Firestore's backend -- so of any two concurrent attempts to create
+    // the SAME lockId, at most one is ever evaluated as `create` (the
+    // other is evaluated as `update`, which this rule always denies).
+    // This is Firestore's own documented, standard pattern for uniqueness
+    // constraints (the same idea used for e.g. "reserve a unique
+    // username"), not a novel mechanism.
+    //
+    // Required client protocol for a future publish UI (documented here
+    // since no such UI exists yet this phase): (1) create this lock doc
+    // FIRST, as its own committed write, with `activeListingId` set to a
+    // client-generated listing id; only after that succeeds, (2) create
+    // the `listings` doc at that same id with `status:'active'` -- the
+    // listings rule below independently re-verifies the lock exists and
+    // points at that exact listing id, so a listing can never "go active"
+    // without a lock it legitimately holds. To close/deactivate: (1)
+    // update the listing to `status:'closed'` FIRST, THEN (2) delete the
+    // lock to free the slot for a future listing -- never the reverse
+    // order, or a second listing could theoretically be published while
+    // the first is still active. A lock left behind after an incomplete
+    // publish (client crash mid-flow) is a liveness issue, not a security
+    // one -- recoverable by the same org's authorized member, or admin,
+    // deleting it; no Cloud Function/scheduled cleanup is built this
+    // phase.
+    match /activeListingLocks/{lockId} {
+      function isValidLockContent(data) {
+        return data.unitId is string
+            && data.dealType in ['sale', 'rent']
+            && lockId == (data.unitId + '_' + data.dealType)
+            && data.activeListingId is string
+            && data.organizationId is string;
+      }
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && isValidLockContent(request.resource.data)
+                    && get(/databases/$(database)/documents/units/$(request.resource.data.unitId)).data.organizationId == request.resource.data.organizationId
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'publish_unit_listing');
+      // Immutable once created -- a lock is claimed once and only ever
+      // deleted (to release), never edited in place; this is what makes
+      // the create-vs-update Firestore classification a real uniqueness
+      // proof rather than something a second write could sneak past by
+      // "updating" its way into holding the same slot.
+      allow update: if false;
+      // SECURITY FIX (found during Phase 1 pre-deploy verification): the
+      // original version of this rule let an authorized org member
+      // delete their own lock UNCONDITIONALLY -- with no check that the
+      // listing it guards had actually been closed first. That let the
+      // documented "close, then release" protocol be skipped: delete the
+      // lock while its listing was STILL status=='active', immediately
+      // claim a fresh lock for the same (unitId, dealType), and publish
+      // a SECOND active listing -- leaving two simultaneously active
+      // listings for the same unit+dealType, exactly the invariant this
+      // whole mechanism exists to prevent. `!exists(...) ||
+      // status != 'active'` closes this: a lock may be released once its
+      // listing is genuinely non-active OR was never created at all (the
+      // legitimate stuck-lock recovery case, e.g. a client crash between
+      // claiming the lock and creating the listing) -- but never while
+      // that exact listing is still live. isAdmin() is unaffected (an
+      // admin's recovery path was never gated on this).
+      function lockCanBeReleased(data) {
+        return !exists(/databases/$(database)/documents/listings/$(data.activeListingId))
+            || get(/databases/$(database)/documents/listings/$(data.activeListingId)).data.status != 'active';
+      }
+      allow delete: if isAdmin()
+                    || (isOrgMember(resource.data.organizationId)
+                        && hasOrgPermission(resource.data.organizationId, 'publish_unit_listing')
+                        && lockCanBeReleased(resource.data));
+    }
+
+    // =========================================================================
+    // Canonical Estate + Verified Transaction History (Production Rebuild
+    // Phase 1 of 3, remaining implementation). Rules + schema only -- no
+    // editor/discovery UI ships this pass. Does not touch, weaken, or
+    // duplicate projects/buildings/floorPlans/units/activeListingLocks,
+    // professionalPosts, serviceProviders, or Storage rules above.
+    //
+    // ESTATE != LISTING:
+    //   Estate  -- the persistent PHYSICAL property. Stable identity across
+    //              relisting. Never a role/account. May exist with zero,
+    //              one, or many Listings over its lifetime.
+    //   Listing -- a marketplace publication/offer (unchanged collection,
+    //              gains one more optional field: estateId).
+    // A private homeowner's ordinary listing is NOT required to have an
+    // Estate -- estateId stays fully optional on `listings`, exactly like
+    // unitId already is, so no existing listing is ever affected.
+    match /estates/{estateId} {
+      function isValidPropertyType(v) {
+        return v in ['apartment', 'villa', 'townhouse', 'office', 'retail', 'land'];
+      }
+      function isValidLocationMap(v) {
+        return v is map
+            && 'lat' in v && (v.lat is int || v.lat is float)
+            && 'lng' in v && (v.lng is int || v.lng is float);
+      }
+      // Public-safe fields ONLY -- no owner contact info, no internal
+      // notes, no legal-name data. Sensitive administrative data lives
+      // exclusively in the `protected/admin` subcollection below, which
+      // this document's own read rule can never expose.
+      function isValidEstateContent(data) {
+        return (!('propertyType' in data) || isValidPropertyType(data.propertyType))
+            && (!('governorate' in data) || data.governorate is string)
+            && (!('city' in data) || data.city is string)
+            && (!('district' in data) || data.district is string)
+            && (!('formattedAddress' in data) || (data.formattedAddress is string && data.formattedAddress.size() <= 400))
+            && (!('location' in data) || isValidLocationMap(data.location))
+            && (!('landAreaSqm' in data) || ((data.landAreaSqm is int || data.landAreaSqm is float) && data.landAreaSqm > 0))
+            && (!('buildingAreaSqm' in data) || ((data.buildingAreaSqm is int || data.buildingAreaSqm is float) && data.buildingAreaSqm > 0))
+            && (!('projectId' in data) || data.projectId is string)
+            && (!('buildingId' in data) || data.buildingId is string)
+            && (!('unitId' in data) || data.unitId is string);
+      }
+      // Estate creation is authorized the SAME three ways `listings` already
+      // is (BL-01-era pattern, unchanged): admin, an ordinary agent (the
+      // existing homeowner/office/agent path), or an authorized org member
+      // (the new developer/community path) -- no new authorization
+      // primitive, reuses isOrgMember()/hasOrgPermission() exactly as
+      // projects/buildings/units already do.
+      allow read: if true;
+      allow create: if request.resource.data.get('verified', false) == false
+                    && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && isValidEstateContent(request.resource.data)
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'createdByUid', 'propertyType', 'governorate', 'city',
+                         'district', 'formattedAddress', 'location', 'landAreaSqm', 'buildingAreaSqm',
+                         'projectId', 'buildingId', 'unitId', 'verified', 'createdAt', 'updatedAt'
+                       ])
+                    && (
+                         isAdmin()
+                         // BUG FIX (found during a site-wide bug hunt): this branch used to be
+                         // plain `isAgent()`, with no restriction on organizationId -- since
+                         // that field is in the create allowlist above regardless of which OR
+                         // branch actually authorizes the write, any agent (unrelated to any
+                         // org, holding no create_estate grant anywhere) could set
+                         // organizationId to any real org's id in the same request, falsely
+                         // attributing an Estate to a rival developer/community. Mirrors the
+                         // update rule's own already-correct `isAgent() && !('organizationId'
+                         // in resource.data)` restriction, which this create rule was missing.
+                         || (isAgent() && !('organizationId' in request.resource.data))
+                         || (request.resource.data.organizationId is string
+                             && isOrgMember(request.resource.data.organizationId)
+                             && hasOrgPermission(request.resource.data.organizationId, 'create_estate'))
+                       );
+      // organizationId/createdByUid/createdAt immutable; verified stays
+      // admin-only, same lock pattern as every other verified-flag
+      // collection in this file.
+      allow update: if request.resource.data.get('organizationId', null) == resource.data.get('organizationId', null)
+                    && request.resource.data.get('createdByUid', null) == resource.data.get('createdByUid', null)
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && isValidEstateContent(request.resource.data)
+                    && (
+                         isAdmin()
+                         || (request.resource.data.get('verified', false) == resource.data.get('verified', false)
+                             && (
+                                  (isAgent() && !('organizationId' in resource.data))
+                                  || (resource.data.get('organizationId', null) != null
+                                      && isOrgMember(resource.data.organizationId)
+                                      && hasOrgPermission(resource.data.organizationId, 'edit_own_estate'))
+                                )
+                             && request.resource.data.diff(resource.data).affectedKeys()
+                                  .hasOnly([
+                                    'propertyType', 'governorate', 'city', 'district', 'formattedAddress',
+                                    'location', 'landAreaSqm', 'buildingAreaSqm', 'projectId', 'buildingId',
+                                    'unitId', 'updatedAt'
+                                  ]))
+                       );
+      allow delete: if isAdmin();
+
+      // Sensitive administrative data (owner contact info, internal notes,
+      // legal-name data, etc.) -- deliberately isolated from the public
+      // Estate document above so it can NEVER become publicly readable
+      // just because the parent document is. Admin-only, both directions.
+      match /protected/{docId} {
+        allow read, write: if isAdmin();
+      }
+
+      // ---- Verified Transaction / Sale History ----
+      // CRITICAL, per explicit product requirement: Google Maps does NOT
+      // supply Iraqi sale-history data; AI must never generate this data;
+      // a closed listing does NOT by itself prove a sale price. A record
+      // existing in THIS subcollection at all is what "verified" means
+      // here -- there is no separate verified:true/false flag to check,
+      // because the write gate (isAdmin() only, both create and update)
+      // already IS the verification step, enforced at the rules layer,
+      // never merely by hiding an "add transaction" button in the UI.
+      // No future "trusted external source" integration is built this
+      // phase; this leaves room for one (still admin/backend-mediated)
+      // without a schema change.
+      //
+      // REVISED (privacy review): this full record is now admin-only
+      // READ as well as write -- it is the INTERNAL record, and may
+      // carry verifier identity, internal notes, source/evidence, and
+      // other office/audit metadata that must never be public just
+      // because the parent Estate document is. Public transparency (the
+      // approved "asking price alongside verified sale history" UI
+      // example) is served instead by the separate
+      // `publicTransactionSummary` subcollection below -- a DELIBERATE,
+      // admin-authored, field-allowlisted projection, never an automatic
+      // mirror of this document. An admin who wants a transaction to be
+      // publicly visible writes both documents explicitly; writing this
+      // one alone keeps a verified transaction fully internal (e.g. a
+      // sale the seller asked to keep private, or one still under
+      // review) -- that is expected, correct behavior, not a bug.
+      match /transactionHistory/{transactionId} {
+        function isValidTransaction(data) {
+          return data.transactionType in ['sale', 'rent']
+              && data.priceAmount is int && data.priceAmount > 0
+              && data.currency in ['IQD', 'USD']
+              && data.transactionDate is string && data.transactionDate.size() > 0 && data.transactionDate.size() <= 40
+              && (!('sourceListingId' in data) || data.sourceListingId is string)
+              && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+        }
+        allow read: if isAdmin();
+        allow create: if isAdmin()
+                      && request.resource.data.verifiedBy == request.auth.uid
+                      && isValidTransaction(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'transactionType', 'priceAmount', 'currency', 'transactionDate',
+                           'sourceListingId', 'notes', 'verifiedBy', 'createdAt'
+                         ]);
+        // verifiedBy/createdAt immutable -- a correction is a content
+        // edit, never a re-attribution of who verified it or when it was
+        // first recorded.
+        allow update: if isAdmin()
+                      && request.resource.data.verifiedBy == resource.data.verifiedBy
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && isValidTransaction(request.resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['transactionType', 'priceAmount', 'currency', 'transactionDate', 'sourceListingId', 'notes']);
+        allow delete: if isAdmin();
+      }
+
+      // ---- Public-safe Verified Transaction Summary (new, additive) ----
+      // The ONLY transaction-history surface ever readable by a non-admin
+      // caller. Deliberately a SEPARATE subcollection from
+      // `transactionHistory` above, not a public/private flag on the same
+      // document -- a flag can be flipped by a future bug or a careless
+      // rule change; a structurally separate, independently-allowlisted
+      // collection cannot accidentally leak verifier identity, internal
+      // notes, or source/evidence fields, because those fields have no
+      // path into this collection's own allowlist at all, checked here
+      // regardless of what the internal record contains. An admin creates
+      // a summary document only when they deliberately choose to publish
+      // that transaction -- there is no automatic projection from
+      // `transactionHistory` (this environment has no Cloud
+      // Function/trigger to perform one, and even if it did, an explicit
+      // admin publish action is the safer default for anything
+      // financial). `sourceListingId` is intentionally NOT carried into
+      // the public summary -- unlike the internal record, this document
+      // is meant to convey only "a sale/rent happened at roughly this
+      // price on this date," not to let a viewer cross-reference back to
+      // a specific (possibly now-private) listing document.
+      match /publicTransactionSummary/{summaryId} {
+        function isValidPublicSummary(data) {
+          return data.transactionType in ['sale', 'rent']
+              && data.priceAmount is int && data.priceAmount > 0
+              && data.currency in ['IQD', 'USD']
+              && data.transactionDate is string && data.transactionDate.size() > 0 && data.transactionDate.size() <= 40;
+        }
+        allow read: if true;
+        allow create: if isAdmin()
+                      && isValidPublicSummary(request.resource.data)
+                      && request.resource.data.keys().hasOnly([
+                           'transactionType', 'priceAmount', 'currency', 'transactionDate', 'createdAt'
+                         ]);
+        allow update: if isAdmin()
+                      && request.resource.data.createdAt == resource.data.createdAt
+                      && isValidPublicSummary(request.resource.data)
+                      && request.resource.data.diff(resource.data).affectedKeys()
+                           .hasOnly(['transactionType', 'priceAmount', 'currency', 'transactionDate']);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- Concurrency-safe Estate public ID allocator ----
+    // "Design a concurrency-safe Estate public ID strategy. Do NOT
+    // implement a fragile client-side sequential counter." A single
+    // counter document, updated via the Firestore client SDK's
+    // runTransaction() (NOT a plain batch) -- Firestore's transaction
+    // mechanism provides genuine optimistic-concurrency-with-automatic-
+    // retry on this exact read-then-write-one-document pattern: if two
+    // clients' transactions both read counters/estates at the same
+    // value, the second to attempt to commit is transparently retried by
+    // the CLIENT SDK against the now-current value (this is a core,
+    // documented Firestore guarantee, not something this rule implements
+    // itself) -- so `value == resource.data.value + 1` here is exactly
+    // the invariant needed; two concurrent callers can never both commit
+    // the same next value.
+    //
+    // The allocated integer becomes the Estate's own Firestore document
+    // ID (estates/{N}) -- reusing the exact activeListingLocks proof:
+    // Firestore classifies a write to a given document path as `create`
+    // only once, so two different physical properties can never end up
+    // sharing the same estate number, independent of the counter's own
+    // correctness. The counter's only job is handing a legitimate caller
+    // a number nobody has been told to use yet -- it does not need to be
+    // cross-validated against the Estate write itself for the uniqueness
+    // guarantee to hold. `publicEstateId` (the "DG-EST-000042"-style
+    // display form) is intentionally NOT stored or rules-validated: the
+    // Firestore rules language has no zero-pad/sprintf-style string
+    // formatting, so exact display formatting is a client-side (shared
+    // JS helper) concern, derived consistently from the real, unique
+    // `estates/{N}` document ID -- a purely cosmetic layer on top of an
+    // already-collision-proof identity, not a security-relevant one.
+    match /counters/{counterId} {
+      allow read: if true;
+      // Authorization intentionally mirrors Estate creation's own gate
+      // (minus the org-scoped branch, since the counter is global and
+      // not tied to any one organization) -- a plain signed-in customer
+      // can never allocate a number, only an identity that could
+      // actually go on to create a matching Estate.
+      allow create: if counterId == 'estates'
+                    && request.resource.data.keys().hasOnly(['value'])
+                    && request.resource.data.value == 1
+                    && (isAdmin() || isAgent() || hasPermission('create_estate'));
+      allow update: if counterId == 'estates'
+                    && request.resource.data.keys().hasOnly(['value'])
+                    && request.resource.data.value == resource.data.value + 1
+                    && (isAdmin() || isAgent() || hasPermission('create_estate'));
+      allow delete: if false;
+    }
+
+    // ---- Home goods / furniture catalog ----
+    // Explicitly NOT an order/payment system this phase (plan §2.4) --
+    // publish/browse/manage only.
+    match /productCategories/{categoryId} {
+      // Flat, parentId-linked tree seeded as data so new categories
+      // (any depth) need zero rules/code changes -- just a new document.
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    match /products/{productId} {
+      // "Products must belong to the correct seller/organization. Do not
+      // allow one store to modify another store's products" -- sellerId
+      // is locked on update (BL-01 agentId-lock pattern) and every
+      // write requires current ACTIVE membership in that SPECIFIC org
+      // (isOrgMember, checked against the actual request/resource
+      // sellerId, never trusted from elsewhere), gated further by the
+      // create_product/edit_own_product permission -- Phase 2.1: now
+      // checked via hasOrgPermission() rather than the bare global
+      // hasPermission(), so a store owner's org-scoped grant to a
+      // specific employee (organizations/{orgId}/members/{uid}.permissions,
+      // Phase 2's update_member_permissions) is actually honored here,
+      // not just recorded and ignored. hasOrgPermission() still falls
+      // back to the caller's global accountType-level grant too (a
+      // union, per this module's header) -- an org owner whose OWN
+      // accountType defaults already include create_product/
+      // edit_own_product (the expected seeding for an
+      // org_owner_furniture_store accountType) needs no separate
+      // per-org grant for their own store.
+      allow read: if true;
+      allow create: if isAdmin()
+                    || (isOrgMember(request.resource.data.sellerId)
+                        && hasOrgPermission(request.resource.data.sellerId, 'create_product')
+                        && get(/databases/$(database)/documents/organizations/$(request.resource.data.sellerId)).data.type == 'furniture_store'
+                        && request.resource.data.name is string
+                        && request.resource.data.name.size() > 0
+                        && request.resource.data.status in ['available', 'out_of_stock', 'hidden', 'sold_out']
+                        && (request.resource.data.price is int || request.resource.data.price is float)
+                        && request.resource.data.price >= 0
+                        && request.resource.data.keys().hasOnly([
+                             'sellerId', 'name', 'categoryId', 'description', 'price', 'currency',
+                             'discountPrice', 'images', 'status', 'condition', 'dimensions',
+                             'material', 'color', 'deliveryAvailable', 'createdAt', 'updatedAt'
+                           ]));
+      allow update: if isAdmin()
+                    || (request.resource.data.sellerId == resource.data.sellerId
+                        && isOrgMember(resource.data.sellerId)
+                        && hasOrgPermission(resource.data.sellerId, 'edit_own_product')
+                        && request.resource.data.status in ['available', 'out_of_stock', 'hidden', 'sold_out']
+                        && (request.resource.data.price is int || request.resource.data.price is float)
+                        && request.resource.data.price >= 0
+                        && request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly([
+                               'name', 'categoryId', 'description', 'price', 'currency',
+                               'discountPrice', 'images', 'status', 'condition', 'dimensions',
+                               'material', 'color', 'deliveryAvailable', 'updatedAt'
+                             ]));
+      allow delete: if isAdmin() || (isOrgMember(resource.data.sellerId) && hasOrgPermission(resource.data.sellerId, 'edit_own_product'));
+    }
+
+    // ---- Admin Access & Permissions ----
+    // Per explicit instruction: ALL permission/access-configuration
+    // writes -- protected or not -- go through a trusted backend/
+    // Admin-SDK path only, atomically paired with an accessAuditLog
+    // entry. These three collections are therefore `allow write: if
+    // false` for every client-SDK caller, including an authenticated
+    // isAdmin() session -- there is no admin-gated client path at all,
+    // by design (plan §2.6, revised per explicit feedback). Reads stay
+    // isAdmin()-gated client reads (rendering the admin panel carries no
+    // atomicity/audit concern). Phase 1 ships no backend endpoint yet
+    // (out of scope, see plan §5) -- these collections exist and are
+    // seedable only via the Admin SDK directly (e.g. this phase's own
+    // emulator test setup), not through any client surface, until a
+    // later phase's backend endpoints are approved and built.
+    match /permissionDefinitions/{key} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /rolePermissionDefaults/{accountTypeKey} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /accessAuditLog/{entryId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---- Email OTP storage (backend-only) ----
+    // Written and read exclusively by the backend's Firebase Admin SDK
+    // credential (see backend/app/otp/store.py's FirestoreChallengeStore),
+    // which bypasses these rules entirely, as any Admin SDK access does --
+    // these two blocks change nothing about what the backend itself can
+    // do. They exist so that fact isn't just implicit: no normal client
+    // (signed in or not, including an admin) can ever read or write an
+    // OTP challenge or reset/verify token directly, which would otherwise
+    // let someone read a challenge's otpHash or forge a consumed/attempts
+    // value straight through the client SDK.
+    match /otpChallenges/{key} {
+      allow read, write: if false;
+    }
+    match /otpResetTokens/{token} {
+      allow read, write: if false;
+    }
+
+    // ---- Rate limiter storage (backend-only) ----
+    // Written and read exclusively by the backend's Firebase Admin SDK
+    // credential (see backend/app/auth/reset.py's FirestoreRateLimiter),
+    // which bypasses these rules entirely, same reasoning as the two
+    // OTP collections above. INFRA-01 fix (INFRASTRUCTURE_REMEDIATION.md).
+    match /rateLimits/{key} {
+      allow read, write: if false;
     }
   }
 }

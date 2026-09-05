@@ -1,0 +1,796 @@
+/* Profile Shell design tokens (Phase 3).
+ *
+ * NOT a parallel design system -- every color value here is copied
+ * verbatim from tailwind.config.js (single source of truth for the
+ * brand palette) so profile pages stay visually identical to the rest
+ * of the site. This file exists only for the handful of things Tailwind
+ * utility classes can't express cleanly: a couple of reusable component
+ * classes for shell chrome (tabs, cards, skeletons) that need logical
+ * (dir-aware) properties instead of physical left/right, and a few
+ * tokens (focus ring, skeleton shimmer) with no Tailwind utility
+ * equivalent in this project's config. Every profile-shell component
+ * class below is deliberately written with logical properties
+ * (margin-inline/padding-inline/border-inline/inset-inline/text-align:
+ * start|end) so it renders correctly under both dir="ltr" and
+ * dir="rtl" with zero per-language overrides.
+ */
+
+:root {
+  /* Copied from tailwind.config.js -- keep these in lockstep with that
+     file's `colors` block; do not invent new brand colors here. */
+  --ps-color-primary: #041627;
+  --ps-color-on-primary: #ffffff;
+  --ps-color-secondary: #775a19;
+  --ps-color-on-secondary: #ffffff;
+  --ps-color-secondary-container: #fed488;
+  --ps-color-tertiary-container: #003115;
+  --ps-color-on-tertiary-container: #4ae183;
+  --ps-color-error: #ba1a1a;
+  --ps-color-error-container: #ffdad6;
+  --ps-color-surface-bright: #f7f9ff;
+  --ps-color-surface-container: #ebeef3;
+  --ps-color-surface-container-low: #f1f4f9;
+  --ps-color-surface-container-lowest: #ffffff;
+  --ps-color-on-surface: #181c20;
+  --ps-color-on-surface-variant: #44474c;
+  --ps-color-outline: #74777d;
+  --ps-color-outline-variant: #c4c6cd;
+
+  /* Tokens with no existing Tailwind config equivalent. */
+  --ps-radius-card: 16px;
+  --ps-radius-control: 10px;
+
+  /* ---- Restrained corner system --------------------------------------
+   * Global (harmless by itself -- nothing references these yet outside
+   * the cinematic-scoped pages, see css/cinematic.css's .cine-scope
+   * override of --ps-radius-card/--ps-radius-control). Small, consistent,
+   * "architectural" radii instead of the large 16-24px rounding used
+   * elsewhere on the site (office.html etc., left untouched). */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 9px;
+  --ps-shadow-card: 0 1px 2px rgba(4, 22, 39, 0.04), 0 8px 24px -12px rgba(4, 22, 39, 0.12);
+  --ps-shadow-elevated: 0 4px 12px rgba(4, 22, 39, 0.06), 0 16px 40px -16px rgba(4, 22, 39, 0.18);
+  --ps-focus-ring: 0 0 0 2px var(--ps-color-surface-bright), 0 0 0 4px var(--ps-color-secondary);
+
+  /* ---- Premium auth (signup) 3D system ----------------------------------
+   * Layered-depth shadow scale and a restrained gold edge-highlight,
+   * composed entirely from the existing primary/secondary palette above
+   * (deep navy / warm gold) -- no new brand colors. */
+  --ps-shadow-3d-1: 0 1px 1px rgba(4, 22, 39, 0.05), 0 4px 10px -4px rgba(4, 22, 39, 0.10);
+  --ps-shadow-3d-2: 0 2px 4px rgba(4, 22, 39, 0.06), 0 14px 32px -10px rgba(4, 22, 39, 0.20);
+  --ps-shadow-3d-3: 0 6px 16px rgba(4, 22, 39, 0.10), 0 32px 64px -20px rgba(4, 22, 39, 0.32);
+  --ps-gold-edge: linear-gradient(120deg, transparent, var(--ps-color-secondary-container) 45%, var(--ps-color-secondary) 55%, transparent);
+
+  /* ---- Motion tokens -----------------------------------------------------
+   * One shared timing system instead of ad hoc per-rule millisecond
+   * values. Defined globally (not scoped to the cinematic pages) with
+   * values chosen to match what every existing hardcoded transition on
+   * this site already used, so introducing them here changes nothing
+   * visually by itself -- component rules below now reference these
+   * instead of a literal duration. css/cinematic.css overrides these
+   * same variable names to a slightly slower, calmer set on the pages
+   * that opt into the cinematic system (see .cine-scope). */
+  --motion-fast: 150ms;
+  --motion-standard: 220ms;
+  --motion-slow: 420ms;
+  --ease-premium: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+/* ---- Layout shell -------------------------------------------------- */
+
+.ps-shell {
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 48px);
+}
+
+/* ---- Header / hero --------------------------------------------------
+ * Split layout on wide screens, compact stacked layout under 768px --
+ * one shared markup structure (no separate mobile-only DOM), driven
+ * entirely by this single rule so there's exactly one place the
+ * breakpoint lives. */
+
+.ps-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+  border-radius: var(--ps-radius-card);
+  padding: clamp(20px, 4vw, 40px);
+  position: relative;
+  overflow: hidden;
+  background: var(--ps-color-primary);
+  color: var(--ps-color-on-primary);
+}
+
+@media (min-width: 768px) {
+  .ps-hero {
+    flex-direction: row;
+    align-items: center;
+    text-align: start;
+    gap: 28px;
+  }
+}
+
+.ps-hero-glow {
+  position: absolute;
+  inset-block-start: -96px;
+  inset-inline-end: -96px;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: var(--ps-color-secondary);
+  opacity: 0.14;
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+/* ---- Avatar / logo --------------------------------------------------- */
+
+.ps-avatar {
+  position: relative;
+  width: clamp(72px, 18vw, 104px);
+  height: clamp(72px, 18vw, 104px);
+  flex: none;
+}
+
+.ps-avatar-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 3px solid var(--ps-color-surface-container-lowest);
+  background: var(--ps-color-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: var(--ps-shadow-elevated);
+}
+
+.ps-avatar-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ps-avatar-upload {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: var(--ps-color-secondary-container);
+  color: var(--ps-color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--ps-shadow-card);
+  cursor: pointer;
+  border: 2px solid var(--ps-color-surface-container-lowest);
+}
+
+/* ---- Badges ------------------------------------------------------------ */
+
+.ps-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding-block: 3px;
+  padding-inline: 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ps-badge-verified { background: var(--ps-color-tertiary-container); color: var(--ps-color-on-tertiary-container); }
+.ps-badge-unverified { background: rgba(255, 255, 255, 0.14); color: var(--ps-color-on-primary); }
+.ps-badge-unassigned { background: var(--ps-color-error-container); color: var(--ps-color-error); }
+.ps-badge-neutral { background: var(--ps-color-surface-container); color: var(--ps-color-on-surface-variant); }
+
+/* ---- Tabs (data-driven, replaces the copy-pasted .acct-tab/.listings-tab
+ * /.admin-tab pattern) -- horizontally scrollable strip at any width
+ * instead of wrapping, snap points for a clean mobile swipe. */
+
+.ps-tablist {
+  display: flex;
+  gap: clamp(16px, 3vw, 28px);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  border-block-end: 1px solid var(--ps-color-outline-variant);
+  scrollbar-width: none;
+}
+
+.ps-tablist::-webkit-scrollbar { display: none; }
+
+.ps-tab {
+  flex: none;
+  scroll-snap-align: start;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ps-color-on-surface-variant);
+  padding-block: 12px;
+  padding-inline: 4px;
+  border: none;
+  background: none;
+  border-block-end: 2px solid transparent;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.ps-tab[aria-selected="true"] {
+  color: var(--ps-color-primary);
+  border-block-end-color: var(--ps-color-secondary);
+}
+
+.ps-tab:focus-visible { box-shadow: var(--ps-focus-ring); border-radius: 4px; }
+
+.ps-panel[hidden] { display: none; }
+
+/* ---- Cards -------------------------------------------------------------- */
+
+.ps-card {
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--ps-radius-card);
+  box-shadow: var(--ps-shadow-card);
+}
+
+/* ---- Buttons (composed with existing Tailwind utility classes in markup;
+ * this only supplies the disabled/loading state Tailwind alone doesn't
+ * give a single reusable class for). */
+
+.ps-btn[disabled], .ps-btn[aria-busy="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ps-btn:focus-visible { box-shadow: var(--ps-focus-ring); }
+
+/* ---- Skeleton loading state --------------------------------------------- */
+
+.ps-skeleton {
+  border-radius: 8px;
+  background: linear-gradient(
+    90deg,
+    var(--ps-color-surface-container) 25%,
+    var(--ps-color-surface-container-low) 37%,
+    var(--ps-color-surface-container) 63%
+  );
+  background-size: 400% 100%;
+  animation: ps-shimmer 1.4s ease infinite;
+}
+
+@keyframes ps-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-skeleton { animation: none; }
+}
+
+/* ---- Empty / error state ------------------------------------------------- */
+
+.ps-empty {
+  text-align: center;
+  padding-block: clamp(32px, 8vw, 56px);
+  padding-inline: 16px;
+  color: var(--ps-color-on-surface-variant);
+}
+
+/* ---- Form fields --------------------------------------------------------- */
+
+.ps-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ps-color-on-surface);
+  margin-block-end: 6px;
+}
+
+.ps-input {
+  width: 100%;
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--ps-radius-control);
+  padding-block: 9px;
+  padding-inline: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--ps-color-on-surface);
+  background: var(--ps-color-surface-container-lowest);
+  text-align: start;
+}
+
+.ps-input:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* Product/listing grid -- auto-fits from a comfortable minimum card
+ * width down to a single mobile column, no manual breakpoint list. */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+}
+
+/* =========================================================================
+ * PREMIUM AUTH SYSTEM -- signup.html / signup-professional.html
+ *
+ * Hoisted here (was previously copy-pasted, near-identically, inside each
+ * page's own <style> block) so both pages share one definition and one
+ * visual language -- not a second design system, every color still comes
+ * from the --ps-color-* tokens above, which are themselves copied from
+ * tailwind.config.js's primary (deep navy) / secondary (warm gold/bronze)
+ * palette. Logical properties throughout for RTL (Kurdish/Arabic) safety.
+ * ========================================================================= */
+
+/* ---- Form primitives (was duplicated per-page) -------------------------- */
+
+.auth-input {
+  width: 100%;
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--ps-radius-control);
+  padding: 12px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--ps-color-on-surface);
+  background: var(--ps-color-surface-container-lowest);
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-fast, .15s) var(--ease-premium, ease);
+}
+.auth-input:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
+.auth-input[aria-invalid="true"] { border-color: var(--ps-color-error); }
+.auth-label {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ps-color-on-surface-variant);
+  display: block;
+  margin-block-end: 6px;
+}
+.auth-input-wrap { position: relative; }
+.auth-input-wrap .auth-input { padding-inline-start: 42px; }
+.auth-input-wrap .auth-input-icon { position: absolute; inset-inline-start: 13px; top: 50%; transform: translateY(-50%); font-size: 19px; color: var(--ps-color-outline); pointer-events: none; }
+.auth-input-wrap .auth-input.has-toggle { padding-inline-end: 42px; }
+.auth-toggle-visibility { position: absolute; inset-inline-end: 6px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 6px; border-radius: 50%; cursor: pointer; color: var(--ps-color-outline); display: flex; align-items: center; justify-content: center; min-width: 32px; min-height: 32px; transition: background-color var(--motion-fast, .15s) var(--ease-premium, ease), color var(--motion-fast, .15s) var(--ease-premium, ease); }
+.auth-toggle-visibility:hover { background: var(--ps-color-surface-container-low); color: var(--ps-color-on-surface-variant); }
+.auth-toggle-visibility:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.auth-spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: auth-spin .7s linear infinite; vertical-align: -3px; margin-inline-end: 8px; flex: none; }
+/* Two-class selector beats Tailwind's single-class .hidden{display:none}
+ * regardless of stylesheet load order (this was a latent bug even before
+ * this class lived here -- .auth-spinner's own display:inline-block was
+ * quietly winning the tie against .hidden on every page that used it). */
+.auth-spinner.hidden { display: none; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .auth-spinner { animation-duration: 1.6s; } }
+.field-err { color: var(--ps-color-error); font-size: 12px; margin-block-start: 4px; display: none; }
+.field-err.show { display: block; }
+
+/* ---- Premium card: layered depth + restrained gold edge highlight ------- */
+
+.auth-card {
+  position: relative;
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-md);
+  padding: clamp(22px, 4vw, 40px);
+  box-shadow: var(--ps-shadow-3d-2);
+  overflow: hidden;
+}
+.auth-card::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 3px;
+  background: var(--ps-gold-edge);
+  opacity: 0.9;
+}
+.auth-card { animation: auth-card-in .4s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes auth-card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .auth-card { animation: none; } }
+
+/* ---- Split desktop layout ------------------------------------------------
+ * A visual left panel + form right panel from 1024px up; a single
+ * stacked column (compact header, no visual panel) below it, so the
+ * form never competes for space against illustration on a phone. */
+
+.auth-split {
+  display: block;
+  min-height: 100dvh;
+}
+@media (min-width: 1024px) {
+  .auth-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+}
+
+.auth-visual {
+  display: none;
+  position: relative;
+  background: var(--ps-color-primary);
+  color: var(--ps-color-on-primary);
+  overflow: hidden;
+  padding: clamp(40px, 5vw, 72px);
+  flex-direction: column;
+  justify-content: center;
+}
+@media (min-width: 1024px) {
+  .auth-visual { display: flex; }
+}
+
+.auth-visual-inner { position: relative; z-index: 1; max-width: 440px; }
+
+.auth-visual-wordmark { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0.04em; color: var(--ps-color-secondary-container); margin-block-end: 40px; display: flex; align-items: center; gap: 8px; }
+
+.auth-visual-title { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: clamp(24px, 2.4vw, 32px); line-height: 1.25; margin-block-end: 14px; }
+
+.auth-visual-subtitle { font-family: 'Inter', sans-serif; font-size: 14.5px; line-height: 1.6; color: rgba(255,255,255,0.72); margin-block-end: 36px; max-width: 380px; }
+
+/* Layered "floating surfaces" 3D composition -- pure CSS, no external
+ * image dependency (keeps this within the existing img-src CSP, and
+ * renders identically for every visitor regardless of network). */
+.auth-visual-stage { position: relative; height: clamp(150px, 20vw, 210px); margin-block-end: 36px; }
+.auth-visual-card {
+  position: absolute;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 24px 48px -20px rgba(0,0,0,0.55);
+  backdrop-filter: blur(2px);
+  overflow: hidden;
+}
+.auth-visual-card.c1 { inset-inline-start: 0; inset-block-start: 8%; width: 62%; height: 68%; transform: rotate(-4deg); z-index: 1; }
+.auth-visual-card.c2 { inset-inline-start: 30%; inset-block-start: 0; width: 58%; height: 62%; transform: rotate(3deg); background: rgba(254,212,136,0.08); border-color: rgba(254,212,136,0.28); z-index: 2; }
+.auth-visual-card.c3 { inset-inline-start: 14%; inset-block-end: 0; width: 46%; height: 40%; transform: rotate(-2deg); z-index: 3; background: rgba(255,255,255,0.09); }
+.auth-visual-card .auth-visual-icon { position: absolute; inset-inline-start: 16px; inset-block-end: 14px; font-size: 26px; color: var(--ps-color-secondary-container); opacity: 0.85; }
+.auth-visual-glow { position: absolute; inset-block-start: -140px; inset-inline-end: -140px; width: 380px; height: 380px; border-radius: 999px; background: var(--ps-color-secondary); opacity: 0.10; filter: blur(90px); pointer-events: none; }
+
+.auth-trust-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.auth-trust-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; padding-block: 6px; padding-inline: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.16); color: var(--ps-color-on-primary); }
+.auth-trust-badge .material-symbols-outlined { font-size: 15px; color: var(--ps-color-secondary-container); }
+
+.auth-visual-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.auth-visual-step { display: flex; align-items: flex-start; gap: 12px; font-size: 13.5px; color: rgba(255,255,255,0.82); }
+.auth-visual-step-num { flex: none; width: 24px; height: 24px; border-radius: var(--radius-xs); background: rgba(254,212,136,0.16); border: 1px solid rgba(254,212,136,0.4); color: var(--ps-color-secondary-container); font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+.auth-form-side {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 5vw, 56px) 16px;
+  background: var(--ps-color-surface-bright);
+}
+.auth-form-side-inner { width: 100%; max-width: 460px; }
+
+/* ---- Premium button system ----------------------------------------------
+ * One definition for every primary/secondary action across both pages;
+ * .ps-btn (defined above) still supplies the disabled/aria-busy dimming
+ * so withBusyButton() keeps working unchanged. */
+
+.auth-btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background: var(--ps-color-primary);
+  color: var(--ps-color-on-primary);
+  border: 1px solid var(--ps-color-primary);
+  border-radius: var(--radius-sm);
+  padding-block: 13px;
+  padding-inline: 20px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: var(--ps-shadow-3d-1);
+  transition: box-shadow var(--motion-standard, .18s) var(--ease-premium, ease), transform var(--motion-fast, .1s) var(--ease-premium, ease), background-color var(--motion-standard, .18s) var(--ease-premium, ease), border-color var(--motion-standard, .18s) var(--ease-premium, ease);
+  cursor: pointer;
+}
+.auth-btn-primary:hover { box-shadow: var(--ps-shadow-3d-2); border-color: var(--ps-color-secondary); }
+.auth-btn-primary:active { transform: translateY(1px); box-shadow: var(--ps-shadow-3d-1); }
+.auth-btn-primary:focus-visible { outline: none; box-shadow: var(--ps-focus-ring), var(--ps-shadow-3d-2); }
+@media (prefers-reduced-motion: reduce) { .auth-btn-primary { transition: none; } .auth-btn-primary:active { transform: none; } }
+
+.auth-btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--ps-color-surface-container-lowest);
+  color: var(--ps-color-on-surface);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-sm);
+  padding-block: 12px;
+  padding-inline: 20px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), background-color var(--motion-fast, .15s) var(--ease-premium, ease);
+  cursor: pointer;
+}
+.auth-btn-secondary:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container-low); }
+.auth-btn-secondary:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+.auth-btn-ghost {
+  background: none;
+  border: none;
+  color: var(--ps-color-on-surface-variant);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding-block: 8px;
+  padding-inline: 4px;
+}
+.auth-btn-ghost:hover { color: var(--ps-color-primary); }
+.auth-btn-ghost:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
+.auth-btn-ghost:disabled { color: var(--ps-color-outline-variant); cursor: not-allowed; }
+
+/* Secondary-CTA panel (e.g. signup.html's "Create a Professional
+ * Profile" path) -- a restrained gold-accented card, not a competing
+ * primary action. */
+.auth-cta-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  border: 1px solid var(--ps-color-secondary-container);
+  background: linear-gradient(135deg, var(--ps-color-surface-container-lowest), var(--ps-color-surface-container-low));
+  border-radius: var(--radius-md);
+  padding: 16px 18px;
+  box-shadow: var(--ps-shadow-3d-1);
+}
+.auth-cta-panel-icon { flex: none; width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--ps-color-primary); color: var(--ps-color-secondary-container); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+
+/* ---- Premium stepper (professional wizard) -------------------------------
+ * Same JS-toggled classes as before (.done / .current on
+ * .pro-step-dot / .pro-step-line) -- only the visual treatment changes,
+ * so renderStepIndicator() needs no logic change. */
+
+.pro-steps { display: flex; align-items: flex-start; justify-content: center; gap: 2px; margin-block-end: 30px; overflow-x: auto; padding-block: 6px 2px; }
+.pro-step-unit { display: flex; flex-direction: column; align-items: center; flex: none; }
+.pro-step-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: var(--ps-color-surface-container-lowest);
+  border: 1.5px solid var(--ps-color-outline-variant);
+  color: var(--ps-color-on-surface-variant);
+  flex: none;
+  transition: background-color var(--motion-standard, .2s) var(--ease-premium, ease), color var(--motion-standard, .2s) var(--ease-premium, ease), border-color var(--motion-standard, .2s) var(--ease-premium, ease), box-shadow var(--motion-standard, .2s) var(--ease-premium, ease);
+  box-shadow: var(--ps-shadow-3d-1);
+}
+.pro-step-dot.done { background: var(--ps-color-secondary); border-color: var(--ps-color-secondary); color: var(--ps-color-on-secondary); }
+.pro-step-dot.current { background: var(--ps-color-primary); border-color: var(--ps-color-primary); color: var(--ps-color-on-primary); box-shadow: 0 0 0 4px var(--ps-color-secondary-container), var(--ps-shadow-3d-2); }
+.pro-step-name { font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ps-color-on-surface-variant); margin-block-start: 6px; max-width: 68px; text-align: center; display: none; }
+.pro-step-unit:has(.pro-step-dot.current) .pro-step-name { color: var(--ps-color-primary); }
+@media (min-width: 640px) { .pro-step-name { display: block; } }
+.pro-step-line { width: clamp(14px, 3vw, 32px); height: 2px; background: var(--ps-color-outline-variant); flex: none; margin-block-start: 15px; border-radius: 2px; }
+.pro-step-line.done { background: var(--ps-color-secondary); }
+@media (prefers-reduced-motion: reduce) { .pro-step-dot { transition: none; } }
+
+/* ---- Premium type-picker cards -------------------------------------------
+ * JS still only toggles aria-pressed; every visual state lives here. */
+
+.type-card {
+  position: relative;
+  border: 1.5px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  text-align: start;
+  background: var(--ps-color-surface-container-lowest);
+  cursor: pointer;
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-standard, .18s) var(--ease-premium, ease), transform var(--motion-standard, .12s) var(--ease-premium, ease), background-color var(--motion-fast, .15s) var(--ease-premium, ease);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 64px;
+  box-shadow: var(--ps-shadow-3d-1);
+}
+.type-card:hover { border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); transform: translateY(-1px); }
+.type-card[aria-pressed="true"] { border-color: var(--ps-color-secondary); background: linear-gradient(135deg, var(--ps-color-secondary-container), var(--ps-color-surface-container-lowest) 70%); box-shadow: var(--ps-shadow-3d-2); }
+.type-card:active { transform: scale(0.98); }
+.type-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.type-card-icon { flex: none; width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--ps-color-primary); color: var(--ps-color-secondary-container); display: flex; align-items: center; justify-content: center; box-shadow: var(--ps-shadow-3d-1); overflow: hidden; }
+.type-card[aria-pressed="true"] .type-card-icon { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); }
+.type-card-body { min-width: 0; }
+.type-card-title { font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--ps-color-on-surface); }
+.type-card-desc { font-family: 'Inter', sans-serif; font-size: 11.5px; color: var(--ps-color-on-surface-variant); margin-block-start: 2px; line-height: 1.4; }
+.type-card-check { position: absolute; inset-block-start: 10px; inset-inline-end: 10px; width: 18px; height: 18px; border-radius: 999px; background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); font-size: 12px; display: none; align-items: center; justify-content: center; }
+.type-card[aria-pressed="true"] .type-card-check { display: flex; }
+@media (prefers-reduced-motion: reduce) { .type-card { transition: none; } .type-card:active, .type-card:hover { transform: none; } }
+
+/* ---- Field groups (Step 3 grouped sections) ------------------------------ */
+
+.ps-field-group { border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); padding: 16px; background: var(--ps-color-surface-container-low); }
+.ps-field-group + .ps-field-group { margin-block-start: 16px; }
+.ps-field-group-title { display: flex; align-items: center; gap: 8px; font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ps-color-secondary); margin-block-end: 12px; }
+.ps-field-group-title .material-symbols-outlined { font-size: 16px; }
+.ps-field-group-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 640px) { .ps-field-group-grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+.ps-field-group-grid .span-2 { grid-column: 1 / -1; }
+
+/* ---- Media dropzone (premium drag/drop) ----------------------------------- */
+
+.media-tile {
+  width: 100%;
+  max-width: 240px;
+  aspect-ratio: 1;
+  border: 1.5px dashed var(--ps-color-outline-variant);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  background: var(--ps-color-surface-container-low);
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--ps-shadow-3d-1);
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-fast, .15s) var(--ease-premium, ease), background-color var(--motion-fast, .15s) var(--ease-premium, ease);
+}
+.media-tile:hover { border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.media-tile.drag-over { border-color: var(--ps-color-secondary); background: var(--ps-color-secondary-container); box-shadow: var(--ps-shadow-3d-2); }
+.media-tile img { width: 100%; height: 100%; object-fit: cover; }
+.media-tile:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.media-tile-progress { position: absolute; inset-inline: 10%; inset-block-end: 12px; height: 4px; border-radius: 999px; background: rgba(4,22,39,0.12); overflow: hidden; display: none; }
+.media-tile-progress-bar { height: 100%; width: 40%; background: var(--ps-color-secondary); border-radius: 999px; animation: media-progress-sweep 1.1s ease-in-out infinite; }
+@keyframes media-progress-sweep { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+@media (prefers-reduced-motion: reduce) { .media-tile-progress-bar { animation-duration: 2s; } }
+
+/* ---- Review dossier ------------------------------------------------------- */
+
+.review-dossier-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); box-shadow: var(--ps-shadow-3d-1); padding: 14px 16px; }
+.review-dossier-head { display: flex; align-items: center; justify-content: space-between; margin-block-end: 8px; }
+.review-dossier-title { display: flex; align-items: center; gap: 8px; font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ps-color-secondary); }
+.review-dossier-title .material-symbols-outlined { font-size: 16px; }
+
+/* ---- Premium OTP cells ----------------------------------------------------- */
+
+.otp-digits { display: flex; gap: 9px; justify-content: center; direction: ltr; }
+.otp-digit {
+  width: 46px;
+  height: 56px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 23px;
+  font-weight: 700;
+  border: 1.5px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-sm);
+  background: var(--ps-color-surface-container-lowest);
+  color: var(--ps-color-on-surface);
+  box-shadow: var(--ps-shadow-3d-1);
+  transition: border-color var(--motion-fast, .15s) var(--ease-premium, ease), box-shadow var(--motion-fast, .15s) var(--ease-premium, ease);
+}
+.otp-digit:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
+.otp-digit[aria-invalid="true"] { border-color: var(--ps-color-error); }
+@media (max-width: 380px) { .otp-digit { width: 39px; height: 48px; font-size: 19px; } .otp-digits { gap: 6px; } }
+
+.auth-security-badge { width: 56px; height: 56px; border-radius: var(--radius-sm); background: var(--ps-color-primary); color: var(--ps-color-secondary-container); display: flex; align-items: center; justify-content: center; margin-inline: auto; margin-block-end: 14px; box-shadow: var(--ps-shadow-3d-2); overflow: hidden; }
+
+/* =========================================================================
+ * `.hidden` must always win over `.ps-*` component rules -- root-cause
+ * fix, not a per-element patch. Found while investigating the Designer/
+ * Engineer profile's "Verified and Unverified shown at the same time"
+ * bug: `.ps-badge { display: inline-flex; ... }` above is a SINGLE-class
+ * rule, same (0,1,0) specificity as Tailwind's `.hidden { display: none }`
+ * (compiled into css/tailwind.css). At equal specificity the cascade
+ * falls back to source order, and this file is `<link>`ed AFTER
+ * tailwind.css on every page that uses it -- so `.ps-badge`'s
+ * `display: inline-flex` always won, and `element.classList.add('hidden')`
+ * on a `.ps-badge` (e.g. #verifiedBadge / #unverifiedBadge in
+ * js/profile-role.js's renderProvider()) silently did nothing: both
+ * badges stayed rendered at once. Verified directly (a `.ps-badge.hidden`
+ * test element computed to `display: inline-flex`, not `none`, before
+ * this fix). The same risk applies to any other single-class `.ps-*`
+ * rule here that sets `display` (e.g. `.ps-field-group-title`,
+ * `.ps-field-group-grid`) if it is ever toggled with `.hidden`.
+ *
+ * Fix: one attribute-substring selector, `[class*="ps-"]`, adds one more
+ * specificity unit -- `[class*="ps-"].hidden` is (0,2,0), which beats
+ * every single-class `.ps-*` rule unconditionally, regardless of file
+ * order, without `!important` and without hunting down every current and
+ * future `.ps-*` class individually (the same fragile per-element
+ * pattern that caused this bug). Every class in this codebase containing
+ * the substring "ps-" is one of this design system's own components
+ * (verified by grepping every *.html file's class attributes), so this
+ * never matches an unrelated class by accident. */
+[class*="ps-"].hidden { display: none; }
+
+/* ---------------------------------------------------------------------
+   Material Symbols load guard (see js/icon-fallback.js)
+
+   Every icon here is a ligature span whose text content is a word
+   ("notifications", "expand_more"). If the Material Symbols font is slow
+   or blocked, the browser paints that word. These rules stop that.
+
+   All three selectors are scoped to a class that only js/icon-fallback.js
+   sets, so with JS disabled nothing below matches and behaviour is
+   unchanged -- this can never be the reason an icon goes missing.
+   --------------------------------------------------------------------- */
+
+/* Font still loading: keep the box, hide the word. No reflow on arrival. */
+html.ds-icons-pending .material-symbols-outlined {
+  visibility: hidden;
+}
+
+/* Font failed. font-size:0 collapses the ligature word away; the pseudo
+   element re-establishes its own size and draws a neutral placeholder, so
+   icon-only controls stay visible and tappable instead of vanishing.
+   !important is needed because most icon spans carry a Tailwind
+   text-[Npx] utility of equal specificity. */
+html.ds-icons-failed .material-symbols-outlined {
+  font-size: 0 !important;
+  line-height: 1;
+}
+html.ds-icons-failed .material-symbols-outlined::before {
+  content: '';
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  font-size: 1rem;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+  opacity: 0.45;
+  vertical-align: -0.15em;
+}
+
+/* ---------------------------------------------------------------------
+   Loading skeletons. Used where the UI must show "this is arriving"
+   rather than a value it does not have yet -- see index.html's city
+   counts and Featured Properties, where rendering 0 / "no listings"
+   during a pending or failed query stated something false about the
+   business.
+   --------------------------------------------------------------------- */
+.ds-skeleton {
+  display: inline-block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    rgba(128, 128, 128, 0.10) 25%,
+    rgba(128, 128, 128, 0.20) 37%,
+    rgba(128, 128, 128, 0.10) 63%
+  );
+  background-size: 400% 100%;
+  animation: ds-skeleton-shimmer 1.4s ease infinite;
+}
+/* Sized to the digits it stands in for, so the row doesn't jump when the
+   real count lands. */
+.ds-skeleton--count { width: 18px; height: 13px; vertical-align: -1px; }
+
+@keyframes ds-skeleton-shimmer {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ds-skeleton { animation: none; }
+}

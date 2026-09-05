@@ -2,154 +2,118 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting.
+'wasm-unsafe-eval' (script-src): grepped this codebase's own maps-related
+files for eval()/new Function()/string-form setTimeout and found none.
+Google's own Maps JavaScript API bundle (loaded from maps.googleapis.com,
+third-party code) compiles WebAssembly as part of its modern rendering
+engine, which a CSP with neither 'unsafe-eval' nor 'wasm-unsafe-eval'
+blocks (reported by Chrome as a generic "script-src ... eval" violation).
+'wasm-unsafe-eval' is the CSP-standard, narrower grant purpose-built for
+this: it permits WebAssembly.compile()/instantiate() ONLY, not eval(),
+new Function(), or string-form setTimeout/setInterval the way the broader
+'unsafe-eval' would. Deliberately not using 'unsafe-eval' here.
+
+https://*.googleapis.com / https://*.gstatic.com (img-src, connect-src):
+same fix as admin.html -- once a key is configured here
+and the Google path is enabled, the SDK's own async tile/asset requests
+need Google-operated subdomains this policy only partially named (just
+the bootstrap loader's own host, maps.googleapis.com, and
+maps.gstatic.com). Google's own published CSP guidance for the Maps
+JavaScript API recommends the wildcarded https://*.googleapis.com /
+https://*.gstatic.com precisely because it does not publish, and can
+change without notice, which specific subdomain serves tiles/imagery for
+a given rendering path. js/maps-core.js reports any securitypolicyviolation
+naming a google/gstatic domain to the console (blockedURI is origin-only
+for cross-origin resources by spec, so this can never leak the API key). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<script src="./js/currency.js"></script>
+<!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
+it runs before any script on this page that imports maps-core.js.
+Gitignored, generated at deploy time (see js/maps-config.local.example.js
+and .github/workflows/deploy-pages.yml) -- absent locally until you copy
+the example, in which case the location picker falls back to its
+original Leaflet/Nominatim implementation gracefully (see sell.html's
+own initLocationPicker()). -->
+<script src="./js/maps-config.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Sell a Property</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff",
-                        "on-secondary-fixed-variant": "#5d4201",
-                        "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900",
-                        "on-primary-fixed": "#0b1d2d",
-                        "primary": "#041627",
-                        "error": "#ba1a1a",
-                        "inverse-primary": "#b7c8de",
-                        "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a",
-                        "tertiary-fixed": "#6bfe9c",
-                        "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c",
-                        "primary-fixed": "#d2e4fb",
-                        "on-primary": "#ffffff",
-                        "surface": "#f7f9ff",
-                        "surface-container-high": "#e5e8ee",
-                        "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a",
-                        "on-secondary": "#ffffff",
-                        "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6",
-                        "on-error": "#ffffff",
-                        "outline-variant": "#c4c6cd",
-                        "outline": "#74777d",
-                        "primary-container": "#1a2b3c",
-                        "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183",
-                        "primary-fixed-dim": "#b7c8de",
-                        "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176",
-                        "secondary-fixed": "#ffdea5",
-                        "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08",
-                        "surface-container-lowest": "#ffffff",
-                        "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8",
-                        "on-tertiary-container": "#00a656",
-                        "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff",
-                        "on-tertiary-fixed-variant": "#005228",
-                        "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073",
-                        "on-secondary-container": "#785a1a",
-                        "surface-container": "#ebeef3",
-                        "background": "#f7f9ff",
-                        "on-surface": "#181c20"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "gutter": "24px",
-                        "stack-lg": "32px",
-                        "stack-md": "16px",
-                        "margin-desktop": "48px",
-                        "stack-sm": "8px",
-                        "container-max": "1280px",
-                        "margin-mobile": "16px",
-                        "unit": "8px"
-                    },
-                    "fontFamily": {
-                        "headline-md": ["Plus Jakarta Sans"],
-                        "label-caps": ["IBM Plex Sans"],
-                        "display-lg-mobile": ["Plus Jakarta Sans"],
-                        "body-lg": ["Inter"],
-                        "body-md": ["Inter"],
-                        "data-mono": ["Inter"],
-                        "display-lg": ["Plus Jakarta Sans"]
-                    },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
-                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <style>
     body { min-height: max(884px, 100dvh); }
-    input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #775a19; border-color: transparent; }
-    #pinMap { background: #e5e8ee; }
-    .dropzone.drag-over { background: #f1f4f9; border-color: #775a19; }
+    input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #B89A63; border-color: transparent; }
+    #pinMap { background: #101111; }
+    /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
+       well-documented conflict with Google Maps' own internally-rendered
+       <img> tiles/UI assets under .gm-style, once a key is configured and
+       the Google path is enabled here. Purely additive, zero effect
+       outside .gm-style (the Leaflet picker this page runs by default is
+       unaffected -- Leaflet doesn't use this class). */
+    .gm-style img { max-width: none; }
+    .dropzone.drag-over { background: #221E15; border-color: #8E7448; }
 
     /* Step indicator */
     .step-indicator { display: flex; align-items: flex-start; justify-content: space-between; }
     .step-indicator .step-item { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; position: relative; }
     .step-indicator .step-item:not(:last-child)::after {
       content: ""; position: absolute; top: 15px; left: calc(50% + 22px); width: calc(100% - 44px); height: 0;
-      border-top: 2px dashed #c4c6cd;
+      border-top: 2px dashed #5D482B;
     }
     html[dir="rtl"] .step-indicator .step-item:not(:last-child)::after { left: auto; right: calc(50% + 22px); }
-    .step-indicator .step-item.done:not(:last-child)::after { border-top-color: #775a19; border-top-style: solid; }
+    .step-indicator .step-item.done:not(:last-child)::after { border-top-color: #8E7448; border-top-style: solid; }
     .step-indicator .step-circle {
       width: 30px; height: 30px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
-      font-size: 13px; font-weight: 700; border: 2px solid #c4c6cd; color: #74777d; background: #ffffff; z-index: 1;
+      font-size: 13px; font-weight: 700; border: 2px solid #5D482B; color: #A79F91; background: #17150F; z-index: 1;
       transition: all .2s ease;
     }
-    .step-indicator .step-item.active .step-circle { border-color: #775a19; background: #775a19; color: #ffffff; }
-    .step-indicator .step-item.done .step-circle { border-color: #775a19; background: #fed488; color: #5d4201; }
-    .step-indicator .step-label { font-size: 11px; font-weight: 600; color: #74777d; text-align: center; }
-    .step-indicator .step-item.active .step-label { color: #775a19; }
-    .step-indicator .step-item.done .step-label { color: #181c20; }
+    .step-indicator .step-item.active .step-circle { border-color: #B89A63; background: #B89A63; color: #090A0A; }
+    .step-indicator .step-item.done .step-circle { border-color: #8E7448; background: #8E7448; color: #090A0A; }
+    .step-indicator .step-label { font-size: 11px; font-weight: 600; color: #A79F91; text-align: center; }
+    .step-indicator .step-item.active .step-label { color: #B89A63; }
+    .step-indicator .step-item.done .step-label { color: #F2EEE5; }
     .step-indicator .step-item.clickable { cursor: pointer; }
 
     .wizard-step.hidden { display: none; }
 
     /* Counters */
-    .counter-widget { border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px 8px; text-align: center; }
+    .counter-widget { border: 1px solid #5D482B; border-radius: 0.5rem; padding: 10px 8px; text-align: center; }
     .counter-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; }
-    .counter-btn { width: 26px; height: 26px; border-radius: 999px; border: 1px solid #c4c6cd; background: #ffffff; display: flex; align-items: center; justify-content: center; }
-    .counter-btn:active { background: #f1f4f9; }
+    .counter-btn { width: 26px; height: 26px; border-radius: 999px; border: 1px solid #5D482B; background: #17150F; display: flex; align-items: center; justify-content: center; }
+    .counter-btn:active { background: #221E15; }
     .counter-value { min-width: 20px; font-weight: 700; font-size: 14px; }
 
     /* Amenity + toggle chips */
     .chip-toggle {
-      border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px 12px; font-size: 13px; font-weight: 600;
-      display: flex; align-items: center; gap: 6px; color: #44474c; background: #ffffff; transition: all .15s ease;
+      border: 1px solid #5D482B; border-radius: 0.5rem; padding: 10px 12px; font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px; color: #A79F91; background: #17150F; transition: all .15s ease;
     }
-    .chip-toggle.active { border-color: #775a19; background: #fef6e6; color: #5d4201; }
+    .chip-toggle.active { border-color: #B89A63; background: #B89A63; color: #090A0A; }
     .pill-toggle {
-      flex: 1; border: 1px solid #c4c6cd; border-radius: 0.5rem; padding: 10px; font-size: 13px; font-weight: 700;
-      color: #44474c; background: #ffffff;
+      flex: 1; border: 1px solid #5D482B; border-radius: 0.5rem; padding: 10px; font-size: 13px; font-weight: 700;
+      color: #A79F91; background: #17150F;
     }
-    .pill-toggle.active { border-color: #775a19; background: #fef6e6; color: #5d4201; }
+    .pill-toggle.active { border-color: #B89A63; background: #B89A63; color: #090A0A; }
 
     .photo-thumb[draggable="true"] { cursor: grab; }
     .photo-thumb.dragging { opacity: 0.4; }
@@ -162,41 +126,39 @@
        reverted -- it reliably pinned Continue above the fold, but testing
        caught it also floating over a short step's own content, e.g.
        eating a tap meant for the Location map. A static margin has no
-       such overlap risk.) */
+       such overlap risk.)
+       BUG FIX (mobile Step 7 Submit not reachable): 96px was measured
+       against .home-bottomnav's height with NO safe-area inset (this
+       sandbox has none) -- .home-bottomnav's own real padding-bottom is
+       max(10px, env(safe-area-inset-bottom)), which is ~34px on any
+       actual notched iPhone (390x844 included), making its true on-device
+       height meaningfully taller than 96px covers with any real safety
+       margin. Confirmed via a real Playwright walk through all 7 steps at
+       390px: after scrolling the Submit button into view the normal way
+       (scrollIntoViewIfNeeded, standing in for how a mobile browser's own
+       "scroll a newly-revealed control into view" behavior works, e.g.
+       right after Step 7's camera UI or the captured-photo swap changes
+       the layout), the button's own box (top 800/bottom 844) sat entirely
+       INSIDE the bottom nav's box (top 774/bottom 844) -- a real, exact,
+       reproducible overlap, not a hunch. Raised to 140px (comfortably
+       past the worst realistic on-device bottom-nav height) and paired
+       with scroll-margin-bottom on the buttons themselves so ANY
+       programmatic/browser-driven scroll-into-view (not just a plain CSS
+       margin, which only affects layout position, never where a browser
+       decides scrolling has gone "far enough") stops clear of the dead
+       zone instead of landing a tap-target behind it. */
     @media (max-width: 767px) {
-      #wizardNav { margin-bottom: 96px !important; }
+      #wizardNav { margin-bottom: 140px !important; }
+      #nextBtn, #submitBtn, #backBtn { scroll-margin-bottom: 140px; }
     }
   </style>
   </head>
-<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
 <!-- TopAppBar -->
-<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
-<div class="flex items-center gap-4">
-<div class="relative">
-<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">
-<span class="material-symbols-outlined">language</span>
-</button>
-<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
-</div>
-</div>
-<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
-</div>
-<nav class="hidden md:flex items-center gap-8">
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
-<span id="citiesNavSlot"></span>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
-<a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
-<a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
-</nav>
-<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
-<span class="material-symbols-outlined">notifications</span>
-</button>
-</header>
+<div id="siteHeader" data-active="sell"></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active="sell"></div>
+<script src="./js/site-mobile-nav.js"></script>
 
 <main class="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
 <!-- Page Intro -->
@@ -531,7 +493,7 @@
 
 <div class="hidden flex-col items-center gap-4 w-full" id="verifyCapturedWrap">
 <div class="relative w-64 h-64 rounded-full overflow-hidden border-4 border-tertiary-container">
-<img id="verifyCapturedImg" class="w-full h-full object-cover" alt=""/>
+<img id="verifyCapturedImg" class="w-full h-full object-cover" alt="" decoding="async"/>
 </div>
 <p class="flex items-center gap-1.5 text-on-tertiary-container bg-tertiary-container/30 px-4 py-1.5 rounded-full font-label-caps text-label-caps">
 <span class="material-symbols-outlined text-[16px]">check_circle</span>
@@ -666,28 +628,6 @@
 </main>
 
 <!-- BottomNavBar (Mobile Only) -->
-<nav class="md:hidden shadow-[0_-4px_20px_rgba(26,43,60,0.05)] bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 rounded-t-xl pb-6">
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="index.html">
-<span class="material-symbols-outlined">home</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.home">Home</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
-<span class="material-symbols-outlined">map</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.map">Map</span>
-</a>
-<a class="relative -top-4 flex flex-col items-center justify-center bg-primary text-on-primary w-16 h-16 rounded-full shadow-lg border-4 border-surface-container-lowest dark:border-inverse-surface hover:bg-primary-container transition-transform duration-300 ease-in-out active:scale-90" href="mam-ai.html">
-<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="services.html">
-<span class="material-symbols-outlined">business_center</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.services">Services</span>
-</a>
-<a id="navProfileLinkMobile" class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="login.html">
-<span class="material-symbols-outlined">person</span>
-<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1">Profile</span>
-</a>
-</nav>
-
 <script>
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -792,7 +732,7 @@ function showStep(n) {
   hideStepValidationMsg();
   if (n === 5) renderReview();
   document.getElementById('stepIndicator').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  if (n === 1) setTimeout(() => pinMap.invalidateSize(), 100);
+  if (n === 1) setTimeout(() => invalidatePinMapSize(), 100);
   if (n === 7) { if (!verificationBlob) startVerificationCamera(); } else { stopVerificationCamera(); }
 }
 
@@ -857,7 +797,9 @@ document.querySelectorAll('.chip-toggle').forEach(btn => {
    Price currency conversion (matches the 1,310 IQD/USD rate used
    elsewhere on the site, e.g. MAM AI's price parsing).
    ========================================================================== */
-const IQD_PER_USD = 1310;
+// Sourced from js/currency.js (the one place the rate is defined).
+// The local name is kept so the five uses below are unchanged.
+const IQD_PER_USD = window.DARWESH_IQD_PER_USD;
 const priceInput = document.getElementById('priceInput');
 const currencySelect = document.getElementById('currencySelect');
 const priceEquivalentReadout = document.getElementById('priceEquivalentReadout');
@@ -931,12 +873,14 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
   }
   resultEl.textContent = tr('sell.valuationLoading', 'Estimating...');
   try {
-    await submissionAuthReady;
-    const snap = await submitFns.getDocs(submitFns.collection(submitDb, 'listings'));
+    await getSubmissionAuthReady();
+    const valuationQuery = submitFns.query(submitFns.collection(submitDb, 'listings'),
+      submitFns.where('private', '==', false), submitFns.where('status', '==', 'active'));
+    const snap = await submitFns.getDocs(valuationQuery);
     const comparable = [];
     snap.forEach(d => {
       const l = d.data();
-      if (l.status === 'active' && l.city === city && Number(l.price) > 0 && Number(l.size) > 0) {
+      if (l.city === city && Number(l.price) > 0 && Number(l.size) > 0) {
         comparable.push(Number(l.price) / Number(l.size));
       }
     });
@@ -944,8 +888,14 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
       resultEl.textContent = tr('sell.valuationNoData', 'Not enough comparable listings yet for an estimate.');
       return;
     }
-    const avgPerSqm = comparable.reduce((a, b) => a + b, 0) / comparable.length;
-    const estimate = avgPerSqm * size;
+    // BL-09 (data-quality, not a security fix): a plain mean lets a
+    // single extreme-priced comparable dominate a low-inventory city's
+    // estimate. Median is far more resistant to that without adding any
+    // real complexity -- still just one array sort.
+    comparable.sort((a, b) => a - b);
+    const mid = Math.floor(comparable.length / 2);
+    const medianPerSqm = comparable.length % 2 === 0 ? (comparable[mid - 1] + comparable[mid]) / 2 : comparable[mid];
+    const estimate = medianPerSqm * size;
     const low = Math.round(estimate * 0.85);
     const high = Math.round(estimate * 1.15);
     resultEl.textContent = tr('sell.valuationResult', 'Estimated value: {low} – {high}')
@@ -957,16 +907,27 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
 });
 
 /* ==========================================================================
-   Location: search (Nominatim/OpenStreetMap), current location, pin map
-   ========================================================================== */
-const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 18
-}).addTo(pinMap);
-let pinMarker = null;
+   Location: search, current location, pin map.
 
+   Dual-engine (Production Rebuild Phase 1 of 3, Part E): when
+   js/maps-core.js reports a configured Google Maps key,
+   initGoogleLocationPicker() below drives this same UI (#pinMap,
+   #locSearchInput, #useCurrentLocationBtn, #dropPinBtn) via the shared
+   Google Maps integration boundary (Places Autocomplete + a draggable
+   marker + click-to-place). Until then -- which is this sandbox's actual
+   state today, and every environment's state until an operator
+   provisions a key (see docs/GOOGLE_MAPS_CONFIGURATION.md) -- the
+   ORIGINAL, already-hardened Leaflet + Nominatim implementation below
+   runs completely unchanged, byte-for-byte the same behavior this page
+   has shipped with. This is a deliberate, conservative migration
+   strategy: the currently-working path is never modified or removed,
+   only wrapped, so there is zero regression risk to this form's
+   submission workflow from a Google Maps code path that cannot be
+   end-to-end verified in this environment. setPin()/
+   updateSelectedLocationCard()/applyReverseGeocode()/matchKnownCity()
+   are shared, engine-agnostic helpers used by both paths -- they only
+   ever touch the output form fields, never a map-library-specific API.
+   ========================================================================== */
 const KNOWN_CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
 const CITY_ALIASES = {
   erbil: 'Erbil', hewler: 'Erbil', hawler: 'Erbil', arbil: 'Erbil',
@@ -985,15 +946,11 @@ function matchKnownCity(addressObj) {
   return null;
 }
 
-function setPin(lat, lng, pan) {
-  if (pinMarker) pinMarker.setLatLng([lat, lng]);
-  else pinMarker = L.marker([lat, lng]).addTo(pinMap);
-  if (pan) pinMap.panTo([lat, lng]);
-  document.getElementById('pinLat').value = lat.toFixed(5);
-  document.getElementById('pinLng').value = lng.toFixed(5);
-  document.getElementById('locValidationMsg').classList.add('hidden');
-  updateSelectedLocationCard();
-}
+// Set by whichever engine actually initializes below -- gives showStep()
+// a single, engine-agnostic way to nudge the map after its container was
+// previously display:none (both Leaflet and Google Maps need this; a
+// stale/empty container before either engine is ready is a harmless no-op).
+let invalidatePinMapSize = () => {};
 
 function updateSelectedLocationCard() {
   const lat = document.getElementById('pinLat').value;
@@ -1009,8 +966,19 @@ function updateSelectedLocationCard() {
 document.getElementById('addressInput').addEventListener('input', updateSelectedLocationCard);
 document.getElementById('citySelect').addEventListener('change', updateSelectedLocationCard);
 
-pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
-setTimeout(() => pinMap.invalidateSize(), 100);
+function applyReverseGeocode(addressObj, shortAddress) {
+  const matchedCity = matchKnownCity(addressObj);
+  if (matchedCity) document.getElementById('citySelect').value = matchedCity;
+  if (shortAddress) document.getElementById('addressInput').value = shortAddress;
+  updateSelectedLocationCard();
+}
+
+function geolocationErrorMessage(err) {
+  // GeolocationPositionError codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
+  if (err.code === 1) return tr('sell.loc.locationErrorDenied', 'Location permission was denied. Please allow location access for this site in your browser settings and try again.');
+  if (err.code === 2) return tr('sell.loc.locationErrorUnavailable', 'Your device could not determine your location. Please check that location services are enabled, or place your pin manually on the map.');
+  return tr('sell.loc.locationErrorTimeout', 'Getting your location took too long. Please try again, or place your pin manually on the map.');
+}
 
 document.getElementById('dropPinBtn').addEventListener('click', () => {
   const hint = document.getElementById('dropPinHint');
@@ -1024,96 +992,170 @@ document.getElementById('editLocationBtn').addEventListener('click', () => {
   document.getElementById('locSearchInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 
-function geolocationErrorMessage(err) {
-  // GeolocationPositionError codes: 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 = TIMEOUT.
-  if (err.code === 1) return tr('sell.loc.locationErrorDenied', 'Location permission was denied. Please allow location access for this site in your browser settings and try again.');
-  if (err.code === 2) return tr('sell.loc.locationErrorUnavailable', 'Your device could not determine your location. Please check that location services are enabled, or place your pin manually on the map.');
-  return tr('sell.loc.locationErrorTimeout', 'Getting your location took too long. Please try again, or place your pin manually on the map.');
-}
+// ---- Google Maps engine (used only once a key is configured) ----------
+async function initGoogleLocationPicker() {
+  const { initMap, createMarker, attachAddressAutocomplete, reverseGeocode: gReverseGeocode } = await import('./js/maps-core.js');
+  const map = await initMap(document.getElementById('pinMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+  if (!map) return false; // isConfigured() was true but the script itself failed to load -- caller falls back to Leaflet
+  const google = window.google;
+  let marker = null;
 
-document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
-  if (!navigator.geolocation) {
-    alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
-    return;
+  function setPin(lat, lng, pan) {
+    if (marker) { marker.position ? (marker.position = { lat, lng }) : marker.setPosition({ lat, lng }); }
+    else marker = createMarker(google, map, { lat, lng }, { forceAdvanced: false });
+    if (pan) map.panTo({ lat, lng });
+    document.getElementById('pinLat').value = lat.toFixed(5);
+    document.getElementById('pinLng').value = lng.toFixed(5);
+    document.getElementById('locValidationMsg').classList.add('hidden');
+    updateSelectedLocationCard();
   }
-  const original = this.innerHTML;
-  this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    setPin(pos.coords.latitude, pos.coords.longitude, true);
-    pinMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
-    try {
-      const data = await reverseGeocode(pos.coords.latitude, pos.coords.longitude);
-      applyReverseGeocode(data);
-    } catch (err) { console.error('[sell] reverse geocode failed', err); }
-    this.innerHTML = original;
-  }, (err) => {
-    console.error('[sell] geolocation failed', err.code, err.message);
-    alert(geolocationErrorMessage(err));
-    this.innerHTML = original;
-  }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
-});
 
-async function searchLocation(q) {
-  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
-  if (!res.ok) throw new Error('Search failed');
-  return res.json();
-}
-async function reverseGeocode(lat, lng) {
-  const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
-  if (!res.ok) throw new Error('Reverse geocode failed');
-  return res.json();
-}
-function applyReverseGeocode(data) {
-  if (!data) return;
-  const matchedCity = matchKnownCity(data.address);
-  if (matchedCity) document.getElementById('citySelect').value = matchedCity;
-  const addr = data.address || {};
-  const short = [addr.neighbourhood || addr.suburb || addr.road, addr.city || addr.town].filter(Boolean).join(', ') || data.display_name;
-  document.getElementById('addressInput').value = short;
-  updateSelectedLocationCard();
-}
+  map.addListener('click', (e) => setPin(e.latLng.lat(), e.latLng.lng(), false));
+  invalidatePinMapSize = () => google.maps.event.trigger(map, 'resize');
 
-let locSearchTimer = null;
-const locSearchInput = document.getElementById('locSearchInput');
-const locSearchResults = document.getElementById('locSearchResults');
-locSearchInput.addEventListener('input', () => {
-  clearTimeout(locSearchTimer);
-  const q = locSearchInput.value.trim();
-  if (q.length < 3) { locSearchResults.classList.add('hidden'); return; }
-  locSearchTimer = setTimeout(async () => {
-    locSearchResults.classList.remove('hidden');
-    locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
-    try {
-      const results = await searchLocation(q);
-      if (!results.length) {
-        locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
-        return;
-      }
-      locSearchResults.innerHTML = '';
-      results.forEach(r => {
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0';
-        item.textContent = r.display_name;
-        item.addEventListener('click', () => {
-          const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
-          setPin(lat, lng, true);
-          pinMap.setView([lat, lng], 15);
-          applyReverseGeocode(r);
-          locSearchResults.classList.add('hidden');
-          locSearchInput.value = r.display_name;
-        });
-        locSearchResults.appendChild(item);
-      });
-    } catch (err) {
-      console.error('[sell] location search failed', err);
-      locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+  document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
+      return;
     }
-  }, 400);
-});
-document.addEventListener('click', (e) => {
-  if (!locSearchInput.contains(e.target) && !locSearchResults.contains(e.target)) locSearchResults.classList.add('hidden');
-});
+    const original = this.innerHTML;
+    this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      setPin(pos.coords.latitude, pos.coords.longitude, true);
+      map.setZoom(15);
+      try {
+        const formatted = await gReverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        if (formatted) applyReverseGeocode(null, formatted);
+      } catch (err) { console.error('[sell] reverse geocode failed', err); }
+      this.innerHTML = original;
+    }, (err) => {
+      console.error('[sell] geolocation failed', err.code, err.message);
+      alert(geolocationErrorMessage(err));
+      this.innerHTML = original;
+    }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
+  });
+
+  await attachAddressAutocomplete(document.getElementById('locSearchInput'), (place) => {
+    setPin(place.lat, place.lng, true);
+    map.setZoom(15);
+    if (place.formattedAddress) document.getElementById('addressInput').value = place.formattedAddress;
+    updateSelectedLocationCard();
+  });
+
+  return true;
+}
+
+// ---- Leaflet + Nominatim engine (the existing, proven implementation --
+// unchanged from before this migration, used whenever Google Maps is not
+// configured) -------------------------------------------------------------
+function initLeafletLocationPicker() {
+  const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+  L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 18
+  }).addTo(pinMap);
+  let pinMarker = null;
+
+  function setPin(lat, lng, pan) {
+    if (pinMarker) pinMarker.setLatLng([lat, lng]);
+    else pinMarker = L.marker([lat, lng]).addTo(pinMap);
+    if (pan) pinMap.panTo([lat, lng]);
+    document.getElementById('pinLat').value = lat.toFixed(5);
+    document.getElementById('pinLng').value = lng.toFixed(5);
+    document.getElementById('locValidationMsg').classList.add('hidden');
+    updateSelectedLocationCard();
+  }
+
+  pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
+  invalidatePinMapSize = () => pinMap.invalidateSize();
+  setTimeout(() => pinMap.invalidateSize(), 100);
+
+  document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
+      return;
+    }
+    const original = this.innerHTML;
+    this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      setPin(pos.coords.latitude, pos.coords.longitude, true);
+      pinMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      try {
+        const data = await reverseGeocodeNominatim(pos.coords.latitude, pos.coords.longitude);
+        if (data) applyReverseGeocode(data.address, [data.address?.neighbourhood || data.address?.suburb || data.address?.road, data.address?.city || data.address?.town].filter(Boolean).join(', ') || data.display_name);
+      } catch (err) { console.error('[sell] reverse geocode failed', err); }
+      this.innerHTML = original;
+    }, (err) => {
+      console.error('[sell] geolocation failed', err.code, err.message);
+      alert(geolocationErrorMessage(err));
+      this.innerHTML = original;
+    }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
+  });
+
+  async function searchLocationNominatim(q) {
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
+    if (!res.ok) throw new Error('Search failed');
+    return res.json();
+  }
+  async function reverseGeocodeNominatim(lat, lng) {
+    const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
+    if (!res.ok) throw new Error('Reverse geocode failed');
+    return res.json();
+  }
+
+  let locSearchTimer = null;
+  const locSearchInput = document.getElementById('locSearchInput');
+  const locSearchResults = document.getElementById('locSearchResults');
+  locSearchInput.addEventListener('input', () => {
+    clearTimeout(locSearchTimer);
+    const q = locSearchInput.value.trim();
+    if (q.length < 3) { locSearchResults.classList.add('hidden'); return; }
+    locSearchTimer = setTimeout(async () => {
+      locSearchResults.classList.remove('hidden');
+      locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
+      try {
+        const results = await searchLocationNominatim(q);
+        if (!results.length) {
+          locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+          return;
+        }
+        locSearchResults.innerHTML = '';
+        results.forEach(r => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0';
+          item.textContent = r.display_name;
+          item.addEventListener('click', () => {
+            const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+            setPin(lat, lng, true);
+            pinMap.setView([lat, lng], 15);
+            applyReverseGeocode(r.address, [r.address?.neighbourhood || r.address?.suburb || r.address?.road, r.address?.city || r.address?.town].filter(Boolean).join(', ') || r.display_name);
+            locSearchResults.classList.add('hidden');
+            locSearchInput.value = r.display_name;
+          });
+          locSearchResults.appendChild(item);
+        });
+      } catch (err) {
+        console.error('[sell] location search failed', err);
+        locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+      }
+    }, 400);
+  });
+  document.addEventListener('click', (e) => {
+    if (!locSearchInput.contains(e.target) && !locSearchResults.contains(e.target)) locSearchResults.classList.add('hidden');
+  });
+}
+
+(async function initLocationPicker() {
+  try {
+    const { isConfigured } = await import('./js/maps-core.js');
+    if (isConfigured() && await initGoogleLocationPicker()) return;
+  } catch (err) {
+    console.error('[sell] Google Maps location picker failed to initialize, falling back to the built-in map', err);
+  }
+  initLeafletLocationPicker();
+})();
 
 /* ==========================================================================
    Photo upload: click + drag-and-drop, with thumbnail previews and
@@ -1135,7 +1177,19 @@ const photoGalleryLabel = document.getElementById('photoGalleryLabel');
 let photoPreviewUrls = [];
 let dragFromIndex = null;
 const photoUploadState = new Map(); // File -> { url, error, promise }
-let sellPhotoToken = null;
+// Generated unconditionally at load, not lazily on first property-photo
+// upload: this token is also the required Firestore subcollection
+// document ID for the identity-verification photo write (see
+// attachVerificationPhoto() below and firestore.rules' `verification`
+// match block, which requires token == this submission's own
+// photoUploadToken). Property photos are optional -- a seller who
+// uploads zero of them (e.g. a land listing) would otherwise leave this
+// token null, which firestore.rules can never match (a document ID is
+// never equal to a null field value), silently and permanently
+// discarding the verification selfie every such submitter is required
+// to take. Generating it upfront makes the token always real regardless
+// of whether any property photo is ever uploaded.
+let sellPhotoToken = crypto.randomUUID();
 
 function ensurePhotoUploadStarted(file) {
   if (photoUploadState.has(file)) return;
@@ -1144,9 +1198,8 @@ function ensurePhotoUploadStarted(file) {
   state.promise = (async () => {
     const t0 = performance.now();
     try {
-      await submissionAuthReady;
+      await getSubmissionAuthReady();
       const compressed = await compressImage(file);
-      if (!sellPhotoToken) sellPhotoToken = crypto.randomUUID();
       const safeName = Date.now() + '-' + Math.random().toString(36).slice(2, 8) + '-' +
         file.name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.[^.]*$/, '.jpg');
       const fileRef = storageFns.ref(submitStorage, `sell-submissions/${sellPhotoToken}/${safeName}`);
@@ -1205,7 +1258,7 @@ function renderPhotoPreviews() {
       statusBadge = `<div class="absolute inset-0 bg-primary/30 flex items-center justify-center pointer-events-none"><span class="material-symbols-outlined text-white animate-spin" style="font-size:18px;">progress_activity</span></div>`;
     }
     return `<div class="photo-thumb relative rounded-lg overflow-hidden border border-outline-variant aspect-square bg-surface-container-low" draggable="true" data-index="${i}">
-      <img src="${url}" class="w-full h-full object-cover pointer-events-none"/>
+      <img src="${url}" class="w-full h-full object-cover pointer-events-none" decoding="async"/>
       ${i === 0 ? `<span class="absolute bottom-1 left-1 bg-primary text-on-primary text-[10px] font-bold px-1.5 py-0.5 rounded pointer-events-none">${tr('sell.coverPhoto', 'Cover')}</span>` : ''}
       ${statusBadge}
       <button type="button" data-index="${i}" aria-label="Remove photo" class="photo-remove-btn absolute top-1 right-1 w-5 h-5 rounded-full bg-primary/80 text-on-primary flex items-center justify-center">
@@ -1364,7 +1417,7 @@ function startVerificationUpload(blob) {
   const t0 = performance.now();
   verificationUploadPromise = (async () => {
     try {
-      await submissionAuthReady;
+      await getSubmissionAuthReady();
       const token = crypto.randomUUID();
       const path = `sell-verification/${token}/selfie.jpg`;
       const fileRef = storageFns.ref(submitStorage, path);
@@ -1424,10 +1477,14 @@ document.querySelectorAll('.chip-toggle').forEach(btn => {
   AMENITY_LABELS[btn.dataset.amenity] = btn.querySelector('span[data-i18n]').textContent;
 });
 
+// Safe for both text-node content and quoted attribute values -- see
+// js/escape-html.js's own comment (CLIENT-06,
+// CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+// div.textContent-round-trip form of this function wasn't.
 function escapeReview(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : String(str);
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 function renderReview() {
@@ -1460,11 +1517,11 @@ function renderReview() {
 
   const files = [...photoUpload.files];
   const coverUrl = photoPreviewUrls[0] || '';
-  const thumbs = files.slice(0, 8).map((f, i) => `<img src="${photoPreviewUrls[i]}" class="w-12 h-12 rounded-lg object-cover border border-outline-variant"/>`).join('');
+  const thumbs = files.slice(0, 8).map((f, i) => `<img src="${photoPreviewUrls[i]}" class="w-12 h-12 rounded-lg object-cover border border-outline-variant" decoding="async"/>`).join('');
 
   el.innerHTML = `
     <div class="rounded-2xl border border-outline-variant overflow-hidden">
-      ${coverUrl ? `<img src="${coverUrl}" class="w-full h-48 object-cover"/>` : `<div class="w-full h-48 bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined text-outline text-4xl">image</span></div>`}
+      ${coverUrl ? `<img src="${coverUrl}" class="w-full h-48 object-cover" decoding="async"/>` : `<div class="w-full h-48 bg-surface-container-low flex items-center justify-center"><span class="material-symbols-outlined text-outline text-4xl">image</span></div>`}
       <div class="p-5 space-y-3">
         <h3 class="font-headline-md text-headline-md font-bold text-primary">${escapeReview(typeLabel)} ${escapeReview(dealLabel)}</h3>
         <p class="font-data-mono text-data-mono text-secondary">${escapeReview(priceLine)}</p>
@@ -1552,17 +1609,70 @@ if (localStorage.getItem(DRAFT_KEY)) {
    submission is saved with uid: null and is only visible to staff.
    ========================================================================== */
 let submitAuth = null, submitDb = null, submitFns = null, submitStorage = null, storageFns = null;
-const submissionAuthReady = (async function initSubmissionAuth() {
-  const [{ auth, db, storage }, authMod, storeMod, storageMod] = await Promise.all([
-    import('./js/firebase-init.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js'),
-    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js')
+
+let submissionAuthAttempt = 0;
+
+async function initSubmissionAuth() {
+  // A module URL that has ever failed to fetch is cached as a permanent
+  // failure by the BROWSER'S OWN ES module registry, not just something
+  // this file's own promise caches -- confirmed directly: re-importing
+  // the exact same URL after the network recovers still throws the same
+  // cached rejection with no new network request even attempted; only a
+  // literally different URL (a cache-busting query param) makes the
+  // browser try again. So a retryable getSubmissionAuthReady() alone
+  // isn't enough -- every retry needs fresh URLs for the imports that
+  // could plausibly have failed, or it just replays the same dead
+  // import every time.
+  //
+  // ./js/firebase-init.js IS also cache-busted on retry, unlike a plain
+  // stateless CDN module -- it calls initializeApp() at its own top
+  // level, and re-importing it under a new URL would normally re-run
+  // that and throw Firebase's own "app named '[DEFAULT]' already
+  // exists" error. js/firebase-init.js guards against exactly that (it
+  // reuses the existing default app via getApps()/getApp() instead of
+  // calling initializeApp() again if one already exists), which is what
+  // makes this safe: a prior *successful* import is reused as-is, and a
+  // prior *failed* import (this module's own transitive dependencies,
+  // e.g. firebase-storage.js below, can be part of what failed) gets a
+  // genuine fresh attempt instead of replaying the same dead import.
+  const bust = submissionAuthAttempt > 0 ? '?retry=' + submissionAuthAttempt : '';
+  submissionAuthAttempt++;
+  const [{ auth, db, storage, addDoc, updateDoc, getDocs }, authMod, storeMod, storageMod] = await Promise.all([
+    import('./js/firebase-init.js' + bust),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js' + bust),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js' + bust),
+    import('https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js' + bust)
   ]);
   submitAuth = auth; submitDb = db; submitStorage = storage;
-  submitFns = { ...authMod, ...storeMod };
+  submitFns = { ...authMod, ...storeMod, addDoc, updateDoc, getDocs };
   storageFns = storageMod;
-})();
+}
+
+// A retryable getter, not a one-shot module-level promise. The original
+// bug this fixes: on a flaky connection (far more common on mobile —
+// exactly the "some browsers/devices" pattern reported), one of these
+// four dynamic imports can fail while the page is loading, minutes
+// before the user ever reaches Step 7. A plain `const ... = (async
+// function(){...})()` caches that REJECTION forever -- every later
+// `await` on it (including the final Submit handler, previously
+// unguarded -- see below) throws the same cached error every time,
+// permanently, even after clicking Submit again, even on a good
+// connection minutes later. Retrying only works if a fresh attempt is
+// actually made (see initSubmissionAuth's cache-busting above too --
+// a fresh promise alone isn't enough if it just re-requests the exact
+// same doomed URL).
+let submissionAuthPromise = null;
+let submissionAuthFailureCount = 0;
+function getSubmissionAuthReady() {
+  if (!submissionAuthPromise) {
+    submissionAuthPromise = initSubmissionAuth().catch((err) => {
+      submissionAuthPromise = null; // let the next caller retry from scratch
+      submissionAuthFailureCount++;
+      throw err;
+    });
+  }
+  return submissionAuthPromise;
+}
 
 // Uploads whatever photos are currently selected to
 // sell-submissions/{token}/{n}-{fileName} and returns the download URLs
@@ -1646,7 +1756,47 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   submitBtnLabel.textContent = tr('sell.submittingListing', 'Submitting your listing...');
 
   const tSubmitStart = performance.now();
-  await submissionAuthReady;
+  // Previously unguarded -- unlike every other call site of this same
+  // readiness check (valuation estimate, property photo upload,
+  // verification photo upload), this one had no try/catch around it. If
+  // the SDK modules failed to load (a flaky connection during page
+  // load, minutes before Step 7 -- more common on mobile, matching
+  // reports of this failing "on some browsers/devices" but not others),
+  // this threw here, uncaught, and execution just stopped: the button
+  // stayed disabled forever showing "Submitting your listing...",
+  // submissionInFlight stayed true forever blocking any retry, and the
+  // user never saw an error. getSubmissionAuthReady() (see its own
+  // comment above) also makes retrying actually mean something now --
+  // a plain re-await of the old one-shot promise would have thrown the
+  // exact same cached rejection forever, even after clicking Submit
+  // again.
+  try {
+    await getSubmissionAuthReady();
+  } catch (err) {
+    console.error('Could not prepare submission:', err);
+    // The cache-busting retry in initSubmissionAuth() recovers most
+    // real failures (a genuinely transient drop in one of the three
+    // stateless CDN modules) without the user needing to do anything
+    // but click Submit again. It can't recover every case, though: if
+    // js/firebase-init.js's OWN internal, statically-imported
+    // dependencies are what failed, re-evaluating that module (even
+    // under a fresh URL) still resolves those via the exact same fixed
+    // URLs, which the browser has already permanently blacklisted --
+    // only a full page reload gets a clean module registry. Rather than
+    // let the user click Submit into the same wall repeatedly with no
+    // clear way out, a second failure in a row says so explicitly.
+    const reachedRetryCeiling = submissionAuthFailureCount >= 2;
+    const baseMsg = reachedRetryCeiling
+      ? ((window.t && window.t('sell.submitErrorReload')) || 'Could not submit your listing — please reload the page and try again.')
+      : ((window.t && window.t('sell.submitError')) || 'Could not submit your listing — please check your connection and try again.');
+    errEl.textContent = baseMsg + ' (' + err.message + ')';
+    errEl.classList.remove('hidden');
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    submitBtn.disabled = false;
+    submitBtnLabel.textContent = originalLabel;
+    submissionInFlight = false;
+    return;
+  }
   console.log('[sell][perf] Firebase SDK ready at +' + Math.round(performance.now() - tSubmitStart) + 'ms');
 
   const photoStatus = getCurrentPhotoUploadStatus();
@@ -1676,11 +1826,33 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     // background patch below fills it in once it finishes. The verification
     // selfie uploads to a separate, admin-only-read Storage path (see
     // storage.rules) -- it never becomes part of photoUrls, so it can't
-    // end up on the public listing.
+    // end up on the public listing. Its path is attached separately below,
+    // via attachVerificationPhoto() (AUTHZ-02) -- not as a plain field on
+    // this document, which anyone who could reach this doc's ID could
+    // otherwise overwrite with an unrelated path.
     photoUrls: photoStatus.readyUrls, photoUploadToken: sellPhotoToken,
-    verificationPhotoPath,
     status: 'pending', createdAt: submitFns.serverTimestamp()
   };
+
+  // AUTHZ-02 fix: the verification photo's Storage path is written into
+  // submissions/{id}/verification/{token} (token == this submission's own
+  // photoUploadToken), never as a plain field on the submission doc
+  // itself. firestore.rules requires the caller to supply that exact
+  // token as the subcollection document's ID -- a partial update can
+  // omit a field and trivially "match" a stale value, but it can't omit
+  // a path segment, so this is airtight against the identity-confusion
+  // attack the plain-field version had (an unrelated party could not
+  // patch verificationPhotoPath without already knowing the real token).
+  async function attachVerificationPhoto(path) {
+    try {
+      await submitFns.setDoc(
+        submitFns.doc(submitDb, 'submissions', newDocRef.id, 'verification', sellPhotoToken),
+        { path, setAt: submitFns.serverTimestamp() }
+      );
+    } catch (err) {
+      console.error('[sell] could not attach verification photo path', err);
+    }
+  }
 
   let newDocRef;
   try {
@@ -1699,6 +1871,8 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   }
   console.log('[sell][perf] total time to success: ' + Math.round(performance.now() - tSubmitStart) + 'ms');
 
+  if (verificationPhotoPath) attachVerificationPhoto(verificationPhotoPath);
+
   localStorage.removeItem(DRAFT_KEY);
   document.getElementById('sellForm').classList.add('hidden');
   document.getElementById('confirmation').classList.remove('hidden');
@@ -1709,19 +1883,28 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
   // listing itself never waited on it. Skipped entirely when every upload
   // had already finished by submit time, which is the normal case.
   const stillPending = [...photoStatus.pendingPromises];
+  // "Upload failed -- will retry when you submit" (updateVerifyUploadStatusUI)
+  // was a promise the code never actually kept: verificationUploadPromise
+  // always RESOLVES (its own try/catch only ever sets
+  // verificationUploadError, never rejects), so re-awaiting the same
+  // already-settled promise here just resolved again immediately without
+  // retrying anything, silently completing the submission with no
+  // verification photo attached. Actually re-invoke the upload when it
+  // previously failed and the captured photo is still in memory.
+  if (verificationUploadError && verificationBlob) startVerificationUpload(verificationBlob);
   if (verificationUploadPromise && !verificationPhotoPath) stillPending.push(verificationUploadPromise);
   if (stillPending.length) {
     Promise.all(stillPending).then(async () => {
       try {
         await submitFns.updateDoc(submitFns.doc(submitDb, 'submissions', newDocRef.id), {
           photoUrls: getCurrentPhotoUploadStatus().readyUrls,
-          photoUploadToken: sellPhotoToken,
-          verificationPhotoPath
+          photoUploadToken: sellPhotoToken
         });
         console.log('[sell][perf] background photo patch applied after uploads settled');
       } catch (err) {
         console.error('[sell] background photo patch failed (listing was already submitted successfully without it)', err);
       }
+      if (verificationPhotoPath) await attachVerificationPhoto(verificationPhotoPath);
     });
   }
 });
@@ -1732,7 +1915,8 @@ updateWizardNav();
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
-<script type="module" src="./js/city-nav.js"></script>
 <script src="./js/i18n.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
+<div id="mamCompanionLauncher" data-page="sell"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
 </body></html>

@@ -2,112 +2,37 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Buy a Property</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff",
-                        "on-secondary-fixed-variant": "#5d4201",
-                        "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900",
-                        "on-primary-fixed": "#0b1d2d",
-                        "primary": "#041627",
-                        "error": "#ba1a1a",
-                        "inverse-primary": "#b7c8de",
-                        "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a",
-                        "tertiary-fixed": "#6bfe9c",
-                        "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c",
-                        "primary-fixed": "#d2e4fb",
-                        "on-primary": "#ffffff",
-                        "surface": "#f7f9ff",
-                        "surface-container-high": "#e5e8ee",
-                        "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a",
-                        "on-secondary": "#ffffff",
-                        "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6",
-                        "on-error": "#ffffff",
-                        "outline-variant": "#c4c6cd",
-                        "outline": "#74777d",
-                        "primary-container": "#1a2b3c",
-                        "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183",
-                        "primary-fixed-dim": "#b7c8de",
-                        "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176",
-                        "secondary-fixed": "#ffdea5",
-                        "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08",
-                        "surface-container-lowest": "#ffffff",
-                        "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8",
-                        "on-tertiary-container": "#00a656",
-                        "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff",
-                        "on-tertiary-fixed-variant": "#005228",
-                        "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073",
-                        "on-secondary-container": "#785a1a",
-                        "surface-container": "#ebeef3",
-                        "background": "#f7f9ff",
-                        "on-surface": "#181c20"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "gutter": "24px",
-                        "stack-lg": "32px",
-                        "stack-md": "16px",
-                        "margin-desktop": "48px",
-                        "stack-sm": "8px",
-                        "container-max": "1280px",
-                        "margin-mobile": "16px",
-                        "unit": "8px"
-                    },
-                    "fontFamily": {
-                        "headline-md": ["Plus Jakarta Sans"],
-                        "label-caps": ["IBM Plex Sans"],
-                        "display-lg-mobile": ["Plus Jakarta Sans"],
-                        "body-lg": ["Inter"],
-                        "body-md": ["Inter"],
-                        "data-mono": ["Inter"],
-                        "display-lg": ["Plus Jakarta Sans"]
-                    },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
-                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
 <style>
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
     .buy-toast {
       position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
-      background: #041627; color: #fff; padding: 10px 20px; border-radius: 999px;
+      background: #17150F; color: #F2EEE5; border: 1px solid #5D482B; padding: 10px 20px; border-radius: 999px;
       font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
       opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 1100;
       display: flex; align-items: center; gap: 8px; white-space: nowrap;
@@ -116,35 +41,12 @@
     @media (min-width: 768px) { .buy-toast { bottom: 1.5rem; } }
   </style>
   </head>
-<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-16">
 <!-- TopAppBar -->
-<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
-<div class="flex items-center gap-4">
-<div class="relative">
-<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">
-<span class="material-symbols-outlined">language</span>
-</button>
-<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
-</div>
-</div>
-<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
-</div>
-<nav class="hidden md:flex items-center gap-8">
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
-<span id="citiesNavSlot"></span>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
-<a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
-<a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
-</nav>
-<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
-<span class="material-symbols-outlined">notifications</span>
-</button>
-</header>
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
 
 <main class="w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">
 <!-- Page Intro -->
@@ -193,34 +95,42 @@
 <!-- Listings Grid -->
 <section id="listingsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-stack-lg"></section>
 
+<!-- Cursor pagination controls.
+
+     The button is not decoration: the IntersectionObserver sentinel below
+     it is the usual path, but an observer can be unavailable, and a
+     keyboard or screen-reader user never scrolls a sentinel into view at
+     all. Both call the same guarded fetchPage(), so having both cannot
+     double-fetch.
+
+     buySearchScopeNote is shown only while a text query is active AND the
+     server still has pages left. Firestore cannot do substring search, so
+     the text box filters what is loaded -- this says so out loud rather
+     than letting a match on an unfetched page vanish silently. -->
+<p id="buySearchScopeNote" class="hidden text-center font-body-md text-body-md text-on-surface-variant pb-stack-sm" data-i18n="buy.searchScopeNote">Searching loaded results only. Load more to widen the search.</p>
+
+<div class="flex justify-center pb-stack-lg">
+<button id="buyLoadMoreBtn" type="button" class="hidden border border-outline-variant rounded-full px-8 py-3 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors disabled:opacity-60" data-i18n="buy.loadMore">Load more</button>
+</div>
+<div id="buyScrollSentinel" aria-hidden="true"></div>
+
 <p id="emptyState" class="hidden text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="buy.noResults">No properties match your search. Try a different city or home type.</p>
+
+<!-- Distinct from emptyState: the query itself failed (network/Firestore),
+     not "zero real listings matched" -- previously both cases silently
+     collapsed into the exact same "No properties match your search"
+     copy, with no way for a real user (or a support agent looking over
+     their shoulder) to tell a genuine empty result apart from a broken
+     fetch, and no retry affordance either way. -->
+<div id="buyErrorState" class="hidden text-center py-stack-lg">
+<p class="font-body-md text-body-md text-on-surface-variant mb-3" data-i18n="buy.loadError">Couldn't load listings. Please check your connection and try again.</p>
+<button id="buyRetryBtn" type="button" class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="common.retry">Retry</button>
+</div>
 
 <div class="buy-toast" id="buyToast"></div>
 </main>
 
 <!-- BottomNavBar (Mobile Only) -->
-<nav class="md:hidden shadow-[0_-4px_20px_rgba(26,43,60,0.05)] bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 rounded-t-xl pb-6">
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="index.html">
-<span class="material-symbols-outlined">home</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.home">Home</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
-<span class="material-symbols-outlined">map</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.map">Map</span>
-</a>
-<a class="relative -top-4 flex flex-col items-center justify-center bg-primary text-on-primary w-16 h-16 rounded-full shadow-lg border-4 border-surface-container-lowest dark:border-inverse-surface hover:bg-primary-container transition-transform duration-300 ease-in-out active:scale-90" href="mam-ai.html">
-<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="services.html">
-<span class="material-symbols-outlined">business_center</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.services">Services</span>
-</a>
-<a id="navProfileLinkMobile" class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="login.html">
-<span class="material-symbols-outlined">person</span>
-<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1">Profile</span>
-</a>
-</nav>
-
 <script>
 const IMAGES = {
   villa: "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
@@ -244,38 +154,189 @@ let listingsLoaded = false;
 // ---------------------------------------------------------------------
 // Real for-sale listings, loaded live from Firestore's `listings`
 // collection — the same collection admin.html and agent-dashboard.html
-// write to. Publicly readable per firestore.rules (`allow read: if
-// true`), no auth required. Only dealType === 'sale' shows here — Buy
-// is a sale-only page.
+// write to. firestore.rules only allows an anonymous/public read when
+// the query is constrained to private==false AND status=='active' (a
+// listing-level get() or an unfiltered/under-constrained query is
+// denied) -- an unconstrained fetch here would now fail outright.
+// Only dealType === 'sale' shows here — Buy is a sale-only page.
 // ---------------------------------------------------------------------
-async function loadListings() {
+// CURSOR PAGINATION (perf pass 3/3).
+//
+// This page used to download every active public listing -- including
+// every RENT listing, which it then discarded client-side -- and render
+// from that. It now asks the server for one page at a time.
+//
+// What moved server-side, and why each one is safe:
+//   dealType == 'sale'   was a client-side .filter(). Buy is a sale-only
+//                        page, so every rent document downloaded was pure
+//                        waste. Pushing it into the query changes no
+//                        visible result.
+//   propertyType == X    was a client-side .filter() on an exact value,
+//                        so an equality clause is exactly equivalent.
+//   sort                 was a client-side .sort() on price. orderBy on
+//                        the server produces the same order AND makes the
+//                        cursor deterministic, which pagination requires.
+//
+// What did NOT move, and the honest consequence:
+//   the free-text box    Firestore has no substring search. It cannot be
+//                        expressed as a query at any scale. So it stays a
+//                        client-side refinement of what is loaded -- and
+//                        because that could hide a match on a page not yet
+//                        fetched, the UI SAYS SO (buy.searchScopeNote) and
+//                        shows "N of TOTAL" from a server count. Nothing is
+//                        silently omitted; the limit is visible and the
+//                        user can load more. A real full-catalogue text
+//                        search needs a search index (Algolia/Typesense) or
+//                        a denormalized keyword array -- see the report.
+//
+// Every query shape below is already covered by an existing composite
+// index in firestore.indexes.json; verified before writing, not assumed.
+let listingsLoadError = false;
+let pageCursor = null;        // last DocumentSnapshot of the newest page
+let exhausted = false;        // server returned a short page: no more data
+let pageInFlight = false;     // duplicate-request guard
+let totalMatching = null;     // server COUNT for the current filters
+let currentQueryKey = '';     // filter identity; a change resets pagination
+
+function normalizeListing(id, d) {
+  return {
+    id,
+    title: d.title || d.address || 'Property',
+    city: d.city || '',
+    address: d.address || '',
+    type: d.propertyType || '',
+    price: Number(d.price) || 0,
+    beds: Number(d.beds) || 0,
+    baths: Number(d.baths) || 0,
+    sqft: Number(d.sqft) || 0,
+    img: d.img || IMAGES[d.propertyType] || IMAGES.villa,
+    verified: !!d.verified
+  };
+}
+
+function currentFilters() {
+  return {
+    type: document.getElementById('typeFilter').value,
+    sort: document.getElementById('sortFilter').value
+  };
+}
+
+// Identity of the SERVER-side query only. The text box is deliberately
+// absent: it never reaches the server, so typing must not throw away
+// pages already paid for and re-fetch them.
+function queryKeyOf(f) { return `${f.type}|${f.sort}`; }
+
+async function fetchPage({ reset }) {
+  if (pageInFlight) return;                 // never two pages in flight
+  if (!reset && exhausted) return;
+  pageInFlight = true;
+  updateLoadMoreUi();
   try {
-    const [{ db }, storeMod] = await Promise.all([
+    const [{ db, getDocs, getCountFromServer }, storeMod, cacheMod] = await Promise.all([
       import('./js/firebase-init.js'),
-      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js'),
+      import('./js/data-cache.js')
     ]);
-    const { collection, getDocs } = storeMod;
-    const snap = await getDocs(collection(db, 'listings'));
-    const docs = [];
-    snap.forEach(d => docs.push({ id: d.id, ...d.data() }));
-    LISTINGS = docs.filter(d => d.dealType === 'sale' && d.status !== 'closed').map(d => ({
-      id: d.id,
-      title: d.title || d.address || 'Property',
-      city: d.city || '',
-      address: d.address || '',
-      type: d.propertyType || '',
-      price: Number(d.price) || 0,
-      beds: Number(d.beds) || 0,
-      baths: Number(d.baths) || 0,
-      sqft: Number(d.sqft) || 0,
-      img: d.img || IMAGES[d.propertyType] || IMAGES.villa,
-      verified: !!d.verified
-    }));
+    const { collection, query, where, orderBy, limit, startAfter, documentId } = storeMod;
+    const { LISTINGS_PAGE_SIZE, seedQuerySnapshot } = cacheMod;
+    const f = currentFilters();
+
+    const clauses = [
+      where('private', '==', false),
+      where('status', '==', 'active'),
+      where('dealType', '==', 'sale')
+    ];
+    if (f.type !== 'all') clauses.push(where('propertyType', '==', f.type));
+    // A deterministic order is not a preference here, it is what makes a
+    // cursor meaningful: startAfter() resumes from a position in THIS
+    // ordering.
+    //
+    // The default is orderBy(documentId()), NOT orderBy('createdAt').
+    // Firestore excludes any document missing the ordered field, and
+    // createdAt is an allowlisted-OPTIONAL field on listings (see
+    // firestore.rules' create allowlist) -- ordering on it would silently
+    // drop every listing that predates the line which started writing it.
+    // Document ID is present on every document by definition, cannot
+    // exclude anything, is stable enough for a cursor, and is also the
+    // order Firestore already returns when no orderBy is given -- so the
+    // default view keeps exactly the ordering it has today.
+    if (f.sort === 'price-asc') clauses.push(orderBy('price', 'asc'));
+    else if (f.sort === 'price-desc') clauses.push(orderBy('price', 'desc'));
+    else clauses.push(orderBy(documentId()));
+
+    if (reset) {
+      pageCursor = null; exhausted = false; LISTINGS = []; totalMatching = null;
+      currentQueryKey = queryKeyOf(f);
+      // One COUNT per filter change, not per page: it is what lets the UI
+      // say "24 of 137" honestly instead of implying 24 is everything.
+      getCountFromServer(query(collection(db, 'listings'), ...clauses.filter(c => c.type !== 'orderBy')))
+        .then((snap) => { totalMatching = snap.data().count; render(); })
+        .catch(() => { /* a missing count is not worth failing the grid over */ });
+    }
+
+    const paged = pageCursor
+      ? query(collection(db, 'listings'), ...clauses, startAfter(pageCursor), limit(LISTINGS_PAGE_SIZE))
+      : query(collection(db, 'listings'), ...clauses, limit(LISTINGS_PAGE_SIZE));
+
+    const snap = await getDocs(paged);
+    // A short page means the server has nothing left -- the only reliable
+    // end-of-data signal, since Firestore reports no total.
+    if (snap.size < LISTINGS_PAGE_SIZE) exhausted = true;
+    if (snap.size > 0) pageCursor = snap.docs[snap.docs.length - 1];
+
+    try { seedQuerySnapshot('listings', snap); } catch { /* optimization only */ }
+
+    const existing = new Set(LISTINGS.map(l => l.id));
+    snap.forEach(d => { if (!existing.has(d.id)) LISTINGS.push(normalizeListing(d.id, d.data())); });
+    listingsLoadError = false;
   } catch (e) {
-    LISTINGS = [];
+    // A failed FIRST page is an error state; a failed later page must not
+    // discard the results already on screen.
+    if (reset) { LISTINGS = []; listingsLoadError = true; }
+    exhausted = true;
+  } finally {
+    pageInFlight = false;
+    listingsLoaded = true;
+    render();
   }
-  listingsLoaded = true;
-  render();
+}
+
+function updateLoadMoreUi() {
+  const btn = document.getElementById('buyLoadMoreBtn');
+  if (!btn) return;
+  const searching = document.getElementById('searchInput').value.trim() !== '';
+  // Hidden only when the server genuinely has nothing more -- never
+  // hidden merely because the current text filter matched everything
+  // loaded, since more matches may sit on an unfetched page.
+  btn.classList.toggle('hidden', exhausted && !pageInFlight);
+  btn.disabled = pageInFlight;
+  btn.textContent = pageInFlight
+    ? tr('buy.loadingMore', 'Loading more…')
+    : tr('buy.loadMore', 'Load more');
+  const note = document.getElementById('buySearchScopeNote');
+  if (note) note.classList.toggle('hidden', !(searching && !exhausted));
+}
+
+function loadListings() { fetchPage({ reset: true }); }
+
+document.getElementById('buyRetryBtn').addEventListener('click', () => {
+  listingsLoaded = false;
+  loadListings();
+});
+document.getElementById('buyLoadMoreBtn').addEventListener('click', () => fetchPage({ reset: false }));
+
+// Infinite loading. The observer and the button call the same guarded
+// fetchPage(), so a fast scroll that trips the sentinel repeatedly, or a
+// scroll plus a click, still issues exactly one request.
+if (typeof IntersectionObserver === 'function') {
+  const sentinel = document.getElementById('buyScrollSentinel');
+  if (sentinel) {
+    new IntersectionObserver((entries) => {
+      if (entries.some(e => e.isIntersecting) && listingsLoaded && !exhausted && !pageInFlight) {
+        fetchPage({ reset: false });
+      }
+    }, { rootMargin: '600px' }).observe(sentinel);
+  }
 }
 loadListings();
 
@@ -296,13 +357,13 @@ function showToast(msg, icon) {
 }
 
 async function initFavorites() {
-  const [{ auth, db }, authMod, storeMod] = await Promise.all([
+  const [{ auth, db, getDocs, addDoc, setDoc, deleteDoc }, authMod, storeMod] = await Promise.all([
     import('./js/firebase-init.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js'),
     import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
   ]);
   favAuth = auth; favDb = db;
-  favFns = { ...authMod, ...storeMod };
+  favFns = { ...authMod, ...storeMod, getDocs, addDoc, setDoc, deleteDoc };
   favFns.onAuthStateChanged(auth, async (user) => {
     if (user) {
       const snap = await favFns.getDocs(favFns.collection(db, 'users', user.uid, 'favorites'));
@@ -374,14 +435,14 @@ function card(l) {
   <a href="listing.html?id=${encodeURIComponent(l.id)}" class="block bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant hover:shadow-[0_4px_20px_rgba(26,43,60,0.08)] transition-all relative overflow-hidden group">
     <div class="absolute top-0 left-0 w-full h-1 bg-secondary z-20"></div>
     <div class="relative h-48 w-full overflow-hidden">
-      <img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${l.img}"/>
+      <img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${isSafeHttpUrl(l.img) ? escapeHtml(l.img) : IMAGES.villa}" decoding="async"/>
       ${favBtn}
       ${badge}
     </div>
     <div class="p-4">
-      <h3 class="font-headline-md text-[18px] leading-tight text-on-surface mb-1">${l.title}</h3>
+      <h3 class="font-headline-md text-[18px] leading-tight text-on-surface mb-1">${escapeHtml(l.title)}</h3>
       <p class="font-body-md text-body-md text-on-surface-variant mb-4 flex items-center gap-1">
-        <span class="material-symbols-outlined text-[16px]">location_on</span> ${l.address}, ${l.city}
+        <span class="material-symbols-outlined text-[16px]">location_on</span> ${escapeHtml(l.address)}, ${escapeHtml(l.city)}
       </p>
       <div class="flex justify-between items-center mb-4 pb-4 border-b border-surface-variant">
         <div class="flex gap-4">
@@ -403,8 +464,18 @@ function render() {
     document.getElementById('listingsGrid').innerHTML = '';
     document.getElementById('resultCount').textContent = tr('map.loadingListings', 'Loading listings…');
     document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('buyErrorState').classList.add('hidden');
     return;
   }
+
+  if (listingsLoadError) {
+    document.getElementById('listingsGrid').innerHTML = '';
+    document.getElementById('resultCount').textContent = '';
+    document.getElementById('emptyState').classList.add('hidden');
+    document.getElementById('buyErrorState').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('buyErrorState').classList.add('hidden');
 
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const type = document.getElementById('typeFilter').value;
@@ -420,12 +491,41 @@ function render() {
   if (sort === 'price-desc') list = list.slice().sort((a, b) => b.price - a.price);
 
   document.getElementById('listingsGrid').innerHTML = list.map(card).join('');
-  document.getElementById('resultCount').textContent = `${list.length} properties for sale`;
-  document.getElementById('emptyState').classList.toggle('hidden', list.length > 0);
+  // Delegated once on the container, so a re-render (sort/filter) never
+  // re-wires and never accumulates handlers. Warms listing.html's document
+  // on hover/tap/focus; the listing DATA is already seeded, so this adds
+  // no Firestore read.
+  import('./js/prefetch.js')
+    .then((m) => m.wirePrefetch(document.getElementById('listingsGrid'), 'a[href^="listing.html"]'))
+    .catch(() => { /* prefetch is an optimization; never break the grid over it */ });
+
+  // Honest count. `total` is the server's COUNT for the current server-side
+  // filters, so the user can always see that more exist than are loaded --
+  // the thing a silent cap could never tell them. When a text query is
+  // active the number shown is the client-side match count within what has
+  // been loaded, and buySearchScopeNote says exactly that.
+  const total = totalMatching;
+  const countEl = document.getElementById('resultCount');
+  if (total !== null && total > list.length) {
+    countEl.textContent = tr('buy.showingOf', 'Showing {shown} of {total} properties')
+      .replace('{shown}', list.length).replace('{total}', total);
+  } else {
+    countEl.textContent = `${list.length} properties for sale`;
+  }
+  // Empty only when nothing matched AND the server has nothing left to
+  // give -- otherwise the honest state is "keep loading", not "none".
+  document.getElementById('emptyState').classList.toggle('hidden', list.length > 0 || !exhausted);
+  updateLoadMoreUi();
 }
 
-['searchInput', 'typeFilter', 'sortFilter'].forEach(id => {
-  document.getElementById(id).addEventListener('input', render);
+// A text query is a client-side refinement: re-render only.
+document.getElementById('searchInput').addEventListener('input', render);
+// A server-side filter change invalidates every cursor, so pagination
+// restarts from page 1 rather than appending onto a different result set.
+['typeFilter', 'sortFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if (queryKeyOf(currentFilters()) !== currentQueryKey) fetchPage({ reset: true });
+  });
 });
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -436,8 +536,8 @@ if (urlType && ['house', 'villa', 'apartment', 'land', 'building', 'office', 'sh
 const urlCity = urlParams.get('city');
 if (urlCity) {
   document.getElementById('searchInput').value = urlCity;
-  // Arriving from the Cities & Apartments nav / a "Browse by City" link
-  // — make this feel like a dedicated city page, not just a pre-filled
+  // Arriving via a "Browse by City" link (?city=) — make this feel
+  // like a dedicated city page, not just a pre-filled
   // search box. Detach from data-i18n so a language switch doesn't wipe
   // this back to the generic title; re-render it ourselves instead.
   const titleEl = document.getElementById('buyPageTitle');
@@ -457,7 +557,9 @@ document.addEventListener('darwesh:langchange', render);
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
-<script type="module" src="./js/city-nav.js"></script>
+<script src="./js/escape-html.js"></script>
 <script src="./js/i18n.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
+<div id="mamCompanionLauncher" data-page="buy"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
 </body></html>

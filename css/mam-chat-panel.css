@@ -1,0 +1,164 @@
+/* MAM site-wide chat panel -- the ONE local, non-navigating conversation
+ * surface, the SAME surface as the compact dock (js/mam-dock.js) just
+ * expanded, opened by js/mam-companion-launcher.js on every public page.
+ * Self-contained like css/mam-companion.css: reuses the same --mamco-*
+ * custom properties (falls back to the same literal values when they
+ * aren't defined) so this file never requires cinematic.css or any other
+ * page-level stylesheet to be present.
+ *
+ * Position is NOT fixed in this file. It used to be hardcoded here
+ * (`right: 104px; top: 50%`), which is what made the panel look like a
+ * second, detached surface: wherever the compact dock actually was --
+ * dragged to the left, sitting at the map's bottom edge -- the
+ * conversation always popped up in that one fixed spot instead. Now
+ * left/right/top/bottom/max-height/transform-origin are all set inline by
+ * js/mam-chat-panel.js's computeAnchoredPosition(), measured from the
+ * dock's OWN current position each time it opens, so the panel always
+ * grows from wherever the dock is and shrinks back to exactly that spot
+ * on close -- this file owns only the chrome and the open/close motion.
+ */
+.mamcp-panel {
+  position: fixed;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  background: var(--mamco-surface, #17150F)f5;
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--mamco-outline, #5D482B);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  /* Closed: scaled down toward the dock (transform-origin is set inline
+     to whichever corner the dock sits at) and invisible/non-interactive.
+     `visibility` is delayed on the way OUT so the shrink is still seen,
+     but applied immediately on the way IN so the panel is interactive
+     the instant it starts growing. */
+  opacity: 0;
+  transform: scale(0.06);
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 260ms cubic-bezier(.22,.61,.36,1), opacity 200ms ease, visibility 0s linear 260ms;
+}
+.mamcp-panel.is-open {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+  visibility: visible;
+  transition: transform 260ms cubic-bezier(.22,.61,.36,1), opacity 200ms ease, visibility 0s linear 0s;
+}
+
+/* Grab handle -- the primary way to collapse this surface (see the
+   pointer handlers in js/mam-chat-panel.js). A quiet horizontal bar, the
+   same shape every native bottom sheet uses, so "drag this down" reads
+   immediately without a label. touch-action:none is what lets the drag
+   gesture itself arrive instead of the browser treating it as a page
+   scroll. */
+.mamcp-grab-handle {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+  flex: none;
+  cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.mamcp-grab-handle:active { cursor: grabbing; }
+.mamcp-grab-bar {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--mamco-outline, #5D482B);
+  transition: background 150ms ease;
+}
+.mamcp-grab-handle:hover .mamcp-grab-bar,
+.mamcp-grab-handle:focus-visible .mamcp-grab-bar {
+  background: var(--mamco-accent, #B89A63);
+}
+.mamcp-grab-handle:focus-visible { outline: 2px solid var(--mamco-accent, #B89A63); outline-offset: 2px; border-radius: 999px; }
+/* While actively dragged: no transition fighting the finger/pointer, the
+   JS sets transform/opacity directly every move. Cleared the instant the
+   drag ends (see endHandleDrag), whether that finishes as a collapse or a
+   spring-back. */
+.mamcp-panel.is-collapsing { transition: none; }
+
+.mamcp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 14px 12px; border-bottom: 1px solid var(--mamco-outline, #5D482B); flex: none; }
+.mamcp-title-wrap { display: flex; flex-direction: column; min-width: 0; }
+.mamcp-title { font-weight: 700; font-size: 12px; color: var(--mamco-glow, #F2EEE5); letter-spacing: .04em; text-transform: uppercase; }
+.mamcp-subtitle { font-size: 10.5px; color: #A79F91; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mamcp-header-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.mamcp-icon-btn { background: none; border: none; color: #A79F91; cursor: pointer; padding: 5px; border-radius: 999px; display: flex; }
+.mamcp-icon-btn:hover { color: var(--mamco-glow, #F2EEE5); }
+.mamcp-icon-btn[aria-pressed="true"] { color: var(--mamco-accent, #B89A63); }
+.mamcp-icon { display: flex; }
+/* Deliberately quiet -- the grab handle above is this surface's real
+   collapse affordance; this is a small fallback for keyboard/pointer
+   users who would rather click than drag, not a second prominent X. */
+.mamcp-collapse-btn { opacity: .55; }
+.mamcp-collapse-btn:hover { opacity: 1; }
+
+.mamcp-log { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+.mamcp-empty { font-size: 12.5px; color: #A79F91; line-height: 1.5; padding: 4px 2px; }
+.mamcp-bubble { border-radius: 16px; padding: 9px 13px; max-width: 90%; font-size: 13px; line-height: 1.45; }
+.mamcp-bubble-user { align-self: flex-end; background: var(--mamco-accent, #B89A63); color: #090A0A; border-end-end-radius: 4px; }
+.mamcp-bubble-assistant { align-self: flex-start; background: var(--mamco-surface-high, #221E15); color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-start-start-radius: 4px; }
+.mamcp-bubble-error { border-color: var(--mamco-error, #E5787A); }
+.mamcp-retry { margin-top: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--mamco-accent, #B89A63); background: none; border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.mamcp-fallback-note { font-size: 10.5px; color: #A79F91; line-height: 1.4; padding: 2px 2px 0; }
+
+.mamcp-thinking { display: flex; gap: 4px; padding: 9px 13px; }
+.mamcp-dot { width: 6px; height: 6px; border-radius: 999px; background: #8E7448; animation: mamcp-dot-bounce 1.2s infinite; }
+.mamcp-dot:nth-child(2) { animation-delay: .15s; }
+.mamcp-dot:nth-child(3) { animation-delay: .3s; }
+@keyframes mamcp-dot-bounce { 0%, 60%, 100% { transform: translateY(0); opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+.mamcp-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mamcp-action-chip { font-size: 11px; font-weight: 600; background: #17150Fcc; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+.mamcp-action-chip:hover { border-color: var(--mamco-accent, #B89A63); }
+
+.mamcp-ref-cards { display: flex; gap: 8px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
+.mamcp-ref-card { flex: none; width: 128px; border-radius: 12px; overflow: hidden; background: #1C1912; border: 1px solid var(--mamco-outline, #5D482B); text-align: start; cursor: pointer; text-decoration: none; display: block; }
+.mamcp-ref-card-media { height: 64px; background: var(--mamco-surface-high, #221E15); }
+.mamcp-ref-card-media img { width: 100%; height: 100%; object-fit: cover; }
+.mamcp-ref-card-body { padding: 6px 8px 8px; }
+.mamcp-ref-card-title { font-size: 10.5px; font-weight: 700; color: var(--mamco-glow, #F2EEE5); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mamcp-ref-card-price { font-size: 10.5px; font-weight: 700; color: var(--mamco-accent, #B89A63); margin-top: 3px; }
+
+.mamcp-chips { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0 14px 10px; flex: none; }
+.mamcp-chips::-webkit-scrollbar { display: none; }
+.mamcp-chips:empty { display: none; }
+.mamcp-chip { font-size: 11.5px; font-weight: 600; background: #17150Fcc; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; flex: none; }
+.mamcp-chip:hover { border-color: var(--mamco-accent, #B89A63); }
+
+.mamcp-bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--mamco-outline, #5D482B); flex: none; }
+.mamcp-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--mamco-glow, #F2EEE5); font-family: 'Inter', sans-serif; font-size: 13.5px; }
+.mamcp-input::placeholder { color: #A79F91; }
+.mamcp-bar-btn { flex: none; width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; }
+.mamcp-send { background: var(--mamco-accent, #B89A63); color: #090A0A; }
+.mamcp-send:disabled { opacity: .5; cursor: not-allowed; }
+.mamcp-mic { background: transparent; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); }
+.mamcp-mic.mic-listening { background: var(--mamco-error, #E5787A); border-color: var(--mamco-error, #E5787A); color: #090A0A; }
+/* Passively listening for "MAM AI" -- the same calmer treatment as the
+   dock's own mic (css/mam-dock.css), kept visually consistent since both
+   drive the exact same voice state. */
+.mamcp-mic.is-wake:not(.mic-listening) {
+  border-color: rgba(184, 154, 99, 0.55);
+  color: var(--mamco-accent, #B89A63);
+  animation: mamcp-mic-wake-pulse 3.6s ease-in-out infinite;
+}
+@keyframes mamcp-mic-wake-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184, 154, 99, 0.28); }
+  50%      { box-shadow: 0 0 0 4px rgba(184, 154, 99, 0); }
+}
+.mamcp-mic[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mamcp-dot { animation: none; opacity: .8; }
+  .mamcp-mic.is-wake { animation: none; }
+  .mamcp-panel {
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
+    transform: none !important;
+  }
+  .mamcp-panel.is-open { transition: opacity 120ms ease; }
+}

@@ -1,10 +1,41 @@
 name: CI
 
+# Runs against THIS project's real production branch,
+# claude/web-project-hqdo8o -- the repository's default branch and the one
+# deploy-pages.yml publishes from.
+#
+# This workflow previously watched `main` alone. `main` is not this
+# project's production branch and has not been: it sits 126 commits behind
+# claude/web-project-hqdo8o and carries 39 commits that branch never took.
+# So no push to production and no pull request into it has ever triggered
+# these checks -- PRs #42, #43 and #44 all merged with zero check runs,
+# and scripts/ci-checks.js has effectively been a local-only tool.
+# deploy-pages.yml was already pointed at the production branch (see its
+# header, which says so explicitly); this file was simply left behind.
+#
+# `main` is kept in both lists rather than dropped. It costs nothing while
+# nothing is pushed there, and it means a future decision to revive that
+# branch does not silently arrive without checks.
+#
+# Note for `pull_request`: the branch filter matches the BASE branch, so
+# this is "every PR merging INTO production", regardless of what the
+# source branch is called.
 on:
   push:
-    branches: [main]
+    branches: [claude/web-project-hqdo8o, main]
   pull_request:
-    branches: [main]
+    branches: [claude/web-project-hqdo8o, main]
+  # Lets a run be started by hand from the Actions tab -- useful to confirm
+  # the checks pass on production without waiting for the next PR.
+  workflow_dispatch:
+
+# Least-privilege default (INFRA-09, INFRASTRUCTURE_REMEDIATION.md): neither
+# job does anything beyond actions/checkout's own read (no PR comments, no
+# releases, no pushes, no third-party action that writes with this token),
+# so contents: read is enough -- raise a specific job's permissions only if
+# a future step demonstrably needs more.
+permissions:
+  contents: read
 
 jobs:
   checks:
@@ -19,27 +50,21 @@ jobs:
         run: node scripts/ci-checks.js
 
   backend:
-    name: Backend build + test
+    name: Backend lint + test
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-python@v5
         with:
-          go-version: '1.25'
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
       - name: Verify formatting
-        run: |
-          UNFORMATTED=$(gofmt -l .)
-          if [ -n "$UNFORMATTED" ]; then
-            echo "The following files are not gofmt-formatted:"
-            echo "$UNFORMATTED"
-            exit 1
-          fi
-      - name: go vet
-        run: go vet ./...
-      - name: Build
-        run: go build ./...
+        run: ruff format --check app tests scripts
+      - name: Lint
+        run: ruff check app tests scripts
       - name: Test
-        run: go test ./...
+        run: pytest

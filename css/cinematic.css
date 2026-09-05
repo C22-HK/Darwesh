@@ -1,0 +1,2313 @@
+/* Darwesh Group -- signature luxury theme.
+ *
+ * Opt-in only: nothing here applies unless a page's <body> carries the
+ * `cine-scope` class. It works by overriding the SAME --ps-color-*
+ * custom properties every component in css/profile-tokens.css already
+ * reads (.auth-card, .auth-input, .type-card, .otp-digit, .ps-btn
+ * family, etc.) -- those components don't need to change at all, they
+ * just pick up this palette automatically once the class is present.
+ * The handful of Tailwind utility classes used directly in these pages'
+ * markup (bg-background, text-primary, text-on-surface-variant, ...)
+ * compile to literal hex values (Tailwind has no runtime custom
+ * properties), so those get their own explicit, scoped overrides below.
+ *
+ * DARWESH SIGNATURE LUXURY PALETTE (contrast-checked against WCAG AA):
+ *   Obsidian Black  #090A0A  main background
+ *   Carbon Black    #101111  secondary background
+ *   Bronzed Black   #17150F  premium elevated surfaces
+ *   Champagne Gold  #B89A63  main luxury accent   (7.4:1 on Obsidian)
+ *   Antique Gold    #8E7448  secondary gold/borders (4.5:1 on Obsidian)
+ *   Soft Ivory      #F2EEE5  primary text         (17.1:1 on Obsidian)
+ *   Stone Beige     #A79F91  secondary text        (7.6:1 on Obsidian)
+ *   Deep Bronze     #5D482B  subtle shadows / decorative depth (not a
+ *   text/icon color -- intentionally low-contrast, used only for
+ *   hairline borders and shadow tinting).
+ *
+ * Target distribution: ~75% dark neutral, 15% ivory, 7% muted neutral,
+ * 3% gold. Champagne Gold is reserved for hover/focus/selected/CTA
+ * accents -- never a default fill or a default border -- so it stays
+ * rare. Antique Gold (a quieter, darker gold) carries the more frequent
+ * icon-glyph role instead. Deep Bronze -- not Champagne Gold -- is the
+ * default card/input border, kept deliberately faint ("thin
+ * architectural borders", not a glowing frame around every box).
+ */
+
+.cine-scope {
+  /* ---- Component palette (drives every existing --ps-color-* consumer) */
+  --ps-color-primary: #090A0A;
+  --ps-color-on-primary: #F2EEE5;
+  --ps-color-secondary: #B89A63;
+  --ps-color-on-secondary: #090A0A;
+  --ps-color-secondary-container: #A79F91;
+  --ps-color-tertiary-container: #16231C;
+  --ps-color-on-tertiary-container: #7FB89A;
+  --ps-color-error: #E5787A;
+  --ps-color-error-container: #2A1616;
+  --ps-color-surface-bright: #090A0A;
+  --ps-color-surface-container: #1C1912;
+  --ps-color-surface-container-low: #101111;
+  --ps-color-surface-container-lowest: #17150F;
+  --ps-color-surface-container-high: #221E15;
+  --ps-color-on-surface: #F2EEE5;
+  --ps-color-on-surface-variant: #A79F91;
+  --ps-color-outline: #8E7448;
+  --ps-color-outline-variant: #5D482B;
+  --ps-color-on-secondary-container: #F2EEE5;
+  --ps-color-surface-container-highest: #2A2418;
+  --ps-color-inverse-surface: #F2EEE5;
+  --ps-color-inverse-on-surface: #090A0A;
+  --ps-focus-ring: 0 0 0 2px var(--ps-color-surface-bright), 0 0 0 4px var(--ps-color-secondary);
+
+  /* Restrained corner system -- overrides the two shared radius tokens
+   * (--radius-xs/sm/md/lg themselves are already the small system,
+   * defined globally in profile-tokens.css) only on these cinematic
+   * pages; office.html's .ps-card/.ps-hero/.ps-input keep their
+   * original, larger values since they never carry .cine-scope. */
+  --ps-radius-card: var(--radius-md);
+  --ps-radius-control: var(--radius-sm);
+
+  /* Cinematic-only tokens (intro, cursor, atmosphere). */
+  --cine-bg-0: #090A0A;
+  --cine-bg-1: #101111;
+  --cine-gold-1: #8E7448;
+  --cine-gold-2: #B89A63;
+  --cine-text-primary: #F2EEE5;
+  --cine-text-secondary: #A79F91;
+  --cine-success: #7FB89A;
+
+  /* ---- Calmer motion on the cinematic pages -- same variable names as
+   * profile-tokens.css's global defaults, just slower/softer, so every
+   * component that already reads var(--motion-*, ...) inherits it with
+   * zero further changes. */
+  --motion-fast: 180ms;
+  --motion-standard: 320ms;
+  --motion-slow: 620ms;
+  --ease-premium: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.6, 0, 0.9, 0.2);
+
+  background: var(--ps-color-surface-bright);
+  color: var(--ps-color-on-surface);
+}
+
+/* Warm near-black atmosphere -- an extremely subtle vignette, not a
+ * flat pure-black fill (explicitly requested). Fixed so it doesn't
+ * repaint on scroll; a single radial gradient, cheap to composite. */
+.cine-scope::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse 1200px 800px at 15% -10%, rgba(184, 154, 99, 0.05), transparent 60%),
+    radial-gradient(ellipse 900px 700px at 100% 100%, rgba(93, 72, 43, 0.05), transparent 55%),
+    var(--ps-color-surface-bright);
+  pointer-events: none;
+}
+
+/* =========================================================================
+ * Tailwind utility overrides -- SITE-WIDE UNIFICATION (Darwesh dark
+ * luxury). Tailwind's semantic color utilities (bg-background,
+ * text-on-surface, border-outline, ...) compile to literal hex values at
+ * build time (Tailwind has no runtime custom properties), so every one
+ * of them needs its own scoped override here -- there is no way to
+ * retheme them by changing a CSS variable alone.
+ *
+ * ROOT CAUSE of the About/Map/Buy/Rent/etc "still light" pages: those
+ * pages already use this exact same semantic token vocabulary (verified
+ * by grepping every non-cine-scope page -- they are built almost
+ * entirely from bg-background/text-on-surface/bg-primary-container/etc,
+ * NOT raw bg-white/bg-gray-500/bg-blue-600), but their <body> never
+ * carried the `cine-scope` class, so none of these overrides applied and
+ * they fell back to tailwind.config.js's literal light-theme hex values
+ * (e.g. primary-container: #1a2b3c navy, surface-variant: #e0e3e8 pale
+ * gray). Adding `cine-scope` to a page's <body> is what actually
+ * activates this palette -- see the per-page migration below. This
+ * block was previously a partial set (8 classes, only what the
+ * already-dark pages happened to use); it now covers every semantic
+ * bg-/text-/border- class used ANYWHERE in the codebase (audited via
+ * grep across all *.html + js/**\/*.js), so no page needs a one-off
+ * hack to retheme correctly once it opts in.
+ *
+ * Mapping principle (kept deliberately restrained, per the ~75/15/7/3
+ * dark/ivory/neutral/gold distribution): backgrounds always resolve to
+ * a dark neutral (obsidian/carbon/bronzed-black) or a real state color
+ * (error/success green) -- NEVER a large gold fill. Gold is reserved
+ * for text/icon/border accents (text-primary/text-secondary/
+ * border-primary/border-secondary), matching the existing convention
+ * below where text-primary was already gold while surfaces stay dark. */
+.cine-scope.bg-background,
+.cine-scope .bg-background,
+.cine-scope .bg-surface,
+.cine-scope .bg-surface-bright,
+.cine-scope .bg-primary { background-color: var(--ps-color-surface-bright); }
+.cine-scope .bg-surface-dim { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .bg-surface-variant,
+.cine-scope .bg-surface-container { background-color: var(--ps-color-surface-container); }
+.cine-scope .bg-surface-container-low { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .bg-surface-container-lowest,
+.cine-scope .bg-primary-container,
+.cine-scope .bg-primary-fixed { background-color: var(--ps-color-surface-container-lowest); }
+.cine-scope .bg-surface-container-high { background-color: var(--ps-color-surface-container-high); }
+.cine-scope .bg-surface-container-highest { background-color: var(--ps-color-surface-container-highest); }
+.cine-scope .bg-surface-tint,
+.cine-scope .bg-outline { background-color: var(--ps-color-outline-variant); }
+.cine-scope .bg-secondary { background-color: var(--ps-color-secondary); }
+.cine-scope .bg-secondary-container { background-color: var(--ps-color-surface-container-high); }
+.cine-scope .bg-tertiary-container { background-color: var(--ps-color-tertiary-container); }
+.cine-scope .bg-on-tertiary-container { background-color: var(--ps-color-on-tertiary-container); }
+.cine-scope .bg-on-primary,
+.cine-scope .bg-white { background-color: var(--ps-color-on-primary); }
+.cine-scope .bg-on-secondary-container { background-color: var(--ps-color-secondary-container); }
+.cine-scope .bg-on-secondary-fixed-variant { background-color: var(--ps-color-outline); }
+.cine-scope .bg-inverse-surface { background-color: var(--ps-color-inverse-surface); }
+.cine-scope .bg-error { background-color: var(--ps-color-error); }
+.cine-scope .bg-error-container { background-color: var(--ps-color-error-container); }
+.cine-scope .hover\:bg-surface-container:hover,
+.cine-scope .hover\:bg-surface-variant:hover { background-color: var(--ps-color-surface-container); }
+.cine-scope .hover\:bg-surface-container-low:hover { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .hover\:bg-surface-container-lowest:hover,
+.cine-scope .hover\:bg-primary-container:hover,
+.cine-scope .hover\:bg-primary-fixed:hover { background-color: var(--ps-color-surface-container-lowest); }
+.cine-scope .hover\:bg-surface-container-high:hover { background-color: var(--ps-color-surface-container-high); }
+.cine-scope .hover\:bg-surface-container-highest:hover { background-color: var(--ps-color-surface-container-highest); }
+.cine-scope .hover\:bg-primary:hover { background-color: var(--ps-color-surface-container-low); }
+.cine-scope .hover\:bg-secondary:hover { background-color: var(--cine-gold-2); }
+.cine-scope .hover\:bg-secondary-container:hover { background-color: var(--ps-color-surface-container-highest); }
+.cine-scope .hover\:bg-on-secondary-container:hover { background-color: var(--ps-color-outline-variant); }
+.cine-scope .hover\:bg-error-container:hover { background-color: var(--ps-color-error-container); }
+.cine-scope .hover\:bg-white:hover { background-color: var(--ps-color-on-primary); }
+
+.cine-scope .text-on-surface,
+.cine-scope.text-on-surface,
+.cine-scope .text-on-background,
+.cine-scope .text-on-primary,
+.cine-scope .text-on-primary-container,
+.cine-scope .text-on-primary-fixed,
+.cine-scope .text-on-secondary-container,
+.cine-scope .text-on-error-container,
+.cine-scope .text-secondary-container,
+.cine-scope .text-white,
+.cine-scope .hover\:text-on-primary:hover,
+.cine-scope .hover\:text-on-primary-container:hover,
+.cine-scope .hover\:text-on-secondary-container:hover { color: var(--ps-color-on-surface); }
+.cine-scope .text-on-surface-variant,
+.cine-scope .text-outline-variant { color: var(--ps-color-on-surface-variant); }
+.cine-scope .text-primary,
+.cine-scope .text-primary-container,
+.cine-scope .border-primary-container,
+.cine-scope .hover\:text-primary:hover,
+.cine-scope .hover\:text-primary-container:hover { color: var(--cine-gold-2); }
+.cine-scope .text-secondary,
+.cine-scope .text-secondary-fixed,
+.cine-scope .text-primary-fixed-dim,
+.cine-scope .text-secondary-fixed-dim,
+.cine-scope .text-outline,
+.cine-scope .hover\:text-secondary:hover { color: var(--cine-gold-1); }
+.cine-scope .text-on-secondary,
+.cine-scope .text-inverse-primary { color: var(--ps-color-on-secondary); }
+.cine-scope .text-on-tertiary-container,
+.cine-scope .text-tertiary-fixed { color: var(--ps-color-on-tertiary-container); }
+.cine-scope .text-error,
+.cine-scope .hover\:text-error:hover { color: var(--ps-color-error); }
+
+.cine-scope .border-outline-variant,
+.cine-scope .border-primary-fixed,
+.cine-scope .border-secondary-container,
+.cine-scope .border-surface,
+.cine-scope .border-surface-variant,
+.cine-scope .border-surface-container-high,
+.cine-scope .border-surface-container-lowest { border-color: var(--ps-color-outline-variant); }
+.cine-scope .border-outline { border-color: var(--ps-color-outline); }
+.cine-scope .border-primary,
+.cine-scope .hover\:border-primary:hover { border-color: var(--cine-gold-2); }
+.cine-scope .border-secondary,
+.cine-scope .hover\:border-secondary:hover { border-color: var(--cine-gold-1); }
+.cine-scope .border-tertiary-container,
+.cine-scope .border-tertiary-fixed-dim { border-color: rgba(127, 184, 154, 0.35); }
+.cine-scope .border-inverse-surface,
+.cine-scope .border-white { border-color: rgba(242, 238, 229, 0.35); }
+.cine-scope .border-error { border-color: var(--ps-color-error); }
+
+.cine-scope .focus\:ring-primary:focus { --tw-ring-color: var(--cine-gold-2); }
+.cine-scope .focus\:ring-secondary:focus { --tw-ring-color: var(--cine-gold-1); }
+/* =========================================================================
+ * Language selector -- premium flag-based control. Behavior (open/close,
+ * keyboard nav, aria-expanded/aria-current, setLanguage()/localStorage
+ * persistence) lives entirely in js/i18n.js's generic .lang-toggle-btn /
+ * .lang-menu / .lang-option wiring, shared by every page on the site;
+ * this stylesheet only ever loads on index.html/login.html/signup.html/
+ * signup-professional.html, so every rule below -- scoped or not -- is
+ * naturally confined to those four pages.
+ *
+ * Split in two: STRUCTURE (layout, flag sizing, the html[lang=...]-driven
+ * flag/checkmark swap -- no extra JS needed, document.documentElement.lang
+ * is already kept in sync by the untouched applyTranslations()) is
+ * unscoped so index.html's header -- which intentionally keeps its
+ * original light theme, never opted into .cine-scope -- still gets a
+ * correctly laid-out flag selector using ITS OWN existing color classes.
+ * COLOR/border/shadow/motion (the actual "premium" look) stays scoped to
+ * .cine-scope, i.e. only login/signup/signup-professional and (once the
+ * intro is dismissed) index.html's post-intro state.
+ * ========================================================================= */
+
+.lang-select { position: relative; }
+
+.lang-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.lang-current { display: none; align-items: center; gap: 7px; }
+html[lang="en"] .lang-current[data-flag-for="en"],
+html[lang="ku"] .lang-current[data-flag-for="ku"],
+html[lang="ar"] .lang-current[data-flag-for="ar"] { display: inline-flex; }
+
+.lang-flag {
+  display: block;
+  width: 20px;
+  height: 14px;
+  flex: none;
+  border-radius: 2px;
+  object-fit: cover;
+}
+
+.lang-menu { padding: 6px; min-width: 170px; }
+
+.lang-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  text-align: start;
+  border: 1px solid transparent;
+}
+
+.lang-option-check {
+  margin-inline-start: auto;
+  font-size: 16px;
+  color: currentColor;
+  opacity: 0;
+  flex: none;
+}
+html[lang="en"] .lang-option[data-lang="en"] .lang-option-check,
+html[lang="ku"] .lang-option[data-lang="ku"] .lang-option-check,
+html[lang="ar"] .lang-option[data-lang="ar"] .lang-option-check { opacity: 1; }
+
+/* ---- Premium color/motion (cine-scope pages only) ----------------------- */
+
+.cine-scope .lang-toggle-btn {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ps-color-outline-variant);
+  background: var(--ps-color-surface-container-lowest);
+  color: var(--ps-color-on-surface);
+}
+.cine-scope .lang-toggle-btn:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container); }
+.cine-scope .lang-toggle-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .lang-toggle-btn[aria-expanded="true"] { border-color: var(--ps-color-secondary); }
+
+.cine-scope .lang-flag { border: 1px solid rgba(242, 238, 229, 0.14); border-radius: var(--radius-xs); }
+
+.cine-scope .lang-menu {
+  background-color: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--ps-shadow-3d-2);
+  /* Reinterpret the shared .hidden toggle (set by js/i18n.js's generic
+   * wiring, identical everywhere) as an opacity/visibility transition on
+   * these pages only -- calm fade + translateY, never a hard display:none
+   * cut, without touching the shared open/close JS logic. */
+  transition: opacity var(--motion-standard, 220ms) var(--ease-premium, ease), transform var(--motion-standard, 220ms) var(--ease-premium, ease), visibility var(--motion-standard, 220ms);
+  transform: translateY(-4px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.cine-scope .lang-menu:not(.hidden) {
+  transform: translateY(0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .lang-menu { transition: opacity var(--motion-fast, 100ms) linear; transform: none; }
+}
+
+.cine-scope .lang-option {
+  border-radius: var(--radius-xs);
+  color: var(--ps-color-on-surface);
+  transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), border-color var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .lang-option:hover { background: var(--ps-color-surface-container); }
+.cine-scope .lang-option:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+html[lang="en"] .cine-scope .lang-option[data-lang="en"],
+html[lang="ku"] .cine-scope .lang-option[data-lang="ku"],
+html[lang="ar"] .cine-scope .lang-option[data-lang="ar"] {
+  color: var(--ps-color-secondary);
+  border-color: rgba(184, 154, 99, 0.35);
+  background: rgba(184, 154, 99, 0.07);
+  font-weight: 700;
+}
+.cine-scope .lang-option-check { color: var(--ps-color-secondary); }
+
+/* The header wordmark/logo stays legible against the dark header --
+ * gold reads as the premium brand mark here instead of navy. */
+.cine-scope header a.text-primary { color: var(--cine-gold-2); font-weight: 700; }
+
+/* ---- Header/nav must never overlap page content --------------------------
+ * Root cause (found via inspection, not guessed): the shared header is
+ * `h-16` -- a FIXED 4rem height with no overflow safeguard -- while its
+ * wordmark ("Darwesh Group") and the signed-in profile link (set to the
+ * user's real display name by js/nav-auth.js, length unbounded) are plain
+ * inline text with no wrap protection. At narrow viewports, or simply
+ * with a longer real name than "Profile", that text wraps onto a second
+ * line; because the header is `position:sticky` with a hard-coded height
+ * (not a min-height), the wrapped second line has nowhere to go but to
+ * paint outside the header's own box -- past its bottom edge, directly
+ * onto whatever page content is scrolled beneath it. This reproduces at
+ * 320px in a real browser (confirmed by measuring the wordmark's
+ * rendered box, not assumed).
+ *
+ * Fix, in two parts, both structural (not a per-page margin patch):
+ * 1. `min-height` instead of a fixed height -- if this text ever DOES
+ *    need two lines for any reason (extreme zoom, a very long name, a
+ *    future longer nav label), the header simply grows and everything
+ *    below it reflows accordingly (sticky elements reserve their real,
+ *    current height) -- it can never again clip content beneath it.
+ * 2. `nowrap` + ellipsis truncation on exactly the two unbounded-length
+ *    text nodes (the wordmark, and the profile link/label), so in the
+ *    overwhelming majority of cases the header never needs to grow at
+ *    all -- a graceful "…" truncation, not a wrap, is what a long name
+ *    gets instead. */
+.cine-scope header.h-16 { height: auto; min-height: 64px; }
+.cine-scope header a.font-headline-md { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55vw; }
+.cine-scope header #navProfileLink,
+.cine-scope header #navProfileLabelMobile { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; display: inline-block; vertical-align: middle; }
+/* At the narrowest widths, shrink the wordmark rather than lean on
+ * truncation for the common case ("Darwesh Group" itself, not yet a
+ * long real name) -- ellipsis above stays as the safety net for
+ * whatever still doesn't fit (a long signed-in display name). */
+@media (max-width: 400px) {
+  .cine-scope header a.font-headline-md { font-size: 16px; max-width: 60vw; }
+}
+
+/* ---- Soft global motion for links/controls not already covered by a
+ * dedicated component class. */
+.cine-scope a,
+.cine-scope button {
+  transition: color var(--motion-fast) var(--ease-premium), background-color var(--motion-fast) var(--ease-premium), border-color var(--motion-fast) var(--ease-premium), box-shadow var(--motion-fast) var(--ease-premium);
+}
+
+/* ---- Section reveal (IntersectionObserver-driven; see js/reveal.js) --
+ * a soft opacity + small translateY, never a hard cut, never blocking
+ * content if JS fails to run (starts visible, JS only ADDS the
+ * pre-reveal state once it confirms observation is live). */
+.cine-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity var(--motion-slow, 500ms) var(--ease-enter, ease-out), transform var(--motion-slow, 500ms) var(--ease-enter, ease-out);
+}
+.cine-reveal.cine-in-view { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-reveal { opacity: 1; transform: none; transition: none; }
+}
+
+/* =========================================================================
+ * Cinematic 3D scroll depth (see js/cine-scroll-3d.js) -- ONE continuous
+ * scroll-progress variable per section (--section-progress, written by
+ * that one script) drives every visual recipe below entirely in CSS, so
+ * tuning the depth effect never needs a script change. --section-depth
+ * (--d) is "distance from viewport center", 0 at the middle of the
+ * screen rising to 0.5 at the edges -- computed with calc()+max() rather
+ * than the newer, less-supported CSS abs()/sign() functions, so this
+ * keeps working on the same browser baseline as the rest of the site.
+ *
+ * transform/opacity only (compositor-friendly, no layout property is
+ * ever animated here). Every section starts from its own resting
+ * position in ordinary document flow; the ONE exception is the 7%
+ * section's brief sticky pin below, which is deliberately isolated to a
+ * single element with no transformed ancestor -- see its own comment for
+ * why that specific structure is what keeps native scroll un-hijacked.
+ *
+ * Four reusable transition recipes (assigned per section, not identical
+ * everywhere -- see the section-by-section comments below):
+ *   A. Depth Rise         -- hero, category rail, city track, fast-sale/
+ *                             active cards: the whole section recedes/
+ *                             scales as it leaves, rises forward as it
+ *                             enters.
+ *   B. Soft Pin + Reveal   -- the 7% section only (one deliberate
+ *                             "major storytelling moment", not everywhere).
+ *   C. Parallax Crossfade  -- hero background vs. foreground, and the 7%
+ *                             section's background texture vs. its
+ *                             pinned content, each moving at a different
+ *                             rate.
+ *   D. Layered Card Entrance -- individual cards (category/city/fast-sale/
+ *                             active/services) fade + rise from a slight
+ *                             depth the first time they scroll into view,
+ *                             staggered by nth-child -- see
+ *                             .cine-card-reveal below (IntersectionObserver-
+ *                             driven, js/reveal.js, not this scroll
+ *                             controller).
+ * ========================================================================= */
+[data-cine3d] {
+  --sp: var(--section-progress, 0.5);
+  --d: max(calc(var(--sp) - 0.5), calc(0.5 - var(--sp)));
+  /* --e ("entering", 1 at sp=0 fading to 0 at sp=0.5) and --l ("leaving",
+   * 0 at sp=0.5 rising to 1 at sp=1) split --d's symmetric "distance from
+   * center" into a direction-aware pair, so a section can carry a
+   * DIFFERENT recipe for approaching the viewport vs. departing it
+   * (translateY sign flips; scale/opacity/translateZ can still share the
+   * same depth read on both sides) -- this is what makes the entering
+   * vs. leaving states in the section-by-section rules below genuinely
+   * distinct instead of one symmetric wobble. */
+  --e: max(0, calc((0.5 - var(--sp)) * 2));
+  --l: max(0, calc((var(--sp) - 0.5) * 2));
+}
+/* A + C: Hero. This is the very first thing on the page -- it is already
+ * on-screen at sp~0.5-0.6 the moment the page loads, so it has no real
+ * "entering" phase to speak of; --hl ("hero leaving", 0 at sp<=0.5 rising
+ * to 1 at sp=1) drives its recede-into-depth read as the user scrolls
+ * past it. The background layer (hero-media, below) moves at a slower,
+ * larger, CONTINUOUS rate for a real parallax read (not gated by --hl --
+ * a background plate reads as parallax precisely because it never fully
+ * stops). The search bar itself carries no 3D transform at all (kept out
+ * of both layers) so it is always crisp. */
+[data-cine3d="hero"] {
+  --hl: max(0, calc((var(--sp) - 0.5) * 2));
+  transform: perspective(1400px)
+    translate3d(0, calc(var(--hl) * 50px), calc(var(--hl) * -160px))
+    scale(calc(1 - var(--hl) * 0.09));
+  opacity: calc(1 - var(--hl) * 0.55);
+}
+[data-cine3d="hero-media"] {
+  transform: translate3d(0, calc((var(--sp) - 0.5) * 90px), 0) scale(calc(1.06 + var(--hl, 0) * 0.04));
+}
+.cine-scope .home-hero-media::after { opacity: calc(0.7 + var(--hl, 0) * 0.3); }
+/* A: category rail / city track / fast-sale / active cards. Distinct
+ * entering vs. leaving read (see --e/--l above): still visibly BELOW and
+ * receded while approaching from under the viewport's fold (positive
+ * translateY, negative translateZ, gently scaled down, opacity slightly
+ * reduced), fully forward/crisp/at rest while active, then recedes
+ * UPWARD and away as the next section rises over it (negative
+ * translateY, negative translateZ again, scaled down a touch more,
+ * opacity reduced more) -- a real depth handoff between consecutive
+ * sections instead of a flat vertical slide. */
+[data-cine3d="rail"],
+[data-cine3d="cards"] {
+  transform: perspective(1400px)
+    translate3d(0, calc(var(--e) * 90px - var(--l) * 70px), calc(var(--d) * -220px))
+    scale(calc(1 - var(--e) * 0.06 - var(--l) * 0.08));
+  opacity: calc(1 - var(--e) * 0.25 - var(--l) * 0.5);
+}
+
+/* Tablet tier: same recipe, meaningfully dialed back -- "desktop shows
+ * the full cinematic effect, tablet reduced" -- rather than the mobile
+ * tier's near-flat treatment below. */
+@media (min-width: 768px) and (max-width: 1024px) {
+  [data-cine3d="hero"] {
+    transform: perspective(1400px)
+      translate3d(0, calc(var(--hl, 0) * 30px), calc(var(--hl, 0) * -95px))
+      scale(calc(1 - var(--hl, 0) * 0.055));
+    opacity: calc(1 - var(--hl, 0) * 0.4);
+  }
+  [data-cine3d="hero-media"] {
+    transform: translate3d(0, calc((var(--sp) - 0.5) * 55px), 0) scale(calc(1.05 + var(--hl, 0) * 0.025));
+  }
+  [data-cine3d="rail"],
+  [data-cine3d="cards"] {
+    transform: perspective(1400px)
+      translate3d(0, calc(var(--e) * 50px - var(--l) * 40px), calc(var(--d) * -125px))
+      scale(calc(1 - var(--e) * 0.035 - var(--l) * 0.045));
+    opacity: calc(1 - var(--e) * 0.16 - var(--l) * 0.3);
+  }
+}
+
+/* Mobile tier (js/cine-scroll-3d.js toggles this on <html> via
+ * matchMedia): a gentle vertical reveal + very light fade only -- no
+ * scale, no rotateX, no translateZ, so it stays smooth and battery-light
+ * on a phone rather than running the full desktop recipe at a smaller
+ * viewport. Deliberately much lighter than the tablet tier above, not
+ * just a scaled-down copy of it. */
+.cine3d-mobile [data-cine3d] {
+  transform: translate3d(0, calc(var(--d, 0) * 12px), 0) !important;
+  opacity: calc(1 - var(--d, 0) * 0.22) !important;
+}
+.cine3d-mobile [data-cine3d="hero-media"] { transform: none !important; }
+.cine3d-mobile .home-hero-media::after { opacity: 0.75 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-cine3d] { --section-progress: 1; transform: none !important; opacity: 1 !important; }
+  .cine-scope .home-hero-media::after { opacity: 0.7 !important; }
+}
+
+/* Desktop-only, pointer-only (never touch) subtle card tilt -- opt in per
+ * card with .cine-hover3d. (hover: hover) and (pointer: fine) already
+ * excludes touch devices at the media-query level, so no JS touch
+ * detection is needed to satisfy "disable on touch devices". */
+@media (hover: hover) and (pointer: fine) {
+  .cine-hover3d { transition: transform 180ms var(--ease-premium, ease); }
+  .cine-hover3d:hover {
+    transform: perspective(900px) rotateX(1deg) rotateY(-1.4deg) translateZ(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-hover3d:hover { transform: none; }
+}
+
+/* ---- D. Layered Card Entrance (IntersectionObserver-driven, one shared
+ * instance -- see js/reveal.js / window.DarweshReveal.observe()) ----------
+ * Distinct from the [data-cine3d] continuous scroll-depth system above:
+ * this is a ONE-SHOT per-card fade + rise-from-slight-depth the first
+ * time each card scrolls into view, stacked on TOP of whatever whole-
+ * section depth motion its [data-cine3d] ancestor is already doing --
+ * together that's genuinely "layered" (section drifts continuously,
+ * individual cards also arrive with their own staggered entrance).
+ * Self-contained perspective() so it renders correctly regardless of the
+ * section wrapper's own transform. nth-child stagger delays, not a JS
+ * per-card timer, so this needs no extra script work per card. */
+.cine-card-reveal {
+  opacity: 0;
+  transform: perspective(900px) translate3d(0, 20px, -34px);
+  transition: opacity var(--motion-slow, 500ms) var(--ease-enter, ease-out),
+    transform var(--motion-slow, 500ms) var(--ease-enter, ease-out);
+}
+.cine-card-reveal.cine-in-view { opacity: 1; transform: none; }
+.cine-card-reveal:nth-child(1) { transition-delay: 0ms; }
+.cine-card-reveal:nth-child(2) { transition-delay: 60ms; }
+.cine-card-reveal:nth-child(3) { transition-delay: 120ms; }
+.cine-card-reveal:nth-child(4) { transition-delay: 180ms; }
+.cine-card-reveal:nth-child(5) { transition-delay: 240ms; }
+.cine-card-reveal:nth-child(6) { transition-delay: 300ms; }
+.cine-card-reveal:nth-child(7) { transition-delay: 340ms; }
+.cine-card-reveal:nth-child(8) { transition-delay: 380ms; }
+/* Mobile: drop perspective/translateZ entirely -- a soft fade + small
+ * rise only, matching the same reduced-intensity tier the continuous
+ * [data-cine3d] system already uses on <768px viewports. */
+@media (max-width: 767px) {
+  .cine-card-reveal { transform: translate3d(0, 12px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-card-reveal { opacity: 1; transform: none; transition: none; transition-delay: 0ms; }
+}
+
+/* =========================================================================
+ * Real center-forward depth carousel (category rail + city discovery
+ * only, per the brief's scope) -- js/carousel.js's initCarousel({depth:
+ * true}) computes each direct child's horizontal distance from the
+ * track's own center on every scroll/resize (piggybacked on the scroll
+ * listener it already has, no second listener) and writes it to that
+ * child's `--depth` custom property: 0 = centered/focused, 1 = at the
+ * track's horizontal edge. Whichever card currently sits in the middle
+ * of the track reads at full scale/opacity/forward depth; its neighbors
+ * recede smoothly as `--depth` rises, and rebalance continuously as the
+ * user scrolls/swipes -- CSS-only from that one JS-written variable, the
+ * same "one write, many CSS consumers" pattern as --section-progress
+ * above. ID-scoped selectors (rather than relying on source order) so
+ * these always win over `.cine-card-reveal.cine-in-view`'s one-shot
+ * `transform: none` regardless of where either rule sits in the file. */
+#categoryTrack .home-category-card {
+  transform: perspective(1000px)
+    translate3d(0, calc(var(--depth, 0) * 8px), calc(var(--depth, 0) * -60px))
+    scale(calc(1 - var(--depth, 0) * 0.1));
+  opacity: calc(1 - var(--depth, 0) * 0.3);
+  transition: transform 200ms var(--ease-premium, ease), opacity 200ms var(--ease-premium, ease);
+}
+/* City circles: only the circular image gets the depth treatment (scale
+ * + subtle translateZ/Y) -- the name/count labels beneath stay
+ * untransformed so they remain stable and readable at every scroll
+ * position, per the brief. */
+#cityBrowseGrid .home-city-circle-media {
+  transform: scale(calc(1.08 - var(--depth, 0) * 0.18)) translateZ(calc(var(--depth, 0) * -50px));
+  opacity: calc(1 - var(--depth, 0) * 0.3);
+  transition: transform 220ms var(--ease-premium, ease), opacity 220ms var(--ease-premium, ease);
+}
+#cityBrowseGrid .home-city-circle {
+  transform: translate3d(0, calc(var(--depth, 0) * 6px), 0);
+  transition: transform 220ms var(--ease-premium, ease);
+}
+@media (min-width: 768px) and (max-width: 1024px) {
+  #categoryTrack .home-category-card {
+    transform: perspective(1000px)
+      translate3d(0, calc(var(--depth, 0) * 5px), calc(var(--depth, 0) * -35px))
+      scale(calc(1 - var(--depth, 0) * 0.06));
+    opacity: calc(1 - var(--depth, 0) * 0.18);
+  }
+  #cityBrowseGrid .home-city-circle-media {
+    transform: scale(calc(1.05 - var(--depth, 0) * 0.1)) translateZ(calc(var(--depth, 0) * -25px));
+    opacity: calc(1 - var(--depth, 0) * 0.18);
+  }
+}
+@media (max-width: 767px) {
+  #categoryTrack .home-category-card {
+    transform: none;
+    opacity: calc(1 - var(--depth, 0) * 0.12);
+  }
+  #cityBrowseGrid .home-city-circle-media {
+    transform: scale(calc(1.02 - var(--depth, 0) * 0.05));
+    opacity: calc(1 - var(--depth, 0) * 0.12);
+  }
+  #cityBrowseGrid .home-city-circle { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #categoryTrack .home-category-card,
+  #cityBrowseGrid .home-city-circle-media,
+  #cityBrowseGrid .home-city-circle {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+  }
+}
+
+/* =========================================================================
+ * Cursor follower -- a decorative halo layer, never the hit-testing
+ * target. Position is written directly via style.transform from
+ * js/cursor-follower.js's rAF loop (no React/state re-render, no layout
+ * writes -- transform/opacity only).
+ * ========================================================================= */
+
+#cine-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 154, 99, 0.55);
+  background: rgba(184, 154, 99, 0.06);
+  pointer-events: none;
+  z-index: 9999;
+  will-change: transform;
+  transition: width 260ms var(--ease-premium, ease), height 260ms var(--ease-premium, ease), margin 260ms var(--ease-premium, ease), opacity 200ms ease, border-color 200ms ease, background-color 200ms ease;
+  opacity: 0;
+}
+#cine-cursor.cine-cursor-active { opacity: 1; }
+#cine-cursor.cine-cursor-hover {
+  width: 52px;
+  height: 52px;
+  margin: -26px 0 0 -26px;
+  border-color: rgba(184, 154, 99, 0.8);
+  background: rgba(184, 154, 99, 0.1);
+}
+#cine-cursor.cine-cursor-down { background: rgba(184, 154, 99, 0.18); }
+
+@media (hover: none), (pointer: coarse) {
+  #cine-cursor { display: none !important; }
+}
+
+/* =========================================================================
+ * Entry / intro overlay
+ * ========================================================================= */
+
+#cine-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cine-bg-0);
+  color: var(--cine-text-primary);
+  transition: opacity var(--motion-slow, 600ms) var(--ease-exit, ease), visibility var(--motion-slow, 600ms) linear;
+}
+#cine-intro::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 1000px 700px at 50% 20%, rgba(184, 154, 99, 0.08), transparent 60%),
+    radial-gradient(ellipse 800px 600px at 80% 90%, rgba(93, 72, 43, 0.06), transparent 55%);
+  pointer-events: none;
+}
+#cine-intro[data-leaving="true"] { opacity: 0; pointer-events: none; }
+#cine-intro[hidden] { display: none; }
+
+/* Background scroll stays locked only while the overlay is actually up
+ * -- removed the instant Enter fires, never left dangling. */
+body.cine-intro-open { overflow: hidden; }
+
+.cine-intro-inner {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 24px;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+
+.cine-intro-eyebrow {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--cine-gold-1);
+  opacity: 0;
+  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 150ms forwards;
+}
+
+.cine-intro-mark {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: clamp(32px, 7vw, 56px);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  color: var(--cine-text-primary);
+  opacity: 0;
+  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 320ms forwards;
+}
+
+.cine-intro-statement {
+  font-family: 'Inter', sans-serif;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--cine-text-secondary);
+  max-width: 420px;
+  opacity: 0;
+  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 480ms forwards;
+}
+
+@keyframes cine-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---- Enter control ---------------------------------------------------
+ * A plain click/tap/Enter/Space triggers entry immediately (this is
+ * the real, always-available, fully accessible path). Holding the
+ * pointer down over the button on a fine-pointer device additionally
+ * sweeps a progress ring as a decorative flourish -- releasing early
+ * simply does nothing extra; it never blocks or delays the plain-click
+ * path, so the control can never feel "stuck" for a mouse or keyboard
+ * user who just wants to press it once. */
+
+.cine-enter-wrap {
+  position: relative;
+  width: 128px;
+  height: 128px;
+  margin-block-start: 12px;
+  opacity: 0;
+  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 640ms forwards;
+}
+
+.cine-enter-btn {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid rgba(184, 154, 99, 0.4);
+  color: var(--cine-text-primary);
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 30px;
+  transition: border-color var(--motion-standard, 300ms) var(--ease-premium, ease), transform var(--motion-standard, 300ms) var(--ease-premium, ease), background-color var(--motion-standard, 300ms) var(--ease-premium, ease);
+}
+.cine-enter-btn:hover { border-color: rgba(184, 154, 99, 0.85); background: rgba(184, 154, 99, 0.06); }
+.cine-enter-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cine-bg-0), 0 0 0 4px var(--cine-gold-1); }
+.cine-enter-btn:active { transform: scale(0.97); }
+
+.cine-enter-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cine-enter-ring circle {
+  fill: none;
+  stroke: var(--cine-gold-1);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+  stroke-dasharray: 377; /* 2 * pi * 60 */
+  stroke-dashoffset: 377;
+  transition: stroke-dashoffset 40ms linear;
+}
+.cine-enter-btn[data-holding="true"] .cine-enter-ring circle {
+  transition: stroke-dashoffset 40ms linear;
+}
+
+.cine-intro-hint {
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  color: var(--cine-text-secondary);
+  opacity: 0;
+  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 760ms forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-intro-eyebrow, .cine-intro-mark, .cine-intro-statement, .cine-enter-wrap, .cine-intro-hint {
+    animation: none;
+    opacity: 1;
+  }
+  #cine-intro { transition: opacity 150ms linear; }
+}
+
+/* ---- Audio toggle -- rendered hidden until js/audio-controller.js
+ * confirms a real audio source is configured (see that file's
+ * AUDIO_SRC constant); never shown as a dead control. */
+.cine-audio-toggle {
+  position: absolute;
+  inset-block-start: 20px;
+  inset-inline-end: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(242, 238, 229, 0.18);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cine-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color var(--motion-fast, 180ms) var(--ease-premium, ease), color var(--motion-fast, 180ms) var(--ease-premium, ease);
+}
+.cine-audio-toggle:hover { border-color: rgba(184, 154, 99, 0.6); color: var(--cine-gold-2); }
+.cine-audio-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cine-bg-0), 0 0 0 4px var(--cine-gold-1); }
+.cine-audio-toggle[hidden] { display: none; }
+
+/* =========================================================================
+ * OTP cinematic feedback -- visual only, no change to the OTP
+ * send/verify/attempt-limit logic that drives these class toggles.
+ * ========================================================================= */
+
+@keyframes cine-otp-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.cine-scope .otp-digits.cine-otp-shake .otp-digit {
+  animation: cine-otp-shake 420ms var(--ease-premium, ease) both;
+  border-color: var(--ps-color-error);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .otp-digits.cine-otp-shake .otp-digit { animation: none; border-color: var(--ps-color-error); }
+}
+
+.cine-scope .otp-digit.cine-otp-success {
+  border-color: var(--cine-success);
+  box-shadow: 0 0 0 1px var(--cine-success), 0 0 18px -4px rgba(127, 184, 154, 0.55);
+  transition: border-color var(--motion-standard, 320ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 320ms) var(--ease-premium, ease), transform var(--motion-standard, 320ms) var(--ease-premium, ease);
+}
+.cine-scope .otp-digits.cine-otp-converge .otp-digit {
+  transition: transform var(--motion-standard, 320ms) var(--ease-premium, ease), opacity var(--motion-standard, 320ms) var(--ease-premium, ease), border-color var(--motion-standard, 320ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 320ms) var(--ease-premium, ease);
+  border-color: var(--cine-success);
+}
+.cine-scope .otp-digits.cine-otp-converge .otp-digit:nth-child(1) { transform: translateX(10px); }
+.cine-scope .otp-digits.cine-otp-converge .otp-digit:nth-child(2) { transform: translateX(6px); }
+.cine-scope .otp-digits.cine-otp-converge .otp-digit:nth-child(3) { transform: translateX(2px); }
+.cine-scope .otp-digits.cine-otp-converge .otp-digit:nth-child(4) { transform: translateX(-2px); }
+.cine-scope .otp-digits.cine-otp-converge .otp-digit:nth-child(5) { transform: translateX(-6px); }
+.cine-scope .otp-digits.cine-otp-converge .otp-digit:nth-child(6) { transform: translateX(-10px); }
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .otp-digits.cine-otp-converge .otp-digit { transform: none; }
+}
+
+/* Success gold -> green convergence used on the final "verified"/
+ * "profile ready" confirmation icon circle. */
+@keyframes cine-success-glow {
+  0% { box-shadow: 0 0 0 0 rgba(184, 154, 99, 0.5); }
+  60% { box-shadow: 0 0 0 14px rgba(127, 184, 154, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(127, 184, 154, 0); }
+}
+.cine-scope .cine-success-icon {
+  animation: cine-success-glow var(--motion-slow, 900ms) var(--ease-premium, ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .cine-success-icon { animation: none; }
+}
+
+/* =========================================================================
+ * Homepage primitives -- Darwesh Signature Luxury identity applied to
+ * index.html's real content (post-intro nav/hero/sections/footer), scoped
+ * entirely to .cine-scope so no other page is affected. These are new,
+ * shared "home-*" component classes (not a second color system) -- they
+ * consume the exact same --ps-color-*/--radius-*/--motion-* tokens every
+ * other cinematic component on this site already reads.
+ * ========================================================================= */
+
+/* ---- Header / nav -------------------------------------------------------- */
+.cine-scope .home-header { background: var(--ps-color-surface-bright); border-bottom: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .home-wordmark { color: var(--cine-gold-2); font-weight: 700; }
+.cine-scope .home-nav-link { color: var(--ps-color-on-surface-variant); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-nav-link:hover, .cine-scope .home-nav-link.is-active { color: var(--ps-color-on-surface); }
+.cine-scope .home-nav-link.is-active { position: relative; }
+.cine-scope .home-nav-link.is-active::after { content: ''; position: absolute; inset-inline: 0; block-size: 1px; inset-block-end: -6px; background: var(--ps-color-secondary); }
+.cine-scope .home-nav-cta {
+  display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px;
+  border-radius: var(--radius-sm); background: var(--ps-color-secondary); color: var(--ps-color-on-secondary);
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em;
+  transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), transform var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .home-nav-cta:hover { background: var(--cine-gold-2); transform: translateY(-1px); }
+.cine-scope .home-icon-btn { color: var(--ps-color-on-surface-variant); border-radius: var(--radius-sm); transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-icon-btn:hover { background: var(--ps-color-surface-container); color: var(--ps-color-on-surface); }
+
+/* ---- Hero ------------------------------------------------------------ */
+.cine-scope .home-hero { background: var(--ps-color-surface-bright); }
+.cine-scope .home-hero-media {
+  border-radius: var(--radius-lg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.cine-scope .home-hero-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,10,10,0.5) 0%, rgba(9,10,10,0.72) 55%, rgba(9,10,10,0.9) 100%); }
+.cine-scope .home-hero-eyebrow { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.32em; text-transform: uppercase; }
+.cine-scope .home-hero-title { color: var(--ps-color-on-surface); line-height: 1.08; letter-spacing: -0.01em; }
+.cine-scope .home-hero-subtitle { color: var(--ps-color-on-surface-variant); line-height: 1.6; }
+
+/* ---- Search ------------------------------------------------------------ */
+.cine-scope .home-search {
+  background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-md);
+  box-shadow: var(--ps-shadow-3d-1);
+  transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease), box-shadow var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .home-search:focus-within { border-color: var(--ps-color-secondary); box-shadow: var(--ps-focus-ring), var(--ps-shadow-3d-2); }
+.cine-scope .home-search-input { color: var(--ps-color-on-surface); }
+.cine-scope .home-search-input::placeholder { color: var(--ps-color-on-surface-variant); }
+.cine-scope .home-search-icon { color: var(--ps-color-outline); }
+.cine-scope .home-search-icon-svg { color: var(--ps-color-outline); flex: none; }
+.cine-scope .home-search-divider { background: var(--ps-color-outline-variant); width: 1px; align-self: stretch; margin-block: 10px; flex: none; }
+.cine-scope .home-search-btn { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); border-radius: var(--radius-sm); transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease), transform var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-search-btn:hover { background: var(--cine-gold-2); transform: translateY(-1px); }
+
+/* ---- Section rhythm / headings ---------------------------------------- */
+.cine-scope .home-section-eyebrow { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; }
+.cine-scope .home-section-title { color: var(--ps-color-on-surface); }
+.cine-scope .home-section-subtitle { color: var(--ps-color-on-surface-variant); }
+.cine-scope .home-section-link { color: var(--ps-color-on-surface-variant); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-section-link:hover { color: var(--ps-color-secondary); }
+
+/* ---- Property cards ------------------------------------------------------ */
+.cine-scope .home-property-card {
+  background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant);
+  border-radius: var(--radius-md); box-shadow: var(--ps-shadow-3d-1);
+  transition: transform var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease);
+}
+.cine-scope .home-property-card:hover { transform: translateY(-3px); box-shadow: var(--ps-shadow-3d-2); border-color: var(--ps-color-secondary); }
+.cine-scope .home-property-card:focus-within { border-color: var(--ps-color-secondary); }
+.cine-scope .home-property-media { border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--ps-color-surface-container); }
+.cine-scope .home-property-media-fallback { color: var(--ps-color-outline); background: linear-gradient(135deg, var(--ps-color-surface-container) 0%, var(--ps-color-surface-container-low) 100%); }
+.cine-scope .home-property-badge { background: rgba(184, 154, 99, 0.16); border: 1px solid rgba(184, 154, 99, 0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); backdrop-filter: blur(3px); }
+.cine-scope .home-property-title { color: var(--ps-color-on-surface); }
+.cine-scope .home-property-meta { color: var(--ps-color-on-surface-variant); }
+.cine-scope .home-property-meta .material-symbols-outlined { color: var(--ps-color-outline); }
+.cine-scope .home-property-divider { border-color: var(--ps-color-outline-variant); }
+.cine-scope .home-property-price { color: var(--ps-color-secondary); }
+.cine-scope .home-property-cta { color: var(--ps-color-on-surface-variant); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-property-card:hover .home-property-cta, .cine-scope .home-property-card:focus-within .home-property-cta { color: var(--ps-color-secondary); }
+
+/* ---- Service cards (visually distinct from property cards -- icon-led,
+ * no photo, quieter surface) ------------------------------------------- */
+.cine-scope .home-service-card {
+  background: var(--ps-color-surface-container-low); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md);
+  transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease), background-color var(--motion-fast, 150ms) var(--ease-premium, ease), transform var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .home-service-card:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container); transform: translateY(-2px); }
+.cine-scope .home-service-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
+.cine-scope .home-service-icon { background: var(--ps-color-surface-container); color: var(--cine-gold-1); border-radius: var(--radius-sm); font-size: 21px; transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-service-card:hover .home-service-icon { background: rgba(184, 154, 99, 0.14); }
+.cine-scope .home-service-title { color: var(--ps-color-on-surface); }
+.cine-scope .home-service-desc { color: var(--ps-color-on-surface-variant); line-height: 1.55; }
+
+/* ---- Promo / discount banner --------------------------------------------- */
+.cine-scope .home-promo { background: var(--ps-color-surface-container-low); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-lg); position: relative; overflow: hidden; }
+.cine-scope .home-promo::before { content: ''; position: absolute; inset-block-start: 0; inset-inline: 0; height: 2px; background: var(--ps-gold-edge); opacity: 0.7; }
+.cine-scope .home-promo-badge { background: rgba(184, 154, 99, 0.14); border: 1px solid rgba(184, 154, 99, 0.35); color: var(--cine-gold-2); border-radius: var(--radius-sm); }
+.cine-scope .home-promo-title { color: var(--ps-color-on-surface); }
+.cine-scope .home-promo-body { color: var(--ps-color-on-surface-variant); }
+.cine-scope .home-promo-link { color: var(--ps-color-secondary); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-promo-link:hover { color: var(--cine-gold-2); }
+.cine-scope .home-promo-qr { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-sm); }
+
+/* ---- Footer --------------------------------------------------------------- */
+.cine-scope .home-footer { background: var(--ps-color-surface-container-low); border-top: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .home-footer-word { color: var(--cine-gold-2); font-weight: 700; letter-spacing: -0.005em; }
+.cine-scope .home-footer-tagline { color: var(--ps-color-on-surface-variant); line-height: 1.6; }
+.cine-scope .home-footer-heading { color: var(--ps-color-on-surface); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+.cine-scope .home-footer-link { color: var(--ps-color-on-surface-variant); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-footer-link:hover { color: var(--ps-color-secondary); }
+.cine-scope .home-footer-bottom { border-top: 1px solid var(--ps-color-outline-variant); color: var(--ps-color-on-surface-variant); }
+
+/* =========================================================================
+ * Shared carousel arrows (js/carousel.js) -- ONE button style reused by
+ * every horizontal-scroll Home section, per the "luxury arrow buttons"
+ * brief: dark tonal background, thin restrained gold border, soft-square
+ * shape, subtle hover glow + lift, press feedback, real disabled state.
+ * Inline SVG only, no Material Symbols text.
+ * ========================================================================= */
+.cine-scope .home-carousel-nav { display: flex; align-items: center; gap: 8px; }
+.cine-scope .cine-carousel-arrow {
+  width: 40px; height: 40px; flex: none;
+  border-radius: 12px;
+  background: rgba(23, 21, 15, 0.72);
+  border: 1px solid rgba(184, 154, 99, 0.32);
+  color: var(--cine-gold-1, #B89A63);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 150ms var(--ease-premium, ease), box-shadow 150ms var(--ease-premium, ease), border-color 150ms var(--ease-premium, ease), opacity 150ms var(--ease-premium, ease);
+}
+.cine-scope .cine-carousel-arrow svg { width: 18px; height: 18px; }
+.cine-scope .cine-carousel-arrow:hover:not(:disabled) {
+  border-color: var(--cine-gold-1, #B89A63);
+  box-shadow: 0 0 0 4px rgba(184, 154, 99, 0.1), 0 6px 16px -4px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
+}
+.cine-scope .cine-carousel-arrow:active:not(:disabled) { transform: translateY(0) scale(0.95); }
+.cine-scope .cine-carousel-arrow:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: 2px; }
+.cine-scope .cine-carousel-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+[dir="rtl"] .cine-scope .cine-carousel-arrow.is-prev svg,
+[dir="rtl"] .cine-scope .cine-carousel-arrow.is-next svg { transform: scaleX(-1); }
+
+/* ---- Category rail -- premium horizontal scroller reusing the exact
+ * dark-gradient-over-image card language already proven on the bento
+ * quicklinks (.home-quicklink-*), just laid out as a snap track instead
+ * of a fixed grid so it can host real per-type imagery at a readable
+ * size on every viewport. ---------------------------------------------- */
+.cine-scope .home-category-track { display: flex; gap: 14px; scroll-snap-type: x proximity; }
+.cine-scope .home-category-card {
+  scroll-snap-align: start;
+  flex: none;
+  width: 180px; height: 220px;
+  border-radius: var(--radius-md, 14px);
+  position: relative; overflow: hidden;
+  border: 1px solid var(--ps-color-outline-variant);
+  transition: transform 220ms var(--ease-premium, ease), border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
+}
+.cine-scope .home-category-card:hover,
+.cine-scope .home-category-card:focus-visible { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .home-category-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,10,10,0.06) 0%, rgba(9,10,10,0.9) 100%); }
+.cine-scope .home-category-media { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform 500ms var(--ease-premium, ease); }
+.cine-scope .home-category-card:hover .home-category-media { transform: scale(1.06); }
+.cine-scope .home-category-icon { position: relative; z-index: 1; width: 34px; height: 34px; color: var(--cine-gold-1, #B89A63); }
+.cine-scope .home-category-label { position: relative; z-index: 1; color: var(--ps-color-on-surface); font-family: 'IBM Plex Sans', sans-serif; }
+.cine-scope .home-category-content { position: absolute; inset-inline-start: 16px; inset-block-end: 16px; display: flex; flex-direction: column; gap: 6px; }
+
+/* ---- City discovery -- circular image cards, real cities + real
+ * counts (loadCityApartmentCounts() in index.html, unchanged). -------- */
+.cine-scope .home-city-track { display: flex; gap: 22px; scroll-snap-type: x proximity; }
+.cine-scope .home-city-circle {
+  scroll-snap-align: start;
+  flex: none;
+  width: 128px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  text-align: center;
+  transition: transform 220ms var(--ease-premium, ease);
+}
+.cine-scope .home-city-circle:hover, .cine-scope .home-city-circle:focus-visible { transform: translateY(-3px); }
+.cine-scope .home-city-circle-media {
+  width: 104px; height: 104px; border-radius: 999px;
+  background-size: cover; background-position: center;
+  border: 1.5px solid var(--ps-color-outline-variant);
+  box-shadow: var(--ps-shadow-3d-1);
+  transition: border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
+  position: relative;
+}
+.cine-scope .home-city-circle:hover .home-city-circle-media,
+.cine-scope .home-city-circle:focus-visible .home-city-circle-media { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 5px rgba(184,154,99,0.12), var(--ps-shadow-3d-2); }
+.cine-scope .home-city-circle-media::after { content: ''; position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(180deg, rgba(9,10,10,0) 55%, rgba(9,10,10,0.4) 100%); }
+.cine-scope .home-city-circle-name { color: var(--ps-color-on-surface); font-weight: 600; }
+.cine-scope .home-city-circle-count { color: var(--ps-color-on-surface-variant); }
+
+/* ---- Fast Sale / Activity cards reuse .home-property-card verbatim
+ * (see JS) -- only the badge language differs, defined here once. ---- */
+.cine-scope .home-property-badge.is-new { background: rgba(127, 184, 138, 0.16); border-color: rgba(127, 184, 138, 0.4); color: #7FB88A; }
+.cine-scope .home-activity-count { color: var(--ps-color-secondary); font-weight: 600; }
+
+/* ---- Services (editorial cards, inline SVG, tonal depth instead of a
+ * flat bordered box) ----------------------------------------------------*/
+.cine-scope .home-service-card-v2 {
+  position: relative; overflow: hidden;
+  border-radius: var(--radius-md, 14px);
+  border: 1px solid var(--ps-color-outline-variant);
+  background: linear-gradient(160deg, var(--ps-color-surface-container-low) 0%, var(--ps-color-surface-container-lowest) 100%);
+  transition: transform 220ms var(--ease-premium, ease), border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
+}
+.cine-scope .home-service-card-v2:hover, .cine-scope .home-service-card-v2:focus-visible { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .home-service-card-v2::before { content: ''; position: absolute; inset-inline-start: -30%; inset-block-start: -60%; width: 70%; height: 140%; background: radial-gradient(circle, rgba(184,154,99,0.1) 0%, transparent 70%); pointer-events: none; }
+.cine-scope .home-service-icon-v2 { width: 42px; height: 42px; border-radius: var(--radius-sm, 10px); background: rgba(184,154,99,0.12); color: var(--cine-gold-1, #B89A63); display: flex; align-items: center; justify-content: center; flex: none; }
+.cine-scope .home-service-icon-v2 svg { width: 22px; height: 22px; }
+
+/* ---- 7% section (redesigned oversized editorial numeral; the real
+ * discount percentage/coupon/QR destination are unchanged -- see the
+ * PR description for why the number itself was not touched). --------- */
+.cine-scope .home-percent-block { position: relative; overflow: hidden; border-radius: var(--radius-lg, 20px); border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low); }
+.cine-scope .home-percent-block::before { content: ''; position: absolute; inset-block-start: 0; inset-inline: 0; height: 2px; background: var(--ps-gold-edge); opacity: 0.8; }
+.cine-scope .home-percent-media { position: absolute; inset: 0; background-size: cover; background-position: center; opacity: 0.14; }
+.cine-scope .home-percent-figure { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; line-height: 0.9; letter-spacing: -0.02em; color: var(--cine-gold-1, #B89A63); font-size: clamp(96px, 16vw, 180px); }
+.cine-scope .home-percent-figure sup { font-size: 0.32em; top: -0.5em; }
+
+/* ---- B. Soft Pin + Reveal -- the 7% section's brief sticky pin ---------
+ * .cine-pin-stage is a tall (desktop-only), untransformed scroll track;
+ * .cine-pin-content is the actual `position: sticky` element, offset
+ * below the fixed site header (h-16 = 4rem) so it never sits under it.
+ * --focus is a "tent" function built from --sp alone (min()/max()/calc(),
+ * same primitives already used for --d above): 0 at the pin's start,
+ * ramps to 1 by the time it's a third of the way through, HOLDS at 1
+ * through the middle third (this is the "grows into focus, then holds"
+ * read), ramps back to 0 through the final third as it recedes. The
+ * section's own [data-cine3d="promo"] progress keeps advancing smoothly
+ * the whole time (this wrapper is never transformed, so its
+ * getBoundingClientRect() keeps moving through the viewport exactly like
+ * every other section), which is what drives --focus continuously even
+ * while the content is visually pinned. */
+.cine-scope .cine-pin-stage { position: relative; }
+.cine-scope .cine-pin-content {
+  position: sticky;
+  top: 5rem;
+}
+/* --focus (unchanged tent shape: ramps 0->1 over the first third, holds
+ * at 1 through the middle third, ramps back to 0 over the final third)
+ * still drives the whole pinned card's rise/hold/release. --stage1..4
+ * are four narrower, EARLIER, overlapping ramps within that same first
+ * third, each keyed to a different child of the pinned card, so the
+ * scene assembles as a real sequence during the rise instead of
+ * everything fading in together: (1) background texture reveals first,
+ * (2) the oversized numeral scales into focus, (3) the supporting copy
+ * follows, (4) the QR/CTA arrives last -- then all four hold at 1
+ * through the plateau and release together on --fall, same as --focus. */
+[data-cine3d="promo"] {
+  --rise: min(1, calc(var(--sp) / 0.32));
+  --fall: max(0, calc((var(--sp) - 0.68) / 0.32));
+  --focus: max(0, min(var(--rise), calc(1 - var(--fall))));
+  --stage1: max(0, min(1, calc(var(--sp) / 0.14)));
+  --stage2: max(0, min(1, calc((var(--sp) - 0.06) / 0.2)));
+  --stage3: max(0, min(1, calc((var(--sp) - 0.16) / 0.22)));
+  --stage4: max(0, min(1, calc((var(--sp) - 0.26) / 0.24)));
+  --reveal1: max(0, min(var(--stage1), calc(1 - var(--fall))));
+  --reveal2: max(0, min(var(--stage2), calc(1 - var(--fall))));
+  --reveal3: max(0, min(var(--stage3), calc(1 - var(--fall))));
+  --reveal4: max(0, min(var(--stage4), calc(1 - var(--fall))));
+}
+[data-cine3d="promo"] .cine-pin-content {
+  transform: perspective(1400px)
+    translate3d(0, calc((1 - var(--focus)) * 26px), calc((var(--focus) - 1) * 60px))
+    scale(calc(0.94 + var(--focus) * 0.06));
+  opacity: calc(0.4 + var(--focus) * 0.6);
+}
+/* C: the background texture drifts at its own, slower/continuous
+ * parallax rate (never held by --focus), but its reveal (stage 1 of the
+ * sequence) still fades it in from the pin's own base opacity. */
+[data-cine3d="promo"] .home-percent-media {
+  transform: translate3d(0, calc((var(--sp) - 0.5) * 40px), 0) scale(1.08);
+  opacity: calc(0.14 * var(--reveal1, 1));
+}
+/* Stage 2: the numeral scales/fades into focus on top of the pinned
+ * card's own overall rise. */
+[data-cine3d="promo"] .home-percent-figure {
+  opacity: var(--reveal2, 1);
+  transform: scale(calc(0.72 + var(--reveal2, 1) * 0.28));
+}
+/* Stage 3: supporting copy (badge/title/body/link) rises in just after. */
+[data-cine3d="promo"] .home-promo-copy {
+  opacity: var(--reveal3, 1);
+  transform: translate3d(0, calc((1 - var(--reveal3, 1)) * 24px), 0);
+}
+/* Stage 4: QR/CTA arrives last, completing the scene. */
+[data-cine3d="promo"] .home-promo-qr {
+  opacity: var(--reveal4, 1);
+  transform: translate3d(0, calc((1 - var(--reveal4, 1)) * 20px), 0) scale(calc(0.85 + var(--reveal4, 1) * 0.15));
+}
+@media (min-width: 768px) {
+  .cine-scope .cine-pin-stage { min-height: 190vh; }
+}
+/* Mobile: no extra scroll track, no sticky, no pin -- the section just
+ * sits in normal flow (still gets the section-level fade via
+ * .cine-reveal on .cine-pin-content, and the mobile 3D tier below still
+ * applies its own light translate/opacity). "Shorter sticky distances"
+ * per the brief, taken to its safe limit: zero on the smallest viewports. */
+@media (max-width: 767px) {
+  .cine-scope .cine-pin-content { position: static; }
+}
+.cine3d-mobile [data-cine3d="promo"] {
+  --focus: 1;
+  --reveal1: 1;
+  --reveal2: 1;
+  --reveal3: 1;
+  --reveal4: 1;
+}
+.cine3d-mobile [data-cine3d="promo"] .home-percent-media { transform: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .cine-pin-content { position: static; transform: none !important; opacity: 1 !important; }
+  [data-cine3d="promo"] .home-percent-media,
+  [data-cine3d="promo"] .home-percent-figure,
+  [data-cine3d="promo"] .home-promo-copy,
+  [data-cine3d="promo"] .home-promo-qr { transform: none !important; opacity: 1 !important; }
+}
+
+/* ---- Mobile bottom nav ------------------------------------------------------ */
+.cine-scope .home-bottomnav { background: var(--ps-color-surface-container-lowest); border-top: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .home-bottomnav-item { color: var(--ps-color-on-surface-variant); min-width: 0; transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .home-bottomnav-item.is-active { color: var(--ps-color-secondary); }
+.cine-scope .home-bottomnav-fab { background: var(--ps-color-primary); border: 3px solid var(--ps-color-surface-container-lowest); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .home-bottomnav-fab .material-symbols-outlined { color: var(--ps-color-secondary); }
+/* Real bottom padding is set in px here (not a Tailwind pb-* utility on
+   the element, deliberately) so js/site-mobile-nav.js's shared markup
+   controls the exact same clearance everywhere it's used: at least 10px
+   of breathing room on every device, growing to clear the home
+   indicator/gesture bar on notched phones via env(safe-area-inset-bottom)
+   (a no-op, resolving to 0, on every device without one). */
+.cine-scope .home-bottomnav { padding-top: 8px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+.cine-scope .home-bottomnav-item:focus-visible,
+.cine-scope .home-bottomnav-fab:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
+
+/* js/site-header.js's desktop nav links and js/site-mobile-nav.js's
+   bottom-nav items are plain <a> tags styled with Tailwind color
+   utilities, not one of this file's own named components -- Tailwind's
+   own preflight sets a:focus{outline:2px solid transparent}, so without
+   this they'd have literally no visible keyboard-focus indicator at all.
+   Scoped to the two mount points' own IDs rather than every <a> site-wide. */
+#siteHeader a:focus-visible,
+#siteMobileNav a:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
+
+/* =========================================================================
+ * ROLE PROFILE SHELL -- shared foundation for engineer.html/designer.html
+ * (and future role profile pages). Reuses the SAME Profile Shell component
+ * vocabulary office.html already depends on (.ps-hero, .ps-avatar*,
+ * .ps-badge*, .ps-tablist/.ps-tab/.ps-panel, .ps-card, .ps-empty,
+ * .ps-skeleton, .ps-input, .ps-field-label, .ps-grid, all defined in
+ * profile-tokens.css) -- almost none of it needs a .cine-scope override
+ * here at all, because every one of those classes already reads the
+ * --ps-color-*/--ps-radius-* custom properties .cine-scope redefines
+ * elsewhere in this file. office.html itself never carries .cine-scope,
+ * so none of this touches its current light theme.
+ *
+ * The two fixes below are the ONLY .ps-* rules that don't already flow
+ * correctly through that cascade (both are the same class of bug as the
+ * .auth-btn-secondary fix from an earlier phase: a rule that reads
+ * --ps-color-primary as a FOREGROUND color, which only makes sense in
+ * the light default theme where primary is a dark navy).
+ * ========================================================================= */
+.cine-scope .ps-tab[aria-selected="true"] { color: var(--ps-color-secondary); border-block-end-color: var(--ps-color-secondary); }
+.cine-scope .rounded-full { border-radius: var(--radius-sm); }
+
+/* ---- Role hero -- image-led composition, distinct from office.html's
+ * plain solid .ps-hero. Structure: a media layer (real photo, or a
+ * generated role-aware fallback pattern -- never a hotlinked stock photo
+ * or a fabricated "portfolio" image) with the identity block layered on
+ * top, positioned differently per role variant below. ------------------ */
+.cine-scope .rp-hero { position: relative; border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container-low); }
+.cine-scope .rp-hero-media { position: relative; width: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: var(--ps-color-surface-container); }
+.cine-scope .rp-hero-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(9,10,10,0.15) 0%, rgba(9,10,10,0.55) 70%, rgba(9,10,10,0.86) 100%); }
+.cine-scope .rp-hero-identity { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 16px; padding: 20px clamp(16px, 4vw, 32px); margin-block-start: -64px; }
+.cine-scope .rp-hero-name { color: var(--ps-color-on-surface); }
+.cine-scope .rp-hero-meta { color: var(--ps-color-on-surface-variant); }
+.cine-scope .rp-hero-eyebrow { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.24em; text-transform: uppercase; }
+
+/* PHASE 3B -- optional provider cover image.
+ *
+ * Layered UNDER .rp-hero-media rather than replacing it, so a profile
+ * with no cover renders byte-for-byte as it did before: the role's own
+ * gradient/texture treatment below is untouched and remains the default.
+ * A cover, when present, sits behind that treatment and shows through it,
+ * which keeps every role visually recognisable instead of collapsing all
+ * six into one generic photo banner.
+ *
+ * position:absolute + inset:0 on a position:relative .rp-hero means the
+ * cover cannot change the hero's height, so adding one never shifts
+ * layout -- the identity block's negative margin still lands correctly. */
+.cine-scope .rp-hero-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+/* Only applied once a real cover URL is set, so the scrim never darkens
+ * a hero that has no cover behind it. */
+.cine-scope .rp-hero-cover--set::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(9,10,10,0.30) 0%, rgba(9,10,10,0.62) 68%, rgba(9,10,10,0.88) 100%);
+}
+/* With a cover behind it the role texture must not also paint an opaque
+ * surface colour, or the cover would be hidden by the very element meant
+ * to sit on top of it. */
+.cine-scope .rp-hero-cover--set + .rp-hero-media { background-color: transparent; }
+
+/* Owner-only media controls live inside the identity block, so they need
+ * the same stacking context as the rest of the identity content. */
+.cine-scope .rp-hero-identity #mediaControls { position: relative; z-index: 2; }
+
+/* Engineer: technical/architectural -- moderate image height, identity
+ * card reads as a dense "spec sheet" strip anchored at the base of the
+ * image (per spec: "large project image + identity card layered
+ * beside/below it"). */
+.cine-scope .rp-hero--engineer .rp-hero-media { height: clamp(220px, 32vw, 340px); }
+.cine-scope .rp-hero--engineer .rp-hero-media::before {
+  /* Restrained blueprint-line texture -- a decorative technical motif,
+   * not a stand-in for a real project photo (that's the fallback state,
+   * see .rp-fallback--engineer below); this sits under real photos too,
+   * at low opacity, as a quiet "engineering" signature. */
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(184,154,99,0.07) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(184,154,99,0.07) 0 1px, transparent 1px 32px);
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+/* Designer: portfolio/editorial -- the image IS the hero (more vertical
+ * space than Engineer), identity block kept minimal so it never
+ * dominates the composition. */
+.cine-scope .rp-hero--designer .rp-hero-media { height: clamp(280px, 44vw, 460px); }
+.cine-scope .rp-hero--designer .rp-hero-identity { margin-block-start: -48px; }
+
+/* Lawyer: balanced, formal geometric lines -- a quiet document/seal-
+ * inspired motif (concentric rings + hairline grid), same sizing as
+ * Engineer's "spec sheet" composition since both are text-forward,
+ * document-heavy professions. */
+.cine-scope .rp-hero--lawyer .rp-hero-media { height: clamp(220px, 32vw, 340px); }
+.cine-scope .rp-hero--lawyer .rp-hero-media::before {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    repeating-radial-gradient(circle at 85% 15%, rgba(184,154,99,0.08) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(0deg, rgba(184,154,99,0.05) 0 1px, transparent 1px 40px);
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+/* Landscaping: organic terrain -- soft, irregular contour lines instead
+ * of the rigid grids used by Engineer/Lawyer, evoking topography without
+ * a literal (or copyrighted) plant photograph. */
+.cine-scope .rp-hero--landscaping .rp-hero-media { height: clamp(220px, 32vw, 340px); }
+.cine-scope .rp-hero--landscaping .rp-hero-media::before {
+  content: ''; position: absolute; inset: 0;
+  background-image:
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(127,184,154,0.10), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 80% 70%, rgba(184,154,99,0.08), transparent 70%);
+  opacity: 0.7;
+}
+
+/* Cleaning: clean reflective surface -- a subtle diagonal sheen sweep,
+ * evoking polish/purity without literal spray-bottle iconography. */
+.cine-scope .rp-hero--cleaning .rp-hero-media { height: clamp(220px, 32vw, 340px); }
+.cine-scope .rp-hero--cleaning .rp-hero-media::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: linear-gradient(115deg, transparent 30%, rgba(242,238,229,0.07) 48%, transparent 66%);
+  opacity: 0.9;
+}
+
+/* ---- Role-aware fallback visuals (no real media yet) -- generated CSS
+ * patterns, never a hotlinked stock photo and never a fabricated
+ * "sample project". Each role gets its own quiet visual language so an
+ * empty profile still reads as belonging to that profession. --------- */
+.cine-scope .rp-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--ps-color-surface-container); }
+.cine-scope .rp-fallback .material-symbols-outlined { font-size: 40px; color: var(--ps-color-outline); opacity: 0.7; }
+.cine-scope .rp-fallback--engineer {
+  background:
+    repeating-linear-gradient(45deg, rgba(184,154,99,0.05) 0 2px, transparent 2px 22px),
+    repeating-linear-gradient(-45deg, rgba(184,154,99,0.05) 0 2px, transparent 2px 22px),
+    var(--ps-color-surface-container);
+}
+.cine-scope .rp-fallback--designer {
+  background: linear-gradient(135deg, var(--ps-color-surface-container) 0%, var(--ps-color-surface-container-low) 45%, var(--ps-color-surface-container) 100%);
+}
+.cine-scope .rp-fallback--lawyer {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(184,154,99,0.06) 0 1px, transparent 1px 24px),
+    var(--ps-color-surface-container);
+}
+.cine-scope .rp-fallback--landscaping {
+  background:
+    radial-gradient(ellipse 70% 50% at 30% 40%, rgba(127,184,154,0.08), transparent 70%),
+    var(--ps-color-surface-container);
+}
+.cine-scope .rp-fallback--cleaning {
+  background: linear-gradient(115deg, var(--ps-color-surface-container) 30%, var(--ps-color-surface-container-low) 48%, var(--ps-color-surface-container) 66%);
+}
+
+/* ---- Specialty / service chips ---------------------------------------- */
+.cine-scope .rp-chip { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: var(--radius-xs); background: var(--ps-color-surface-container); border: 1px solid var(--ps-color-outline-variant); color: var(--ps-color-on-surface-variant); font-size: 12.5px; font-weight: 500; }
+
+/* ---- Project / portfolio cards -----------------------------------------
+ * Shared card chrome for both roles; each page's own JS decides internal
+ * content density (Engineer: image + type/location/role/status text
+ * block below; Designer: image-forward, caption on hover/below, more
+ * image, less text -- per spec "images should be the hero of this
+ * profile"). */
+.cine-scope .rp-project-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); overflow: hidden; transition: transform var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease); }
+.cine-scope .rp-project-card:hover, .cine-scope .rp-project-card:focus-within { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .rp-project-media { position: relative; width: 100%; aspect-ratio: 4/3; background-size: cover; background-position: center; background-color: var(--ps-color-surface-container); overflow: hidden; }
+.cine-scope .rp-project-status { position: absolute; top: 10px; inset-inline-end: 10px; background: rgba(184,154,99,0.16); border: 1px solid rgba(184,154,99,0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); padding: 3px 9px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; backdrop-filter: blur(3px); }
+.cine-scope .rp-project-title { color: var(--ps-color-on-surface); }
+.cine-scope .rp-project-meta { color: var(--ps-color-on-surface-variant); }
+.cine-scope .rp-project-meta .material-symbols-outlined { color: var(--ps-color-outline); font-size: 15px; }
+
+/* Designer masonry -- a simple CSS-columns editorial gallery (no JS
+ * layout library); each card's own height varies naturally with its
+ * image, unlike Engineer's uniform 4:3 grid. */
+.cine-scope .rp-masonry { columns: 1; column-gap: 16px; }
+@media (min-width: 640px) { .cine-scope .rp-masonry { columns: 2; } }
+@media (min-width: 1024px) { .cine-scope .rp-masonry { columns: 3; } }
+.cine-scope .rp-masonry .rp-project-card, .cine-scope .rp-masonry .pwc-card { break-inside: avoid; margin-bottom: 16px; display: inline-block; width: 100%; }
+.cine-scope .rp-masonry .rp-project-media { aspect-ratio: auto; }
+
+/* ---- Contact / consultation request form ------------------------------- */
+.cine-scope .rp-contact-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); padding: clamp(18px, 3vw, 28px); }
+.cine-scope .rp-contact-sent { color: var(--cine-success); }
+
+/* ---- Owner-only management affordances --------------------------------- */
+.cine-scope .rp-owner-note { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* =========================================================================
+ * PROFESSIONAL CONTENT -- ProfessionalWorkCard (.pwc-*) / ProfessionalCreatorCard
+ * (.pcc-*), Phase P2 UI prototype. Shared by the Designer profile's Work
+ * tab, the Design Discovery grid, and a work detail page's "More work by
+ * this Designer" -- one component, several mounting contexts, per
+ * PROFESSIONAL_CONTENT_ARCHITECTURE.md. Image-first, minimal, editorial --
+ * deliberately NOT a property-listing-card or a social-feed-card look.
+ * ========================================================================= */
+
+/* ---- ProfessionalWorkCard ------------------------------------------------ */
+.cine-scope .pwc-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); overflow: hidden; transition: transform var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease); }
+.cine-scope .pwc-card:hover, .cine-scope .pwc-card:focus-within { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
+.cine-scope .pwc-media-link { display: block; }
+.cine-scope .pwc-media { display: block; width: 100%; height: auto; object-fit: cover; background: var(--ps-color-surface-container); }
+.cine-scope .pwc-media-fallback { aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--ps-color-surface-container) 0%, var(--ps-color-surface-container-low) 45%, var(--ps-color-surface-container) 100%); }
+.cine-scope .pwc-media-fallback .material-symbols-outlined { font-size: 32px; color: var(--ps-color-outline); opacity: 0.7; }
+.cine-scope .pwc-body { padding: 12px 14px 14px; }
+.cine-scope .pwc-title-link { text-decoration: none; }
+.cine-scope .pwc-title { color: var(--ps-color-on-surface); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.cine-scope .pwc-meta { color: var(--ps-color-on-surface-variant); font-size: 12px; margin-top: 3px; }
+.cine-scope .pwc-body .pcc-card.pcc-inline { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--ps-color-outline-variant); }
+
+/* ---- ProfessionalCreatorCard ---------------------------------------------
+ * The CONTENT -> PROFESSIONAL link. `.pcc-inline` sits inside a work
+ * card's footer (small avatar + name + verified only); `.pcc-full` is the
+ * standalone block on a work detail page (avatar + name + role/location +
+ * an explicit "View Profile" affordance). Both are plain <a> elements --
+ * the whole identity strip is one click to the real profile, never a
+ * decorative non-link. */
+.cine-scope .pcc-card { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+.cine-scope .pcc-avatar { flex: none; width: 28px; height: 28px; border-radius: 999px; overflow: hidden; background: var(--ps-color-surface-container); display: flex; align-items: center; justify-content: center; border: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .pcc-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cine-scope .pcc-avatar .material-symbols-outlined { font-size: 15px; color: var(--ps-color-outline); }
+.cine-scope .pcc-name-row { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+.cine-scope .pcc-name { color: var(--ps-color-on-surface); font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cine-scope .pcc-verified { font-size: 14px; color: var(--cine-gold-2); flex: none; }
+.cine-scope .pcc-card.pcc-inline:hover .pcc-name { color: var(--ps-color-secondary); }
+
+.cine-scope .pcc-card.pcc-full { gap: 14px; padding: 14px 16px; background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); transition: border-color var(--motion-standard, 220ms) var(--ease-premium, ease); }
+.cine-scope .pcc-card.pcc-full:hover { border-color: var(--ps-color-secondary); }
+.cine-scope .pcc-card.pcc-full .pcc-avatar { width: 48px; height: 48px; }
+.cine-scope .pcc-card.pcc-full .pcc-avatar .material-symbols-outlined { font-size: 24px; }
+.cine-scope .pcc-card.pcc-full .pcc-identity { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cine-scope .pcc-card.pcc-full .pcc-name { font-size: 15px; }
+.cine-scope .pcc-meta { color: var(--ps-color-on-surface-variant); font-size: 12px; }
+.cine-scope .pcc-viewprofile { color: var(--cine-gold-1); font-family: 'IBM Plex Sans', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+
+/* ---- Work-first profile tab / discovery chrome --------------------------- */
+.cine-scope .pwork-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 18px; }
+.cine-scope .pwork-filter-chip { display: inline-flex; align-items: center; padding: 6px 14px; border-radius: 999px; background: var(--ps-color-surface-container); border: 1px solid var(--ps-color-outline-variant); color: var(--ps-color-on-surface-variant); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: color var(--motion-fast, 150ms) var(--ease-premium, ease), border-color var(--motion-fast, 150ms) var(--ease-premium, ease), background-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .pwork-filter-chip:hover { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-filter-chip.is-active { color: var(--cine-gold-2); border-color: rgba(184, 154, 99, 0.45); background: rgba(184, 154, 99, 0.08); }
+.cine-scope .pwork-addwork-btn { display: inline-flex; align-items: center; gap: 6px; }
+.cine-scope .pwork-comingsoon { color: var(--ps-color-on-surface-variant); font-size: 12.5px; margin-top: 8px; }
+.cine-scope .pwork-hero-media { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--radius-lg); border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container); }
+.cine-scope .pwork-detail-title { color: var(--ps-color-on-surface); }
+.cine-scope .pwork-detail-meta { color: var(--ps-color-on-surface-variant); }
+.cine-scope .pwork-section-heading { color: var(--ps-color-on-surface); font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+
+/* ---- Add Work / Edit Work publish form (Designer publishing) --------- */
+.cine-scope .pwork-optional-tag { color: var(--ps-color-on-surface-variant); font-size: 11px; font-weight: 500; text-transform: none; letter-spacing: normal; margin-inline-start: 4px; }
+.cine-scope .pwork-form-subtitle { color: var(--ps-color-on-surface-variant); font-size: 13.5px; margin-block-start: -18px; }
+
+/* Numbered section grouping (Media / Project Details / Location & Date)
+ * -- a divider + small numbered eyebrow, reusing .pwork-section-heading's
+ * existing type treatment rather than inventing a second heading style. */
+.cine-scope .pwork-form-section { padding-block-start: 32px; margin-block-start: 32px; border-block-start: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .pwork-form-section:first-of-type { padding-block-start: 0; margin-block-start: 28px; border-block-start: none; }
+.cine-scope .pwork-section-number { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--radius-xs); background: rgba(184, 154, 99, 0.12); color: var(--cine-gold-2); font-size: 10px; font-weight: 700; margin-inline-end: 8px; }
+
+.cine-scope .pwork-cover-zone { position: relative; width: 100%; aspect-ratio: 16/9; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: var(--radius-md); background: var(--ps-color-surface-container); display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .pwork-cover-zone:hover, .cine-scope .pwork-cover-zone:focus-visible { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-cover-zone:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .pwork-cover-zone img { width: 100%; height: 100%; object-fit: cover; }
+.cine-scope .pwork-cover-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--ps-color-on-surface-variant); font-size: 12.5px; text-align: center; padding: 0 16px; }
+.cine-scope .pwork-cover-placeholder .material-symbols-outlined { font-size: 30px; opacity: 0.7; }
+.cine-scope .pwork-remove-btn { position: absolute; top: 8px; inset-inline-end: 8px; width: 26px; height: 26px; border-radius: 999px; background: rgba(9,10,10,0.72); border: 1px solid rgba(255,255,255,0.25); color: #F2EEE5; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.cine-scope .pwork-remove-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .pwork-remove-btn .material-symbols-outlined { font-size: 16px; }
+
+.cine-scope .pwork-gallery-caption { color: var(--ps-color-on-surface-variant); font-size: 12px; margin-block-end: 12px; }
+/* Empty state: one wide, inviting dropzone (matching the Cover zone's
+ * visual language, just shorter) -- NOT the small square "add" tile,
+ * which only appears once at least one image already exists and the
+ * grid needs a trailing "add more" affordance. */
+.cine-scope .pwork-gallery-empty { width: 100%; min-height: 108px; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: var(--radius-md); background: var(--ps-color-surface-container); display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); color: var(--ps-color-on-surface-variant); font-size: 13px; }
+.cine-scope .pwork-gallery-empty:hover, .cine-scope .pwork-gallery-empty:focus-visible { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-gallery-empty:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .pwork-gallery-empty .material-symbols-outlined { font-size: 22px; opacity: 0.7; }
+
+.cine-scope .pwork-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.cine-scope .pwork-thumb { position: relative; aspect-ratio: 1/1; border-radius: var(--radius-sm); overflow: hidden; background: var(--ps-color-surface-container); border: 1px solid var(--ps-color-outline-variant); }
+.cine-scope .pwork-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.cine-scope .pwork-thumb-add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--ps-color-on-surface-variant); font-size: 11px; cursor: pointer; border: 1.5px dashed var(--ps-color-outline-variant); transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
+.cine-scope .pwork-thumb-add:hover { border-color: var(--ps-color-secondary); }
+.cine-scope .pwork-thumb-add:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .pwork-thumb-add .material-symbols-outlined { font-size: 22px; }
+.cine-scope .pwork-progress { color: var(--ps-color-on-surface-variant); font-size: 12.5px; }
+.cine-scope .pwork-confirm-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); padding: 20px; }
+
+/* =========================================================================
+ * `.hidden` must always win over the `.pwork-*` component rules --
+ * root-cause fix, not a per-element patch. SCOPED to `.pwork-*` only
+ * (see regression note below for why it must not be broader).
+ *
+ * Found while diagnosing the Add Work page: several `.cine-scope .xxx`
+ * component rules above declare `display: flex/grid` (a 2-class compound
+ * selector, CSS specificity (0,2,0)) which is MORE specific than
+ * Tailwind's own `.hidden { display: none }` (a single class,
+ * specificity (0,1,0)). Per the cascade, specificity decides before
+ * source order -- so `element.classList.add('hidden')` on, e.g.,
+ * `.pwork-cover-placeholder` or `.pwork-remove-btn` was silently having
+ * NO visual effect at all: the element stayed rendered, `display:flex`,
+ * on top of whatever was meant to replace it (this is what actually
+ * caused the Cover/Gallery uploaders to look "broken" -- the placeholder
+ * text and the real image preview were both visible at once). The same
+ * `.pwork-*` classes are shared by designer.html (`#workToolbar`) and
+ * work.html (`#galleryStrip`, `#deleteConfirm`), so this must keep
+ * covering all three, not just add-work.html.
+ *
+ * REGRESSION (found auditing the Home page nav): an earlier version of
+ * this rule was `.cine-scope .hidden { display: none; }` -- unscoped,
+ * matching ANY element under `.cine-scope`. That is also (0,2,0), which
+ * made it beat Tailwind's *responsive* utilities too -- e.g.
+ * `.md\:flex { display: flex }` (0,1,0) inside a `@media (min-width:...)`
+ * block. Media-query wrapping does not add specificity, so on any
+ * `class="hidden md:flex"` element (the header's desktop nav on
+ * index.html/design.html/designer.html/engineer.html/work.html, the
+ * hero's `hidden sm:inline` AI-search label, etc.) `.cine-scope .hidden`
+ * won unconditionally at EVERY viewport width, including desktop --
+ * forcing `display:none` even where `.md:flex` should have taken over.
+ * That silently deleted the entire desktop nav (Home/Map/Services/
+ * About/Profile/MAM AI) site-wide on every `.cine-scope` page.
+ *
+ * Fix: match only elements that actually carry a `pwork-` component
+ * class, via an attribute-substring selector. `[class*="pwork-"]` alone
+ * is one more specificity unit (0,1,0), so combined with `.hidden` and
+ * the `.cine-scope` ancestor this rule is (0,3,0) -- it still
+ * unconditionally beats the `.pwork-*` component rules' (0,2,0) above
+ * (no more relying on being declared last), while never touching
+ * Tailwind's `hidden md:flex`/`hidden sm:inline`/etc pattern anywhere,
+ * since none of those elements carry a `pwork-` class. */
+.cine-scope [class*="pwork-"].hidden { display: none; }
+
+/* Visible skip control inside the cinematic intro. Quiet by design -- it is
+   an exit from a brand moment, not a call to action -- but focusable and
+   large enough to hit on a phone. */
+.cine-intro-skip {
+  margin-top: 18px;
+  background: none;
+  border: 0;
+  padding: 10px 18px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(242, 238, 229, 0.5);
+  cursor: pointer;
+  transition: color 180ms ease;
+}
+.cine-intro-skip:hover,
+.cine-intro-skip:focus-visible { color: rgba(242, 238, 229, 0.92); }
+.cine-intro-skip:focus-visible { outline: 1px solid rgba(201, 162, 39, 0.7); outline-offset: 3px; }
+
+/* =====================================================================
+ * MAP CONTROLS + APPROXIMATE-LOCATION UX
+ * ---------------------------------------------------------------------
+ * The right-side controls previously rendered as empty rounded squares
+ * whenever the Material Symbols font was judged unavailable (see
+ * js/icon-fallback.js for that root cause). These controls now carry
+ * INLINE SVG, so they are correct even with no webfont at all -- a map
+ * control is exactly the case where a font dependency is not worth it.
+ * ===================================================================== */
+
+/* currentColor + the button's own font-size means one icon definition
+ * inherits hover/focus/active colour with no per-state overrides. */
+.cine-scope .ctl-svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: block;
+  color: currentColor;
+}
+.cine-scope .map-overlay-btn-labeled .ctl-svg,
+.cine-scope .search-this-area-chip .ctl-svg,
+.cine-scope .draw-action-btn .ctl-svg,
+.cine-scope .map-search-chip .ctl-svg { width: 16px; height: 16px; }
+
+/* Grouped, consistent chrome: one radius, one size, one spacing rhythm,
+ * rather than a loose stack of unrelated squares. */
+.cine-scope .map-overlay-btn {
+  border-radius: 12px;
+  transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
+}
+.cine-scope .map-overlay-btn:hover { background: rgba(184,154,99,0.16); }
+.cine-scope .map-overlay-btn:active { transform: scale(0.96); }
+
+/* A visible keyboard focus ring -- these are icon-only controls, so
+ * without one a keyboard user cannot tell where they are. */
+.cine-scope .map-overlay-btn:focus-visible,
+.cine-scope .search-this-area-chip:focus-visible,
+.cine-scope .draw-action-btn:focus-visible,
+.cine-scope .map-search-chip:focus-visible,
+.cine-scope .map-type-btn:focus-visible {
+  outline: 2px solid var(--cine-gold-1, #B89A63);
+  outline-offset: 2px;
+}
+
+/* Draw mode is a MODE, not a one-shot action, so it needs a state a user
+ * can see and a screen reader can read (aria-pressed, set in map.html). */
+.cine-scope .map-overlay-btn[aria-pressed="true"] {
+  background: var(--cine-gold-1, #B89A63);
+  color: #17150F;
+  border-color: var(--cine-gold-1, #B89A63);
+}
+
+/* ---- Approximate-location halo ------------------------------------- */
+/* pointer-events:none is belt-and-braces alongside Leaflet's
+ * interactive:false -- the halo must never intercept a click meant for a
+ * marker or a cluster badge underneath it. */
+.cine-scope .approx-halo { pointer-events: none; }
+
+/* ---- Approximate-location disclosure in the popup ------------------- */
+.cine-scope .approx-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--ps-color-outline-variant, rgba(93,72,43,0.5));
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ps-color-on-surface-variant, #A79F91);
+}
+.cine-scope .approx-note-dot {
+  width: 8px; height: 8px;
+  margin-top: 4px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--cine-gold-1, #B89A63);
+  background: rgba(184,154,99,0.25);
+}
+
+/* ---- Cluster vs listing marker -------------------------------------- */
+/* Deliberately a different SHAPE (circle) and colour from a price pin, so
+ * a cluster count can never be misread as a price. */
+.cine-scope .price-cluster {
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+}
+
+/* A long title or id must not stretch a pin across the map. */
+.cine-scope .price-pin {
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The controls inside the group keep the container's own stacking rhythm,
+ * so wrapping them changed the DOM but not the desktop layout. */
+.cine-scope .map-overlay-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+/* The group toggle exists only for narrow viewports -- above the
+ * breakpoint every control is already visible, so a button to reveal them
+ * would be one more thing to explain. */
+.cine-scope .map-tools-toggle { display: none; }
+
+/* ---- Mobile: a compact group, not a tall floating stack -------------- */
+@media (max-width: 767px) {
+  .cine-scope .map-overlay-btn { border-radius: 10px; }
+  /* 44px keeps the touch target at the platform minimum even though the
+   * icon itself is 18px. */
+  .cine-scope .map-overlay-btn-icon {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+  }
+  .cine-scope .map-overlay-btn-icon .ctl-svg { width: 18px; height: 18px; }
+  /* Draw Area keeps its text on mobile too -- it is the one control whose
+   * purpose is not obvious from an icon alone. */
+  .cine-scope .map-overlay-btn-labeled { padding-inline: 12px; height: 44px; }
+
+  /* One tap reveals the tools; the map keeps the rest of the screen.
+   * Visibility is driven purely by this attribute, so the state survives
+   * re-renders and there is no JS width check to get out of sync. */
+  .cine-scope .map-tools-toggle { display: flex; }
+  .cine-scope .map-overlay-controls[data-tools="collapsed"] .map-overlay-group { display: none; }
+  .cine-scope .map-tools-toggle[aria-expanded="true"] {
+    background: var(--cine-gold-1, #B89A63);
+    color: #17150F;
+    border-color: var(--cine-gold-1, #B89A63);
+  }
+}
+
+/* =====================================================================
+ * PROPERTY LISTING CARD (.lc) -- the map's left result panel
+ * ---------------------------------------------------------------------
+ * A card answers, in order: what is it, where is it, how big, how much.
+ * The old card led with the address and buried the price in a corner,
+ * so scanning the column told you nothing about the properties in it.
+ *
+ * The height is FIXED and set elsewhere (.listing-card in map.html): the
+ * wheel's snap-centering maths needs every card to be exactly the same
+ * height in every language. So every row here is single-line and
+ * truncates -- nothing in this component may wrap, or the column stops
+ * centering correctly.
+ * ===================================================================== */
+
+.cine-scope .lc {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(34,30,21,0.92) 0%, rgba(23,21,15,0.96) 100%);
+  border: 1px solid rgba(93,72,43,0.55);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+.cine-scope .lc:hover {
+  border-color: rgba(184,154,99,0.6);
+  box-shadow: 0 6px 22px rgba(0,0,0,0.45);
+}
+/* The selected card is the one the map is showing. A gold rail on the
+ * leading edge reads at a glance down a scrolling column in a way a
+ * border-colour change alone does not. Logical inset-inline-start keeps
+ * it on the correct side under RTL with no separate rule. */
+.cine-scope .lc.active {
+  border-color: var(--cine-gold-1, #B89A63);
+  background: linear-gradient(180deg, rgba(46,39,25,0.95) 0%, rgba(28,25,17,0.97) 100%);
+}
+.cine-scope .lc.active::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #D8BC80, #B89A63);
+  z-index: 3;
+}
+
+/* ---- Media ---------------------------------------------------------- */
+.cine-scope .lc-media {
+  position: relative;
+  flex: none;
+  width: 104px;
+  overflow: hidden;
+  background: #100E0A;   /* the box has colour before the photo lands */
+}
+@media (min-width: 768px) { .cine-scope .lc-media { width: 124px; } }
+.cine-scope .lc-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;      /* fill the slot, never distort the photo */
+  display: block;
+}
+.cine-scope .lc-media.is-hidden-loc img { filter: blur(7px); transform: scale(1.15); }
+.cine-scope .lc-lock {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(9,10,10,0.5);
+  color: #F2EEE5;
+}
+.cine-scope .lc-lock svg { width: 18px; height: 18px; }
+
+/* Deal state sits on the image instead of taking one of the four text
+ * rows -- the card is height-constrained, and this is the one fact that
+ * reads fine as a small overlay. */
+.cine-scope .lc-deal {
+  position: absolute;
+  inset-block-end: 6px;
+  inset-inline-start: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(9,10,10,0.78);
+  backdrop-filter: blur(4px);
+  color: #E8DFC9;
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cine-scope .lc-fav {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  width: 26px; height: 26px;
+  border-radius: 999px;
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(9,10,10,0.6);
+  backdrop-filter: blur(4px);
+  color: #F2EEE5;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+  z-index: 4;
+}
+.cine-scope .lc-fav svg { width: 14px; height: 14px; }
+.cine-scope .lc-fav:hover { background: rgba(9,10,10,0.85); }
+.cine-scope .lc-fav.is-on { color: var(--cine-gold-1, #B89A63); }
+
+/* ---- Body ----------------------------------------------------------- */
+.cine-scope .lc-body {
+  flex: 1;
+  min-width: 0;            /* lets the truncation below actually happen */
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+.cine-scope .lc-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.cine-scope .lc-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+  color: #F2EEE5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (min-width: 768px) { .cine-scope .lc-title { font-size: 15px; } }
+.cine-scope .lc-verified { width: 14px; height: 14px; flex: none; color: #7FB88A; }
+.cine-scope .lc-place {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: #A79F91;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Property-type identity badge -- same icon language as the map markers,
+   a fixed-width icon next to (never replacing) lc-place's own ellipsis. */
+.cine-scope .lc-meta { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.cine-scope .lc-type { flex: none; display: inline-flex; }
+.cine-scope .lc-type-icon { width: 13px; height: 13px; color: #8E7448; }
+
+/* ---- Facts ---------------------------------------------------------- */
+.cine-scope .lc-facts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+.cine-scope .lc-facts:empty { display: none; }   /* no data, no empty row */
+.cine-scope .lc-fact {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #C4BCAC;
+  white-space: nowrap;
+}
+.cine-scope .lc-fact-icon { width: 13px; height: 13px; flex: none; color: #8E7448; }
+
+/* ---- Price + actions ------------------------------------------------ */
+.cine-scope .lc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  margin-block-start: 1px;
+}
+/* The number people are actually shopping on, so it gets the one strong
+ * colour on the card and the largest size. */
+.cine-scope .lc-price {
+  margin: 0;
+  min-width: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--cine-gold-1, #B89A63);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (min-width: 768px) { .cine-scope .lc-price { font-size: 16.5px; } }
+.cine-scope .lc-actions { display: flex; align-items: center; gap: 5px; flex: none; }
+.cine-scope .lc-action {
+  width: 27px; height: 27px;
+  border-radius: 999px;
+  border: 1px solid rgba(93,72,43,0.7);
+  background: transparent;
+  color: #C4BCAC;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.cine-scope .lc-action svg { width: 14px; height: 14px; }
+.cine-scope .lc-action:hover {
+  background: rgba(184,154,99,0.16);
+  border-color: var(--cine-gold-1, #B89A63);
+  color: #F2EEE5;
+}
+.cine-scope .lc-action:focus-visible,
+.cine-scope .lc-fav:focus-visible,
+.cine-scope .lc:focus-visible {
+  outline: 2px solid var(--cine-gold-1, #B89A63);
+  outline-offset: 2px;
+}
+
+/* Touch targets: the whole card is the primary hit area, but the two
+ * icon buttons are separate actions and need the platform minimum. */
+@media (max-width: 767px) {
+  .cine-scope .lc-action { width: 30px; height: 30px; }
+  .cine-scope .lc-fav { width: 30px; height: 30px; }
+  .cine-scope .lc-fav svg { width: 15px; height: 15px; }
+}
+
+/* =====================================================================
+ * MAP EDGE DRAWER
+ * ---------------------------------------------------------------------
+ * Closed, the map's tools cost one thin handle on the trailing edge.
+ * Open, they are a glass panel over the map -- the map keeps rendering
+ * behind it and is never re-initialised, because this is a sibling
+ * overlay rather than anything in the map's own layout.
+ *
+ * Everything positional uses logical properties (inset-inline-end,
+ * padding-inline), so the whole component mirrors under RTL with no
+ * second set of rules -- including the drag direction, which is derived
+ * from the computed direction in map.html rather than hardcoded.
+ * ===================================================================== */
+
+/* ---- The handle ------------------------------------------------------ */
+.cine-scope .map-edge-handle {
+  position: absolute;
+  inset-inline-end: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1150;
+  width: 22px;
+  height: 92px;
+  padding: 0;
+  border: 1px solid rgba(184,154,99,0.35);
+  border-inline-end: none;
+  border-start-start-radius: 11px;
+  border-end-start-radius: 11px;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  background: linear-gradient(180deg, rgba(28,25,17,0.86), rgba(17,15,11,0.92));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: -3px 0 16px rgba(0,0,0,0.42);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;      /* the handle owns its gesture, not the map */
+  transition: width .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.cine-scope .map-edge-handle:hover { width: 26px; border-color: rgba(184,154,99,0.7); }
+.cine-scope .map-edge-handle:focus-visible {
+  outline: 2px solid var(--cine-gold-1, #B89A63);
+  outline-offset: 2px;
+}
+/* The grip is the affordance: a short vertical rule, the same language a
+ * physical sliding panel uses. */
+.cine-scope .meh-grip {
+  width: 3px;
+  height: 34px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(216,188,128,0.95), rgba(142,116,72,0.85));
+}
+/* Marks a tool that has become available while the drawer is shut --
+ * today, "search this area" after a real pan. Without it, moving the map
+ * would offer nothing and the user would never know to look. */
+.cine-scope .meh-dot {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 6px;
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--cine-gold-1, #B89A63);
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.cine-scope .map-edge-handle[data-attention="1"] .meh-dot { opacity: 1; transform: scale(1); }
+/* While a boundary is being drawn the handle is the way back to Finish,
+ * so it says so rather than looking idle. */
+.cine-scope .map-edge-handle[data-drawing="1"] {
+  border-color: var(--cine-gold-1, #B89A63);
+  background: linear-gradient(180deg, rgba(70,57,32,0.92), rgba(40,33,19,0.95));
+}
+.cine-scope .map-edge-handle[data-drawing="1"] .meh-grip {
+  animation: mehPulse 1.6s ease-in-out infinite;
+}
+@keyframes mehPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ---- The drawer ------------------------------------------------------ */
+.cine-scope .map-drawer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 1160;
+  width: min(320px, 86vw);
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(26,23,16,0.90) 0%, rgba(14,13,9,0.94) 100%);
+  backdrop-filter: blur(18px) saturate(1.15);
+  -webkit-backdrop-filter: blur(18px) saturate(1.15);
+  border-inline-start: 1px solid rgba(184,154,99,0.28);
+  border-start-start-radius: 18px;
+  border-end-start-radius: 18px;
+  box-shadow: -18px 0 48px rgba(0,0,0,0.5);
+  /* Closed by default. --drawer-x is written by the drag handler so the
+   * panel tracks the finger; released, the transition below springs it
+   * to whichever end it settled nearest. */
+  transform: translateX(var(--drawer-x, 100%));
+  transition: transform 380ms cubic-bezier(0.22, 1.2, 0.36, 1);
+  overscroll-behavior: contain;
+  padding-inline-end: env(safe-area-inset-right, 0px);
+  padding-block-end: env(safe-area-inset-bottom, 0px);
+}
+/* RTL: the drawer sits on the left, so "closed" is the other direction.
+ * Handled here rather than by negating in JS, which would have to know
+ * about direction at every write. */
+.cine-scope [dir="rtl"] .map-drawer,
+[dir="rtl"] .cine-scope .map-drawer { transform: translateX(calc(-1 * var(--drawer-x, 100%))); }
+.cine-scope .map-drawer.is-dragging { transition: none; }   /* follow the finger exactly */
+.cine-scope .map-drawer.is-open { --drawer-x: 0%; }
+
+/* (A `data-mode="compact"` drawer width used to live here: the polygon
+ * tool needed Undo/Finish reachable across many vertex clicks, so the
+ * drawer narrowed instead of closing. The circle tool is one gesture with
+ * no mid-draw controls, so arming simply closes the drawer and hands the
+ * whole map to the gesture -- nothing sets data-mode any more.) */
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .map-drawer { transition: none; }
+  .cine-scope .map-edge-handle[data-drawing="1"] .meh-grip { animation: none; }
+}
+
+.cine-scope .map-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1155;
+  background: rgba(6,6,5,0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+/* Open, the scrim dims the map but does NOT take the click.
+ *
+ * It used to set pointer-events:auto, which made every click anywhere on
+ * the map hit the scrim instead of the map: a marker could not be
+ * selected at all while the drawer was open, and the only thing a click
+ * did was close the drawer. On a 320px drawer over a full-width map that
+ * is the wrong trade -- the map is still the page, and most of it is
+ * still visible.
+ *
+ * Closing on an outside click still happens; it is driven by a document
+ * listener in map.html rather than by this element, so the same click
+ * both reaches the marker underneath and dismisses the drawer.
+ */
+.cine-scope .map-drawer-scrim.is-open { opacity: 1; }
+
+/* Mobile keeps the blocking scrim. There the drawer covers ~82vw, so the
+ * strip of map still showing is too narrow to aim at -- a tap there is
+ * far more likely to mean "close this" than "select that marker", and a
+ * mis-aimed tap that both selected a listing and closed the drawer would
+ * be worse than one that just closes it. */
+@media (max-width: 767px) {
+  .cine-scope .map-drawer-scrim.is-open { pointer-events: auto; }
+}
+
+/* ---- Drawer chrome --------------------------------------------------- */
+.cine-scope .map-drawer-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 14px 11px;
+  border-block-end: 1px solid rgba(184,154,99,0.16);
+}
+.cine-scope .map-drawer-title {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cine-gold-1, #B89A63);
+}
+.cine-scope .map-drawer-close {
+  width: 30px; height: 30px;
+  flex: none;
+  border-radius: 8px;
+  border: 1px solid rgba(93,72,43,0.6);
+  background: transparent;
+  color: #C4BCAC;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.cine-scope .map-drawer-close svg { width: 15px; height: 15px; }
+.cine-scope .map-drawer-close:hover { background: rgba(184,154,99,0.14); color: #F2EEE5; }
+
+.cine-scope .map-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- Groups ---------------------------------------------------------- */
+/* Each group is a card, so the drawer reads as four labelled sets rather
+ * than one undifferentiated column of buttons. */
+.cine-scope .drawer-group {
+  border: 1px solid rgba(93,72,43,0.42);
+  border-radius: 13px;
+  background: rgba(255,250,240,0.028);
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.cine-scope .drawer-group-title {
+  margin: 0 0 2px;
+  padding-inline: 3px;
+  font-family: 'Inter', sans-serif;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #8A8172;
+}
+
+/* ---- Tool rows -------------------------------------------------------- */
+/* One shape for every tool: icon, label, full-width hit area. Uniformity
+ * is the point -- a row's meaning comes from its label, not from being
+ * shaped differently to its neighbours. */
+.cine-scope .tool-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #E8E2D6;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+@media (max-width: 767px) { .cine-scope .tool-row { min-height: 44px; } }
+.cine-scope .tool-row .ctl-svg { width: 18px; height: 18px; flex: none; color: #B89A63; }
+.cine-scope .tool-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cine-scope .tool-row:hover:not(:disabled) { background: rgba(184,154,99,0.13); border-color: rgba(184,154,99,0.34); }
+.cine-scope .tool-row:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: 1px; }
+.cine-scope .tool-row:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* A mode that is currently ON -- filled, not merely tinted, so it is
+ * unmistakable at a glance which tool is armed. */
+.cine-scope .tool-row[aria-pressed="true"] {
+  background: var(--cine-gold-1, #B89A63);
+  border-color: var(--cine-gold-1, #B89A63);
+  color: #17150F;
+  font-weight: 650;
+}
+.cine-scope .tool-row[aria-pressed="true"] .ctl-svg { color: #17150F; }
+
+.cine-scope .tool-row-danger .ctl-svg { color: #D98C6A; }
+
+/* (.tool-row-sub, .tool-row-primary and .draw-actions were removed with
+ * the polygon tool: they styled only its Undo point / Finish sub-actions,
+ * which the one-gesture circle has no equivalent of. Verified
+ * unreferenced across every .html/.css/.js in the repo before deleting,
+ * rather than left as rules matching nothing.) */
+
+/* ---- Segmented map-type control -------------------------------------- */
+.cine-scope .map-drawer .map-type-switch {
+  display: flex;
+  width: 100%;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  border: 1px solid rgba(93,72,43,0.55);
+  background: rgba(9,10,10,0.42);
+  box-shadow: none;
+}
+.cine-scope .map-drawer .map-type-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #A79F91;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background-color .15s ease, color .15s ease;
+}
+.cine-scope .map-drawer .map-type-btn.active { background: var(--cine-gold-1, #B89A63); color: #17150F; }
+.cine-scope .map-drawer .map-type-btn:hover:not(.active) { color: #F2EEE5; background: rgba(184,154,99,0.1); }
+.cine-scope .map-drawer .map-type-btn:focus-visible { outline: 2px solid var(--cine-gold-1, #B89A63); outline-offset: -2px; }

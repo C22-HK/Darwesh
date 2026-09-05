@@ -1,0 +1,268 @@
+/* Darwesh Group -- Social Universe (index.html, directly below the hero).
+ * Opt-in via the #socialUniverse mount point; scoped under .cine-scope
+ * like css/service-universe.css, reading the same obsidian/carbon/gold/
+ * ivory tokens from cinematic.css/profile-tokens.css.
+ *
+ * DELIBERATELY NOT a copy of service-universe.css's composition: this is
+ * a lighter, more compact orbital field (fewer, smaller "tiles" instead
+ * of large "worlds"), a single centered stage instead of a two-column
+ * hero, and a slim caption bar below the stage instead of a tall
+ * editorial info column -- it should read as "a quiet transition strip
+ * beneath the hero," never as a second full hero section competing with
+ * the page's actual primary discovery area (search + Buy/Rent/Build/
+ * Renovate). Tiles are squircles (rounded squares), not spheres, so the
+ * two components never look like reskins of one another even though they
+ * share the same drag/depth/orbit language.
+ */
+
+.cine-scope .so-atmosphere { position: relative; }
+.cine-scope .so-atmosphere::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse 50% 70% at 50% 40%, rgba(184,154,99,0.05), transparent 72%);
+}
+
+.cine-scope .so-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* ---- Stage -- compact orbital field. Much shorter than the Services
+ * stage on purpose: this section is a transition beneath the hero, not
+ * a second hero. ------------------------------------------------------- */
+.cine-scope .so-stage {
+  position: relative;
+  width: 100%;
+  height: clamp(150px, 22vw, 220px);
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+@media (max-width: 640px) {
+  .cine-scope .so-stage { height: clamp(130px, 44vw, 180px); }
+}
+
+.cine-scope .so-orbit {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 1px; height: 1px;
+  cursor: grab;
+  z-index: 1;
+  --so-base: 96px; /* set from JS per breakpoint */
+}
+.cine-scope .so-stage:active .so-orbit { cursor: grabbing; }
+
+/* ---- Tiles -- squircles, not spheres: this is the component's own
+ * shape identity, distinct from the Services planets. Idle surface stays
+ * strictly obsidian/ivory/gold (no brand color) -- a platform's brand
+ * hue only appears as a very faint wash behind the glyph, and only on
+ * the front/focused tile, so the section never reads as a colorful
+ * social-media banner. ------------------------------------------------- */
+.cine-scope .so-planet {
+  position: absolute;
+  top: 0; left: 0;
+  width: var(--so-base);
+  height: var(--so-base);
+  border-radius: 26%;
+  cursor: pointer;
+  background-color: var(--ps-color-surface-container-lowest);
+  box-shadow:
+    inset 0 1px 0 rgba(242,238,229,0.08),
+    inset 0 -10px 18px rgba(0,0,0,0.35),
+    0 8px 20px rgba(9,10,10,0.4);
+  transition: box-shadow 240ms var(--ease-premium, ease);
+  will-change: transform, opacity, filter;
+}
+.cine-scope .so-planet:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(242,238,229,0.08),
+    inset 0 -10px 18px rgba(0,0,0,0.35),
+    var(--ps-focus-ring);
+}
+.cine-scope .so-planet--front,
+.cine-scope .so-planet[aria-selected="true"] {
+  box-shadow:
+    inset 0 1px 0 rgba(242,238,229,0.1),
+    inset 0 -10px 18px rgba(0,0,0,0.3),
+    0 0 0 1px rgba(184,154,99,0.55),
+    0 0 26px rgba(184,154,99,0.2),
+    0 12px 30px rgba(9,10,10,0.5);
+}
+/* A keyboard user tabbing onto the front/selected tile must still get a
+ * visibly distinct focus indicator -- without this, its box-shadow would
+ * be indistinguishable from the same tile's normal front/selected look,
+ * since the rule above and :focus-visible above it both set box-shadow
+ * outright (not additively) and this one wins the cascade. Appending
+ * --ps-focus-ring here keeps the gold rim AND makes focus unambiguous. */
+.cine-scope .so-planet--front:focus-visible,
+.cine-scope .so-planet[aria-selected="true"]:focus-visible {
+  box-shadow:
+    inset 0 1px 0 rgba(242,238,229,0.1),
+    inset 0 -10px 18px rgba(0,0,0,0.3),
+    0 0 0 1px rgba(184,154,99,0.55),
+    0 0 26px rgba(184,154,99,0.2),
+    0 12px 30px rgba(9,10,10,0.5),
+    var(--ps-focus-ring);
+}
+.cine-scope .so-planet--far { filter: blur(0.5px); }
+
+.cine-scope .so-planet-face {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 26%;
+  overflow: hidden;
+}
+.cine-scope .so-planet-glyph {
+  width: 42%;
+  height: 42%;
+  color: var(--ps-color-on-surface-variant);
+  opacity: 0.75;
+  transition: color 200ms ease, opacity 200ms ease;
+}
+.cine-scope .so-planet--front .so-planet-glyph,
+.cine-scope .so-planet[aria-selected="true"] .so-planet-glyph {
+  color: var(--cine-gold-2);
+  opacity: 1;
+}
+/* Faint brand-hue wash -- ONLY visible on the front/focused tile, kept
+ * deliberately subtle (low opacity, soft radial) per "do not turn this
+ * into a bright multicolor social-media banner." */
+.cine-scope .so-planet--front.so-planet--instagram::before,
+.cine-scope .so-planet[aria-selected="true"].so-planet--instagram::before {
+  content: ''; position: absolute; inset: 0; border-radius: 26%;
+  background: radial-gradient(circle at 32% 28%, rgba(214,120,180,0.16), transparent 60%);
+  pointer-events: none;
+}
+.cine-scope .so-planet--front.so-planet--tiktok::before,
+.cine-scope .so-planet[aria-selected="true"].so-planet--tiktok::before {
+  content: ''; position: absolute; inset: 0; border-radius: 26%;
+  background: radial-gradient(circle at 32% 28%, rgba(90,200,220,0.14), transparent 60%);
+  pointer-events: none;
+}
+.cine-scope .so-planet--front.so-planet--facebook::before,
+.cine-scope .so-planet[aria-selected="true"].so-planet--facebook::before {
+  content: ''; position: absolute; inset: 0; border-radius: 26%;
+  background: radial-gradient(circle at 32% 28%, rgba(90,140,220,0.14), transparent 60%);
+  pointer-events: none;
+}
+
+/* ---- Prev/Next controls. --------------------------------------------- */
+.cine-scope .so-nav {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+  padding: 0 2px;
+  z-index: 3;
+}
+.cine-scope .so-nav-btn {
+  pointer-events: auto;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--ps-color-outline-variant);
+  background: rgba(9,10,10,0.5);
+  color: var(--cine-gold-2);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: border-color 160ms ease;
+}
+.cine-scope .so-nav-btn:hover { border-color: var(--cine-gold-2); }
+.cine-scope .so-nav-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+[dir="rtl"] .cine-scope .so-nav-btn .material-symbols-outlined { transform: scaleX(-1); }
+
+/* ---- Caption bar -- one compact slot below the stage, two states
+ * (idle / focused). Deliberately a single horizontal line on desktop,
+ * never a tall column -- that is what keeps this section feeling like a
+ * transition strip rather than a second hero. -------------------------- */
+.cine-scope .so-caption {
+  text-align: center;
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 200ms var(--ease-premium, ease);
+}
+.cine-scope .so-caption-eyebrow {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--cine-gold-1);
+  margin-bottom: 4px;
+}
+.cine-scope .so-caption-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.cine-scope .so-caption-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ps-color-on-surface);
+}
+.cine-scope .so-caption-handle {
+  font-size: 13px;
+  color: var(--ps-color-on-surface-variant);
+}
+.cine-scope .so-caption-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--ps-color-secondary);
+  color: var(--ps-color-on-secondary);
+  padding: 11px 20px;
+  border-radius: 999px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  min-height: 44px;
+  transition: opacity 160ms ease;
+}
+.cine-scope .so-caption-cta:hover { opacity: 0.88; }
+.cine-scope .so-caption-cta:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .so-caption-cta .material-symbols-outlined { font-size: 15px; }
+.cine-scope .so-caption-close {
+  font-size: 12px; font-weight: 600;
+  color: var(--ps-color-on-surface-variant);
+  background: none; border: none; cursor: pointer; padding: 4px 8px;
+  min-height: 32px;
+}
+.cine-scope .so-caption-close:hover { color: var(--cine-gold-2); }
+.cine-scope .so-caption-close:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
+
+.cine-scope .so-hint {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ps-color-on-surface-variant);
+  opacity: 0.65;
+}
+.cine-scope .so-hint--hidden { opacity: 0; }
+
+/* ---- Accessible alternate strip -- always-present real links, the same
+ * "first-class equivalent, not a fallback-only afterthought" pattern as
+ * .su-strip. Required so a platform with no configured URL can never
+ * even be represented here (see js/social-links.js -- only configured
+ * platforms are ever passed to this component at all). ------------------ */
+.cine-scope .so-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+}
+.cine-scope .so-links-link {
+  font-size: 12.5px; font-weight: 600;
+  color: var(--ps-color-on-surface-variant);
+  padding: 6px 4px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+.cine-scope .so-links-link:hover { color: var(--cine-gold-2); }
+.cine-scope .so-links-link:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }

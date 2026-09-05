@@ -2,104 +2,28 @@
 
 <html dir="ltr" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Apartments - Darwesh Group</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;family=IBM+Plex+Sans:wght@600&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "on-surface": "#181c20",
-                        "on-tertiary": "#ffffff",
-                        "secondary-fixed-dim": "#e9c176",
-                        "on-tertiary-container": "#00a656",
-                        "surface-container-lowest": "#ffffff",
-                        "on-primary-fixed-variant": "#38485a",
-                        "on-secondary-fixed-variant": "#5d4201",
-                        "on-primary-container": "#8192a7",
-                        "secondary": "#775a19",
-                        "surface-dim": "#d7dadf",
-                        "primary": "#041627",
-                        "on-surface-variant": "#44474c",
-                        "surface-container-highest": "#e0e3e8",
-                        "on-secondary-fixed": "#261900",
-                        "tertiary": "#001a08",
-                        "error-container": "#ffdad6",
-                        "on-error-container": "#93000a",
-                        "error": "#ba1a1a",
-                        "surface-variant": "#e0e3e8",
-                        "inverse-surface": "#2d3135",
-                        "outline-variant": "#c4c6cd",
-                        "outline": "#74777d",
-                        "inverse-on-surface": "#eef1f6",
-                        "on-error": "#ffffff",
-                        "tertiary-fixed-dim": "#4ae183",
-                        "on-tertiary-fixed-variant": "#005228",
-                        "on-background": "#181c20",
-                        "secondary-container": "#fed488",
-                        "secondary-fixed": "#ffdea5",
-                        "surface-container-low": "#f1f4f9",
-                        "surface-container-high": "#e5e8ee",
-                        "on-secondary": "#ffffff",
-                        "primary-fixed-dim": "#b7c8de",
-                        "surface-container": "#ebeef3",
-                        "surface-bright": "#f7f9ff",
-                        "background": "#f7f9ff",
-                        "on-primary": "#ffffff",
-                        "on-secondary-container": "#785a1a",
-                        "on-primary-fixed": "#0b1d2d",
-                        "primary-container": "#1a2b3c",
-                        "primary-fixed": "#d2e4fb",
-                        "on-tertiary-fixed": "#00210c",
-                        "surface-tint": "#4f6073",
-                        "tertiary-container": "#003115",
-                        "tertiary-fixed": "#6bfe9c",
-                        "inverse-primary": "#b7c8de",
-                        "surface": "#f7f9ff"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "margin-mobile": "16px",
-                        "unit": "8px",
-                        "container-max": "1280px",
-                        "margin-desktop": "48px",
-                        "gutter": "24px",
-                        "stack-lg": "32px",
-                        "stack-sm": "8px",
-                        "stack-md": "16px"
-                    },
-                    "fontFamily": {
-                        "body-md": ["Inter"],
-                        "display-lg": ["Plus Jakarta Sans"],
-                        "display-lg-mobile": ["Plus Jakarta Sans"],
-                        "body-lg": ["Inter"],
-                        "data-mono": ["Inter"],
-                        "label-caps": ["IBM Plex Sans"],
-                        "headline-md": ["Plus Jakarta Sans"]
-                    },
-                    "fontSize": {
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
-                    }
-                }
-            }
-        }
-    </script>
 <style>
         body { font-family: 'Inter', sans-serif; }
         .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
@@ -110,16 +34,17 @@
       min-height: max(884px, 100dvh);
     }
   </style>
+<script src="./js/icon-fallback.js"></script>
 </head>
-<body class="bg-background text-on-background antialiased md:hidden pb-20">
+<body class="cine-scope bg-background text-on-background antialiased md:hidden pb-20">
 <!-- TopAppBar -->
 <header class="bg-surface dark:bg-surface-dim border-b border-outline-variant dark:border-outline transition-colors duration-200 w-full top-0 sticky z-40 flex justify-between items-center px-margin-mobile h-16">
 <div class="flex items-center gap-2">
 <span class="material-symbols-outlined text-primary dark:text-primary-fixed-dim" data-icon="verified">verified</span>
-<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim">Darwesh Verification</h1>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" data-i18n="vrf.brandTitle">Darwesh Verification</h1>
 </div>
 <div class="w-8 h-8 rounded-full bg-surface-container-high overflow-hidden border border-outline-variant">
-<img class="w-full h-full object-cover" data-alt="A small, professional avatar or logo representing Darwesh Group, suitable for a mobile app header. It should be clean, abstract, and utilize the deep navy and ochre gold color palette. The image must convey trust and premium real estate service." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCX2d5Pz79HZ5fICVA28VvlM0Hm7JCgJ3dugVDpMpxJ5xIvLTRDqz7XwFk_BRFDapq1X5fobhBaFyoL2O92A9nCQc0J8K9M5L4wtJk1WRfHqrI4sGe70P8soA9nWHSpBVy_H2gt39ydrTwSS3hPSzkik4_LDqtoRiqABeqDxnv28csNT30GKRVJ5vu6o2wD4TCPOeA1urWSDQjd034RDo46zVrEgEwDqwRdXRudC79z1wEjdOJ5WfI9"/>
+<img class="w-full h-full object-cover" data-alt="A small, professional avatar or logo representing Darwesh Group, suitable for a mobile app header. It should be clean, abstract, and utilize the deep navy and ochre gold color palette. The image must convey trust and premium real estate service." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCX2d5Pz79HZ5fICVA28VvlM0Hm7JCgJ3dugVDpMpxJ5xIvLTRDqz7XwFk_BRFDapq1X5fobhBaFyoL2O92A9nCQc0J8K9M5L4wtJk1WRfHqrI4sGe70P8soA9nWHSpBVy_H2gt39ydrTwSS3hPSzkik4_LDqtoRiqABeqDxnv28csNT30GKRVJ5vu6o2wD4TCPOeA1urWSDQjd034RDo46zVrEgEwDqwRdXRudC79z1wEjdOJ5WfI9" decoding="async"/>
 </div>
 </header>
 <!-- Main Content Canvas -->
@@ -127,8 +52,8 @@
 <!-- Page Header & Filters -->
 <section class="flex flex-col gap-stack-md">
 <div>
-<h2 class="font-display-lg-mobile text-display-lg-mobile text-primary">Apartments</h2>
-<p class="font-body-md text-body-md text-on-surface-variant">Discover the finest apartments across the Kurdistan Region.</p>
+<h2 class="font-display-lg-mobile text-display-lg-mobile text-primary" data-i18n="vrf.apartments">Apartments</h2>
+<p class="font-body-md text-body-md text-on-surface-variant" data-i18n="vrf.subtitle">Discover the finest apartments across the Kurdistan Region.</p>
 </div>
 <!-- Filter Chips -->
 <div class="flex gap-unit overflow-x-auto pb-2 hide-scrollbar">
@@ -159,7 +84,7 @@
 <div class="absolute inset-0 bg-secondary opacity-5 pointer-events-none"></div>
 <!-- Image -->
 <div class="h-48 w-full relative">
-<img class="w-full h-full object-cover" data-alt="A high-quality, professional photograph of a luxury modern apartment interior in Erbil. The living room features floor-to-ceiling windows with a city view, elegant minimalist furniture, and warm natural lighting. The color palette emphasizes deep navy accents and ochre gold details, exuding institutional trust and sophistication." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbom5fBzVZkUcUnJqC3MswGhjx3I9aGMZTJRMKh0BKQ9sd8pFFz7UWQ2JgpyM_FQHDkTXVD_l3dwK1aL8644qpbWV2oW6bGXql2TinrLLhIMwU_udlCQwFd79rMdcbfGNli181v6XU1aPZRk_3atoLViFETgpQ924UKAU1OHHPBPTthHINDuJV0ESAFfg4ClXt6izrGL6xEUUNhnm5vLtG_fO3zkyIbuA0tnXJyl-JGW5TcwBtQ7Dl"/>
+<img class="w-full h-full object-cover" data-alt="A high-quality, professional photograph of a luxury modern apartment interior in Erbil. The living room features floor-to-ceiling windows with a city view, elegant minimalist furniture, and warm natural lighting. The color palette emphasizes deep navy accents and ochre gold details, exuding institutional trust and sophistication." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAbom5fBzVZkUcUnJqC3MswGhjx3I9aGMZTJRMKh0BKQ9sd8pFFz7UWQ2JgpyM_FQHDkTXVD_l3dwK1aL8644qpbWV2oW6bGXql2TinrLLhIMwU_udlCQwFd79rMdcbfGNli181v6XU1aPZRk_3atoLViFETgpQ924UKAU1OHHPBPTthHINDuJV0ESAFfg4ClXt6izrGL6xEUUNhnm5vLtG_fO3zkyIbuA0tnXJyl-JGW5TcwBtQ7Dl" decoding="async"/>
 <div class="absolute top-2 right-2 bg-tertiary-container text-tertiary-fixed font-label-caps text-label-caps px-2 py-1 rounded-full flex items-center gap-1 border border-tertiary-fixed-dim backdrop-blur-sm bg-opacity-90">
 <span class="material-symbols-outlined text-[14px]">shield</span>
                         AI Verified
@@ -176,7 +101,7 @@
                             </p>
 </div>
 <div class="text-right">
-<span class="font-data-mono text-data-mono text-secondary block">Price</span>
+<span class="font-data-mono text-data-mono text-secondary block" data-i18n="vrf.price">Price</span>
 <span class="font-headline-md text-headline-md text-primary">$185,000</span>
 </div>
 </div>
@@ -209,7 +134,7 @@
 <article class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
 <!-- Image -->
 <div class="h-48 w-full relative">
-<img class="w-full h-full object-cover" data-alt="A professional architectural photograph of a sleek, modern high-rise apartment building exterior in Sulaymaniyah during golden hour. The building features glass balconies and geometric design elements. The lighting highlights the warm tones of the sunset against the cool tones of the glass, maintaining the deep navy and ochre gold aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjE6AGZhSkMhe6pdjsYo8goBcf5XF0rVWbDkNN6IkWtTAXOo1YQKujbdb7bwPeoIjZ2XNhf7CFSYndkjtKY_eSACFX3NFZAntZ9Qxe5YsCs5FGOPSsXeD96ccoQyvzwoBZGmTxUCpYE8RAS2mchnaiPv89gTiEsQrt5upn9NOkXCWOlWa1BRiVZOuukD8x8Wbg_GolPLy5II6YXGyfk81vklYFR-m-L0IyPBgtXK1ViXuGY13pApX6"/>
+<img class="w-full h-full object-cover" data-alt="A professional architectural photograph of a sleek, modern high-rise apartment building exterior in Sulaymaniyah during golden hour. The building features glass balconies and geometric design elements. The lighting highlights the warm tones of the sunset against the cool tones of the glass, maintaining the deep navy and ochre gold aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjE6AGZhSkMhe6pdjsYo8goBcf5XF0rVWbDkNN6IkWtTAXOo1YQKujbdb7bwPeoIjZ2XNhf7CFSYndkjtKY_eSACFX3NFZAntZ9Qxe5YsCs5FGOPSsXeD96ccoQyvzwoBZGmTxUCpYE8RAS2mchnaiPv89gTiEsQrt5upn9NOkXCWOlWa1BRiVZOuukD8x8Wbg_GolPLy5II6YXGyfk81vklYFR-m-L0IyPBgtXK1ViXuGY13pApX6" decoding="async"/>
 </div>
 <!-- Content -->
 <div class="p-stack-md flex flex-col gap-stack-sm">
@@ -222,7 +147,7 @@
                             </p>
 </div>
 <div class="text-right">
-<span class="font-data-mono text-data-mono text-secondary block">Price</span>
+<span class="font-data-mono text-data-mono text-secondary block" data-i18n="vrf.price">Price</span>
 <span class="font-headline-md text-headline-md text-primary">$210,000</span>
 </div>
 </div>
@@ -257,19 +182,19 @@
 <nav class="fixed bottom-0 w-full z-50 border-t border-outline-variant dark:border-outline shadow-md flex justify-around items-center w-full py-2 bg-surface dark:bg-surface-dim transition-transform scale-95 active:scale-90 pb-safe">
 <a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:opacity-80" href="#">
 <span class="material-symbols-outlined">leaderboard</span>
-<span class="font-label-caps text-label-caps mt-1">Leads</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="vrf.leads">Leads</span>
 </a>
 <a class="flex flex-col items-center justify-center bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-xl p-2 hover:opacity-80" href="verification.html">
 <span class="material-symbols-outlined icon-fill">domain</span>
-<span class="font-label-caps text-label-caps mt-1">Apartments</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="vrf.apartments">Apartments</span>
 </a>
 <a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:opacity-80" href="#">
 <span class="material-symbols-outlined">query_stats</span>
-<span class="font-label-caps text-label-caps mt-1">Analytics</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="vrf.analytics">Analytics</span>
 </a>
 <a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant p-2 hover:opacity-80" href="#">
 <span class="material-symbols-outlined">person</span>
-<span class="font-label-caps text-label-caps mt-1">Profile</span>
+<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.profile">Profile</span>
 </a>
 </nav>
 <style>
@@ -277,4 +202,5 @@
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
+<script src="./js/i18n.js"></script>
 </body></html>

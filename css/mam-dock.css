@@ -1,0 +1,230 @@
+/* MAM dock -- the ONE compact assistant surface (js/mam-dock.js).
+ *
+ * This is the only MAM launcher on any page. It carries the living orb
+ * (js/mam-companion.js) inside it rather than beside it: before this,
+ * map.html showed a large standalone orb docked to the viewport edge AND
+ * a second, purely decorative small orb inside its own assistant bar --
+ * two visual identities for one assistant. The orb here IS that
+ * component, so there is one identity and one launcher.
+ *
+ * Self-contained in the same way css/mam-companion.css is: every value
+ * has a hardcoded fallback from the Darwesh cinematic palette, so the
+ * dock renders correctly on a page that never loads cinematic.css.
+ */
+
+.mamdock {
+  position: fixed;
+  z-index: 1200;               /* above the map drawer (1150) and page chrome */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 94%, transparent);
+  border: 1px solid var(--mamco-outline, #5D482B);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.42);
+  max-width: min(340px, calc(100vw - 24px));
+  /* The dock owns its drag gesture outright: without this the browser
+     treats a drag on it as a page scroll and no pointermove arrives. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Snap animation on release only -- never while the finger is down, or
+     the dock lags behind the pointer instead of following it. */
+  transition: left 220ms cubic-bezier(.22,.61,.36,1), top 220ms cubic-bezier(.22,.61,.36,1), opacity 200ms ease;
+}
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .mamdock { background: #17150F; }
+}
+.mamdock.is-dragging {
+  transition: none;
+  cursor: grabbing;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* Suppressed by the host page while another gesture owns the screen --
+   drawing a search circle on the map, for instance. Kept in the DOM (so
+   no state is lost) but out of the way and unclickable. */
+.mamdock.is-suppressed {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Collapsed while the conversation overlay is open: the overlay IS this
+   surface expanded, so showing both would sooner or later have one cover
+   the other. Closing the overlay brings it straight back, with its
+   position and state untouched. */
+.mamdock.is-collapsed {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.92);
+}
+
+/* ---- orb variant -- every public page except the map --------------------
+ * Collapsed MAM here is ONLY the living orb: no label pill, no separate
+ * mic button. A perfect circle, sized around the orb itself rather than
+ * the bar's rectangular padding, so it reads as "a small assistant"
+ * rather than a shrunken toolbar. js/mam-dock.js never appends the label
+ * or mic elements in this variant -- these rules size the circle that
+ * results. */
+.mamdock--orb {
+  padding: 0;
+  border-radius: 50%;
+  gap: 0;
+}
+.mamdock--orb .mamdock-open {
+  padding: 7px;
+}
+.mamdock--orb .mamco-orb {
+  width: 42px;
+  height: 42px;
+}
+.mamdock--orb .mamco-orb::before { inset: -3px; }
+.mamdock--orb .mamdock-resume-hint {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+
+/* The press target that opens the conversation. A real <button>, so it is
+   keyboard-operable and announced, not a clickable <div>. */
+.mamdock-open {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--mamco-glow, #F2EEE5);
+  font-family: 'Inter', system-ui, sans-serif;
+  text-align: start;
+}
+.mamdock-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #A79F91;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mamdock-open:hover .mamdock-label { color: var(--mamco-glow, #F2EEE5); }
+
+/* ---- the orb, at dock scale -----------------------------------------
+ * css/mam-companion.css positions .mamco-root fixed at the viewport edge
+ * -- correct for a standalone launcher, wrong for one living inside this
+ * pill. These are host-side placement overrides only: the component's own
+ * DOM, states and animation are untouched, so the orb here is the same
+ * living body (two counter-rotating plasma layers on non-harmonic
+ * periods) as before, just smaller.
+ */
+.mamdock .mamco-root {
+  position: static;
+  transform: none;
+  inset: auto;
+  z-index: auto;
+  transition: none;
+  flex: none;
+}
+.mamdock .mamco-orb {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+/* The plasma blurs and the containment ring are absolute px in the full
+   68px orb; at half that size they would swamp the disc, so they scale
+   with it. Everything else in the component is already proportional. */
+.mamdock .mamco-orb::before { inset: -3px; border-width: 1px; }
+.mamdock .mamco-core::before { filter: blur(2.5px); }
+.mamdock .mamco-core::after { filter: blur(3.5px); }
+.mamdock .mamco-orb {
+  box-shadow:
+    inset 0 0 9px rgba(0, 0, 0, 0.85),
+    0 0 12px -4px rgba(184, 154, 99, 0.45);
+}
+
+/* ---- mic ------------------------------------------------------------- */
+.mamdock-mic {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--mamco-outline, #5D482B);
+  background: transparent;
+  color: var(--mamco-glow, #F2EEE5);
+  cursor: pointer;
+}
+.mamdock-mic svg { width: 16px; height: 16px; }
+.mamdock-mic[hidden] { display: none; }
+.mamdock-mic:hover { border-color: var(--mamco-accent, #B89A63); }
+/* Hands-free armed: the mode is on, whether or not the mic is open this
+   instant. A separate, calmer treatment from the live-capture pulse below
+   so "voice mode is on" and "listening right now" stay distinguishable. */
+.mamdock-mic.is-handsfree {
+  border-color: var(--mamco-accent, #B89A63);
+  background: rgba(184, 154, 99, 0.18);
+  color: var(--mamco-accent, #B89A63);
+}
+.mamdock-mic.is-listening {
+  background: var(--mamco-accent, #B89A63);
+  border-color: var(--mamco-accent, #B89A63);
+  color: #090A0A;
+  animation: mamdock-mic-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mamdock-mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184, 154, 99, 0.55); }
+  50%      { box-shadow: 0 0 0 6px rgba(184, 154, 99, 0); }
+}
+/* Passively listening for "MAM AI" -- present but calm, the opposite
+   intent from the pulse above (which means "capturing your question
+   right now"). Kept visually distinct so a glance tells them apart. */
+.mamdock-mic.is-wake:not(.is-listening) {
+  border-color: rgba(184, 154, 99, 0.55);
+  color: var(--mamco-accent, #B89A63);
+  animation: mamdock-mic-wake-pulse 3.6s ease-in-out infinite;
+}
+@keyframes mamdock-mic-wake-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184, 154, 99, 0.28); }
+  50%      { box-shadow: 0 0 0 4px rgba(184, 154, 99, 0); }
+}
+
+.mamdock-open:focus-visible,
+.mamdock-mic:focus-visible {
+  outline: 2px solid var(--mamco-accent, #B89A63);
+  outline-offset: 2px;
+}
+
+/* A voice mode the browser will only resume after a fresh user gesture
+   (see js/mam-chat-panel.js's resume-on-navigation handling). The dock
+   says so instead of pretending the microphone is still live. */
+.mamdock-resume-hint {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  inset-inline-start: 0;
+  max-width: 260px;
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: var(--mamco-surface-high, #221E15);
+  border: 1px solid var(--mamco-accent, #B89A63);
+  color: var(--mamco-glow, #F2EEE5);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11.5px;
+  line-height: 1.35;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.mamdock-resume-hint[hidden] { display: none; }
+
+@media (max-width: 767px) {
+  .mamdock { max-width: min(300px, calc(100vw - 20px)); }
+  .mamdock-label { font-size: 12.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mamdock { transition: none; }
+  .mamdock-mic.is-listening,
+  .mamdock-mic.is-wake { animation: none; }
+}

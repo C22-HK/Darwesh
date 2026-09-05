@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Service Providers</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/mam-companion.css" rel="stylesheet"/>
+<link href="css/service-universe.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-16 pb-24 md:pb-0">
+
+<div id="siteHeader" data-active="services"></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active="services"></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <!-- Header: filled from js/service-catalog.js once ?type= resolves -->
+  <section class="mb-6 max-w-2xl">
+    <a href="services.html" class="svc-back-link mb-3">
+      <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+      <span data-i18n="svc.backToUniverse">Back to Services</span>
+    </a>
+    <p id="svcEyebrow" class="rp-hero-eyebrow mb-2">—</p>
+    <h1 id="svcTitle" class="font-headline-md text-[26px] md:text-[32px] font-bold text-on-surface mb-2">—</h1>
+    <p id="svcTagline" class="font-body-md text-[14px] text-on-surface-variant"></p>
+  </section>
+
+  <!-- Unknown/missing ?type= -->
+  <div id="unknownTypeState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">help</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="svc.unknownType">This service type isn't recognized.</p>
+    <a href="services.html" class="inline-block mt-4 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="svc.backToUniverse">Back to Services</a>
+  </div>
+
+  <div id="directoryBody" class="hidden">
+    <!-- Filters -- only real, schema-backed fields. City is filtered
+         client-side over the already-fetched bounded set (no extra
+         Firestore reads); Verified/Type are simple equality toggles
+         over the same set. -->
+    <div class="svc-toolbar mb-6" role="group" aria-label="Filters">
+      <input id="cityFilterInput" type="text" class="ps-input svc-city-input" maxlength="100" autocomplete="off" data-i18n-placeholder="svc.filterCityPlaceholder" placeholder="Filter by city"/>
+      <button id="verifiedOnlyToggle" type="button" class="svc-filter-chip" aria-pressed="false">
+        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">verified</span>
+        <span data-i18n="svc.verifiedOnly">Verified only</span>
+      </button>
+      <div id="providerTypeFilters" class="hidden flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingState" class="ps-grid" aria-live="polite">
+      <div class="ps-skeleton" style="height:180px;border-radius:16px;"></div>
+      <div class="ps-skeleton" style="height:180px;border-radius:16px;"></div>
+      <div class="ps-skeleton" style="height:180px;border-radius:16px;"></div>
+    </div>
+
+    <!-- Error -->
+    <div id="errorState" class="hidden"></div>
+
+    <!-- Empty -->
+    <div id="emptyState" class="ps-empty hidden"></div>
+
+    <!-- Results -->
+    <div id="providerGrid" class="ps-grid hidden"></div>
+  </div>
+</main>
+
+<script type="module">
+  // firebase-init.js/Firestore are imported DYNAMICALLY inside load()
+  // below, not as a static top-level import: this page's own shell (the
+  // hero, filters, back link) must render and the toolbar must stay
+  // usable even if the Firebase CDN is entirely unreachable -- a static
+  // import failure would otherwise fail this whole module before any of
+  // it runs, leaving a blank page instead of the real error state below.
+  import { renderEmptyState, renderErrorState } from './js/profile-shell.js';
+  import { getService } from './js/service-catalog.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  const el = (id) => document.getElementById(id);
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+  function isSafeHttpUrl(url) {
+    if (typeof url !== 'string' || url.trim() === '') return false;
+    try {
+      const u = new URL(url, window.location.href);
+      return u.protocol === 'https:' || u.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  }
+
+  const PAGE_SIZE = 60; // bounded read -- one honest cap, no cursor
+                        // pagination for this phase (see final report).
+  const params = new URLSearchParams(window.location.search);
+  const type = params.get('type');
+  const svc = getService(type);
+
+  let allProviders = [];
+  let verifiedOnly = false;
+  let providerTypeFilter = null; // cleaning only: 'individual' | 'team' | 'company' | null
+  let cityFilter = '';
+
+  function hideAll() {
+    ['unknownTypeState', 'directoryBody'].forEach((id) => el(id).classList.add('hidden'));
+  }
+
+  if (!svc) {
+    hideAll();
+    el('unknownTypeState').classList.remove('hidden');
+  } else {
+    document.title = `Darwesh Group - ${tr(svc.titleKey, svc.title)}`;
+    el('svcEyebrow').textContent = tr('svc.directoryEyebrow', 'Darwesh Service Providers');
+    el('svcTitle').textContent = tr(svc.titleKey, svc.title);
+    el('svcTagline').textContent = tr(svc.taglineKey, svc.tagline);
+    el('directoryBody').classList.remove('hidden');
+    if (svc.key === 'cleaning') {
+      const wrap = el('providerTypeFilters');
+      wrap.classList.remove('hidden');
+      wrap.classList.add('flex');
+      const opts = [
+        { v: null, key: 'svc.cleaning.typeAll', fallback: 'All' },
+        { v: 'individual', key: 'svc.cleaning.typeIndividual', fallback: 'Individual' },
+        { v: 'team', key: 'svc.cleaning.typeTeam', fallback: 'Team' },
+        { v: 'company', key: 'svc.cleaning.typeCompany', fallback: 'Company' }
+      ];
+      wrap.innerHTML = opts.map((o) => `<button type="button" class="svc-filter-chip" data-ptype="${o.v || ''}">${esc(tr(o.key, o.fallback))}</button>`).join('');
+      wrap.querySelectorAll('[data-ptype]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          providerTypeFilter = btn.dataset.ptype || null;
+          wrap.querySelectorAll('[data-ptype]').forEach((b) => b.classList.toggle('is-active', b === btn));
+          render();
+        });
+      });
+      wrap.querySelector('[data-ptype=""]').classList.add('is-active');
+    }
+    load();
+  }
+
+  async function load() {
+    el('loadingState').classList.remove('hidden');
+    el('errorState').classList.add('hidden');
+    el('emptyState').classList.add('hidden');
+    el('providerGrid').classList.add('hidden');
+    try {
+      const [{ db, getDocs }, firestoreMod] = await Promise.all([
+        import('./js/firebase-init.js'),
+        import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js')
+      ]);
+      const { collection, query, where, limit } = firestoreMod;
+      const q = query(collection(db, 'serviceProviders'), where('serviceType', '==', svc.serviceType), limit(PAGE_SIZE));
+      const snap = await getDocs(q);
+      allProviders = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      render();
+    } catch (err) {
+      el('loadingState').classList.add('hidden');
+      renderErrorState(el('errorState'), {
+        message: tr('svc.loadError', "Couldn't load providers. Please check your connection and try again."),
+        onRetry: load
+      });
+      el('errorState').classList.remove('hidden');
+    }
+  }
+
+  function matches(p) {
+    if (verifiedOnly && !p.verified) return false;
+    if (providerTypeFilter && p.providerType !== providerTypeFilter) return false;
+    if (cityFilter) {
+      const c = (p.city || '').toLowerCase();
+      if (!c.includes(cityFilter.toLowerCase())) return false;
+    }
+    return true;
+  }
+
+  function providerCard(p) {
+    const name = esc(p.displayName || p.companyName || '—');
+    const locationParts = [p.city, p.district].filter(Boolean).map(esc);
+    const specialties = Array.isArray(p.specialties) ? p.specialties.filter(Boolean).slice(0, 3) : [];
+    const media = isSafeHttpUrl(p.photoOrLogoUrl)
+      ? `<div class="svc-card-media" style="background-image:url('${esc(p.photoOrLogoUrl)}')"></div>`
+      : `<div class="svc-card-media svc-card-media--fallback"><span class="material-symbols-outlined" aria-hidden="true">${svc.fallbackIcon}</span></div>`;
+    const badge = p.verified
+      ? `<span class="ps-badge ps-badge-verified"><span class="material-symbols-outlined text-[13px]" aria-hidden="true">verified</span>${esc(tr('rp.verified', 'Verified'))}</span>`
+      : '';
+    return `
+      <a class="svc-provider-card" href="${svc.profileHref}?id=${encodeURIComponent(p.id)}">
+        ${media}
+        <div class="svc-card-body">
+          <div class="flex items-center gap-2 mb-1">
+            <p class="svc-card-name">${name}</p>
+            ${badge}
+          </div>
+          ${locationParts.length ? `<p class="svc-card-meta">${locationParts.join(' · ')}</p>` : ''}
+          ${specialties.length ? `<div class="flex flex-wrap gap-1.5 mt-2">${specialties.map((s) => `<span class="rp-chip">${esc(s)}</span>`).join('')}</div>` : ''}
+        </div>
+      </a>`;
+  }
+
+  function render() {
+    el('loadingState').classList.add('hidden');
+    const filtered = allProviders.filter(matches);
+    if (!filtered.length) {
+      el('providerGrid').classList.add('hidden');
+      renderEmptyState(el('emptyState'), {
+        icon: svc.fallbackIcon,
+        title: allProviders.length
+          ? tr('svc.emptyFiltered', 'No providers match these filters yet.')
+          : tr('svc.emptyNone', 'No verified providers are available in this area yet.'),
+        hint: tr('svc.emptyHint', 'New professionals join Darwesh regularly -- check back soon.')
+      });
+      el('emptyState').classList.remove('hidden');
+      return;
+    }
+    el('emptyState').classList.add('hidden');
+    el('providerGrid').innerHTML = filtered.map(providerCard).join('');
+    el('providerGrid').classList.remove('hidden');
+  }
+
+  el('verifiedOnlyToggle').addEventListener('click', () => {
+    verifiedOnly = !verifiedOnly;
+    el('verifiedOnlyToggle').setAttribute('aria-pressed', String(verifiedOnly));
+    el('verifiedOnlyToggle').classList.toggle('is-active', verifiedOnly);
+    render();
+  });
+  let cityDebounce = null;
+  el('cityFilterInput').addEventListener('input', (e) => {
+    clearTimeout(cityDebounce);
+    cityDebounce = setTimeout(() => { cityFilter = e.target.value.trim(); render(); }, 150);
+  });
+  document.addEventListener('darwesh:langchange', () => { if (svc) render(); });
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/i18n.js"></script>
+<div id="mamCompanionLauncher" data-page="services"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
+</body></html>

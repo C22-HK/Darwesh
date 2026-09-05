@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Project</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/mam-companion.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-16 pb-24 md:pb-0">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <!-- Loading state -->
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:320px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:24px;width:260px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:100px;"></div>
+  </div>
+
+  <!-- Not found state -- covers "no such post," "not published and the
+       viewer isn't its owner/admin" (professionalPosts' read rule denies
+       the read server-side; fetchPost() resolves that denial to null the
+       same as a real 404), and "removed by moderation, viewed by a
+       non-owner." This page never distinguishes those cases client-side,
+       so it can't leak which one applies. -->
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">image_not_supported</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="pwork.detailNotFound">Project not found</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="pwork.detailNotFoundHint">This project may have been removed or is no longer published.</p>
+  </div>
+
+  <!-- Post content -->
+  <div id="postContent" class="hidden max-w-3xl mx-auto">
+    <img id="detailMedia" class="pwork-hero-media mb-4" alt="" decoding="async" fetchpriority="high"/>
+
+    <div id="galleryStrip" class="pwork-thumb-grid mb-6 hidden"></div>
+
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+      <p id="detailCategory" class="pwork-section-heading"></p>
+      <div id="ownerActions" class="hidden flex gap-2">
+        <a id="editWorkLink" href="#" class="ps-btn border border-outline-variant px-4 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface hover:bg-surface-container transition-colors" data-i18n="pwork.editWork">Edit Work</a>
+        <button id="deleteWorkBtn" type="button" class="ps-btn border border-error text-error px-4 py-1.5 rounded-full font-label-caps text-[11px]" data-i18n="pwork.deleteWork">Delete</button>
+      </div>
+    </div>
+    <h1 id="detailTitle" class="pwork-detail-title font-headline-md text-[24px] md:text-[28px] font-bold mb-2">—</h1>
+    <p id="detailMeta" class="pwork-detail-meta text-[13px] mb-6"></p>
+    <p id="detailDescription" class="font-body-md text-[14.5px] text-on-surface leading-relaxed mb-8"></p>
+
+    <div id="deleteConfirm" class="pwork-confirm-card mb-8 hidden">
+      <p class="font-body-md text-[13.5px] text-on-surface mb-4" data-i18n="pwork.deleteConfirm">Delete this project? This cannot be undone.</p>
+      <div class="flex gap-2">
+        <button id="deleteConfirmBtn" type="button" class="ps-btn bg-error text-on-error px-4 py-2 rounded-full font-label-caps text-[11px]" data-i18n="pwork.deleteConfirmBtn">Delete permanently</button>
+        <button id="deleteCancelBtn" type="button" class="ps-btn border border-outline-variant px-4 py-2 rounded-full font-label-caps text-[11px] text-on-surface hover:bg-surface-container transition-colors" data-i18n="rp.cancel">Cancel</button>
+      </div>
+      <p id="deleteError" class="hidden text-[12px] mt-3" style="color:#ba1a1a;"></p>
+    </div>
+
+    <p class="pwork-section-heading mb-2" data-i18n="pwork.createdBy">Created by</p>
+    <div id="creatorBlock" class="mb-10"></div>
+
+    <div id="moreWorkSection" class="hidden">
+      <p class="pwork-section-heading mb-3" data-i18n="pwork.moreWork">More work by this Designer</p>
+      <div id="moreWorkGrid" class="rp-masonry"></div>
+    </div>
+  </div>
+</main>
+
+<script type="module">
+  import { auth, db, deleteDoc } from './js/firebase-init.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+  import { doc } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+  import {
+    fetchPost, resolveCreator, fetchPublishedWork, renderWorkCard, renderCreatorCard, categoryLabel,
+    deleteProfessionalWorkImage, esc
+  } from './js/professional-content.js';
+  import { withBusyButton } from './js/profile-shell.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  const el = (id) => document.getElementById(id);
+  function show(id) { el(id).classList.remove('hidden'); }
+  function hide(id) { el(id).classList.add('hidden'); }
+
+  const postId = new URLSearchParams(window.location.search).get('id');
+  let currentUser = null;
+  let currentPost = null;
+
+  function renderGallery(post) {
+    const items = (Array.isArray(post.media) ? post.media : []).filter((m) => m && m.url);
+    const strip = el('galleryStrip');
+    if (!items.length) { hide('galleryStrip'); return; }
+    strip.innerHTML = items.map((m) => `
+      <div class="pwork-thumb"><img src="${esc(m.url)}" alt="" loading="lazy" decoding="async"/></div>
+    `).join('');
+    show('galleryStrip');
+  }
+
+  function wireOwnerActions(post, isOwner) {
+    if (!isOwner) { hide('ownerActions'); return; }
+    show('ownerActions');
+    el('editWorkLink').href = `add-work.html?id=${encodeURIComponent(post.id)}`;
+
+    const deleteBtn = el('deleteWorkBtn');
+    const confirmCard = el('deleteConfirm');
+    if (!deleteBtn.dataset.wired) {
+      deleteBtn.dataset.wired = '1';
+      deleteBtn.addEventListener('click', () => confirmCard.classList.remove('hidden'));
+      el('deleteCancelBtn').addEventListener('click', () => confirmCard.classList.add('hidden'));
+      el('deleteConfirmBtn').addEventListener('click', () => withBusyButton(el('deleteConfirmBtn'), async () => {
+        el('deleteError').classList.add('hidden');
+        try {
+          await deleteDoc(doc(db, 'professionalPosts', currentPost.id));
+          const mediaUrls = (Array.isArray(currentPost.media) ? currentPost.media : []).map((m) => m && m.url).filter(Boolean);
+          const allUrls = currentPost.coverImageUrl ? [currentPost.coverImageUrl, ...mediaUrls] : mediaUrls;
+          await Promise.allSettled(allUrls.map(deleteProfessionalWorkImage));
+          window.location.href = `designer.html?id=${encodeURIComponent(currentPost.profileId)}`;
+        } catch (err) {
+          el('deleteError').textContent = tr('rp.errorGeneric', 'Something went wrong. Please try again.');
+          el('deleteError').classList.remove('hidden');
+        }
+      }));
+    }
+  }
+
+  async function loadPost() {
+    if (!postId) { hide('loadingState'); show('notFoundState'); return; }
+
+    const post = await fetchPost(postId);
+    // fetchPost() already reflects firestore.rules' own read decision --
+    // a null result here means either the post doesn't exist, or the
+    // current auth context (whoever they are) isn't allowed to read it
+    // (public + not published + not the owner/admin). Never re-checked
+    // or second-guessed client-side.
+    if (!post) {
+      hide('loadingState');
+      show('notFoundState');
+      return;
+    }
+    currentPost = post;
+
+    const creator = await resolveCreator(post.profileId);
+    const isOwner = !!(currentUser && post.ownerId === currentUser.uid);
+
+    const cover = post.coverImageUrl || (Array.isArray(post.media) && post.media[0] && post.media[0].url) || '';
+    if (cover) { el('detailMedia').src = cover; } else { hide('detailMedia'); }
+    renderGallery(post);
+    el('detailCategory').textContent = categoryLabel(post.category);
+    el('detailTitle').textContent = post.title || '—';
+    const metaParts = [post.city, post.district].filter(Boolean);
+    if (post.projectDate) metaParts.push(post.projectDate);
+    el('detailMeta').textContent = metaParts.join(' · ');
+    el('detailDescription').textContent = post.description || '';
+    el('creatorBlock').innerHTML = renderCreatorCard(creator, { variant: 'full' });
+    wireOwnerActions(post, isOwner);
+
+    if (creator) {
+      const { items } = await fetchPublishedWork({ profileType: 'designer', profileId: post.profileId, pageSize: 7 });
+      const others = items.filter((p) => p.id !== post.id).slice(0, 6);
+      if (others.length) {
+        el('moreWorkGrid').innerHTML = others.map((p) => renderWorkCard(p, { categoryLabel: categoryLabel(p.category) })).join('');
+        show('moreWorkSection');
+      }
+    }
+
+    hide('loadingState');
+    show('postContent');
+  }
+
+  // Waits for Firebase Auth's initial state before the first read --
+  // fetchPost() relies on the caller's real auth context to decide
+  // whether a non-published post is visible (owner/admin only); reading
+  // before auth restores its persisted session would evaluate the rule
+  // as an anonymous request even for a signed-in owner.
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    loadPost();
+  });
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/i18n.js"></script>
+<div id="mamCompanionLauncher" data-page="project"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
+</body></html>

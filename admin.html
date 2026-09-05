@@ -2,112 +2,93 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting.
+'wasm-unsafe-eval' (script-src): grepped this codebase's own maps-related
+files for eval()/new Function()/string-form setTimeout and found none.
+Google's own Maps JavaScript API bundle (loaded from maps.googleapis.com,
+third-party code) compiles WebAssembly as part of its modern rendering
+engine, which a CSP with neither 'unsafe-eval' nor 'wasm-unsafe-eval'
+blocks (reported by Chrome as a generic "script-src ... eval" violation).
+'wasm-unsafe-eval' is the CSP-standard, narrower grant purpose-built for
+this: it permits WebAssembly.compile()/instantiate() ONLY, not eval(),
+new Function(), or string-form setTimeout/setInterval the way the broader
+'unsafe-eval' would. Deliberately not using 'unsafe-eval' here.
+
+https://*.googleapis.com / https://*.gstatic.com (img-src, connect-src):
+wasm-unsafe-eval fixed the script-src eval block, but the Estate
+Intelligence map still rendered as a dark/blank canvas -- the Map
+constructor completes and the page's own controls render fine, but the
+SDK's own async tile/asset requests (fetch/XHR under connect-src, <img>
+tiles under img-src) hit Google-operated subdomains this policy only
+partially named (just the bootstrap loader's own host, maps.googleapis.com,
+and maps.gstatic.com). Google's own published CSP guidance for the Maps
+JavaScript API recommends the wildcarded https://*.googleapis.com /
+https://*.gstatic.com precisely because it does not publish, and can
+change without notice, which specific subdomain serves tiles/imagery for
+a given rendering path -- pinning one guessed hostname would be fragile
+against exactly this class of regression. js/maps-core.js now also
+reports any securitypolicyviolation naming a google/gstatic domain to the
+console (blockedURI is origin-only for cross-origin resources by spec, so
+this can never leak the API key). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com https://www.google.com https://unpkg.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://maps.gstatic.com https://maps.googleapis.com https://*.googleapis.com https://*.gstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://maps.googleapis.com https://*.googleapis.com https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<script src="./js/currency.js"></script>
+<!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
+it runs before any script on this page that imports maps-core.js.
+Gitignored, generated at deploy time (see js/maps-config.local.example.js
+and .github/workflows/deploy-pages.yml) -- absent locally until you copy
+the example, in which case the Estate Intelligence Map shows its "map
+unavailable" panel gracefully (see ensureEstateIntelEngine() below). -->
+<script src="./js/maps-config.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Admin</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<!-- css/cinematic.css: only for its unscoped .lang-select/.lang-toggle-btn/
+.lang-flag/.lang-menu/.lang-option structural (layout-only, zero color)
+rules the flag-based language selector below needs -- everything else in
+that file is scoped under .cine-scope, a class this page's <body>
+deliberately does not opt into, so none of its color/premium-theme rules
+can affect this page. Verified before adding: grepped cinematic.css for
+every selector NOT prefixed .cine-scope and confirmed the only other ones
+are #cine-intro/#cine-cursor/.cine-reveal/.cine-audio-toggle, none of
+which this page uses. Not adding css/profile-tokens.css alongside it --
+that DOES define the color tokens this page's own bg-primary/
+text-on-surface-variant/etc. classes would start resolving through, a
+real, wide-reaching visual change (89+ uses on this page alone) this
+change is not meant to make. -->
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff",
-                        "on-secondary-fixed-variant": "#5d4201",
-                        "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900",
-                        "on-primary-fixed": "#0b1d2d",
-                        "primary": "#041627",
-                        "error": "#ba1a1a",
-                        "inverse-primary": "#b7c8de",
-                        "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a",
-                        "tertiary-fixed": "#6bfe9c",
-                        "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c",
-                        "primary-fixed": "#d2e4fb",
-                        "on-primary": "#ffffff",
-                        "surface": "#f7f9ff",
-                        "surface-container-high": "#e5e8ee",
-                        "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a",
-                        "on-secondary": "#ffffff",
-                        "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6",
-                        "on-error": "#ffffff",
-                        "outline-variant": "#c4c6cd",
-                        "outline": "#74777d",
-                        "primary-container": "#1a2b3c",
-                        "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183",
-                        "primary-fixed-dim": "#b7c8de",
-                        "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176",
-                        "secondary-fixed": "#ffdea5",
-                        "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08",
-                        "surface-container-lowest": "#ffffff",
-                        "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8",
-                        "on-tertiary-container": "#00a656",
-                        "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff",
-                        "on-tertiary-fixed-variant": "#005228",
-                        "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073",
-                        "on-secondary-container": "#785a1a",
-                        "surface-container": "#ebeef3",
-                        "background": "#f7f9ff",
-                        "on-surface": "#181c20"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "gutter": "24px",
-                        "stack-lg": "32px",
-                        "stack-md": "16px",
-                        "margin-desktop": "48px",
-                        "stack-sm": "8px",
-                        "container-max": "1280px",
-                        "margin-mobile": "16px",
-                        "unit": "8px"
-                    },
-                    "fontFamily": {
-                        "headline-md": ["Plus Jakarta Sans"],
-                        "label-caps": ["IBM Plex Sans"],
-                        "display-lg-mobile": ["Plus Jakarta Sans"],
-                        "body-lg": ["Inter"],
-                        "body-md": ["Inter"],
-                        "data-mono": ["Inter"],
-                        "display-lg": ["Plus Jakarta Sans"]
-                    },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
-                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <style>
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
     #adminPinMap { background: #e5e8ee; }
+    /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
+       well-documented conflict with Google Maps' own internally-rendered
+       <img> tiles/UI assets under .gm-style (Estate Intelligence map, once
+       a key is configured) -- Google's own troubleshooting guidance for
+       this framework-reset class of issue is to scope an override back to
+       their own markup. Purely additive, zero effect outside .gm-style
+       (this page's Leaflet picker map is unaffected -- Leaflet doesn't use
+       this class). */
+    .gm-style img { max-width: none; }
 
     .admin-tab {
       font-family: 'IBM Plex Sans', sans-serif;
@@ -413,13 +394,24 @@
       <a href="index.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.backToSite">Back to site</a>
       <span class="font-body-md text-[13px] text-on-surface-variant hidden sm:inline" id="adminNameLabel"></span>
       <div class="relative">
-<button aria-label="Language" class="lang-toggle-btn font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1" type="button">
-<span class="material-symbols-outlined text-[18px]">language</span>
+<button aria-label="Language" class="lang-toggle-btn text-on-surface-variant hover:text-primary transition-colors" type="button">
+<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
 </button>
-<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
+<div class="lang-menu hidden absolute right-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg z-50">
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
+<button class="lang-option hover:bg-surface-container transition-colors" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
+<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+</button>
 </div>
 </div>
       <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button" data-i18n="common.logOut">Log out</button>
@@ -444,6 +436,8 @@
       <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
+      <button class="admin-tab" data-tab="estateintel" type="button" data-i18n="admin.estateIntelTab">Estate Intelligence Map</button>
+      <button class="admin-tab" data-tab="estatedata" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
     </div>
 
     <!-- TAB: Dashboard -->
@@ -610,6 +604,71 @@
       </div>
     </section>
 
+    <!-- TAB: Estate Intelligence Map (Production Rebuild Phase 1 of 3, Part G).
+         Uses the shared js/maps-core.js Google Maps boundary -- shows the
+         "map unavailable" fallback when no key is configured, same as
+         buy-rent-map.html. Real Firestore data only: estates + their
+         current Listing + publicTransactionSummary, never fabricated
+         values. -->
+    <section id="tab-estateintel" class="admin-tab-panel">
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <select id="eiLayerFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
+          <option value="all" data-i18n="admin.ei.allListings">All Listings</option>
+          <option value="sale" data-i18n="buy.buyTab">Buy</option>
+          <option value="rent" data-i18n="nav.rent">Rent</option>
+        </select>
+        <select id="eiVerifiedFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
+          <option value="all" data-i18n="map.any">Any</option>
+          <option value="verified" data-i18n="common.verified">Verified</option>
+          <option value="unverified" data-i18n="admin.ei.unverified">Unverified</option>
+        </select>
+        <select id="eiTypeFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
+          <option value="all" data-i18n="map.allTypes">All Types</option>
+          <option value="apartment" data-i18n="map.apartment">Apartment</option>
+          <option value="villa" data-i18n="map.villa">Villa</option>
+          <option value="house" data-i18n="map.house">House</option>
+          <option value="land" data-i18n="map.land">Land</option>
+          <option value="office" data-i18n="map.office">Office</option>
+          <option value="shop" data-i18n="map.shop">Shop</option>
+        </select>
+        <p id="eiResultCount" class="font-data-mono text-data-mono text-on-surface-variant ml-auto"></p>
+      </div>
+      <div class="flex gap-4" style="height:600px;">
+        <div class="relative flex-1 rounded-xl overflow-hidden border border-outline-variant">
+          <div id="estateIntelMap" class="w-full h-full" style="background:#101111;"></div>
+          <div id="eiMapUnavailable" class="hidden absolute inset-0 flex items-center justify-center bg-surface-container-lowest p-6 text-center"></div>
+          <div class="absolute top-3 left-3 flex flex-col gap-2 z-20">
+            <button id="eiSearchAreaBtn" type="button" class="drm-map-btn" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">travel_explore</span><span data-i18n="drm.searchThisArea">Search This Area</span></button>
+            <button id="eiDrawAreaBtn" type="button" class="drm-map-btn" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">draw</span><span data-i18n="map.drawArea">Draw Area</span></button>
+            <button id="eiResetAreaBtn" type="button" class="hidden" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">restart_alt</span><span data-i18n="drm.resetArea">Reset Area</span></button>
+          </div>
+          <div class="absolute top-3 right-3 flex flex-col gap-2 z-20">
+            <button id="eiMyLocationBtn" type="button" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px;"><span class="material-symbols-outlined text-[16px]">my_location</span></button>
+            <button id="eiFullscreenBtn" type="button" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px;"><span class="material-symbols-outlined text-[16px]">fullscreen</span></button>
+            <div class="inline-flex bg-[#17150Fcc] rounded-lg border border-[#5D482B] overflow-hidden">
+              <button id="eiTypeRoadmap" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype active" data-i18n="drm.roadmap">Roadmap</button>
+              <button id="eiTypeSatellite" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype" data-i18n="drm.satellite">Satellite</button>
+              <button id="eiTypeHybrid" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype" data-i18n="drm.hybrid">Hybrid</button>
+            </div>
+          </div>
+        </div>
+        <div id="eiSidePanel" class="hidden w-[340px] flex-none overflow-y-auto bg-surface-container-lowest border border-outline-variant rounded-xl p-4"></div>
+      </div>
+    </section>
+
+    <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
+         Reads only -- every write this page can trigger still goes
+         through firestore.rules exactly as any other client write would;
+         nothing here is a privileged bypass. -->
+    <section id="tab-estatedata" class="admin-tab-panel">
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <input id="edSearchInput" type="text" class="flex-1 min-w-[220px] bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-body-md text-body-md" data-i18n-placeholder="admin.ed.searchPlaceholder" placeholder="Search by Estate ID, Listing ID, office, agent, project, unit, or location..."/>
+        <button id="edSearchBtn" type="button" class="bg-primary text-on-primary rounded-full px-5 py-2.5 font-label-caps text-label-caps" data-i18n="common.search">Search</button>
+      </div>
+      <p id="edEmptyState" class="text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="admin.ed.searchHint">Search for an Estate above to view its full record.</p>
+      <div id="edRecord" class="hidden space-y-4"></div>
+    </section>
+
     <!-- TAB: Market Overview -->
     <section id="tab-market" class="admin-tab-panel">
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
@@ -633,6 +692,11 @@
         <form id="listingForm" class="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-xl p-5 h-fit">
           <p class="font-headline-md text-[17px] text-primary mb-4" id="formTitle" data-i18n="agentDash.addListing">Add a Listing</p>
           <input type="hidden" id="editingId" value=""/>
+          <!-- BL-05 fix: tracks which submission (if any) this form was
+               prefilled from, so onListingFormSubmit can link the new
+               listing back to it and guard against converting the same
+               submission twice. -->
+          <input type="hidden" id="sourceSubmissionId" value=""/>
 
           <div class="mb-3">
             <label class="admin-label" for="fTitle" data-i18n="agentDash.titleLabel">Title</label>
@@ -709,7 +773,7 @@
                 <span class="material-symbols-outlined" style="font-size:20px;">upload_file</span>
                 <input id="fImgUpload" type="file" accept="image/*" class="hidden"/>
               </label>
-              <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;"/>
+              <img id="fImgPreview" class="hidden" style="width:40px; height:40px; object-fit:cover; border-radius:8px; flex:none;" decoding="async"/>
             </div>
             <p id="fImgUploadStatus" class="hidden font-body-md text-[11.5px] mt-1" style="color:#8192a7;"></p>
           </div>
@@ -966,13 +1030,50 @@
 </div>
 
 <script type="module">
-import { auth, db, storage, firebaseConfig } from './js/firebase-init.js';
+import { auth, db, storage, firebaseConfig, getDoc, setDoc, updateDoc, addDoc, deleteDoc, getDocs, waitForAppCheckToken, RECAPTCHA_ENTERPRISE_SITE_KEY } from './js/firebase-init.js';
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth, deleteUser } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, getFirestore
+  doc, collection, serverTimestamp, getFirestore, runTransaction, query, where, limit
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+import { compressImage, LISTING_IMAGE, createUploadGate } from './js/image-compress.js';
+
+// Blocks a second pick while an upload is in flight -- each attempt mints
+// its own Storage path, so overlapping runs orphan an object.
+const adminListingImgGate = createUploadGate();
+import { isConfigured as mapsConfigured, initMap as initGoogleMap, createMarker as createGoogleMarker } from './js/maps-core.js';
+import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
+
+// LOC-01: what coordinate a BULK admin map view plots for a listing.
+// Bulk views (intelligence map, requests map — hundreds of listings at a
+// time) deliberately use the ~1.1 km public pair rather than fetching each
+// listing's precise sub-document, which would be an N+1 read per render.
+// At market-overview zoom that is visually identical; where the exact pin
+// actually matters — opening one property, or re-seeding the edit form —
+// fetchPreciseLocation() pulls the real one for that single listing under
+// the admin's own authorization. The `l.lat` branch keeps legacy
+// documents (not yet processed by scripts/backfill-public-coords.mjs)
+// rendering correctly during the migration window.
+function listingMapCoords(l) {
+  const lat = (typeof l.lat === 'number') ? l.lat : l.publicLat;
+  const lng = (typeof l.lng === 'number') ? l.lng : l.publicLng;
+  return (typeof lat === 'number' && typeof lng === 'number') ? { lat, lng } : null;
+}
+
+// LOC-01: how a listing's coordinate reads in a synchronously-rendered
+// detail panel. Marked "approx." because it is the rounded public pair --
+// the exact surveyed pin is loaded (asynchronously, under the admin's own
+// authorization) by the Edit Listing form, which is where an admin
+// actually needs it. Never silently presents a rounded value as if it
+// were the precise one.
+function listingCoordLabel(l) {
+  const c = listingMapCoords(l);
+  if (!c) return '—';
+  const approx = (typeof l.lat !== 'number'); // legacy docs still carry the real pair
+  return (approx ? '≈ ' : '') + c.lat + ', ' + c.lng + (approx ? ' (approx.)' : '');
+}
 
 function trAdmin(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
@@ -1072,6 +1173,417 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ---------------------------------------------------------------------
+// Estate Intelligence Map (Production Rebuild Phase 1 of 3, Part G).
+// Real Firestore data only -- listings (admin has full list/get access
+// per firestore.rules' isListingOwnerOrAdmin()), plus each marker's
+// linked Estate/transaction data when a listing actually carries an
+// estateId (still rare today -- Estate linkage is new and no publish
+// flow sets it automatically). Never invents a value for a field that
+// has no real data behind it; the side panel simply omits what it
+// doesn't have (see renderEiSidePanel below).
+// ---------------------------------------------------------------------
+window.estateIntelEngine = null;
+let eiAllListings = [];
+let eiAreaFilter = null;
+let eiDrawingManager = null;
+let eiDrawnCircle = null;
+
+async function makeGoogleEiEngine() {
+  const map = await initGoogleMap(document.getElementById('estateIntelMap'), { center: { lat: 36.19, lng: 44.01 }, zoom: 8, mapTypeControl: false });
+  if (!map) return null;
+  const google = window.google;
+  let overlays = [];
+  map.addListener('idle', () => renderEiMarkers());
+  if (google.maps.drawing) {
+    eiDrawingManager = new google.maps.drawing.DrawingManager({
+      drawingMode: null, drawingControl: false,
+      circleOptions: { fillColor: '#C89A4A', fillOpacity: 0.15, strokeColor: '#C89A4A', strokeWeight: 2, clickable: false, editable: true },
+    });
+    eiDrawingManager.setMap(map);
+    google.maps.event.addListener(eiDrawingManager, 'circlecomplete', (circle) => {
+      if (eiDrawnCircle) eiDrawnCircle.setMap(null);
+      eiDrawnCircle = circle;
+      eiDrawingManager.setDrawingMode(null);
+      const center = circle.getCenter(), radius = circle.getRadius();
+      eiAreaFilter = (l) => { const c = listingMapCoords(l); return !!c && google.maps.geometry?.spherical?.computeDistanceBetween(new google.maps.LatLng(c.lat, c.lng), center) <= radius; };
+      document.getElementById('eiResetAreaBtn').classList.remove('hidden');
+      renderEiMarkers();
+    });
+  }
+  return {
+    map,
+    invalidate() { google.maps.event.trigger(map, 'resize'); },
+    clearMarkers() { overlays.forEach((o) => o.setMap(null)); overlays = []; },
+    addMarker(l) {
+      const el = document.createElement('div');
+      el.textContent = '$' + Number(l.price || 0).toLocaleString();
+      el.style.cssText = 'font-family:Inter,sans-serif;font-weight:700;font-size:12px;padding:6px 10px;border-radius:999px;background:#17150F;color:#F2EEE5;border:1.5px solid ' + (l.verified ? '#2e7d32' : (l.status === 'active' ? '#775a19' : '#8a93a3')) + ';box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;cursor:pointer;transform:translate(-50%,-100%);';
+      el.addEventListener('click', () => renderEiSidePanel(l));
+      class Overlay extends google.maps.OverlayView {
+        onAdd() { this.getPanes().overlayMouseTarget.appendChild(el); }
+        draw() {
+          const proj = this.getProjection();
+          if (!proj) return;
+          const c = listingMapCoords(l);
+          const point = c && proj.fromLatLngToDivPixel(new google.maps.LatLng(c.lat, c.lng));
+          if (point) { el.style.position = 'absolute'; el.style.left = point.x + 'px'; el.style.top = point.y + 'px'; }
+        }
+        onRemove() { el.remove(); }
+      }
+      const overlay = new Overlay();
+      overlay.setMap(map);
+      overlays.push(overlay);
+    },
+  };
+}
+
+async function ensureEstateIntelEngine() {
+  if (window.estateIntelEngine) return window.estateIntelEngine;
+  const unavailableEl = document.getElementById('eiMapUnavailable');
+  if (!mapsConfigured()) {
+    unavailableEl.classList.remove('hidden');
+    unavailableEl.innerHTML = `<div><span class="material-symbols-outlined text-4xl text-outline mb-2 block">map</span><p class="font-headline-md text-on-surface mb-1">${trAdmin('drm.mapNotConfigured','Map view is not configured yet')}</p><p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.ei.notConfiguredHint','Configure the Google Maps key to enable this map (see docs/GOOGLE_MAPS_CONFIGURATION.md). The listing data below is unaffected.')}</p></div>`;
+    return null;
+  }
+  const engine = await makeGoogleEiEngine();
+  if (!engine) {
+    // Same distinct-failure-mode fix as buy-rent-map.html's
+    // initDrmMap(): a key IS configured here (mapsConfigured() passed
+    // above), but the Google Maps script itself failed -- this used to
+    // reveal unavailableEl with no content ever written into it, a
+    // blank box giving no information. See the browser console for
+    // [darwesh-maps-core] googleLoaderStarted/googleLoaderError.
+    unavailableEl.classList.remove('hidden');
+    unavailableEl.innerHTML = `<div><span class="material-symbols-outlined text-4xl text-outline mb-2 block">error_outline</span><p class="font-headline-md text-on-surface mb-1">${trAdmin('drm.mapLoadFailed','Map failed to load')}</p><p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('drm.mapLoadFailedHint','The property list still works fully -- an administrator should check the browser console for [darwesh-maps-core] diagnostic lines, and the Google Cloud project\'s billing status and API key restrictions (see docs/GOOGLE_MAPS_CONFIGURATION.md).')}</p></div>`;
+    return null;
+  }
+  unavailableEl.classList.add('hidden');
+  window.estateIntelEngine = engine;
+  return engine;
+}
+
+function eiPassesFilters(l) {
+  const layer = document.getElementById('eiLayerFilter').value;
+  const verified = document.getElementById('eiVerifiedFilter').value;
+  const type = document.getElementById('eiTypeFilter').value;
+  if (layer !== 'all' && l.dealType !== layer) return false;
+  if (verified === 'verified' && !l.verified) return false;
+  if (verified === 'unverified' && l.verified) return false;
+  if (type !== 'all' && l.propertyType !== type) return false;
+  if (eiAreaFilter && !eiAreaFilter(l)) return false;
+  return true;
+}
+
+async function renderEiMarkers() {
+  const engine = window.estateIntelEngine;
+  if (!engine) return;
+  engine.clearMarkers();
+  const visible = eiAllListings.filter((l) => !!listingMapCoords(l) && eiPassesFilters(l));
+  visible.forEach((l) => engine.addMarker(l));
+  document.getElementById('eiResultCount').textContent = visible.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
+}
+
+async function renderEstateIntelTab() {
+  const engine = await ensureEstateIntelEngine();
+  if (eiAllListings.length === 0) {
+    try {
+      const snap = await getDocs(query(collection(db, 'listings'), limit(500)));
+      eiAllListings = [];
+      snap.forEach((d) => eiAllListings.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      console.error('[admin] estate intelligence map: failed to load listings', err);
+      eiAllListings = [];
+    }
+  }
+  if (engine) renderEiMarkers();
+  else document.getElementById('eiResultCount').textContent = eiAllListings.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
+}
+
+// Side panel -- real fields only. Last Verified Sale / transaction count
+// are populated ONLY when this listing actually carries a real estateId
+// AND that Estate has real transactionHistory documents (admin-readable,
+// see firestore.rules) -- never fabricated when absent, which is the
+// common case today since no publish flow sets estateId automatically yet.
+async function renderEiSidePanel(l) {
+  const panel = document.getElementById('eiSidePanel');
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.loading','Loading...')}</p>`;
+
+  let estate = null, txCount = null, lastTx = null;
+  if (l.estateId) {
+    try {
+      const estateSnap = await getDoc(doc(db, 'estates', l.estateId));
+      if (estateSnap.exists()) estate = { id: estateSnap.id, ...estateSnap.data() };
+      const txSnap = await getDocs(collection(db, 'estates', l.estateId, 'transactionHistory'));
+      txCount = txSnap.size;
+      let latest = null;
+      txSnap.forEach((d) => { const data = d.data(); if (!latest || (data.createdAt || 0) > (latest.createdAt || 0)) latest = data; });
+      lastTx = latest;
+    } catch (err) {
+      // Admin-only subcollections -- a permission error here just means
+      // this admin session's own auth state is stale; degrade to "no
+      // transaction data" rather than breaking the whole panel.
+      console.error('[admin] estate intelligence: failed to load Estate/transaction data', err);
+    }
+  }
+
+  const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
+  const rows = [
+    [trAdmin('admin.ei.estateId','Estate ID'), l.estateId ? escapeAdmin(l.estateId) : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noEstateLinked','No Estate linked')}</span>`],
+    [trAdmin('admin.ei.currentAsking','Current Asking'), escapeAdmin(priceLabel)],
+    [trAdmin('admin.ei.status','Status'), escapeAdmin(l.status || '—')],
+    [trAdmin('map.homeType','Property Type'), escapeAdmin(l.propertyType || '—')],
+    [trAdmin('drm.minArea','Area').replace(' (m²)',''), l.sqft ? escapeAdmin(l.sqft + ' m²') : '—'],
+    [trAdmin('admin.ei.office','Office'), escapeAdmin(l.companyId || l.publisherOrgId || '—')],
+    [trAdmin('admin.ei.agent','Agent'), escapeAdmin(l.agentName || l.agentId || '—')],
+  ];
+  if (estate) {
+    rows.push([trAdmin('admin.ei.lastVerifiedSale','Last Verified Sale'), lastTx ? escapeAdmin('$' + Number(lastTx.priceAmount).toLocaleString() + ' (' + lastTx.transactionDate + ')') : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noVerifiedSale','No verified transaction on record')}</span>`]);
+    rows.push([trAdmin('admin.ei.priorTxCount','Previous Verified Transactions'), String(txCount ?? 0)]);
+  }
+
+  panel.innerHTML = `
+    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">${escapeAdmin(l.title || l.address || 'Listing')}</h3>
+    <p class="font-body-md text-[13px] text-on-surface-variant mb-3">${escapeAdmin(l.address || '')}, ${escapeAdmin(l.city || '')}</p>
+    ${l.verified ? `<span class="badge badge-verified mb-3 inline-block">${trAdmin('common.verified','Verified')}</span>` : ''}
+    <div class="space-y-2 mb-4">
+      ${rows.map(([k, v]) => `<div class="flex justify-between gap-2 text-[13px]"><span class="text-on-surface-variant">${k}</span><span class="text-on-surface text-right">${v}</span></div>`).join('')}
+    </div>
+    <div class="flex flex-col gap-2">
+      ${l.estateId ? `<button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewEstateRecord','View Estate Record')}</button>` : ''}
+      <a href="listing.html?id=${encodeURIComponent(l.id)}" target="_blank" rel="noopener" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps text-center">${trAdmin('admin.ei.viewCurrentListing','View Current Listing')}</a>
+      ${l.estateId ? `<button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewListingHistory','View Listing History')}</button>
+      <button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewTransactionHistory','View Transaction History')}</button>` : ''}
+      <button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps text-secondary" onclick="alert('${trAdmin('admin.ei.verifyLocationHint','Location verification is a manual field-check step -- mark it done once confirmed on site.').replace(/'/g,"\\'")}')">${trAdmin('admin.ei.verifyLocation','Verify Location')}</button>
+    </div>
+  `;
+}
+window.jumpToEstateData = function (estateId) {
+  document.querySelector('.admin-tab[data-tab="estatedata"]').click();
+  document.getElementById('edSearchInput').value = estateId;
+  document.getElementById('edSearchBtn').click();
+};
+
+document.getElementById('eiLayerFilter')?.addEventListener('change', renderEiMarkers);
+document.getElementById('eiVerifiedFilter')?.addEventListener('change', renderEiMarkers);
+document.getElementById('eiTypeFilter')?.addEventListener('change', renderEiMarkers);
+document.getElementById('eiSearchAreaBtn')?.addEventListener('click', () => {
+  const engine = window.estateIntelEngine;
+  if (!engine) return;
+  const bounds = engine.map.getBounds();
+  if (!bounds) return;
+  eiAreaFilter = (l) => { const c = listingMapCoords(l); return !!c && bounds.contains({ lat: c.lat, lng: c.lng }); };
+  document.getElementById('eiResetAreaBtn').classList.remove('hidden');
+  renderEiMarkers();
+});
+document.getElementById('eiDrawAreaBtn')?.addEventListener('click', () => {
+  if (eiDrawingManager) eiDrawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.CIRCLE);
+});
+document.getElementById('eiResetAreaBtn')?.addEventListener('click', () => {
+  eiAreaFilter = null;
+  if (eiDrawnCircle) { eiDrawnCircle.setMap(null); eiDrawnCircle = null; }
+  document.getElementById('eiResetAreaBtn').classList.add('hidden');
+  renderEiMarkers();
+});
+document.getElementById('eiMyLocationBtn')?.addEventListener('click', () => {
+  const engine = window.estateIntelEngine;
+  if (!engine || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition((pos) => { engine.map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude }); engine.map.setZoom(14); });
+});
+document.getElementById('eiFullscreenBtn')?.addEventListener('click', () => {
+  const el = document.getElementById('estateIntelMap').parentElement;
+  if (!document.fullscreenElement) el.requestFullscreen?.(); else document.exitFullscreen?.();
+});
+function eiSetMapType(type, btnId) {
+  if (window.estateIntelEngine) window.estateIntelEngine.map.setMapTypeId(type);
+  document.querySelectorAll('.ei-maptype').forEach((b) => b.classList.toggle('active', b.id === btnId));
+}
+document.getElementById('eiTypeRoadmap')?.addEventListener('click', () => eiSetMapType('roadmap', 'eiTypeRoadmap'));
+document.getElementById('eiTypeSatellite')?.addEventListener('click', () => eiSetMapType('satellite', 'eiTypeSatellite'));
+document.getElementById('eiTypeHybrid')?.addEventListener('click', () => eiSetMapType('hybrid', 'eiTypeHybrid'));
+
+// ---------------------------------------------------------------------
+// Admin Estate Data (Production Rebuild Phase 1 of 3, Part H). Read-only
+// search + record view -- everything here goes through the same
+// firestore.rules every other client write/read would (admin session
+// reads estates/transactionHistory/protected the same way the rest of
+// this file already reads users/listings/companies; nothing here is a
+// privileged bypass of the rules layer).
+// ---------------------------------------------------------------------
+async function renderEstateDataTab() {
+  // No auto-load -- this tab is search-driven (per the explicit "Search
+  // by Estate ID / Listing ID / location / office / agent / project /
+  // unit" requirement), not a full-collection browse.
+}
+
+async function searchEstateData(qRaw) {
+  const q = qRaw.trim();
+  const emptyEl = document.getElementById('edEmptyState');
+  const recordEl = document.getElementById('edRecord');
+  if (!q) { emptyEl.classList.remove('hidden'); recordEl.classList.add('hidden'); return; }
+  recordEl.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.loading','Loading...')}</p>`;
+  recordEl.classList.remove('hidden');
+  emptyEl.classList.add('hidden');
+
+  // 1) Direct Estate ID.
+  let estate = null, estateId = null;
+  try {
+    const directSnap = await getDoc(doc(db, 'estates', q));
+    if (directSnap.exists()) { estate = { id: directSnap.id, ...directSnap.data() }; estateId = directSnap.id; }
+  } catch (err) { /* not a valid doc id shape -- fall through to other lookups */ }
+
+  // 2) Listing ID -> its estateId (if any), or just the listing itself.
+  let listing = null;
+  if (!estate) {
+    try {
+      const listingSnap = await getDoc(doc(db, 'listings', q));
+      if (listingSnap.exists()) {
+        listing = { id: listingSnap.id, ...listingSnap.data() };
+        if (listing.estateId) {
+          const eSnap = await getDoc(doc(db, 'estates', listing.estateId));
+          if (eSnap.exists()) { estate = { id: eSnap.id, ...eSnap.data() }; estateId = eSnap.id; }
+        }
+      }
+    } catch (err) { /* not a valid doc id shape */ }
+  }
+
+  // 3) Free-text: location / office / agent / project / unit -- scans
+  // the already-admin-visible listings collection for a text match
+  // (bounded to the first 500 like the Intelligence Map, consistent
+  // scale discipline) and takes the first hit as the anchor record.
+  if (!estate && !listing) {
+    try {
+      const snap = await getDocs(query(collection(db, 'listings'), limit(500)));
+      const needle = q.toLowerCase();
+      snap.forEach((d) => {
+        if (listing) return;
+        const data = d.data();
+        const haystack = [data.title, data.address, data.city, data.agentName, data.agentId, data.companyId, data.publisherOrgId, data.projectId, data.unitId].filter(Boolean).join(' ').toLowerCase();
+        if (haystack.includes(needle)) listing = { id: d.id, ...data };
+      });
+      if (listing && listing.estateId) {
+        const eSnap = await getDoc(doc(db, 'estates', listing.estateId));
+        if (eSnap.exists()) { estate = { id: eSnap.id, ...eSnap.data() }; estateId = eSnap.id; }
+      }
+    } catch (err) { console.error('[admin] estate data search failed', err); }
+  }
+
+  if (!estate && !listing) {
+    recordEl.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant text-center py-stack-lg">${trAdmin('admin.ed.noResults','No matching Estate, Listing, or reference found.')}</p>`;
+    return;
+  }
+
+  await renderEdRecord({ estate, estateId, anchorListing: listing });
+}
+
+async function renderEdRecord({ estate, estateId, anchorListing }) {
+  const recordEl = document.getElementById('edRecord');
+
+  // Listing history: every Listing document referencing this Estate
+  // (additive relationship, Part 7/8 of the Estate architecture -- may
+  // be zero or one today since estateId adoption is brand new).
+  let listingHistory = [];
+  if (estateId) {
+    try {
+      const snap = await getDocs(query(collection(db, 'listings'), where('estateId', '==', estateId), limit(50)));
+      snap.forEach((d) => listingHistory.push({ id: d.id, ...d.data() }));
+    } catch (err) { console.error('[admin] failed to load listing history', err); }
+  } else if (anchorListing) {
+    listingHistory = [anchorListing];
+  }
+  const currentListing = listingHistory.find((l) => l.status === 'active') || anchorListing || listingHistory[0] || null;
+
+  // Verified transaction history + protected admin data -- admin-only
+  // subcollections, read exactly as any admin session already reads
+  // other admin-gated data elsewhere in this file.
+  let txHistory = [], protectedData = null;
+  if (estateId) {
+    try {
+      const txSnap = await getDocs(collection(db, 'estates', estateId, 'transactionHistory'));
+      txSnap.forEach((d) => txHistory.push({ id: d.id, ...d.data() }));
+      txHistory.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    } catch (err) { console.error('[admin] failed to load transaction history', err); }
+    try {
+      const protSnap = await getDoc(doc(db, 'estates', estateId, 'protected', 'admin'));
+      if (protSnap.exists()) protectedData = protSnap.data();
+    } catch (err) { /* no protected/admin doc yet for this Estate -- fine */ }
+  }
+
+  function section(titleKey, titleFallback, bodyHtml) {
+    return `<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4">
+      <h4 class="font-headline-md text-[15px] text-on-surface mb-2">${trAdmin(titleKey, titleFallback)}</h4>
+      ${bodyHtml}
+    </div>`;
+  }
+  function kv(pairs) {
+    return `<div class="space-y-1.5">${pairs.map(([k, v]) => `<div class="flex justify-between gap-3 text-[13px]"><span class="text-on-surface-variant">${k}</span><span class="text-on-surface text-right">${v ?? '—'}</span></div>`).join('')}</div>`;
+  }
+
+  const overview = kv([
+    [trAdmin('admin.ei.estateId','Estate ID'), estateId ? escapeAdmin(estateId) : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noEstateLinked','No Estate linked')}</span>`],
+    [trAdmin('common.verified','Verified'), estate ? (estate.verified ? trAdmin('common.verified','Verified') : trAdmin('admin.ei.unverified','Unverified')) : '—'],
+    [trAdmin('map.homeType','Property Type'), estate ? escapeAdmin(estate.propertyType || '—') : (currentListing ? escapeAdmin(currentListing.propertyType || '—') : '—')],
+  ]);
+
+  const currentListingHtml = currentListing ? kv([
+    [trAdmin('admin.thAgentId','Listing ID'), escapeAdmin(currentListing.id)],
+    [trAdmin('admin.ei.currentAsking','Current Asking'), escapeAdmin('$' + Number(currentListing.price || 0).toLocaleString() + (currentListing.dealType === 'rent' ? '/mo' : ''))],
+    [trAdmin('admin.ei.status','Status'), escapeAdmin(currentListing.status || '—')],
+    [trAdmin('admin.ei.agent','Agent'), escapeAdmin(currentListing.agentName || currentListing.agentId || '—')],
+    [trAdmin('admin.ei.office','Office'), escapeAdmin(currentListing.companyId || currentListing.publisherOrgId || '—')],
+  ]) : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noCurrentListing','No active listing found for this Estate.')}</p>`;
+
+  const listingHistoryHtml = listingHistory.length ? `<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>${trAdmin('admin.thAgentId','Listing ID')}</th><th>${trAdmin('admin.ei.status','Status')}</th><th>${trAdmin('admin.ei.currentAsking','Price')}</th></tr></thead><tbody>${listingHistory.map((l) => `<tr><td>${escapeAdmin(l.id)}</td><td>${escapeAdmin(l.status || '—')}</td><td>${escapeAdmin('$' + Number(l.price || 0).toLocaleString())}</td></tr>`).join('')}</tbody></table></div>` : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noListingHistory','No Listings reference this Estate yet.')}</p>`;
+
+  const txHistoryHtml = txHistory.length ? `<div class="overflow-x-auto"><table class="admin-table"><thead><tr><th>${trAdmin('drm.readiness','Type').replace(' / Under Construction','')}</th><th>${trAdmin('map.priceLabel','Price')}</th><th>${trAdmin('admin.thScannedAt','Date')}</th><th>${trAdmin('admin.ei.agent','Verified By')}</th></tr></thead><tbody>${txHistory.map((t) => `<tr><td>${escapeAdmin(t.transactionType)}</td><td>${escapeAdmin(Number(t.priceAmount).toLocaleString() + ' ' + t.currency)}</td><td>${escapeAdmin(t.transactionDate)}</td><td>${escapeAdmin(t.verifiedBy || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noVerifiedTx','No verified transactions recorded for this Estate.')}</p>`;
+
+  const priceHistoryHtml = (() => {
+    const points = [...listingHistory.map((l) => ({ label: trAdmin('admin.ed.askingPrice','Asking'), price: l.price })), ...txHistory.map((t) => ({ label: t.transactionType, price: t.priceAmount }))];
+    return points.length ? kv(points.map((p) => [escapeAdmin(p.label), escapeAdmin(Number(p.price || 0).toLocaleString())])) : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noPriceHistory','No price data available.')}</p>`;
+  })();
+
+  const locationHtml = estate ? kv([
+    [trAdmin('sell.city','City'), escapeAdmin(estate.city || '—')],
+    [trAdmin('admin.ei.office','District'), escapeAdmin(estate.district || '—')],
+    [trAdmin('sell.neighborhoodAddress','Address'), escapeAdmin(estate.formattedAddress || '—')],
+    ['Lat/Lng', estate.location ? escapeAdmin(estate.location.lat + ', ' + estate.location.lng) : (currentListing ? escapeAdmin(listingCoordLabel(currentListing)) : '—')],
+  ]) : (currentListing ? kv([[trAdmin('sell.city','City'), escapeAdmin(currentListing.city || '—')], ['Lat/Lng', escapeAdmin(listingCoordLabel(currentListing))]]) : `<p class="text-[13px] text-on-surface-variant">—</p>`);
+
+  const projectHtml = estate && (estate.projectId || estate.buildingId || estate.unitId) ? kv([
+    [trAdmin('admin.ei.currentAsking','Project ID').replace('Current Asking','Project ID'), escapeAdmin(estate.projectId || '—')],
+    ['Building ID', escapeAdmin(estate.buildingId || '—')],
+    ['Unit ID', escapeAdmin(estate.unitId || '—')],
+  ]) : `<p class="text-[13px] text-on-surface-variant">${trAdmin('admin.ed.noProjectLink','Not linked to a Project/Building/Unit.')}</p>`;
+
+  const verificationHtml = kv([
+    [trAdmin('common.verified','Verified'), estate ? (estate.verified ? trAdmin('common.verified','Verified') : trAdmin('admin.ei.unverified','Unverified')) : '—'],
+    [trAdmin('admin.ei.priorTxCount','Verified Transactions'), String(txHistory.length)],
+  ]);
+
+  const auditHtml = kv([
+    [trAdmin('admin.thScannedAt','Created'), estate && estate.createdAt ? escapeAdmin(String(estate.createdAt)) : '—'],
+    [trAdmin('admin.ei.status','Updated'), estate && estate.updatedAt ? escapeAdmin(String(estate.updatedAt)) : '—'],
+    [trAdmin('admin.ei.office','Organization'), estate ? escapeAdmin(estate.organizationId || '—') : '—'],
+    ['Protected admin notes', protectedData ? trAdmin('admin.ed.protectedDataPresent','On file (admin-only)') : trAdmin('admin.ed.protectedDataAbsent','None on file')],
+  ]);
+
+  recordEl.innerHTML = [
+    section('admin.ed.sectionOverview', 'Overview', overview),
+    section('admin.ed.sectionCurrentListing', 'Current Listing', currentListingHtml),
+    section('admin.ed.sectionListingHistory', 'Listing History', listingHistoryHtml),
+    section('admin.ed.sectionVerifiedTx', 'Verified Transaction History', txHistoryHtml),
+    section('admin.ed.sectionPriceHistory', 'Price History', priceHistoryHtml),
+    section('admin.ed.sectionLocation', 'Location', locationHtml),
+    section('admin.ed.sectionProject', 'Project / Building / Unit', projectHtml),
+    section('admin.ed.sectionVerification', 'Verification', verificationHtml),
+    section('admin.ed.sectionAudit', 'Audit Information', auditHtml),
+  ].join('<div class="h-1"></div>');
+}
+
+document.getElementById('edSearchBtn')?.addEventListener('click', () => searchEstateData(document.getElementById('edSearchInput').value));
+document.getElementById('edSearchInput')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') searchEstateData(e.target.value); });
+
+// ---------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------
 document.querySelectorAll('.admin-tab').forEach(tab => {
@@ -1095,6 +1607,8 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'agents') renderAgentsTab();
     if (tab.dataset.tab === 'network') renderNetworkTab();
     if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
+    if (tab.dataset.tab === 'estateintel') { setTimeout(() => { if (window.estateIntelEngine) window.estateIntelEngine.invalidate(); }, 50); renderEstateIntelTab(); }
+    if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
   });
 });
 
@@ -1185,15 +1699,21 @@ async function renderUsers() {
     const role = u.role || 'customer';
     const ROLE_LABEL = ROLE_LABEL_FN();
     const wantsAgent = u.requestedRole === 'agent' && role !== 'agent' && role !== 'admin';
+    // BL-04 fix: requestedCompanyId/requestedCompanyName is the UNTRUSTED
+    // claim recorded when this applicant typed a name matching an
+    // EXISTING company at signup -- companyId itself stays unset until
+    // an admin explicitly approves the join (see onRoleChange below), so
+    // this badge is the only place that claim is visible before an admin
+    // acts on it.
     const agentRequestBadge = wantsAgent
-      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}</span>`
+      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}${u.requestedCompanyName ? ' · ' + escapeAdmin(u.requestedCompanyName) : ''}</span>`
       : '';
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${u.displayName || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${u.email || ''}</p>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
+        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(u.email)}</p>
       </td>
-      <td>${companyNames[u.companyId] || u.companyId || '—'}</td>
+      <td>${escapeAdmin(companyNames[u.companyId]) || escapeAdmin(u.companyId) || '—'}</td>
       <td>${listingCount}</td>
       <td>${joined}</td>
       <td></td>
@@ -1214,20 +1734,35 @@ async function renderUsers() {
         if (role === r) opt.selected = true;
         select.appendChild(opt);
       });
-      select.addEventListener('change', () => onRoleChange(u.uid, u.displayName || u.email, select));
+      select.addEventListener('change', () => onRoleChange(u, select));
       roleCell.appendChild(select);
     }
     body.appendChild(tr);
   });
 }
 
-async function onRoleChange(uid, name, selectEl) {
+async function onRoleChange(u, selectEl) {
+  const uid = u.uid;
+  const name = u.displayName || u.email;
   const newRole = selectEl.value;
   const roleLabel = ROLE_LABEL_FN()[newRole];
-  const ok = confirm(`Change ${name}'s role to "${roleLabel}"?` + (newRole === 'admin' ? ' This grants full admin access.' : ''));
+  // BL-04 fix: promoting to 'agent' is also the moment a pending
+  // requestedCompanyId (an unverified claim from signup -- see the
+  // badge above) becomes real, trusted company-scoped access. That
+  // grant must be a visible, deliberate part of THIS action, not
+  // something that already silently happened at signup -- so it's
+  // confirmed and applied here, explicitly, rather than assumed to
+  // already be in place on the profile.
+  const grantingCompany = newRole === 'agent' && !u.companyId && u.requestedCompanyId;
+  const confirmMsg = grantingCompany
+    ? `Change ${name}'s role to "${roleLabel}" and grant access to "${u.requestedCompanyName || u.requestedCompanyId}"? This gives them that company's team-scoped listing access.`
+    : `Change ${name}'s role to "${roleLabel}"?` + (newRole === 'admin' ? ' This grants full admin access.' : '');
+  const ok = confirm(confirmMsg);
   if (!ok) { renderUsers(); return; }
   try {
-    await updateDoc(doc(db, 'users', uid), { role: newRole });
+    const update = { role: newRole };
+    if (grantingCompany) update.companyId = u.requestedCompanyId;
+    await updateDoc(doc(db, 'users', uid), update);
     renderUsers();
   } catch (err) {
     alert('Could not update role: ' + err.message);
@@ -1353,6 +1888,7 @@ function setAdminPin(lat, lng) {
 function resetListingForm() {
   document.getElementById('listingForm').reset();
   document.getElementById('editingId').value = '';
+  document.getElementById('sourceSubmissionId').value = '';
   document.getElementById('formTitle').textContent = trAdmin('agentDash.addListing','Add a Listing');
   document.getElementById('formSubmitBtn').textContent = trAdmin('agentDash.addListing','Add Listing');
   document.getElementById('formCancelBtn').classList.add('hidden');
@@ -1396,6 +1932,7 @@ function withUploadTimeout(promise) {
 document.getElementById('fImgUpload').addEventListener('change', async function () {
   const file = this.files[0];
   if (!file) return;
+  if (!adminListingImgGate.begin()) return;
   const statusEl = document.getElementById('fImgUploadStatus');
   statusEl.textContent = trAdmin('agentDash.uploadingPhoto', 'Uploading...');
   statusEl.classList.remove('hidden');
@@ -1403,7 +1940,8 @@ document.getElementById('fImgUpload').addEventListener('change', async function 
     const token = crypto.randomUUID();
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const fileRef = storageRef(storage, `listing-photos/${token}/${safeName}`);
-    await withUploadTimeout(uploadBytes(fileRef, file));
+    const upload = await compressImage(file, LISTING_IMAGE);
+    await withUploadTimeout(uploadBytes(fileRef, upload));
     const url = await withUploadTimeout(getDownloadURL(fileRef));
     document.getElementById('fImg').value = url;
     updateImgPreview();
@@ -1411,6 +1949,7 @@ document.getElementById('fImgUpload').addEventListener('change', async function 
   } catch (err) {
     statusEl.textContent = trAdmin('agentDash.uploadFailed', 'Upload failed: ') + err.message;
   } finally {
+    adminListingImgGate.end();
     this.value = '';
   }
 });
@@ -1569,9 +2108,20 @@ async function onListingFormSubmit(e) {
   // converted and rounded right here, at the moment of save.
   const enteredPrice = Number(document.getElementById('fPrice').value);
   const priceCurrency = document.getElementById('fPriceCurrency').value;
-  const price = priceCurrency === 'IQD' ? Math.round(enteredPrice / 1310) : enteredPrice;
+  // Shared conversion -- see js/currency.js. Identical arithmetic to
+  // the inline `Math.round(enteredPrice / 1310)` it replaces; the rate
+  // and rounding now live in exactly one place.
+  const price = window.darweshUsdFromEntered(enteredPrice, priceCurrency);
+  const beds = Number(document.getElementById('fBeds').value) || 0;
+  const baths = Number(document.getElementById('fBaths').value) || 0;
+  const sqft = Number(document.getElementById('fSqft').value) || 0;
 
-  if (!title || !address || !price || pinLat === null || pinLng === null) {
+  // BL-05 fix: `!price` alone lets a NEGATIVE price through (a negative
+  // number is truthy in JS) -- this form is also where a submission's
+  // (attacker-controllable, per firestore.rules) numeric fields land
+  // once prefilled, so beds/baths/sqft/price are all now checked for
+  // sign here too, not just presence.
+  if (!title || !address || !(price > 0) || beds < 0 || baths < 0 || sqft < 0 || pinLat === null || pinLng === null) {
     errEl.textContent = trAdmin('agentDash.fillRequired','Please pin a location on the map and fill in the required fields.');
     errEl.classList.remove('hidden');
     return;
@@ -1579,16 +2129,17 @@ async function onListingFormSubmit(e) {
   errEl.classList.add('hidden');
 
   const editingId = document.getElementById('editingId').value;
+  const sourceSubmissionId = document.getElementById('sourceSubmissionId').value;
   const data = {
     title, address,
     city: document.getElementById('fCity').value,
-    lat: pinLat, lng: pinLng,
+    // LOC-01: only the ~1.1 km rounded pair goes on the publicly-readable
+    // listing document. The real surveyed pin is written separately, to
+    // listings/{id}/private/location, right after this save succeeds.
+    ...publicCoordsFrom(pinLat, pinLng),
     dealType: document.getElementById('fDealType').value,
     propertyType: document.getElementById('fPropertyType').value,
-    price,
-    beds: Number(document.getElementById('fBeds').value) || 0,
-    baths: Number(document.getElementById('fBaths').value) || 0,
-    sqft: Number(document.getElementById('fSqft').value) || 0,
+    price, beds, baths, sqft,
     img: document.getElementById('fImg').value.trim(),
     amenities: document.getElementById('fAmenities').value.split(',').map(s => s.trim()).filter(Boolean),
     verified: document.getElementById('fVerified').checked,
@@ -1597,6 +2148,11 @@ async function onListingFormSubmit(e) {
   };
 
   try {
+    // LOC-01: the precise pin is written to listings/{id}/private/location
+    // AFTER the listing itself exists -- the rules check ownership by
+    // reading the parent listing, so a location write that precedes it
+    // (or shares a batch with it) is denied by design.
+    let savedListingId = editingId;
     if (editingId) {
       await updateDoc(doc(db, 'listings', editingId), data);
     } else {
@@ -1605,7 +2161,39 @@ async function onListingFormSubmit(e) {
       data.companyId = null;
       data.status = 'active';
       data.createdAt = serverTimestamp();
-      await addDoc(collection(db, 'listings'), data);
+      if (sourceSubmissionId) {
+        // BL-05 fix: one submission must become at most one listing.
+        // A plain read-then-write here would still race under two
+        // concurrent conversions of the same submission (both could
+        // pass the "not yet converted" check before either writes) --
+        // a real Firestore transaction closes that gap: whichever
+        // commits first wins, the other's transaction function re-runs
+        // against the now-updated submission and correctly fails the
+        // check on retry. firestore.rules independently re-enforces the
+        // same "not already converted" invariant on the listings create
+        // itself, so this can't be bypassed by a direct API call either.
+        data.sourceSubmissionId = sourceSubmissionId;
+        const newListingRef = doc(collection(db, 'listings'));
+        const submissionRef = doc(db, 'submissions', sourceSubmissionId);
+        await runTransaction(db, async (tx) => {
+          const subSnap = await tx.get(submissionRef);
+          if (!subSnap.exists() || subSnap.data().type !== 'sell') {
+            throw new Error('This submission no longer exists or is not a sell submission.');
+          }
+          if (subSnap.data().convertedListingId) {
+            throw new Error('This submission has already been converted to a listing.');
+          }
+          tx.set(newListingRef, data);
+          tx.update(submissionRef, { convertedListingId: newListingRef.id });
+        });
+        savedListingId = newListingRef.id;
+      } else {
+        const created = await addDoc(collection(db, 'listings'), data);
+        savedListingId = created.id;
+      }
+    }
+    if (savedListingId) {
+      await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
     }
     resetListingForm();
     renderListingsTable();
@@ -1635,8 +2223,20 @@ window.editListing = function (id) {
   document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
   document.getElementById('fVerified').checked = !!l.verified;
   document.getElementById('fPrivate').checked = !!l.private;
-  setAdminPin(l.lat, l.lng);
-  adminPinMap.setView([l.lat, l.lng], 13);
+  // LOC-01: seed the edit pin from the REAL stored location (one extra
+  // read, for one listing, by an authorized admin) so re-saving an
+  // existing listing never silently degrades its pin to the rounded
+  // public point. Falls back to the public pair for any listing whose
+  // precise document is missing (e.g. not yet backfilled).
+  const approxLat = l.publicLat ?? null, approxLng = l.publicLng ?? null;
+  setAdminPin(approxLat, approxLng);
+  if (approxLat != null) adminPinMap.setView([approxLat, approxLng], 13);
+  fetchPreciseLocation({ doc, getDoc }, db, l.id).then((precise) => {
+    if (!precise) return;
+    if (document.getElementById('editingId').value !== l.id) return; // form moved on
+    setAdminPin(precise.lat, precise.lng);
+    adminPinMap.setView([precise.lat, precise.lng], 15);
+  });
 
   document.getElementById('formTitle').textContent = trAdmin('agentDash.editListing','Edit Listing');
   document.getElementById('formSubmitBtn').textContent = trAdmin('agentDash.updateListingBtn','Update Listing');
@@ -1673,13 +2273,13 @@ async function renderListingsTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${l.title}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${l.address}, ${l.city}</p>
+        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(l.title)}</p>
+        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
       </td>
-      <td>${l.agentName || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
+      <td>${escapeAdmin(l.agentName) || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
       <td>
         <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent')}</span>
-        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${l.propertyType}</div>
+        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeAdmin(l.propertyType)}</div>
       </td>
       <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
       <td>
@@ -1769,9 +2369,10 @@ function renderServicesRows() {
     const isSell = s.type === 'sell';
     const typeLabel = isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
     const typeIcon = isSell ? 'sell' : 'event_available';
-    const thumbUrl = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
+    const thumbUrlRaw = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
+    const thumbUrl = isSafeHttpUrl(thumbUrlRaw) ? thumbUrlRaw : null;
     const thumb = thumbUrl
-      ? `<img src="${escapeAdmin(thumbUrl)}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant"/>`
+      ? `<img loading="lazy" src="${escapeAdmin(thumbUrl)}" class="w-10 h-10 rounded-lg object-cover flex-none border border-outline-variant" decoding="async"/>`
       : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
     const detailsText = isSell
       ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.title)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.address)}, ${escapeAdmin(s.city)}${s.price ? ' &middot; $' + Math.round(Number(s.price)).toLocaleString() : ''}</p>`
@@ -1847,10 +2448,34 @@ function renderServicesRows() {
 // sell.html's form, and none of it was being escaped before landing in
 // innerHTML -- a classic stored-XSS-into-an-admin-session path. Every
 // submission-provided value rendered below goes through this first.
+// Safe for both text-node content and quoted attribute values -- see
+// js/escape-html.js's own comment (CLIENT-06,
+// CLIENT_SIDE_SECURITY_REVIEW.md) for why the earlier
+// div.textContent-round-trip form of this function wasn't. Behaves
+// identically to escAdmin() further down this file (same codebase had
+// two independent implementations of the same idea) -- kept as two
+// names rather than merged, to keep this fix minimal.
 function escapeAdmin(str) {
-  const div = document.createElement('div');
-  div.textContent = str == null ? '' : String(str);
-  return div.innerHTML;
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+// Photo/verification URLs (photoURL, photoUrls, etc.) are just as
+// attacker-controllable as any other submission/profile field -- nothing
+// stops a direct Firestore REST write from setting one to a
+// `javascript:`/`data:` URI instead of a real image URL. HTML-escaping
+// alone doesn't neutralize that (it protects attribute breakout, not the
+// URL scheme itself), so every such value used as an <img src>/<a href>
+// is checked against this allowlist first, in addition to being escaped.
+function isSafeHttpUrl(url) {
+  if (typeof url !== 'string' || url.trim() === '') return false;
+  try {
+    const u = new URL(url, window.location.href);
+    return u.protocol === 'https:' || u.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 const CONDITION_LABELS = {
@@ -1908,7 +2533,13 @@ function renderVerificationPhotoArea(s) {
   const area = document.getElementById('requestDetailVerificationPhotoArea');
   if (verificationPhotoBlobUrl) { URL.revokeObjectURL(verificationPhotoBlobUrl); verificationPhotoBlobUrl = null; }
 
-  if (!s.verificationPhotoPath) {
+  // AUTHZ-02 fix: the photo's Storage path is no longer trusted from a
+  // plain field on the submission doc (verificationPhotoPath -- that was
+  // exactly the field an unrelated party could overwrite). It now lives
+  // in submissions/{id}/verification/{photoUploadToken}, readable here
+  // only because this page runs as an admin (firestore.rules restricts
+  // reads on that subcollection to isAdmin()).
+  if (!s.photoUploadToken) {
     area.innerHTML = `<p class="font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noVerificationPhoto', 'No verification photo on file.')}</p>`;
     return;
   }
@@ -1921,11 +2552,16 @@ function renderVerificationPhotoArea(s) {
     btn.disabled = true;
     btn.querySelector('span:last-child').textContent = trAdmin('admin.loading', 'Loading...');
     try {
-      const bytes = await getBytes(storageRef(storage, s.verificationPhotoPath));
+      const capSnap = await getDoc(doc(db, 'submissions', s.id, 'verification', s.photoUploadToken));
+      if (!capSnap.exists()) {
+        area.innerHTML = `<p class="font-body-md text-[12.5px] text-on-surface-variant">${trAdmin('admin.noVerificationPhoto', 'No verification photo on file.')}</p>`;
+        return;
+      }
+      const bytes = await getBytes(storageRef(storage, capSnap.data().path));
       const blob = new Blob([bytes], { type: 'image/jpeg' });
       verificationPhotoBlobUrl = URL.createObjectURL(blob);
       area.innerHTML = `
-        <img src="${verificationPhotoBlobUrl}" class="w-full max-w-[200px] mx-auto rounded-xl border border-outline-variant block"/>
+        <img src="${verificationPhotoBlobUrl}" class="w-full max-w-[200px] mx-auto rounded-xl border border-outline-variant block" decoding="async"/>
         <p class="font-body-md text-[11px] text-on-surface-variant text-center mt-2">${trAdmin('admin.verificationPhotoPrivateNote', 'Private — visible to admins only, never shown on the public listing.')}</p>
       `;
     } catch (err) {
@@ -1947,12 +2583,12 @@ function openRequestDetail(id) {
     ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
 
   const photosWrap = document.getElementById('requestDetailPhotos');
-  const photoUrls = Array.isArray(s.photoUrls) ? s.photoUrls : [];
+  const photoUrls = Array.isArray(s.photoUrls) ? s.photoUrls.filter(isSafeHttpUrl) : [];
   if (photoUrls.length) {
     photosWrap.classList.remove('hidden');
     photosWrap.innerHTML = photoUrls.map(url => `
       <a href="${escapeAdmin(url)}" target="_blank" rel="noopener" class="block aspect-square rounded-lg overflow-hidden border border-outline-variant bg-surface-container-low">
-        <img src="${escapeAdmin(url)}" class="w-full h-full object-cover"/>
+        <img src="${escapeAdmin(url)}" class="w-full h-full object-cover" decoding="async"/>
       </a>`).join('');
   } else {
     photosWrap.classList.add('hidden');
@@ -2099,6 +2735,22 @@ async function geocodeAddress(query) {
 function createListingFromSubmission(id) {
   const s = allSubmissionsCache.find(x => x.id === id);
   if (!s || s.type !== 'sell') return;
+  // BL-05 fix: validate expected type/state before prefilling at all --
+  // a submission already converted (has convertedListingId) isn't a
+  // fresh conversion candidate; status itself is deliberately NOT
+  // restricted to 'pending' here since this app has no established
+  // workflow requirement that a submission must still be pending to be
+  // converted (an admin may legitimately mark one 'in-progress' while
+  // reviewing, then convert it) -- inventing that restriction isn't
+  // this fix's call to make. The real, unbypassable guard against
+  // double-conversion either way is the transaction + firestore.rules
+  // check in onListingFormSubmit below; this is just an early, honest
+  // UI exit so an admin doesn't fill out a form that's guaranteed to be
+  // rejected.
+  if (s.convertedListingId) {
+    alert(trAdmin('admin.submissionAlreadyConverted', 'This submission has already been converted to a listing.'));
+    return;
+  }
 
   closeRequestDetail();
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
@@ -2107,6 +2759,7 @@ function createListingFromSubmission(id) {
   document.getElementById('tab-listings').classList.add('active');
 
   resetListingForm();
+  document.getElementById('sourceSubmissionId').value = id;
   document.getElementById('fTitle').value = s.title || '';
   if (s.city) document.getElementById('fCity').value = s.city;
   if (s.listingType) document.getElementById('fDealType').value = s.listingType;
@@ -2215,7 +2868,7 @@ async function renderDashboardTab() {
   const chartEl = document.getElementById('dashCityChart');
   chartEl.innerHTML = cities.length ? cities.map(([city, count]) => `
     <div class="city-bar-row">
-      <span class="city-bar-label"><span class="material-symbols-outlined">location_on</span>${cityLabel ? cityLabel(city) : city}</span>
+      <span class="city-bar-label"><span class="material-symbols-outlined">location_on</span>${escapeAdmin(cityLabel ? cityLabel(city) : city)}</span>
       <div class="city-bar-track"><div class="city-bar-fill" style="width:${Math.round(count / maxCount * 100)}%"></div></div>
       <span class="city-bar-count">${count}</span>
     </div>`).join('') : `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noListingsYet2', 'No listings yet.')}</p>`;
@@ -2223,7 +2876,7 @@ async function renderDashboardTab() {
   const heatmapEl = document.getElementById('dashCityHeatmap');
   heatmapEl.innerHTML = cities.length ? cities.map(([city, count]) => {
     const intensity = 0.25 + 0.75 * (count / maxCount);
-    return `<div style="flex:${count};min-width:4px;border-radius:2px;background:rgba(74,225,131,${intensity.toFixed(2)});" title="${cityLabel ? cityLabel(city) : city}: ${count}"></div>`;
+    return `<div style="flex:${count};min-width:4px;border-radius:2px;background:rgba(74,225,131,${intensity.toFixed(2)});" title="${escapeAdmin(cityLabel ? cityLabel(city) : city)}: ${count}"></div>`;
   }).join('') : `<div style="flex:1;border-radius:2px;background:rgba(255,255,255,0.06);"></div>`;
 
   renderDashCitySnapshot(cities, listings);
@@ -2235,8 +2888,8 @@ async function renderDashboardTab() {
     viewing: { bg: 'rgba(139,178,255,0.16)', color: '#8ab2ff', icon: 'event_available' }
   };
   const activity = [
-    ...listings.map(l => ({ kind: 'listing', label: trAdmin('admin.activityNewListing', 'New listing'), detail: `${l.title || ''} — ${l.city || ''}`, seconds: l.createdAt?.seconds })),
-    ...submissions.map(s => ({ kind: s.type === 'sell' ? 'sell' : 'viewing', label: s.type === 'sell' ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request'), detail: `${s.address || s.title || ''} — ${s.city || ''}`, seconds: s.createdAt?.seconds }))
+    ...listings.map(l => ({ kind: 'listing', label: trAdmin('admin.activityNewListing', 'New listing'), detail: `${escapeAdmin(l.title)} — ${escapeAdmin(l.city)}`, seconds: l.createdAt?.seconds })),
+    ...submissions.map(s => ({ kind: s.type === 'sell' ? 'sell' : 'viewing', label: s.type === 'sell' ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request'), detail: `${escapeAdmin(s.address || s.title)} — ${escapeAdmin(s.city)}`, seconds: s.createdAt?.seconds }))
   ].filter(a => a.seconds).sort((a, b) => b.seconds - a.seconds).slice(0, 8);
 
   const feedEl = document.getElementById('dashActivityFeed');
@@ -2275,7 +2928,7 @@ function renderDashCitySnapshot(cities, listings) {
   }
   if (!dashSelectedCity || !topCities.includes(dashSelectedCity)) dashSelectedCity = topCities[0];
 
-  tabsEl.innerHTML = topCities.map(city => `<button type="button" class="dash-city-tab${city === dashSelectedCity ? ' active' : ''}" data-city="${city}">${cityLabel ? cityLabel(city) : city}</button>`).join('');
+  tabsEl.innerHTML = topCities.map(city => `<button type="button" class="dash-city-tab${city === dashSelectedCity ? ' active' : ''}" data-city="${escapeAdmin(city)}">${escapeAdmin(cityLabel ? cityLabel(city) : city)}</button>`).join('');
   tabsEl.querySelectorAll('.dash-city-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       dashSelectedCity = btn.dataset.city;
@@ -2356,7 +3009,7 @@ function renderDashPriceTrends(cities, listings) {
     return `<div class="trend-card">
       <div class="grid-bg"></div>
       <div class="flex justify-between items-start" style="position:relative;">
-        <span class="trend-city">${cityLabel ? cityLabel(city) : city}</span>
+        <span class="trend-city">${escapeAdmin(cityLabel ? cityLabel(city) : city)}</span>
         ${chipHtml}
       </div>
       <p class="trend-value" style="position:relative;">${current !== null ? '$' + Math.round(current).toLocaleString() : '—'}</p>
@@ -2400,7 +3053,7 @@ function reqMapFiltered() {
   const q = (document.getElementById('reqMapSearch').value || '').trim().toLowerCase();
   const verifiedFilter = document.getElementById('reqMapVerifiedFilter').value;
   const listings = reqMapListings.filter(l => {
-    if (l.lat == null || l.lng == null) return false;
+    if (!listingMapCoords(l)) return false;
     if (q && !((l.city || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
     if (verifiedFilter === 'verified' && !l.verified) return false;
     if (verifiedFilter === 'unverified' && l.verified) return false;
@@ -2421,11 +3074,11 @@ function reqMapListingPopup(l) {
     l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#c9a6f5;">${trAdmin('map.privateListing', 'Private')}</span>` : ''
   ].filter(Boolean).join(' ');
   return `<div style="min-width:190px;">
-    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${l.title || l.address || ''}</p>
-    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${l.address || ''}, ${l.city || ''}</p>
+    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${escapeAdmin(l.title || l.address)}</p>
+    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
     <p style="font-size:12.5px; margin-bottom:4px;">$${Number(l.price || 0).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''} &middot; ${l.beds || 0}bd &middot; ${l.baths || 0}ba</p>
     <div style="margin-bottom:2px;">${badges}</div>
-    <button class="req-map-btn" onclick="jumpToListingFromMap('${l.id}')">${trAdmin('common.edit', 'Edit')}</button>
+    <button class="req-map-btn" onclick="jumpToListingFromMap('${escapeAdmin(l.id)}')">${trAdmin('common.edit', 'Edit')}</button>
   </div>`;
 }
 
@@ -2433,10 +3086,10 @@ function reqMapSubmissionPopup(s) {
   const isSell = s.type === 'sell';
   return `<div style="min-width:190px;">
     <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request')}</p>
-    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${s.title || s.address || ''}${s.city ? ', ' + s.city : ''}</p>
-    ${s.name ? `<p style="font-size:12.5px; margin-bottom:2px;">${s.name}</p>` : ''}
-    ${s.phone ? `<p style="font-size:12.5px; color:#44474c; margin-bottom:2px;">${s.phone}</p>` : ''}
-    <button class="req-map-btn" onclick="jumpToSubmissionFromMap('${s.id}')">${trAdmin('admin.manage', 'Manage')}</button>
+    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${escapeAdmin(s.title || s.address)}${s.city ? ', ' + escapeAdmin(s.city) : ''}</p>
+    ${s.name ? `<p style="font-size:12.5px; margin-bottom:2px;">${escapeAdmin(s.name)}</p>` : ''}
+    ${s.phone ? `<p style="font-size:12.5px; color:#44474c; margin-bottom:2px;">${escapeAdmin(s.phone)}</p>` : ''}
+    <button class="req-map-btn" onclick="jumpToSubmissionFromMap('${escapeAdmin(s.id)}')">${trAdmin('admin.manage', 'Manage')}</button>
   </div>`;
 }
 
@@ -2465,10 +3118,12 @@ function buildReqMapNeighborhoods(visibleListings) {
   const groups = {};
   visibleListings.forEach(l => {
     if (!l.address) return;
+    const c = listingMapCoords(l);
+    if (!c) return;
     const key = l.address + '|' + l.city;
     if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
-    groups[key].lats.push(l.lat);
-    groups[key].lngs.push(l.lng);
+    groups[key].lats.push(c.lat);
+    groups[key].lngs.push(c.lng);
   });
   Object.values(groups).forEach(g => {
     const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
@@ -2556,7 +3211,8 @@ function renderDashRequestsMap() {
 
   if (document.getElementById('reqLayerListings').checked) {
     listings.forEach(l => {
-      const latLng = [l.lat, l.lng];
+      const c = listingMapCoords(l); if (!c) return;
+      const latLng = [c.lat, c.lng];
       const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
       const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
       const marker = L.marker(latLng, {
@@ -2646,12 +3302,14 @@ async function fetchAgentStats() {
       verifiedCount: verifiedCounts[d.id] || 0
     });
   });
-  return { agents, companiesSnap, listingsSnap, companyNames };
+  return { agents, usersSnap, companiesSnap, listingsSnap, companyNames };
 }
 
 async function renderBranchesTab() {
-  const { companiesSnap, listingsSnap } = await fetchAgentStats();
-  const usersSnap = await getDocs(collection(db, 'users'));
+  // Reuses fetchAgentStats()'s own usersSnap instead of re-fetching the
+  // entire `users` collection a second time here -- this used to do two
+  // full collection reads on every Branches tab render.
+  const { usersSnap, companiesSnap, listingsSnap } = await fetchAgentStats();
 
   const agentCounts = {}, listingCounts = {}, portfolioValues = {};
   usersSnap.forEach(d => { const u = d.data(); if (u.role === 'agent' && u.companyId) agentCounts[u.companyId] = (agentCounts[u.companyId] || 0) + 1; });
@@ -2747,16 +3405,16 @@ async function renderAgentsTab() {
     <tr>
       <td>
         <div class="flex items-center gap-2.5">
-          ${a.photoURL
-            ? `<img src="${a.photoURL}" class="w-8 h-8 rounded-full object-cover flex-none"/>`
+          ${isSafeHttpUrl(a.photoURL)
+            ? `<img loading="lazy" src="${escapeAdmin(a.photoURL)}" class="w-8 h-8 rounded-full object-cover flex-none" decoding="async"/>`
             : `<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
           <div class="min-w-0">
-            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${a.displayName || '(no name)'}</p>
-            <p class="font-body-md text-[12px] text-on-surface-variant truncate">${a.email || ''}</p>
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
+            <p class="font-body-md text-[12px] text-on-surface-variant truncate">${escapeAdmin(a.email)}</p>
           </div>
         </div>
       </td>
-      <td>${a.companyName}</td>
+      <td>${escapeAdmin(a.companyName)}</td>
       <td>${a.listingCount}</td>
       <td>${a.verifiedCount}</td>
       <td>${a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
@@ -2783,17 +3441,17 @@ function netNodeHtml({ x, y, r, tier, id, title, sub, clickable, dim, match, bad
   const classes = ['net-node', 'net-node-' + tier];
   if (dim) classes.push('dim');
   if (match) classes.push('match-ring');
-  const circleInner = photo
-    ? `<img src="${photo}" alt=""/>`
-    : `<span>${netInitials(tier === 'root' ? 'DG' : title)}</span>`;
+  const circleInner = isSafeHttpUrl(photo)
+    ? `<img src="${escapeAdmin(photo)}" alt="" decoding="async"/>`
+    : `<span>${escapeAdmin(netInitials(tier === 'root' ? 'DG' : title))}</span>`;
   const badgeHtml = (typeof badge === 'number') ? `<span class="net-badge">${badge}</span>` : '';
   const tooltipText = tooltipExtra ? `${title} — ${tooltipExtra}` : (title || '');
-  const safeTitle = tooltipText.replace(/"/g, '&quot;');
+  const safeTitle = escapeAdmin(tooltipText);
   return `
-    <div class="${classes.join(' ')}" style="left:${x}px; top:${y - r}px;" data-id="${id}" data-clickable="${clickable ? '1' : '0'}" title="${safeTitle}">
+    <div class="${classes.join(' ')}" style="left:${x}px; top:${y - r}px;" data-id="${escapeAdmin(id)}" data-clickable="${clickable ? '1' : '0'}" title="${safeTitle}">
       <div class="net-node-circle" style="width:${r * 2}px; height:${r * 2}px;">${circleInner}${badgeHtml}</div>
-      <p class="net-node-label">${title}</p>
-      ${sub ? `<p class="net-node-sub">${sub}</p>` : ''}
+      <p class="net-node-label">${escapeAdmin(title)}</p>
+      ${sub ? `<p class="net-node-sub">${escapeAdmin(sub)}</p>` : ''}
     </div>`;
 }
 
@@ -2939,16 +3597,16 @@ function openNetAgentPopover(el, agent) {
   pop.id = 'netAgentPopover';
   pop.innerHTML = `
     <div class="flex items-center gap-2 mb-2">
-      ${agent.photoURL
-        ? `<img src="${agent.photoURL}" class="w-9 h-9 rounded-full object-cover flex-none"/>`
+      ${isSafeHttpUrl(agent.photoURL)
+        ? `<img loading="lazy" src="${escapeAdmin(agent.photoURL)}" class="w-9 h-9 rounded-full object-cover flex-none" decoding="async"/>`
         : `<div class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
       <div class="min-w-0">
-        <p class="font-medium truncate">${agent.displayName || '(no name)'}</p>
-        <p class="text-[11px] text-on-surface-variant truncate">${agent.companyName}</p>
+        <p class="font-medium truncate">${escapeAdmin(agent.displayName) || '(no name)'}</p>
+        <p class="text-[11px] text-on-surface-variant truncate">${escapeAdmin(agent.companyName)}</p>
       </div>
     </div>
-    <p class="truncate">${agent.email || ''}</p>
-    ${agent.phone ? `<p>${agent.phone}</p>` : ''}
+    <p class="truncate">${escapeAdmin(agent.email)}</p>
+    ${agent.phone ? `<p>${escapeAdmin(agent.phone)}</p>` : ''}
     <div class="flex gap-3 mt-2 pt-2 border-t border-outline-variant text-[11.5px] text-on-surface-variant">
       <span>${agent.listingCount} ${trAdmin('admin.networkListingsWord', 'listings')}</span>
       <span>${agent.verifiedCount} ${trAdmin('admin.thVerifiedCount', 'Verified')}</span>
@@ -2986,7 +3644,7 @@ async function populateCompanySelect() {
   const branches = [];
   companiesSnap.forEach(d => branches.push({ id: d.id, name: d.data().name || d.id }));
   branches.sort((a, b) => a.name.localeCompare(b.name));
-  select.innerHTML = branches.map(b => `<option value="${b.id}">${b.name}</option>`).join('')
+  select.innerHTML = branches.map(b => `<option value="${b.id}">${escAdmin(b.name)}</option>`).join('')
     + `<option value="__new__">${trAdmin('admin.newCompanyOption', '+ New company…')}</option>`;
 }
 
@@ -3072,8 +3730,40 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
   const secondaryAuth = getAuth(secondaryApp);
   const secondaryDb = getFirestore(secondaryApp);
 
+  // App Check is bound per-FirebaseApp instance -- the primary app's App
+  // Check (js/firebase-init.js) does NOT cover this secondary, throwaway
+  // app's own Auth/Firestore requests. Same reCAPTCHA Enterprise site
+  // key, a fresh provider scoped to secondaryApp specifically.
+  // isTokenAutoRefreshEnabled is false here (unlike the primary app's
+  // true): this instance lives for one request cycle and is deleted
+  // moments later, so a background refresh timer would just be torn
+  // down unused.
+  let secondaryAppCheck = null;
   try {
-    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    secondaryAppCheck = initializeAppCheck(secondaryApp, {
+      provider: new ReCaptchaEnterpriseProvider(RECAPTCHA_ENTERPRISE_SITE_KEY),
+      isTokenAutoRefreshEnabled: false
+    });
+  } catch (err) {
+    console.error('[admin] secondary App Check failed to initialize -- continuing without it', err.code || err.name, err.message);
+  }
+  // Reuses the exact same wait/timeout/logging logic the primary app's
+  // own appCheckReady is built from (js/firebase-init.js) -- not a
+  // second, hand-rolled copy of it.
+  const secondaryAppCheckReady = waitForAppCheckToken(secondaryAppCheck, 'admin:add-agent');
+
+  let cred = null;
+  let secondaryUserDocCreated = false;
+  try {
+    // Gates BOTH the Auth signup and the Firestore write below on the
+    // SECONDARY app's own token -- unlike the primary app's calls (which
+    // happen well after page load, giving its token plenty of time to
+    // already be cached), this app instance is created fresh right here
+    // and has no such head start, so its very first request would race
+    // the same way Firestore's did before the fix in js/firebase-init.js.
+    await secondaryAppCheckReady;
+
+    cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
     await updateProfile(cred.user, { displayName });
 
     const companyRef = doc(db, 'companies', companyId);
@@ -3089,10 +3779,22 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     // so it's created that way under the new account's own session
     // (secondaryDb) and immediately promoted to 'agent' from the admin's
     // own session (db), which IS allowed to change anyone's role.
+    //
+    // companyId is deliberately left OUT of this self-create (BL-04 fix,
+    // BUSINESS_LOGIC_REMEDIATION.md): the company doc was just resolved/
+    // created above by THIS admin's own trusted session, so it already
+    // exists by the time this write runs -- and firestore.rules' create
+    // rule for users/{uid} now refuses to let ANY self-create (this one
+    // included, since the rule can't distinguish "orchestrated by an
+    // admin" from an ordinary signup at this exact request) claim an
+    // already-existing company's id directly. companyId is set instead
+    // by the very next line, from the admin's own already-authorized
+    // session, which is unaffected by that restriction.
     await setDoc(doc(secondaryDb, 'users', cred.user.uid), {
       email, displayName, firstName, lastName, phone,
-      role: 'customer', companyId, createdAt: serverTimestamp()
+      role: 'customer', createdAt: serverTimestamp()
     });
+    secondaryUserDocCreated = true;
     await updateDoc(doc(db, 'users', cred.user.uid), { role: 'agent', companyId });
 
     await signOut(secondaryAuth);
@@ -3106,6 +3808,29 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     networkExpanded.add(companyId);
     renderNetworkTab(); renderAgentsTab(); renderBranchesTab(); renderUsers(); renderLeaderboardTab();
   } catch (err) {
+    // Best-effort rollback -- never leave a half-created agent behind. A
+    // real Firebase Auth account with no matching Firestore profile (or
+    // one stuck at role:'customer', never promoted) is exactly the kind
+    // of silent partial state that's easy to miss and confusing to find
+    // and clean up by hand later.
+    if (cred) {
+      if (secondaryUserDocCreated) {
+        try {
+          // Deleted via the ADMIN session (db), not secondaryDb -- rules
+          // only grant delete on users/{uid} to isAdmin(); the
+          // newly-created account itself (role:'customer') has no
+          // delete right on its own doc.
+          await deleteDoc(doc(db, 'users', cred.user.uid));
+        } catch (cleanupErr) {
+          console.error('[admin] rollback: could not delete partially-created users/ doc -- may need manual cleanup', cred.user.uid, cleanupErr.code || cleanupErr.name, cleanupErr.message);
+        }
+      }
+      try {
+        await deleteUser(cred.user);
+      } catch (cleanupErr) {
+        console.error('[admin] rollback: could not delete partially-created Auth account -- may need manual cleanup in Firebase Console', email, cleanupErr.code || cleanupErr.name, cleanupErr.message);
+      }
+    }
     try { await deleteApp(secondaryApp); } catch (_) {}
     errEl.textContent = friendlyAddAgentError(err.code);
     errEl.classList.remove('hidden');
@@ -3127,8 +3852,8 @@ async function renderLeaderboardTab() {
   body.innerHTML = agents.map((a, i) => `
     <tr>
       <td><span class="badge ${i === 0 ? 'badge-verified' : 'badge-private'}">#${i + 1}</span></td>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${a.displayName || '(no name)'}</p></td>
-      <td>${a.companyName}</td>
+      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(a.displayName) || '(no name)'}</p></td>
+      <td>${escapeAdmin(a.companyName)}</td>
       <td>${a.listingCount}</td>
       <td>${a.verifiedCount}</td>
     </tr>`).join('');

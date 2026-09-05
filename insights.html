@@ -2,105 +2,30 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Darwesh Group - Market Insights</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff",
-                        "on-secondary-fixed-variant": "#5d4201",
-                        "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900",
-                        "on-primary-fixed": "#0b1d2d",
-                        "primary": "#041627",
-                        "error": "#ba1a1a",
-                        "inverse-primary": "#b7c8de",
-                        "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a",
-                        "tertiary-fixed": "#6bfe9c",
-                        "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c",
-                        "primary-fixed": "#d2e4fb",
-                        "on-primary": "#ffffff",
-                        "surface": "#f7f9ff",
-                        "surface-container-high": "#e5e8ee",
-                        "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a",
-                        "on-secondary": "#ffffff",
-                        "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6",
-                        "on-error": "#ffffff",
-                        "outline-variant": "#c4c6cd",
-                        "outline": "#74777d",
-                        "primary-container": "#1a2b3c",
-                        "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183",
-                        "primary-fixed-dim": "#b7c8de",
-                        "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176",
-                        "secondary-fixed": "#ffdea5",
-                        "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08",
-                        "surface-container-lowest": "#ffffff",
-                        "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8",
-                        "on-tertiary-container": "#00a656",
-                        "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff",
-                        "on-tertiary-fixed-variant": "#005228",
-                        "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073",
-                        "on-secondary-container": "#785a1a",
-                        "surface-container": "#ebeef3",
-                        "background": "#f7f9ff",
-                        "on-surface": "#181c20"
-                    },
-                    "borderRadius": {
-                        "DEFAULT": "0.125rem",
-                        "lg": "0.25rem",
-                        "xl": "0.5rem",
-                        "full": "0.75rem"
-                    },
-                    "spacing": {
-                        "gutter": "24px",
-                        "stack-lg": "32px",
-                        "stack-md": "16px",
-                        "margin-desktop": "48px",
-                        "stack-sm": "8px",
-                        "container-max": "1280px",
-                        "margin-mobile": "16px",
-                        "unit": "8px"
-                    },
-                    "fontFamily": {
-                        "headline-md": ["Plus Jakarta Sans"],
-                        "label-caps": ["IBM Plex Sans"],
-                        "display-lg-mobile": ["Plus Jakarta Sans"],
-                        "body-lg": ["Inter"],
-                        "body-md": ["Inter"],
-                        "data-mono": ["Inter"],
-                        "display-lg": ["Plus Jakarta Sans"]
-                    },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
-                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
-                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
-                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
 <style>
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -108,22 +33,22 @@
 
     /* ---- Chart design tokens (validated categorical palette; see dataviz skill) ---- */
     .viz-root {
-      --chart-surface: #ffffff;
-      --ink-primary: #181c20;
-      --ink-secondary: #44474c;
-      --ink-muted: #898781;
-      --grid-line: #e5e8ee;
-      --axis-line: #c4c6cd;
-      --series-sale: #2a78d6;
-      --series-sale-dim: #b9d3f0;
-      --series-rent: #eb6834;
-      --series-rent-dim: #f6cdb6;
-      --good-text: #006300;
+      --chart-surface: #17150F;
+      --ink-primary: #F2EEE5;
+      --ink-secondary: #A79F91;
+      --ink-muted: rgba(167,159,145,0.65);
+      --grid-line: rgba(93,72,43,0.4);
+      --axis-line: #5D482B;
+      --series-sale: #5B9BD9;
+      --series-sale-dim: #2E4A66;
+      --series-rent: #E08A52;
+      --series-rent-dim: #5C3A24;
+      --good-text: #7FB89A;
     }
 
     .kpi-card {
       background: var(--chart-surface);
-      border: 1px solid #e5e8ee;
+      border: 1px solid #5D482B;
       border-radius: 12px;
       padding: 16px;
     }
@@ -134,7 +59,7 @@
 
     .chart-card {
       background: var(--chart-surface);
-      border: 1px solid #e5e8ee;
+      border: 1px solid #5D482B;
       border-radius: 12px;
       padding: 20px;
     }
@@ -155,13 +80,14 @@
     .chart-tip {
       position: absolute;
       pointer-events: none;
-      background: #041627;
-      color: #ffffff;
+      background: #101111;
+      color: #F2EEE5;
       font-family: 'Inter', sans-serif;
       font-size: 12.5px;
+      border: 1px solid #5D482B;
       border-radius: 8px;
       padding: 8px 12px;
-      box-shadow: 0 4px 16px rgba(4,22,39,0.28);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
       opacity: 0;
       transform: translate(-50%, calc(-100% - 10px));
       transition: opacity .12s ease;
@@ -183,7 +109,7 @@
       font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: #775a19;
+      color: #B89A63;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
@@ -195,57 +121,34 @@
     .data-table-wrap { display: none; margin-top: 12px; overflow-x: auto; }
     .data-table-wrap.open { display: block; }
     .data-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13px; }
-    .data-table th, .data-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e8ee; }
+    .data-table th, .data-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #5D482B; }
     .data-table th { color: var(--ink-secondary); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
     .data-table td { color: var(--ink-primary); font-variant-numeric: tabular-nums; }
 
     .city-filter-select {
       font-family: 'Inter', sans-serif;
       font-size: 14px;
-      color: #181c20;
-      background: #ffffff;
-      border: 1px solid #c4c6cd;
+      color: #F2EEE5;
+      background: #17150F;
+      border: 1px solid #5D482B;
       border-radius: 999px;
       padding: 8px 32px 8px 14px;
       appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2344474c' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A79F91' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
       background-position: right 10px center;
       background-size: 16px;
       cursor: pointer;
     }
-    .city-filter-select:focus { outline: 2px solid #775a19; outline-offset: 1px; }
+    .city-filter-select:focus { outline: 2px solid #B89A63; outline-offset: 1px; }
   </style>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-16 pb-24 md:pb-0">
 <!-- TopAppBar -->
-<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">
-<div class="flex items-center gap-4">
-<div class="relative">
-<button aria-label="Language" class="lang-toggle-btn p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">
-<span class="material-symbols-outlined">language</span>
-</button>
-<div class="lang-menu hidden absolute left-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg py-1 min-w-[130px] z-50">
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="en" onclick="setLanguage('en')" type="button">English</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ku" onclick="setLanguage('ku')" type="button">کوردی</button>
-<button class="lang-option w-full text-left px-4 py-2 text-[13.5px] hover:bg-surface-container transition-colors" data-lang="ar" onclick="setLanguage('ar')" type="button">العربية</button>
-</div>
-</div>
-<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>
-</div>
-<nav class="hidden md:flex items-center gap-8">
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="index.html" data-i18n="nav.home">Home</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="map.html" data-i18n="nav.map">Map</a>
-<span id="citiesNavSlot"></span>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="services.html" data-i18n="nav.services">Services</a>
-<a class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="about.html" data-i18n="nav.about">About</a>
-<a id="navProfileLink" class="font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors" href="login.html">Profile</a>
-<a class="bg-secondary text-on-secondary px-6 py-2 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-all" href="mam-ai.html">MAM AI</a>
-</nav>
-<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant">
-<span class="material-symbols-outlined">notifications</span>
-</button>
-</header>
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
 
 <main class="viz-root max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8">
 
@@ -326,8 +229,8 @@
         <p class="chart-subtitle" data-i18n="insights.chart2Subtitle">Number of active listings</p>
       </div>
       <div class="chart-legend">
-        <span class="swatch"><span class="swatch-mark" style="background:#2a78d6;"></span><span data-i18n="common.forSale">For Sale</span></span>
-        <span class="swatch"><span class="swatch-mark" style="background:#eb6834;"></span><span data-i18n="common.forRent">For Rent</span></span>
+        <span class="swatch"><span class="swatch-mark" style="background:#5B9BD9;"></span><span data-i18n="common.forSale">For Sale</span></span>
+        <span class="swatch"><span class="swatch-mark" style="background:#E08A52;"></span><span data-i18n="common.forRent">For Rent</span></span>
       </div>
     </div>
     <div class="chart-svg-wrap mt-4" id="chart2Wrap">
@@ -361,32 +264,26 @@
 </main>
 
 <!-- BottomNavBar (Mobile Only) -->
-<nav class="md:hidden shadow-[0_-4px_20px_rgba(26,43,60,0.05)] bg-surface-container-lowest dark:bg-inverse-surface fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 rounded-t-xl pb-6">
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="index.html">
-<span class="material-symbols-outlined">home</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.home">Home</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="map.html">
-<span class="material-symbols-outlined">map</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.map">Map</span>
-</a>
-<a class="relative -top-4 flex flex-col items-center justify-center bg-primary text-on-primary w-16 h-16 rounded-full shadow-lg border-4 border-surface-container-lowest dark:border-inverse-surface hover:bg-primary-container transition-transform duration-300 ease-in-out active:scale-90" href="mam-ai.html">
-<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
-</a>
-<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="services.html">
-<span class="material-symbols-outlined">business_center</span>
-<span class="font-label-caps text-label-caps mt-1" data-i18n="nav.services">Services</span>
-</a>
-<a id="navProfileLinkMobile" class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline-variant px-4 py-1 hover:bg-surface-variant dark:hover:bg-surface-container-high rounded-full transition-transform duration-300 ease-in-out active:scale-90" href="login.html">
-<span class="material-symbols-outlined">person</span>
-<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1">Profile</span>
-</a>
-</nav>
-
 <script src="./js/i18n.js"></script>
 <script type="module">
-import { db } from './js/firebase-init.js';
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import { db, getDocs } from './js/firebase-init.js';
+import { collection, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+// Firestore's listings.city is attacker-controllable (any agent account
+// can set it to arbitrary text -- firestore.rules validates who can
+// write a field, not its content) and cityLabel() below falls through
+// to that raw value for any city it doesn't recognize, so every render
+// site must escape it. Safe for BOTH text-node content and quoted
+// attribute values -- unlike the div.textContent-round-trip escaper
+// used elsewhere in this codebase (safe for text nodes only, since
+// quote characters aren't structurally significant there), this one
+// explicitly escapes " and ' too, so it can't be used to break out of
+// a data-*="..."/aria-label="..." attribute.
+function escapeHtml(str) {
+  return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 
 // ---------------------------------------------------------------------
 // Real data — computed live from the "listings" collection (the same
@@ -404,10 +301,10 @@ async function loadRealMarketData() {
   const byCity = {};
   let total = 0, verified = 0;
   try {
-    const snap = await getDocs(collection(db, 'listings'));
+    const q = query(collection(db, 'listings'), where('private', '==', false), where('status', '==', 'active'));
+    const snap = await getDocs(q);
     snap.forEach(d => {
       const l = d.data();
-      if (l.status === 'closed') return;
       total++;
       if (l.verified) verified++;
       const city = l.city || 'Other';
@@ -432,10 +329,10 @@ async function loadRealMarketData() {
   VERIFIED_PCT = total ? Math.round((verified / total) * 100) : null;
 }
 
-const COLOR_SALE = "#2a78d6";
-const COLOR_SALE_DIM = "#b9d3f0";
-const COLOR_RENT = "#eb6834";
-const COLOR_RENT_DIM = "#f6cdb6";
+const COLOR_SALE = "#5B9BD9";
+const COLOR_SALE_DIM = "#2E4A66";
+const COLOR_RENT = "#E08A52";
+const COLOR_RENT_DIM = "#5C3A24";
 
 function fmtUSD(n) { return "$" + Math.round(n).toLocaleString("en-US"); }
 function fmtCompactUSD(n) {
@@ -534,12 +431,13 @@ function renderChart1(activeCity) {
     const barH = (c.saleAvg / maxY) * plotH;
     const y = MT + plotH - barH;
     const dim = activeCity !== "all" && activeCity !== c.city;
+    const safeCityLabel = escapeHtml(cityLabel(c.city));
     bars += `
-      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${cityLabel(c.city)}, average sale price ${fmtUSD(c.saleAvg)}"
-         data-city="${c.city}" data-value="${c.saleAvg}" data-count="${c.saleCount}" data-cx="${x + barW / 2}" data-topy="${y}">
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${safeCityLabel}, average sale price ${fmtUSD(c.saleAvg)}"
+         data-city="${escapeHtml(c.city)}" data-value="${c.saleAvg}" data-count="${c.saleCount}" data-cx="${x + barW / 2}" data-topy="${y}">
         <rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="4" fill="${COLOR_SALE}"/>
         <text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" font-size="11.5" font-weight="700" font-family="Inter, sans-serif" fill="var(--ink-primary)">${fmtCompactUSD(c.saleAvg)}</text>
-        <text x="${x + barW / 2}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${cityLabel(c.city)}</text>
+        <text x="${x + barW / 2}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${safeCityLabel}</text>
       </g>`;
   });
 
@@ -547,12 +445,12 @@ function renderChart1(activeCity) {
 
   svg.querySelectorAll(".bar-mark").forEach(el => {
     const onEnter = () => {
-      const city = cityLabel(el.dataset.city), value = Number(el.dataset.value), count = el.dataset.count;
+      const city = escapeHtml(cityLabel(el.dataset.city)), value = Number(el.dataset.value), count = el.dataset.count;
       const cx = Number(el.dataset.cx), topy = Number(el.dataset.topy);
       showTip(tip, wrap, cx, topy, `
         <div style="font-weight:700;margin-bottom:2px;">${city}</div>
         <div class="tip-row"><span class="tip-key" style="background:${COLOR_SALE}"></span><span class="tip-value">${fmtUSD(value)}</span> avg. sale price</div>
-        <div style="color:#c4c6cd;">${count} active sale listing${count == 1 ? '' : 's'}</div>
+        <div style="color:#A79F91;">${count} active sale listing${count == 1 ? '' : 's'}</div>
       `);
     };
     el.addEventListener("pointerenter", onEnter);
@@ -561,7 +459,7 @@ function renderChart1(activeCity) {
     el.addEventListener("blur", () => hideTip(tip));
   });
 
-  tbody.innerHTML = cities.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
+  tbody.innerHTML = cities.map(c => `<tr><td>${escapeHtml(cityLabel(c.city))}</td><td>${fmtUSD(c.saleAvg)}</td><td>${c.saleCount}</td></tr>`).join("");
 }
 
 // ---------------------------------------------------------------------
@@ -604,23 +502,25 @@ function renderChart2(activeCity) {
     const rentH = (c.rentCount / maxY) * plotH;
     const saleX = groupX - barW - gap / 2;
     const rentX = groupX + gap / 2;
+    const safeCityLabel2 = escapeHtml(cityLabel(c.city));
+    const safeCityAttr2 = escapeHtml(c.city);
     bars += `
-      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${cityLabel(c.city)} for sale ${c.saleCount}"
-         data-city="${c.city}" data-type="For Sale" data-value="${c.saleCount}" data-color="${COLOR_SALE}" data-cx="${saleX + barW / 2}" data-topy="${MT + plotH - saleH}">
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${safeCityLabel2} for sale ${c.saleCount}"
+         data-city="${safeCityAttr2}" data-type="For Sale" data-value="${c.saleCount}" data-color="${COLOR_SALE}" data-cx="${saleX + barW / 2}" data-topy="${MT + plotH - saleH}">
         <rect x="${saleX}" y="${MT + plotH - saleH}" width="${barW}" height="${saleH}" rx="4" fill="${COLOR_SALE}"/>
       </g>
-      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${cityLabel(c.city)} for rent ${c.rentCount}"
-         data-city="${c.city}" data-type="For Rent" data-value="${c.rentCount}" data-color="${COLOR_RENT}" data-cx="${rentX + barW / 2}" data-topy="${MT + plotH - rentH}">
+      <g class="bar-mark${dim ? ' dim' : ''}" tabindex="0" role="img" aria-label="${safeCityLabel2} for rent ${c.rentCount}"
+         data-city="${safeCityAttr2}" data-type="For Rent" data-value="${c.rentCount}" data-color="${COLOR_RENT}" data-cx="${rentX + barW / 2}" data-topy="${MT + plotH - rentH}">
         <rect x="${rentX}" y="${MT + plotH - rentH}" width="${barW}" height="${rentH}" rx="4" fill="${COLOR_RENT}"/>
       </g>
-      <text x="${groupX}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${cityLabel(c.city)}</text>`;
+      <text x="${groupX}" y="${H - MB + 18}" text-anchor="middle" font-size="11.5" font-family="Inter, sans-serif" fill="var(--ink-secondary)">${safeCityLabel2}</text>`;
   });
 
   svg.innerHTML = `${gridSvg}<line x1="${ML}" y1="${MT + plotH}" x2="${W - MR}" y2="${MT + plotH}" stroke="var(--axis-line)" stroke-width="1"/>${bars}`;
 
   svg.querySelectorAll(".bar-mark").forEach(el => {
     const onEnter = () => {
-      const city = cityLabel(el.dataset.city), type = el.dataset.type, value = el.dataset.value, color = el.dataset.color;
+      const city = escapeHtml(cityLabel(el.dataset.city)), type = el.dataset.type, value = el.dataset.value, color = el.dataset.color;
       const cx = Number(el.dataset.cx), topy = Number(el.dataset.topy);
       showTip(tip, wrap, cx, topy, `
         <div style="font-weight:700;margin-bottom:2px;">${city}</div>
@@ -633,7 +533,7 @@ function renderChart2(activeCity) {
     el.addEventListener("blur", () => hideTip(tip));
   });
 
-  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${cityLabel(c.city)}</td><td>${c.saleCount}</td><td>${c.rentCount}</td></tr>`).join("");
+  tbody.innerHTML = CITY_STATS.map(c => `<tr><td>${escapeHtml(cityLabel(c.city))}</td><td>${c.saleCount}</td><td>${c.rentCount}</td></tr>`).join("");
 }
 
 // ---------------------------------------------------------------------
@@ -662,6 +562,7 @@ document.addEventListener('darwesh:langchange', () => { renderAll(document.getEl
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
-<script type="module" src="./js/city-nav.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
+<div id="mamCompanionLauncher" data-page="insights"></div>
+<script type="module" src="./js/mam-companion-launcher.js"></script>
 </body></html>

@@ -1,0 +1,638 @@
+# MAM Intelligence V2 — Architecture
+
+Status as of this document: the **Gemini/Vertex AI adapter is real** —
+`backend/app/mam/providers/gemini.py` makes an actual, authenticated Vertex
+AI call (ADC via the Cloud Run runtime service account, no API key) — but
+**it is not deployed or activated anywhere yet** (`MAM_CHAT_PROVIDER` is
+still unset in production; see §18 for exactly what's required to flip it
+on, and why that hasn't been done). OpenAI and Anthropic remain validated
+placeholders (§3). No permanent decision to use Gemini in production has
+been made — that still waits on the real Sorani benchmark
+(`docs/MAM_SORANI_BENCHMARK.md`) this real adapter exists to make possible.
+
+## 1. What MAM actually is today
+
+MAM's deterministic core does **not** depend on any AI model at all:
+
+1. A deterministic intent resolver (`backend/app/mam/intent_resolver.py`)
+   that pattern-matches a visitor's message (English/Kurdish Sorani/Arabic)
+   against a fixed set of recognized shapes (a city, a property type, a
+   deal type, a price, a bedroom count, a map/service/greeting keyword)
+   and, on a confident match, dispatches one of 14 real backend tools.
+2. A set of deterministic tools (`backend/app/mam/tools.py`) that read
+   real Firestore data (`listings`, `projects`, `serviceProviders`,
+   `estates/*/publicTransactionSummary`, a signed-in user's own
+   `favorites`) and return it in a typed, bounded shape.
+3. An orchestrator (`backend/app/mam/orchestrator.py`) that tries the
+   resolver first, tries a configured live provider second (now capable of
+   a real multi-round tool-calling exchange with Gemini specifically — see
+   §3a), and returns an honest "AI reasoning is temporarily unavailable,
+   but I can still help with navigation" message third — never a
+   fabricated answer.
+
+Because no provider is activated in production yet, **every non-degraded
+response in production today still comes from step 1/2** — real data,
+deterministically retrieved, never generated prose about facts. The
+frontend never claims otherwise (see §9). This will remain true even once
+Gemini activates for FAST/simple-lookup turns, since the deterministic
+resolver is tried first on every turn precisely so a live model call is
+never made when it isn't needed.
+
+## 2. Request flow
+
+```
+Browser (mam-ai.html + js/mam-v2.js)
+  │  POST /api/v1/mam/chat  { message, language, sessionId, pageContext }
+  │  Authorization: Bearer <Firebase ID token>   (OPTIONAL — see §5)
+  ▼
+backend/app/mam/routes.py  (MamHandler.chat)
+  │  rate limit (IP + uid, §7) → parse/validate (schemas.py) → resolve caller
+  ▼
+backend/app/mam/orchestrator.py  (Orchestrator.handle_turn)
+  │  1. intent_resolver.resolve_intent(message)  — cheap, no model call
+  │  2. if no match AND a provider is configured → provider.generate(...)
+  │  3. if neither → honest degraded message (ku/ar/en)
+  ▼
+backend/app/mam/tools.py  (Tools, via dispatch())
+  │  per-tool AuthRequirement check (policy.py) → real Firestore read →
+  │  project_public_listing_fields() / wrap_untrusted() on any free text
+  ▼
+Typed ChatResponse (schemas.py) → JSON → rendered by js/mam-v2.js
+  (property/project/professional cards, comparison stats, a map action,
+  suggested actions — never raw HTML, never model-authored markup)
+```
+
+## 3. Provider abstraction
+
+`backend/app/mam/providers/base.py` defines the **only** seam between
+MAM's business logic and any AI vendor:
+
+- `ChatProvider` — a `Protocol` with one async method, `generate(*,
+  system_instruction, history, tools, tier, max_output_tokens) ->
+  ProviderResponse`. Concrete adapters (`GeminiProvider`, `OpenAIProvider`,
+  `AnthropicProvider`) implement it *structurally* — they do not inherit
+  from it, matching this backend's existing convention for every other
+  pluggable dependency (`FirebaseIdTokenVerifier`, `ResendEmailSender`,
+  `RateLimiter`).
+- `ModelTier` — `FAST` | `REASONING`, a **capability tier**, never a raw
+  model string. Each adapter maps a tier to its own concrete model id
+  internally; nothing outside a provider adapter ever sees a model name.
+- `ProviderNotConfiguredError` — the one exception every adapter's
+  `generate()` currently raises. The orchestrator catches exactly this
+  type and falls back to the degraded/deterministic path — it never
+  catches a provider-specific exception, so swapping providers later
+  cannot change orchestrator.py's error handling.
+
+`backend/app/main.py`'s `build_mam_provider(cfg)` is the **only** place a
+provider choice is made: it reads `Config.mam_chat_provider` ("gemini" |
+"openai" | "anthropic" | "" ) and constructs the matching adapter, or
+`None`. `orchestrator.py`, `tools.py`, `policy.py`, and `routes.py` never
+import a provider SDK or branch on which one is active.
+
+### Adapter status
+
+| Adapter | File | Status |
+|---|---|---|
+| Gemini/Vertex AI | `providers/gemini.py` | **Real.** Authenticates via ADC (the Cloud Run runtime service account `darwesh-backend-run@darwesh-group.iam.gserviceaccount.com`, granted `roles/aiplatform.user`), calls `google-genai`'s async Vertex AI client (`client.aio.models.generate_content`), supports real multi-round function calling (§3a), bounded 20s timeout, no retry. Not yet activated in production (`MAM_CHAT_PROVIDER` unset) — pending the Sorani benchmark result, see the top-of-document status line and §18. |
+| OpenAI | `providers/openai.py` | Still a validated placeholder — constructor requires an API key, `generate()` raises `ProviderNotConfiguredError`, no `openai` SDK call wired. |
+| Anthropic | `providers/anthropic.py` | Same placeholder shape, requires an API key, pending the Sorani benchmark. |
+
+Activating OpenAI/Anthropic later follows the same pattern Gemini's
+activation just proved out: fill in that file's `generate()` body using the
+vendor's SDK, add the SDK to `backend/requirements.txt`, and set
+`MAM_CHAT_PROVIDER`. No other file in `app/mam/` needs to change for the
+provider swap itself — `orchestrator.py`'s tool-call loop (§3a) is already
+provider-agnostic.
+
+### 3a. The tool-call loop (`orchestrator.py`'s `_respond_from_provider`)
+
+Once a provider is configured, a turn the deterministic resolver doesn't
+confidently match goes through a real, bounded exchange:
+
+```
+system_instruction + session history  ──▶  provider.generate(tier=FAST)
+                                                   │
+                              tool_calls present?  │  no tool_calls
+                        ┌──────────────────────────┴───────────────────┐
+                        ▼                                              ▼
+     dispatch() each call through the SAME               return ChatResponse(message=text)
+     policy.require_auth()-checked path
+     _respond_from_intent uses (§4/§5) — a
+     denied/failed call feeds back {"error": ...},
+     never crashes the turn
+                        │
+                        ▼
+     append the model's tool-call request + each
+     real tool result to history, loop (generate() again)
+```
+
+Bounded by `_MAX_TOOL_ROUNDS = 4` — exhausting it without a final answer
+raises, and `handle_turn`'s existing generic-exception handling degrades
+the same honest way any other provider failure does. This path is
+**text-only today**: it returns the model's prose, not structured
+cards/comparison/map-action data (those remain exclusive to the
+deterministic path, §4) — a reasonable follow-up, not implemented this
+pass, since the immediate goal was making the Gemini leg real enough for
+the Sorani benchmark (a text-quality evaluation) to run against it.
+
+`ChatTurn` (`providers/base.py`) carries an optional `tool_calls` field
+specifically so an assistant turn that requested tools (rather than
+answering directly) can be replayed into the next `generate()` call's
+history — every provider adapter shares this same shape; a future
+OpenAI/Anthropic activation reuses it rather than inventing its own.
+
+## 4. Deterministic tool layer
+
+`backend/app/mam/tools.py`'s `Tools` class is **the only way any MAM
+response ever touches Firestore.** A live provider (once activated) would
+never run its own query — it can only ask the orchestrator to invoke one
+of the registered tools by name, with arguments matching that tool's JSON
+Schema (`build_tool_specs()`). `dispatch()` is the single chokepoint that
+turns a tool name into a real method call — an unknown name raises
+`ToolExecutionError`, never a dynamic `getattr` lookup.
+
+14 tools are implemented, each with a bounded result count
+(`MAX_RESULTS=12`, `MAX_COMPARE=4`) and an explicit `AuthRequirement`
+(§5): `search_properties`, `get_property`, `compare_properties`,
+`get_market_summary`, `get_listing_history`, `search_professionals`,
+`get_professional`, `search_services`, `search_projects`, `get_project`,
+`open_on_map`, `get_saved_properties`, `save_property`,
+`remove_saved_property`.
+
+### Tools not implemented this phase, and why
+
+- **`search_nearby`** — no geo-index exists on `listings` yet.
+- **`prepare_viewing`** (write to `submissions`) — AI-driven writes to
+  that collection need their own security re-audit before an automated
+  caller can create one; not done this phase.
+- **Estate internal transaction history** beyond the already-separate,
+  admin-curated `publicTransactionSummary` — `estates/*/transactionHistory`
+  stays admin-only, on purpose (§6).
+- **Ratings/reviews** — no such schema exists anywhere in this project;
+  MAM cannot show one that doesn't exist.
+
+## 5. Authorization boundary
+
+`backend/app/mam/policy.py` defines `AuthRequirement.PUBLIC` |
+`AuthRequirement.AUTHENTICATED` | `AuthRequirement.ADMIN`, and
+`require_auth(caller, requirement)` — checked inside **every** tool
+method, before any Firestore read. The model (or, today, the
+deterministic resolver) never decides authorization; it only asks for a
+tool, and the tool itself enforces who may call it.
+
+**MAM's own endpoint is deliberately public.** `routes.py`'s `MamHandler`
+authenticates the caller opportunistically: a valid Firebase ID token
+resolves to a real `MamCaller(uid, role)`; a missing or invalid token
+resolves to `PUBLIC_CALLER`, never a 401. A signed-out visitor can search
+listings, read market stats, and browse professionals — the same data
+buy.html/services.html already show anonymously. Only
+`AuthRequirement.AUTHENTICATED` tools (`get_saved_properties`,
+`save_property`, `remove_saved_property`) reject a public caller, with an
+honest "you'll need to sign in for that" message, never a silent failure.
+
+## 6. Public/private data boundary & exact-location privacy
+
+MAM's public tools read `listings.lat`/`lng` — this is **not a new
+exposure**: those fields are already public per the existing, previously
+audited `firestore.rules` (`allow get, list: if isListingPubliclyVisible()
+|| isListingOwnerOrAdmin()`), and already rendered on buy.html/map.html
+for any anonymous visitor. MAM surfaces nothing beyond what those pages
+already show.
+
+The real privacy boundary MAM must never cross, and does not:
+
+- `estates/{id}/protected/*` — admin-only in `firestore.rules`, never
+  read by any MAM tool.
+- `estates/{id}/transactionHistory` — admin-only, never read by any MAM
+  tool. `get_listing_history` reads **only**
+  `estates/{id}/publicTransactionSummary` — a deliberately separate,
+  admin-curated subcollection that exists specifically so a public-facing
+  feature has something safe to read.
+- Any user's PII beyond their own `favorites` (and only for that same
+  authenticated user).
+
+`policy.project_public_listing_fields()` is the single allowlist every
+listing document passes through before any tool returns it — a field not
+on that allowlist (e.g. `agentId`, an owner's phone) can never reach a
+response body no matter what a future prompt/tool-call asks for.
+
+## 7. Prompt-injection boundary
+
+Any free-text field pulled from Firestore (a listing description, a
+professional's bio, a project description) is wrapped by
+`policy.wrap_untrusted(label, text)` before it ever reaches a system
+prompt: `<<<DARWESH_DATA_START>>>...<<<DARWESH_DATA_END>>>`, with any
+literal occurrence of those markers **inside** the text itself escaped
+first, so a malicious listing description can never forge a fake
+boundary and "close" the data block early. `prompts.py`'s system
+instruction explicitly tells a live model that text inside those markers
+is content to explain, never an instruction to follow. This is enforced
+at the code layer (the wrapping + escaping), not only requested of the
+model — the frontend adds a second layer independently (§9: textContent
+only, never innerHTML).
+
+## 8. Response schemas
+
+`backend/app/mam/schemas.py` is the single source of truth for the wire
+contract. Request (`ChatRequest`): `message` (≤1000 chars),
+`language` (`ku`|`ar`|`en`), `sessionId`, `pageContext`
+(`page`/`listingId`/`projectId`/`professionalId`/`serviceType`/
+`selectedIds`, validated against a fixed `KNOWN_PAGES` set — an
+unrecognized page is treated as absent, never trusted as-is). Response
+(`ChatResponse`): `message`, `cards` (property/project/professional,
+discriminated by a `kind` field), `comparison` (a generic structured
+slot), `mapAction` (navigation only, never a data claim),
+`suggestedActions`, `degraded` (true only when neither the resolver nor a
+live provider produced anything), `sessionId`.
+
+The frontend (`js/mam-v2.js`) mirrors this exactly — see `_serialize_*`
+in `routes.py` for the exact camelCase wire shape and
+`renderResultsInto()`/`buildPropertyCard()`/etc. in `mam-v2.js` for how
+each field is rendered, always via `textContent`/DOM properties, never
+`innerHTML`.
+
+## 9. Frontend honesty guarantee
+
+`js/mam-v2.js` computes nothing about the market itself — no keyword
+table, no client-side Firestore aggregation, no fabricated "AI valuation."
+Every fact rendered came from a backend tool call in `data.cards` /
+`data.comparison` / `data.message`. Because no provider is configured
+yet, the UI's persistent disclaimer says exactly that: *"MAM answers
+using Darwesh Group's real listings, projects, and market data. Full
+conversational AI reasoning is not enabled yet"* — true today, and it
+naturally becomes inaccurate (and must be revised) the day a real
+provider is activated, which is why it lives in one i18n key
+(`mam.disclaimer`) rather than being duplicated across the UI.
+
+## 10. Rate limiting & cost controls
+
+`backend/app/mam/rate_limit.py`'s `MamRateLimiters` reuses the existing
+`RateLimiter` abstraction (`app.auth.reset`) — no new limiting mechanism.
+Two independently-namespaced buckets, both must allow: 20 req/5min per
+client IP (covers anonymous visitors), 40 req/5min per signed-in uid
+(tighter per-identity control once behind a shared IP/NAT). Backed by
+`FirestoreRateLimiter` in production, `InMemoryRateLimiter` in
+development — same split every other rate-limited endpoint in this
+backend already uses. A 429 from the backend renders as a friendly
+"you're sending messages a little fast" state client-side (`js/mam-v2.js`
+`sendMessage()`), never a generic error.
+
+Additional cost controls already in place, ready for when a provider is
+real: `MAX_MESSAGE_LENGTH=1000`, `MAX_HISTORY_TURNS=12` (bounded
+conversation memory, §11), `MAX_RESULTS=12`/`MAX_COMPARE=4` on every tool
+(a provider is never handed hundreds of documents to reason over), and
+`max_output_tokens=800` passed to `generate()` on every call.
+
+## 11. Conversation / session behavior
+
+`backend/app/mam/session.py`'s `SessionStore` is **process-local,
+in-memory**, evicted by a fixed TTL (30 minutes of inactivity) and a
+fixed max-session count (5000, oldest evicted first) — a deliberate,
+documented tradeoff: MAM only needs a few minutes of "what did we just
+talk about" continuity (e.g. "only 3 bedrooms" as a follow-up to an
+earlier search), not a durable cross-device chat history. This is
+unlike the OTP/rate-limit stores elsewhere in this backend, which
+correctness-depend on surviving across Cloud Run instances and are
+Firestore-backed for exactly that reason — MAM's session store is not,
+on purpose. A future phase needing cross-instance continuity would
+extend this the same way `app.otp.store.FirestoreChallengeStore` extends
+`InMemoryChallengeStore`.
+
+Client-side, `js/mam-v2.js` stores the backend-issued `sessionId` in
+`sessionStorage` (cleared when the tab closes, matching the store's
+short-lived intent) and sends it back on every turn. A client-guessed or
+foreign session id is never trusted as anyone else's conversation — the
+store is keyed so an unknown id simply resolves to a fresh, empty
+session.
+
+## 12. Voice: browser fallback, honestly labeled
+
+There is **no dedicated Kurdish STT/TTS provider selected** (see
+`docs/MAM_SORANI_BENCHMARK.md`'s findings — no major provider officially
+supports Sorani Kurdish text-to-speech, and the STT picture is similarly
+thin). `js/mam-v2.js` uses only the browser's built-in
+`SpeechRecognition`/`speechSynthesis` APIs, as a graceful fallback the
+text experience never depends on:
+
+- **Recognition**: routed through `ar-IQ` for Kurdish/Arabic UI language
+  (the same limitation every other page's voice input already has — no
+  browser exposes a dedicated Kurdish recognition locale).
+- **Synthesis**: tries real Kurdish voice tags first (`ku`, `ckb`, `kmr`)
+  if the visitor's device happens to have one installed, then falls back
+  to Arabic. When it does fall back, a one-time, session-scoped notice
+  (`mam.speechFallbackNote`) tells the visitor explicitly — Arabic
+  pronunciation is never presented as native Kurdish.
+- **Controls are deliberately minimal**: a language reflection (driven by
+  the site's existing language switcher, not a separate MAM-only
+  setting), a voice on/off toggle, and a speech-speed slider
+  (0.75×–1.25×, persisted in `localStorage`). The full per-voice OS
+  catalog picker the legacy `mam-ai.html` exposed (browse/preview every
+  installed system voice) is removed — automatic best-voice selection
+  (same scoring heuristic as before: language match, "natural/neural/
+  premium" name hints, network-served bonus) replaces it.
+- If neither `SpeechRecognition` nor `speechSynthesis` exists on a
+  device/browser, every text feature above still works unmodified —
+  voice is additive, never a dependency.
+
+`mam:speech-start` / `mam:speech-end` are dispatched on `window` around
+real `SpeechSynthesisUtterance` playback (`start`/`end`/`error` events) —
+preparation for a future Home ambient-audio-ducking feature. **Not
+implemented this phase**: no Home ambient audio exists yet to duck.
+
+## 13. Frontend rendering & the MAM visual identity
+
+`mam-ai.html`'s `#mamOrb` is a small, original CSS construct (a still
+core within a ring, no mascot/robot glyph, no chat-bubble icon) driven by
+a `data-state` attribute: `idle` (slow breathing pulse) | `listening`
+(pulsing ring, matches mic activation) | `thinking` (rotating dashed
+ring, matches an in-flight request) | `speaking` (quick pulse, matches
+`mam:speech-start`/`-end`) | `result-ready` (a brief gold accent when a
+turn returns structured data) | `error` (a brief red-tinted accent).
+Every animation is disabled under `prefers-reduced-motion: reduce`,
+falling back to a static color/border change only. Built entirely from
+the existing `--ps-color-*` cinematic tokens (Obsidian/Carbon/Bronzed
+Black backgrounds, Champagne/Antique Gold accents, Soft Ivory/Stone Beige
+text) — no new brand colors introduced.
+
+Layout: a two-column shell on desktop (conversation column + a sticky
+"workspace" panel mirroring the latest turn's structured results at
+full size) that collapses to a single full-screen conversation column on
+mobile, where the same results render compactly inline in the chat
+bubble and a tap opens a bottom sheet (`#mamSheet`) with the full card
+plus real navigation actions (an "Open on the map" / "View full listing"
+/ "View profile" link built from the same real ids the backend returned
+— never a fabricated link). The sheet traps focus, closes on `Escape` or
+backdrop click, and restores focus to its trigger element on close.
+
+## 14. Page context
+
+`js/mam-v2.js`'s `readPageContext()` reads `page`/`listingId`/
+`projectId`/`professionalId`/`serviceType` from `mam-ai.html`'s own URL
+query string and forwards them as `ChatRequest.pageContext` — never
+serialized DOM, never full page HTML, and never treated as authoritative
+data (the backend re-fetches anything an id points to via a tool; the
+client-supplied id is only ever a lookup key, see §6/§4).
+
+**Known limitation, honestly disclosed**: no page in this repository
+currently links to `mam-ai.html` with these structured parameters yet
+(the existing links from index.html/about.html/services.html/map.html/
+profile.html are plain, and index.html's search box passes only `?q=` —
+kept working unchanged). This phase implements the real, tested
+*receiving* end; wiring an outbound "Ask MAM about this property" link
+from listing.html (or similar) to actually populate `page=property&
+listingId=...` is a small, natural follow-up, not started here to avoid
+touching pages outside MAM's own surface.
+
+## 15. Performance
+
+`js/mam-v2.js` and `js/mam-api.js` are loaded only by `mam-ai.html`
+(`<script type="module">`, ES module — fetched once, never inlined into
+every page). No other page on the site imports MAM's controller. MAM
+performs **zero** direct Firestore reads from the browser — every fact
+comes from one backend call per turn; there is no "preload hundreds of
+listings" pattern here (that already-audited pattern lives only in the
+legacy `loadMarketStats()`, removed in this rebuild — see §16). Cards
+render from the single JSON response already fetched; a listing's image
+uses `loading="lazy"`.
+
+## 16. Legacy cleanup performed
+
+`mam-ai.html` was rewritten in place (same URL — every existing inbound
+link keeps working unchanged) rather than left alongside a new page, so
+there is exactly one MAM implementation live at any time. Removed:
+
+- The entire client-side `RESPONSES` keyword table and its ~40 canned
+  reply/CTA pairs (`worthReply`, `cityStatsReply`, `investReply`,
+  `listingsReply`, `searchReply`, `fallbackReply`, `getResponse`, and
+  every `CITY_KEYWORDS`/`PROPERTY_TYPE_KEYWORDS`/price-extraction helper
+  duplicated client-side) — this logic's *useful* part (Kurdish/Arabic
+  text normalization, city/property/deal-type/price/bedroom detection)
+  was not discarded; it was ported server-side into
+  `backend/app/mam/intent_resolver.py` in the prior phase, so the same
+  real capability now runs once, authoritatively, on the backend instead
+  of being duplicated and drifting between two implementations.
+- The fake 600–1300ms `setTimeout` "thinking" delay — the new "thinking"
+  state is driven by a real in-flight `fetch`, not a fabricated pause.
+- Any "AI valuation" framing — the old `cta1`/"Get a Free Valuation" CTA
+  and `worthReply()`'s invented per-city price-trend narrative
+  ("prices rise 6-9% annually...", a hardcoded fabrication) are gone;
+  `get_market_summary` returns only real aggregate counts/min/max/avg
+  computed from live `listings` documents.
+- The full installed-OS voice-catalog picker (`voiceSettingsBtn`'s panel,
+  `renderVoicePanel`/`voicesForPanel`/`previewVoice`/`openVoicePanel`,
+  the `.voice-panel` CSS) — replaced by the minimal three-control voice
+  fallback in §12.
+- `loadMarketStats()`'s direct client-side Firestore query/aggregation
+  over the entire `listings` collection — market stats now come from the
+  backend's `get_market_summary` tool exclusively.
+
+Every removed `mamai.*` i18n key (128 entries across `ku`/`ar`) was
+confirmed unused anywhere else in the repository before deletion
+(`grep -rl "mamai\." --include="*.html" --include="*.js"` showed no
+other file referencing them) and replaced with a new, smaller `mam.*` key
+set matching the new UI exactly — verified by `scripts/ci-checks.js`.
+
+## 17. Environment variables / secrets (names only — no values here or anywhere in this repo)
+
+Read by `backend/app/config.py`, all optional, empty by default:
+
+| Variable | Purpose |
+|---|---|
+| `MAM_CHAT_PROVIDER` | `"gemini"` \| `"openai"` \| `"anthropic"` \| unset. Selects which adapter `app.main.build_mam_provider` constructs. Unset = deterministic-only (current production state — Gemini's adapter is real and tested, §3, but not yet activated). |
+| `GEMINI_PROJECT_ID` | GCP project id Vertex AI calls would bill against. No default — never silently guessed. Recommended: `darwesh-group`. |
+| `GEMINI_LOCATION` | Vertex AI region. Recommended: `global` — verified against current Vertex AI docs (not inferred from Cloud Run's own `me-central1` region, which is unrelated): `gemini-3.7-flash` supports and recommends the global endpoint, and the current REASONING-tier candidate (`gemini-3.1-pro-preview`) is available on the global endpoint ONLY. Cloud Run staying in `me-central1` while Vertex AI calls route to `global` is a normal, supported cross-region pattern. |
+| `GEMINI_MODEL_FLASH` / `GEMINI_MODEL_PRO` | Concrete Vertex AI model ids for the FAST/REASONING tiers. Recommended: `gemini-3.7-flash` (GA, 2026-08-13) / `gemini-3.1-pro-preview` (Google's current most capable reasoning model — PREVIEW status, stated honestly, not GA). Gemini model ids retire on a schedule (`gemini-2.5-*` retires 2026-10-20) — these must never be hardcoded into source, and must be re-verified against current Vertex AI docs at activation time, not assumed from this table. |
+| `OPENAI_API_KEY` | Real secret. Sourced from Google Secret Manager via Cloud Run's secret-injection env vars in production — never hardcoded, never logged, never placed in a committed `.env` file. |
+| `ANTHROPIC_API_KEY` | Same handling as `OPENAI_API_KEY`. |
+
+`FIREBASE_SERVICE_ACCOUNT_JSON`/`FIREBASE_PROJECT_ID` (already-existing,
+not MAM-specific) gate whether `/api/v1/mam/chat` registers at all —
+MAM's tools need a real Firestore client regardless of which chat
+provider (if any) is configured; see `app.main.build_mam_handler`'s
+docstring.
+
+## 18. Production deployment requirements
+
+1. This backend must actually be deployed (Cloud Run, per
+   `backend/README.md`) with a real `FIREBASE_SERVICE_ACCOUNT_JSON` (or
+   Application Default Credentials in production) for `/api/v1/mam/chat`
+   to exist at all — today it is not deployed anywhere, matching every
+   other backend endpoint's current state.
+2. `ALLOWED_ORIGINS` must include the real frontend origin(s) for the
+   browser's CORS preflight to succeed.
+3. Vertex AI's own requirements for the Gemini adapter specifically are
+   already satisfied: `aiplatform.googleapis.com` is enabled and
+   `roles/aiplatform.user` is granted to the real production runtime
+   identity, `darwesh-backend-run@darwesh-group.iam.gserviceaccount.com`
+   (confirmed by the person operating this GCP project — not something
+   this repository can verify or grant itself). What's still needed
+   before Gemini can actually answer a real visitor: (a) deploy this
+   backend with that service account attached (point 1 above), (b) set
+   `MAM_CHAT_PROVIDER=gemini` plus the `GEMINI_*` env vars (§17) on that
+   deployment, (c) run the Sorani benchmark and make the deliberate
+   decision to lock Gemini in (rather than OpenAI/Anthropic) — none of
+   which has happened yet.
+4. Activating OpenAI or Anthropic instead/in addition still requires the
+   IAM-free but secret-bearing setup (an API key in Secret Manager) from
+   this phase's separate PROVIDER CONFIGURATION report.
+5. No change to `firestore.rules`/`storage.rules` is required by MAM V2
+   — every collection its tools read already has existing, unmodified,
+   previously-audited rules (see §6).
+
+## 19. Testing
+
+Backend: 110 tests across `backend/tests/test_mam_*.py` (policy, schemas,
+intent resolver — including a real Unicode-range bug caught and fixed
+while writing these tests, see the commit introducing `backend/app/mam/`,
+session eviction, every tool against a fake in-memory Firestore, the
+orchestrator's fallback/tool-call-loop chain (§3a, 4 new tests), the
+route's full HTTP contract, and the real Gemini adapter against a mocked
+`google-genai` SDK (21 new tests) — normal completion, tool-call parsing,
+malformed/empty responses, timeout, provider exceptions never leaking raw
+details, cancellation propagation, and Kurdish/Arabic-Indic-digit
+passthrough). Frontend: validated via `node scripts/ci-checks.js`
+(inline script syntax, i18n key parity/coverage, no broken links, no
+duplicate ids) and manual Playwright-driven browser QA across desktop/
+mobile breakpoints, all three languages/RTL, reduced-motion, and the
+provider-unconfigured degraded state (see this phase's final report for
+the exact matrix run and results — real browser QA, not simulated).
+
+## 20. Public surface: MAM lives inside Buy/Rent, not a standalone page
+
+> **Superseded by §21.** This section describes the state after MAM was
+> first pulled off `mam-ai.html` and into `buy-rent-map.html`. That page
+> turned out to be the *wrong* host — a newer, duplicate map next to the
+> site's real, older Properties Map (`map.html`) — so §21 moved MAM again,
+> this time onto `map.html`, and `buy-rent-map.html` was unlinked from
+> public navigation in turn. Kept here for the historical record of *why*
+> the intermediate step happened; §21 is the current architecture.
+
+**Product decision, not an architecture change to the intelligence
+layer**: `mam-ai.html` is no longer linked from any public navigation,
+CTA, or footer (`js/site-header.js`, `index.html`, `services.html`,
+`about.html`, `map.html`, `profile.html`) — it still exists (dev/manual
+testing only) and every backend endpoint/tool/provider it talks to is
+completely unchanged. The real, user-facing MAM experience is now a
+floating AI dock on `buy-rent-map.html` (`js/mam-buyrent.js` +
+`css`/markup inline in that page), reusing `js/mam-api.js` and
+`js/mam-companion.js` unmodified — it is a second *consumer* of the same
+backend contract this document describes, not a second implementation of
+it.
+
+**The one backend addition this required**: `search_properties`
+responses now also carry a `mapAction` (reusing the existing MapAction
+shape from §8/§3 — "a deterministic navigation instruction... never a
+data claim") built from the *exact arguments that produced the returned
+cards* (`orchestrator.py`'s `_search_filters_action`), translated into
+`buy-rent-map.html`'s own filter-key vocabulary (`deal`/`q`/`types`/
+`maxPrice`/`beds`). `buy-rent-map.html`'s own inline script exposes the
+one function this is ever fed into — `window.DarweshBuyRentMap.
+applyFilters(filters)` — which updates the same real `state`/URL/
+Firestore-backed list and map this page's own filter drawer already
+drives. Neither side re-implements search: the backend still owns
+"what matches," the frontend still owns "how it's shown."
+
+## 21. Map consolidation: one public Properties Map, MAM lives on it
+
+**The correction this section documents**: §20 put MAM's AI dock on
+`buy-rent-map.html` (created 2026-09-01, Google-Maps-based). That page
+was a *duplicate* of an older, more established public map,
+`map.html` (created 2026-08-21, Leaflet/OpenStreetMap-based, no API key
+required) — confirmed by reading each page's own git history rather than
+by name or assumption. `map.html` already had real favorites, "Request
+Viewing" → `submissions`, "Save Search" → `savedSearches`, and the
+private-listing city-rollup/reveal-exact-location flow that
+`buy-rent-map.html` never had. Shipping two public property maps, one of
+which happens to host the AI, was the actual product bug — not a
+tooling gap. This section moves MAM onto the real one and finishes
+un-duplicating the public map surface.
+
+**What moved, and what didn't**:
+
+- `map.html` is now the platform's one public Properties Map. It gained
+  the AI dock (`#drmAiWrap`/`#drmAiPanel`, `js/mam-properties-map.js`,
+  the migrated companion CSS) exactly as §20 built it for
+  `buy-rent-map.html` — the same component, same backend contract, same
+  "AI never re-implements search" rule, just re-hosted. `map.html`
+  exposes `window.DarweshPropertiesMap = {applyFilters, getState,
+  getVisibleCount, isReady}`, the direct successor to §20's
+  `window.DarweshBuyRentMap` — it manipulates `map.html`'s own
+  pre-existing module-scope filter state (`activeType`, `priceMin`,
+  `priceMax`, `bedsMin`, `citySearch`, `selectedHomeTypes`) and calls its
+  own pre-existing `refresh()`, never a second search implementation.
+- `buy-rent-map.html` had its AI dock, companion CSS, and
+  `js/mam-buyrent.js` script tag removed entirely (`js/mam-buyrent.js`
+  itself was deleted, confirmed unreferenced anywhere else first). It is
+  **not deleted** — it still renders and its own map/list/filter
+  functionality still works if visited directly — but it is unlinked
+  from every public nav, footer, and CTA site-wide, matching how
+  `mam-ai.html` was handled in §20: kept for internal/manual use, never
+  a second public destination.
+- Every site-wide link that pointed at `buy-rent-map.html`
+  (`index.html`, `account.html`, `services.html`, `buy.html`,
+  `rent.html`, `insights.html`, `profile.html`, `about.html`) now points
+  at `map.html`, preserving each link's existing query-string intent
+  (`?type=rent`, `?ai=1`, a search query, etc.) rather than dropping it.
+- The Admin Real Estate Intelligence Map (`admin.html`, §G in the prior
+  Google-Maps-migration report) is a separate, privileged, unrelated
+  surface — untouched by this section.
+
+**Nav consolidation**: the shared header (`js/site-header.js`) and
+mobile nav (`js/site-mobile-nav.js`) previously offered both a "Buy/Rent
+Map" and an "Explore Map" entry — two competing names for two different
+map pages. Both collapse into one **Properties Map** entry pointing at
+`map.html`, plus direct **Buy** (`map.html?type=sale`) and **Rent**
+(`map.html?type=rent`) entries so a global buy/rent intent lands
+straight in the matching mode on the one map, without a page detour.
+Final public nav order: Home, Buy, Rent, Properties Map, Professional
+Work, Services, About, Profile. MAM AI does not reappear as a standalone
+nav item — it remains reachable only as the ambient dock on `map.html`,
+per §20's original decision.
+
+**`MapAction.filters` vocabulary, unified**: §20 introduced this
+vocabulary (`deal`/`q`/`types`/`maxPrice`/`beds`/`verified`) for
+`_search_filters_action`, but `Tools.open_on_map` had independently grown
+its own, incompatible shape (`dealType`/`city`) that `js/mam-v2.js`'s
+map-link builders were the only consumer of. Both tools now emit the
+same vocabulary — `deal`/`q`/`types`/`minPrice`/`maxPrice`/`beds`/
+`verified` — and both target `map.html`. `js/mam-v2.js`,
+`js/mam-properties-map.js`, and `map.html`'s own `applyAiFilters` each
+translate that one shared vocabulary into their own real state/URL-param
+names (`map.html`'s real URL params are `type`/`city`, a third, distinct
+naming layer, unchanged by this section) — there is still exactly one
+shared wire vocabulary and N page-local translations, never two wire
+vocabularies.
+
+**Real bug found and fixed during this migration** (not merely a
+naming/routing change): `search_properties`'s result sort called
+`.timestamp()` unconditionally on any listing's `createdAt`. A single
+document whose `createdAt` was not a real Firestore Timestamp (e.g. a
+seed/test-script write, or the visibly malformed-looking listings a user
+screenshot showed alongside a repeated "That didn't go through" MAM
+error) crashed the *entire* search — every well-formed listing included
+— caught only by `routes.py`'s generic top-level 500 handler, with
+nothing pointing at the one bad document as the cause. Fixed with a
+defensive `_created_at_sort_key()` helper (`app/mam/tools.py`) that
+treats anything other than a real Timestamp as "no date" instead of
+raising; regression test added
+(`test_search_properties_survives_a_malformed_createdAt`). No Firestore
+data was modified, deleted, or fabricated to make this fix work — the
+malformed document(s), if any still exist in production, are left
+exactly as they are; only the code that used to crash on them was
+changed.
+
+**Sorani (Kurdish) `minPrice` gap closed**: the deterministic resolver
+(`app/mam/intent_resolver.py`) already computed `extract_price()`'s
+`isMin` flag for phrases like "زیاتر لە" / "لە سەر" ("more than X" /
+"over X") but never used it — only the max-price branch was wired to
+`search_properties`. `resolve_intent()` now sets `minPrice` on the
+`isMin` branch, `Tools.search_properties` gained a matching `min_price`
+parameter/filter, and `_search_filters_action` carries `minPrice`
+through to `MapAction.filters` for the live-provider tool-call path too
+— minimum-price Sorani phrasing now produces a real, filtered result on
+both the deterministic-fallback and live-provider paths, not just the
+maximum-price side. See `backend/tests/test_mam_sorani_benchmark.py` for
+the real phrases this is verified against, including two honestly
+recorded gaps (an unlisted district name, a fully currency-word-free
+colloquial price) that remain unresolved by design rather than being
+silently mis-guessed.
