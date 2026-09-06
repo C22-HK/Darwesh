@@ -18,48 +18,43 @@
  * ========================================================================= */
 
 body.world {
-  /* --- The tonal journey: five alternating zones (navy / ivory / navy /
-     ivory / navy -- see .world-field below), replacing the previous
-     four-station always-dark journey. Light-luxury color migration:
-     the world is ivory-dominant now, with navy reserved for Hero,
-     Services and the Departure/Footer close, per the approved brand
-     brief's HOME COLOR FLOW. */
-  /* Luxury palette refinement (color-only): Darwesh Navy #031D39, Deep
-     Navy #071B2F, Darwesh Gold #C69A4B, Gold Highlight #D8B665, Warm
-     Ivory #F3EDE3, Premium Cream #EDE3D4, Architectural Stone #D5C7B5,
-     Primary Dark Text #172334, Secondary Text #70685F. --w-gold-deep is
-     a derived, darkened gold (not a new brand color) for gradient depth
-     only. --w-ink-dark uses the softer Primary Dark Text (not the fully
-     saturated brand navy) so body/heading copy on ivory reads as a
-     comfortable near-navy ink rather than the heavier surface navy. */
-  /* LIGHT-FIRST REBUILD (visual composition change, approved). The journey
-     is now light for its full length except one restrained navy close at
-     the very end (Departure/Footer) -- see --navy-mix below, now a single
-     ramp instead of five alternating zones. Hero/Intent/City/Properties/
-     Services/Installments/Trust are all the light ("ivory") recipe;
-     Departure alone is navy. Backgrounds accordingly move from a warm
-     ivory/cream/stone recipe to a near-white one: Main #FFFFFF, Secondary
-     #FAF9F6, Very Light Warm Surface #F6F3ED (still brightness-ordered
-     bright->deep, same 3-stop gradient shape as before -- see .wf-ivory). */
-  --w-navy:     #031D39;   /* deep Darwesh navy -- Departure only now */
-  --w-navy-hi:  #071B2F;   /* soft/raised navy, used in gradients only */
-  --w-ivory:    #FFFFFF;   /* main background -- everything but Departure */
-  --w-ivory-lo: #F6F3ED;   /* very light warm surface, used in gradients only */
+  /* --- DARK LUXURY REFINEMENT (color-only restyle, current pass) --------
+     Replaces the light-luxury migration this comment used to describe.
+     The world is dark-dominant again, but unlike the pre-light version,
+     BOTH gradient recipes in .world-field below (.wf-navy / .wf-ivory)
+     now come from the SAME dark family -- there is no true light/white
+     zone left on Home at all. .wf-ivory keeps its old class name (it's
+     an internal hook, not a rendered color) but now means "the lighter
+     of two dark tiers" -- see the ramp comment further down for how that
+     still produces real tonal separation (deep navy/obsidian vs. an
+     elevated, slightly warmer dark) without ever going bright.
+     Because neither tier is ever light, the --on-stone text-flip this
+     file used to drive (ivory ink on navy vs. dark ink on white) has no
+     light state left to flip to. It is pinned to a constant below (see
+     --on-stone) rather than reworking every color-mix() call site that
+     reads it -- each of those keeps its old two-branch shape, but the
+     "on light" branch is now permanently unreachable, called out at each
+     site rather than deleted, so this stays a color/token change and not
+     a structural rewrite of section 2's rules. */
+  --w-navy:     #071D33;   /* Deep Darwesh Navy -- Hero / Services / Departure */
+  --w-navy-hi:  #0D263B;   /* Luxury Navy Surface -- soft/raised navy, gradients only */
+  --w-ivory:    #172B3C;   /* Soft Dark Card -- lightest dark tier (elevated-zone gradient top); NOT a light background any more */
+  --w-ivory-lo: #0D263B;   /* Luxury Navy Surface -- elevated-zone gradient's deep stop */
 
-  --w-gold:      #C69A4B;
-  --w-gold-hi:   #D7B56A;
-  --w-gold-deep: #8A6A38;
+  --w-gold:      #C69A4B;  /* Darwesh Gold */
+  --w-gold-hi:   #D8B667;  /* Gold Light */
+  --w-gold-deep: #8A6A38;  /* derived, darkened gold for gradient depth only -- not a brand value */
 
-  /* Type reads against the world, so it comes in two families that the
-     journey crossfades between rather than one fixed colour. --on-stone
-     (below) now does a real, working flip between them -- see the
-     world-field comment for how the discontinuity is kept safe. */
-  --w-ink:      #F3EDE3;   /* on navy (Departure only) */
-  --w-ink-soft: #D5C7B5;
-  --w-ink-dark: #243445;   /* on white/light -- the page's primary text now */
-  --w-ink-dark-mute: #66717D;
+  /* Type reads against the world. Both tiers are dark now, so text stays
+     in one family (warm ivory on dark) for the whole page -- see
+     --on-stone below for how the old two-family flip is retired without
+     touching every consumer of it. */
+  --w-ink:      #F5F0E7;   /* Warm Ivory -- primary heading/label text */
+  --w-ink-soft: #C9C2B8;   /* body copy on dark */
+  --w-ink-dark: #071D33;   /* unreachable now (see --on-stone) -- kept only as color-mix()'s other argument */
+  --w-ink-dark-mute: #0D263B; /* unreachable now (see --on-stone) -- same reason */
 
-  --w-hair:     rgba(243, 237, 227, 0.16);
+  --w-hair:     rgba(245, 240, 231, 0.16);
   --w-hair-warm:rgba(198, 154, 75, 0.28);
 
   --w-ease:     cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -93,65 +88,57 @@ body.world {
  * One fixed element. It never scrolls, never repeats, and has no edge
  * anywhere in the document, so no scroll position can reveal a boundary.
  *
- * LIGHT-LUXURY REBUILD. The previous journey kept all four stations below
- * mid-luminance on purpose (see the removed "SUNSET" comment this replaces)
- * specifically to dodge a documented failure: a genuinely light station
- * forced text to flip tone continuously, and a continuous flip necessarily
- * passes through mid-grey-on-mid-grey at its crossover -- measured at
- * 1.19:1, far below AA, with no tuning able to fix it because the problem
- * was the crossing itself, not the colours either side of it.
+ * DARK LUXURY REFINEMENT. Both recipes below, .wf-navy and .wf-ivory, are
+ * now from the same dark family -- there is no light station left on this
+ * page at all, so the failure mode the previous two rebuilds each fought
+ * (a text-color flip has to cross a mid-grey-on-mid-grey band somewhere in
+ * a light<->dark crossfade -- measured once at 1.19:1, far below AA) can't
+ * occur here: headings and body copy stay Warm Ivory for the whole journey
+ * (see --on-stone below, now a constant), so nothing about this ramp has
+ * to protect a flip that no longer exists.
  *
- * The brand brief now requires genuinely light stations (City, Properties,
- * Installments, Trust must all read as true ivory, not "warm but dark"),
- * so the flip can no longer be avoided -- it has to be done SAFELY instead.
- * Two changes make that possible:
- *
- *   1. TWO stations, not four, alternating navy/ivory/navy/ivory/navy
- *      across five ZONES (a zone can repeat a station's colour -- Hero,
- *      Services and Departure are all "navy", just at different journey
- *      positions -- so only two actual background recipes exist, --wf-navy
- *      and --wf-ivory, cross-added below via the same "running difference
- *      of cumulative ramps" technique the four-station version used,
- *      generalised to five zones. The four ramps t1..t4 are each a narrow,
- *      independent crossfade window; because every zone boundary uses the
- *      same width, opacity_navy + opacity_ivory telescopes to exactly 1 at
- *      every point in the journey by construction, so there is still no
- *      seam and no darken/bloom at a handover.
- *   2. The text flip (--on-stone below) is no longer gradual across that
- *      whole crossfade window. It snaps -- clamped to a band 1/8th as wide
- *      as the background's own crossfade, centred on the exact point the
- *      background itself is a 50/50 navy/ivory blend. That is still,
- *      technically, a continuous function (not a hard step -- CSS custom
- *      properties can't discontinuously jump without a hitch), so there is
- *      no engine issue, but the "both mid-toned" window shrinks from
- *      spanning most of a crossfade to a sliver a user scrolls through in
- *      a fraction of a second -- nothing is ever anchored there to read. */
-/* --t1..--t4 / --navy-mix live on body.world itself, NOT on .world-field.
-   They have to: body.world's own --on-stone declaration (used by the text
-   flip further down) reads --navy-mix too, and a custom property declared
-   on a DESCENDANT element (.world-field is a child of body) is invisible
-   to that lookup -- CSS custom properties only resolve against the
-   element itself and its ancestors. Declaring them here means both
-   .world-field's children (which inherit downward, fine) and body.world's
-   own sibling declarations (which need the SAME element, not a child) can
-   both read them correctly. This was found and fixed by rendering the
-   page: the first version silently broke every --on-stone consumer
-   (headings, buttons, hairlines) because --navy-mix resolved to nothing
-   outside .world-field, not because of any error CSS reports. */
+ * That frees the ramp to go back to FIVE alternating zones purely for
+ * background DEPTH -- "main background -> slightly lighter section ->
+ * dark card -> photographic section -> deep navy CTA", per the dark-
+ * luxury brief's tonal-separation requirement, rather than the single
+ * end-loaded ramp the light-luxury pass used. Only two actual background
+ * recipes exist, .wf-navy (deep navy/obsidian) and .wf-ivory (an
+ * elevated, slightly warmer dark card tone -- see the token block above
+ * for why that name is now misleading but kept), cross-added below via
+ * the same "running difference of cumulative ramps" technique as before:
+ * the four ramps t1..t4 are each a narrow, independent crossfade window,
+ * and because every zone boundary uses the same width, opacity_navy +
+ * opacity_ivory telescopes to exactly 1 at every point in the journey by
+ * construction, so there is still no seam and no darken/bloom at a
+ * handover -- only which dark tier is momentarily dominant changes. */
+/* --t1..--t4 / --navy-mix live on body.world. They no longer strictly have
+   to (--on-stone is a constant now -- see below -- so nothing on this same
+   element reads --navy-mix back), but declaring them here still means
+   every descendant that DOES read them (.world-field's children, several
+   levels down) inherits the value with zero extra wiring, so there is no
+   reason to move them. */
 body.world {
-  /* LIGHT-FIRST REBUILD: one ramp, not four. The world stays fully light
-     (--navy-mix 0) from the top of the page through Installments/Trust,
-     and crosses to navy only for the Departure/Footer close in the final
-     14% of the scroll -- an 80/20-ish light/navy split by design, well
-     inside the "80-85% white, restrained navy close" brief. --t1..--t4
-     are kept (unused, value 0) rather than deleted so a future pass that
-     wants zone alternation back only has to change --navy-mix's formula,
-     not reintroduce the ramp machinery. */
-  --t1: 0;
-  --t2: 0;
-  --t3: 0;
-  --t4: clamp(0, calc((var(--journey) - 0.86) / 0.08), 1);
-  --navy-mix: var(--t4);
+  /* DARK LUXURY REFINEMENT: back to five alternating zones (as the
+     original pre-light-luxury version used), retuned so the DEEP navy/
+     obsidian tier dominates rather than the elevated one -- per the
+     brief's "55-65% deep navy/obsidian, 20-25% elevated dark/navy
+     surfaces" balance. Zones, by --journey position:
+       navy    [0,     0.12]  Hero
+       elevated[0.20,  0.32]  Intent
+       navy    [0.40,  0.64]  City Discovery + Properties (dark-card zone)
+       elevated[0.72,  0.84]  Installments / Trust
+       navy    [0.92,  1.0 ]  Departure / Footer close
+     with an 0.08-wide crossfade at each boundary (t1..t4). Pure-navy time
+     (.44) plus half of the four transition bands (.16) is ~60% of the
+     journey; pure-elevated (.24) plus its half-share (.16) is ~40% --
+     comfortably inside the target range once real photography (Hero
+     image, city/property cards) supplies its own share of warm-ivory
+     brightness on top. */
+  --t1: clamp(0, calc((var(--journey) - 0.12) / 0.08), 1);
+  --t2: clamp(0, calc((var(--journey) - 0.32) / 0.08), 1);
+  --t3: clamp(0, calc((var(--journey) - 0.64) / 0.08), 1);
+  --t4: clamp(0, calc((var(--journey) - 0.84) / 0.08), 1);
+  --navy-mix: calc(1 - var(--t1) + var(--t2) - var(--t3) + var(--t4));
 }
 .world-field {
   position: fixed;
@@ -167,33 +154,34 @@ body.world {
   will-change: opacity;
 }
 
-/* NAVY -- Hero (0), Services (~0.6), Departure/Footer close (~1.0). */
+/* DEEP -- Hero, City Discovery + Properties, Departure/Footer close. The
+   dominant recipe, ~60% of the journey per the token block's comment. */
 .world-field .wf-navy {
   opacity: var(--navy-mix);
   background:
     radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.14), transparent 56%),
-    radial-gradient(90% 70% at 8% 88%, rgba(7, 27, 47, 0.30), transparent 60%),
-    linear-gradient(172deg, #071B2F 0%, #031D39 55%, #02152A 100%);
+    radial-gradient(90% 70% at 8% 88%, rgba(7, 29, 51, 0.30), transparent 60%),
+    linear-gradient(172deg, #132E45 0%, #071D33 55%, #0B1117 100%);
 }
-/* IVORY -- Intent/City/Properties (~0.14-0.46), Installments/Trust
-   (~0.74-0.86). The dominant surface, per the brief's ~75% target. */
+/* ELEVATED -- Intent, Installments/Trust. Still dark -- a lighter, warmer
+   dark-card tone than .wf-navy, not a light background -- that's what
+   gives the "slightly lighter section" tonal step the brief asks for. */
 .world-field .wf-ivory {
   opacity: calc(1 - var(--navy-mix));
   background:
-    radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.07), transparent 56%),
-    radial-gradient(90% 70% at 8% 88%, rgba(3, 29, 57, 0.025), transparent 60%),
-    linear-gradient(172deg, #FFFFFF 0%, #FAF9F6 55%, #F6F3ED 100%);
+    radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.10), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(11, 17, 23, 0.35), transparent 60%),
+    linear-gradient(172deg, #172B3C 0%, #132E45 55%, #0D263B 100%);
 }
 /* A single vignette over the whole world, so the frame is always held and
-   the extremes always read as further away -- but only during the navy
-   zones. A dark vignette wash over an ivory section would read as "the
-   light section is still dark at the edges", which is exactly what this
-   whole rebuild removes; scaling it by --navy-mix keeps it a real effect
-   during Hero/Services/Departure and imperceptible during the ivory
-   zones, without needing its own separate ramp. */
+   the extremes always read as further away. Both tiers are dark now, so
+   this no longer needs to hide during one of them -- it stays on
+   throughout at a restrained baseline and only deepens a little further
+   during the .wf-navy zones, which is the subtle "edge light" depth cue
+   the brief asks to keep, not a giant vignette bloom. */
 .world-field .wf-vignette {
   background: radial-gradient(118% 82% at 50% 44%, transparent 42%, rgba(4, 8, 14, 0.6) 100%);
-  opacity: calc(var(--navy-mix) * 0.55);
+  opacity: calc(0.3 + var(--navy-mix) * 0.3);
 }
 
 /* Everything the visitor reads sits above the world. */
@@ -295,13 +283,17 @@ body.world .mv-in {
   position: relative;
 }
 
-/* Text tone follows the world -- REAL flip, re-enabled. --on-stone is 1
-   when the world is ivory (dark text needed) and 0 when it is navy (light
-   text needed), snapped to a band 1/8th the width of the background's own
-   crossfade and centred on the exact --navy-mix=0.5 point (see section 1's
-   comment for why this specific construction avoids the documented
-   mid-grey-on-mid-grey failure a gradual flip produced). */
-body.world { --on-stone: clamp(0, calc((0.505 - var(--navy-mix)) / 0.01), 1); }
+/* Text tone no longer follows the world. --on-stone used to flip between
+   "dark ink on a light ivory ground" (1) and "light ink on navy" (0) as
+   --navy-mix crossed 0.5 -- see section 1's DARK LUXURY REFINEMENT comment
+   for why that ground no longer exists: both .wf-navy and .wf-ivory are
+   dark now, so there is nothing left to flip to. Pinned to a constant 0
+   instead of deleting every color-mix() call site below: each keeps
+   resolving to its var(--w-ink)/var(--w-ink-soft) ("light ink") branch
+   for the whole journey, and the var(--w-ink-dark)/var(--w-ink-dark-mute)
+   branch is unreachable dead code (documented at its declaration in the
+   token block above), not a bug. */
+body.world { --on-stone: 0; }
 body.world .w-display,
 body.world .w-h2,
 body.world .w-h3 {
@@ -534,7 +526,7 @@ body.world[dir="rtl"] .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translat
    contrast object in the frame, on night and on stone alike. */
 body.world .w-btn--primary {
   background: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
-  color: color-mix(in oklab, #031D39 calc((1 - var(--on-stone)) * 100%), #F3EDE3);
+  color: color-mix(in oklab, #071D33 calc((1 - var(--on-stone)) * 100%), #F5F0E7);
 }
 body.world .w-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
 body.world .w-btn--primary:active { transform: translateY(0) scale(0.985); }
@@ -698,23 +690,24 @@ body.world .w-search {
   width: 100%; max-width: 38rem; margin-top: 0.4rem;
   padding: 0.5rem 0.5rem 0.5rem 1.15rem;
   border-radius: 22px;
-  /* Hero is a light zone now (--navy-mix stays 0 through the whole top of
-     the page), so this is a real white search field with a soft border and
-     shadow, matching the reference's white search surface -- not the old
-     dark glass pill designed for a navy-background hero. */
-  border: 1px solid #E9E5DD;
-  background: #FFFFFF;
-  box-shadow: 0 1px 2px rgba(3, 29, 57, 0.04), 0 8px 24px rgba(3, 29, 57, 0.06);
+  /* DARK LUXURY REFINEMENT: an elevated dark search surface, not a white
+     field -- background sits in the brief's explicit #101E2A/#13283A
+     input range, lifted off the Hero's own navy with a soft shadow rather
+     than a light card, so it never becomes a bright hole in the dark
+     hero. */
+  border: 1px solid rgba(198, 154, 75, 0.18);
+  background: #13283A;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.34);
   transition: border-color var(--w-fast) var(--w-ease), box-shadow var(--w-fast) var(--w-ease);
 }
-body.world .w-search:focus-within { border-color: var(--w-gold); box-shadow: 0 1px 2px rgba(3, 29, 57, 0.04), 0 10px 28px rgba(3, 29, 57, 0.1); }
-body.world .w-search-icon { flex: none; color: var(--w-ink-dark-mute); }
+body.world .w-search:focus-within { border-color: var(--w-gold); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 30px rgba(198, 154, 75, 0.16); }
+body.world .w-search-icon { flex: none; color: #AFA89D; }
 body.world .w-search-input {
   flex: 1; min-width: 0; height: 50px; border: 0; background: transparent;
-  color: var(--w-ink-dark); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
+  color: var(--w-ink); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
   padding-inline: 0.8rem;
 }
-body.world .w-search-input::placeholder { color: var(--w-ink-dark-mute); }
+body.world .w-search-input::placeholder { color: #AFA89D; }
 body.world .w-search-input:focus { outline: none; }
 body.world .w-search .w-btn { min-height: 50px; border-radius: 15px; padding-inline: 1.3rem; }
 body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
@@ -755,10 +748,10 @@ body.world .w-panel {
   display: block;
   text-decoration: none;
   overflow: hidden;
-  border-inline-end: 1px solid rgba(243, 237, 227, 0.1);
+  border-inline-end: 1px solid rgba(245, 240, 231, 0.1);
   transition: flex-grow var(--w-slow) var(--w-ease-out);
 }
-body.world[dir="rtl"] .w-panel { border-inline-end: 1px solid rgba(243, 237, 227, 0.1); }
+body.world[dir="rtl"] .w-panel { border-inline-end: 1px solid rgba(245, 240, 231, 0.1); }
 body.world .w-panel:last-child { border-inline-end: 0; }
 body.world .w-panel-media {
   position: absolute; inset: 0; z-index: 0;
@@ -956,14 +949,14 @@ body.world .w-plane-body {
 }
 body.world .w-plane-name {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 700; font-size: 1.1rem; letter-spacing: -0.015em; color: #F3EDE3;
+  font-weight: 700; font-size: 1.1rem; letter-spacing: -0.015em; color: #F5F0E7;
   text-shadow: 0 1px 12px rgba(4,4,7,0.9);
   transition: font-size var(--w-slow) var(--w-ease-out);
 }
 body.world .w-plane-note {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   font-size: 0.625rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
-  color: rgba(243,237,227,0.7);
+  color: rgba(245,240,231,0.7);
 }
 body.world .w-plane-go {
   margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.45rem;
@@ -1074,16 +1067,16 @@ body.world .w-departure-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
 /* =========================================================================
  * 11. HEADER
  * ========================================================================= */
-/* LIGHT-FIRST REBUILD: the header used to blend into a navy hero via
-   transparency (near-black over the top of the page, solidifying to a
-   navy/ivory blend on scroll). The hero is a light zone now (see section
-   1), so that trick is gone -- Home's header is the same plain white,
-   bordered surface as every other page (js/site-header.js's own
-   bg-white), never overridden here. */
+/* DARK LUXURY REFINEMENT: js/site-header.js's own header is dark navy
+   (#071D33) on every page including Home, so this file no longer needs to
+   override it at all. The bottom nav (mobile only) gets the same
+   treatment here -- a translucent Luxury Navy Surface instead of the
+   previous white bar, so Home's mobile chrome matches the rest of the
+   dark site instead of staying a stray bright band. */
 body.world .home-bottomnav {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(13, 38, 59, 0.92);
   backdrop-filter: blur(16px);
-  border-top: 1px solid #E9E5DD;
+  border-top: 1px solid rgba(198, 154, 75, 0.18);
 }
 
 /* =========================================================================
@@ -1207,7 +1200,7 @@ body.world .w-gallery { min-height: 56vh; }
  * journey -- it has no tonal ambiguity to resolve. ======================= */
 body.world .home-footer {
   background: var(--w-navy);
-  border-top: 1px solid rgba(243, 237, 227, 0.12);
+  border-top: 1px solid rgba(245, 240, 231, 0.12);
 }
 body.world .home-footer-word { color: var(--w-gold-hi); }
 body.world .home-footer-tagline,
@@ -1215,7 +1208,7 @@ body.world .home-footer-link,
 body.world .home-footer-bottom { color: var(--w-ink-soft); }
 body.world .home-footer-heading { color: var(--w-ink); }
 body.world .home-footer-link:hover { color: var(--w-gold); }
-body.world .home-footer-bottom { border-top-color: rgba(243, 237, 227, 0.12); }
+body.world .home-footer-bottom { border-top-color: rgba(245, 240, 231, 0.12); }
 
 /* =========================================================================
  * 13. REDUCED MOTION

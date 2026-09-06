@@ -17,30 +17,35 @@
 
 :root {
   /* Copied from tailwind.config.js -- keep these in lockstep with that
-     file's `colors` block; do not invent new brand colors here. Luxury
-     palette refinement (color-only): Darwesh Navy #031D39, Deep Navy
-     #071B2F, Warm Ivory #F3EDE3, Premium Cream #EDE3D4, Architectural
-     Stone #D5C7B5, Darwesh Gold #C69A4B, Gold Highlight #D8B665, Primary
-     Dark Text #172334, Secondary Text #70685F, White #FFFFFF.
-     on-surface uses the softer Primary Dark Text for everyday copy;
-     primary/surfaces keep the fully saturated Darwesh Navy. */
-  --ps-color-primary: #031d39;
-  --ps-color-on-primary: #f3ede3;
+     file's `colors` block; do not invent new brand colors here.
+     DARK LUXURY REFINEMENT (color-only restyle on top of the current
+     structure/features -- see css/cinematic.css's header comment for the
+     full rationale): Main Background #0B1117, Deep Darwesh Navy #071D33,
+     Luxury Navy Surface #0D263B, Elevated Navy #132E45, Soft Dark Card
+     #172B3C, Warm Ivory #F5F0E7, Soft Cream #E8E0D4, Darwesh Gold #C69A4B,
+     Gold Light #D8B667. Text tiers tuned for contrast on these dark
+     surfaces: on-surface (headings) #F5F0E7, on-surface-variant (body
+     copy) #C9C2B8, outline (muted metadata) #9E9A93 -- never a low-
+     opacity trick, every one of these is a real, readable solid color.
+     error/error-container and tertiary*/on-tertiary* (success green) are
+     UNCHANGED -- semantic status colors, out of scope for this pass. */
+  --ps-color-primary: #071d33;
+  --ps-color-on-primary: #f5f0e7;
   --ps-color-secondary: #c69a4b;
-  --ps-color-on-secondary: #ffffff;
-  --ps-color-secondary-container: #d8b665;
-  --ps-color-tertiary-container: #003115;
-  --ps-color-on-tertiary-container: #4ae183;
-  --ps-color-error: #ba1a1a;
-  --ps-color-error-container: #ffdad6;
-  --ps-color-surface-bright: #ede3d4;
-  --ps-color-surface-container: #f3ede3;
-  --ps-color-surface-container-low: #ede3d4;
-  --ps-color-surface-container-lowest: #ffffff;
-  --ps-color-on-surface: #172334;
-  --ps-color-on-surface-variant: #70685f;
-  --ps-color-outline: #70685f;
-  --ps-color-outline-variant: #d5c7b5;
+  --ps-color-on-secondary: #071d33;
+  --ps-color-secondary-container: #d8b667;
+  --ps-color-tertiary-container: #0f2e1c;
+  --ps-color-on-tertiary-container: #6bd99a;
+  --ps-color-error: #ff8a80;
+  --ps-color-error-container: #5c1a1a;
+  --ps-color-surface-bright: #0b1117;
+  --ps-color-surface-container: #0d263b;
+  --ps-color-surface-container-low: #071d33;
+  --ps-color-surface-container-lowest: #172b3c;
+  --ps-color-on-surface: #f5f0e7;
+  --ps-color-on-surface-variant: #c9c2b8;
+  --ps-color-outline: #9e9a93;
+  --ps-color-outline-variant: rgba(198, 154, 75, 0.18);
 
   /* ---- THE BRAND SYSTEM: navy / gold / ivory / neutral-dark ----------
    * Named aliases, not new colors. An audit of every hex value in this
@@ -55,41 +60,45 @@
    * differently-named systems (M3's "primary/secondary" here, "cine-*"
    * and "mamco-*" elsewhere) that happen to agree.
    *
-   * There ARE two golds in this codebase and that is deliberate, not a
-   * drift to fix: --ps-color-secondary (#775a19, with its pale
-   * --ps-color-secondary-container #fed488) is the muted Material
-   * utility gold used on data-dense classic pages (admin.html,
-   * agent-dashboard.html, buy.html); --brand-gold below (#C9A45C,
-   * "Darwesh Gold" throughout css/cinematic.css and
-   * css/mam-companion.css) is the warmer, more saturated premium accent
-   * used on every consumer-facing luxury surface. Keeping them distinct
-   * is what stops the admin console from turning into a jewelry catalog
-   * -- see "GOLD = controlled accent" below; a duller gold on data
-   * screens IS the control.
+   * DARK LUXURY REFINEMENT: the two-golds split this comment used to
+   * describe (a duller Material gold on admin.html/agent-dashboard.html,
+   * a warmer "Darwesh Gold" everywhere else) is retired -- the "entire
+   * site" scope of this pass explicitly brings those data-dense pages
+   * into the same dark-luxury system as every consumer page, and one
+   * Darwesh Gold (--brand-gold / --ps-color-secondary / Tailwind
+   * `secondary`, all #C69A4B) is simpler to keep in lockstep than two.
+   * Gold stays a controlled accent everywhere regardless -- restraint is
+   * now enforced by usage (CTAs, selected state, focus rings, price
+   * emphasis only), not by a second, duller value.
    *
    * Also exported as JSON at docs/brand/darwesh-brand-tokens.json, flat
    * and framework-agnostic, so a future iOS/Android app can import the
    * identical hex values rather than re-eyeballing them off screenshots.
    */
-  /* NAVY -- dominant brand surface, used deliberately (hero/footer/nav/
-     selected states), not as the page default. Same value as
-     --ps-color-primary and Tailwind's `primary`. */
-  --brand-navy: #031d39;
-  --brand-navy-container: #071b2f;   /* Tailwind primary-container -- deep navy */
-  --brand-navy-on: #f3ede3;          /* text/icons on a navy surface */
+  /* NAVY -- Deep Darwesh Navy, now genuinely close to the page default
+     (see --ps-color-primary/surface-container-low above and Tailwind's
+     `primary`), not just an occasional accent surface. */
+  --brand-navy: #071d33;
+  --brand-navy-container: #132e45;   /* Elevated Navy -- Tailwind primary-container */
+  --brand-navy-on: #f5f0e7;          /* Warm Ivory text/icons on a navy surface */
   /* GOLD -- controlled accent only: CTAs, selected state, focus rings,
-     price emphasis. Never a wash -- see the two-golds note above. */
+     price emphasis. Never a wash. */
   --brand-gold: #c69a4b;
-  --brand-gold-soft: #d8b665;        /* Gold Highlight -- CTA/premium accent */
-  --brand-gold-on: #031d39;          /* navy text on a gold-filled surface */
-  /* IVORY / WHITE -- the dominant surface family (~65-70% of the page). */
-  --brand-ivory: #ede3d4;
-  --brand-ivory-surface: #ffffff;
-  --brand-ivory-alt: #f3ede3;
-  /* OBSIDIAN -- deep charcoal, used only where necessary (MAM, rare
-     premium-contrast moments) -- not the default background anywhere. */
-  --brand-neutral-dark: #0b0e12;
-  --brand-neutral-dark-raised: #17150f;
+  --brand-gold-soft: #d8b667;        /* Gold Light -- CTA/premium accent */
+  --brand-gold-on: #071d33;          /* navy text on a gold-filled surface */
+  /* IVORY -- text and photography only now, not a background family: the
+     dark-luxury pass retired every literal light/white surface (see
+     css/cinematic.css's header comment). --brand-ivory-surface keeps its
+     old name but is now the lightest of the dark card tiers, never
+     white; --brand-ivory-alt is the warm-neutral body-copy tone. */
+  --brand-ivory: #f5f0e7;
+  --brand-ivory-surface: #172b3c;
+  --brand-ivory-alt: #c9c2b8;
+  /* OBSIDIAN -- Main Background. Was "used only where necessary, not the
+     default background anywhere"; under dark luxury it now IS the page
+     default (see .cine-scope's `background`, css/cinematic.css). */
+  --brand-neutral-dark: #0b1117;
+  --brand-neutral-dark-raised: #0d263b;   /* Luxury Navy Surface */
 
   /* Tokens with no existing Tailwind config equivalent. */
   --ps-radius-card: 16px;

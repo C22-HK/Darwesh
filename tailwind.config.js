@@ -38,65 +38,67 @@ module.exports = {
         // error/error-container and tertiary*/on-tertiary* (the
         // success-green family) are UNCHANGED -- semantic status colors,
         // out of scope for this migration.
-        // ---- LUXURY PALETTE REFINEMENT (color-only, Home/Intro-led) -----
-        // Darwesh Navy #031D39 / Deep Navy #071B2F / Warm Ivory #F3EDE3 /
-        // Premium Cream #EDE3D4 / Architectural Stone #D5C7B5 / Darwesh
-        // Gold #C69A4B / Gold Highlight #D8B665 / Primary Dark Text
-        // #172334 / Secondary Text #70685F / White #FFFFFF. Every M3 role
-        // below is re-pointed at one of these values only -- no new colors
-        // introduced. tertiary* (success green) and error* (red) are
-        // semantic status colors and are UNCHANGED. obsidian is MAM's
-        // identity color and is UNCHANGED. on-surface now uses the softer
-        // Primary Dark Text (not the fully saturated brand navy) for
-        // everyday body/heading copy; primary/surfaces keep the full
-        // Darwesh Navy.
-        "surface-bright": "#ede3d4",
-        "on-secondary-fixed-variant": "#25231f",
+        // ---- DARK LUXURY REFINEMENT (color-only restyle, current pass) --
+        // Main Background #0B1117 / Deep Darwesh Navy #071D33 / Luxury
+        // Navy Surface #0D263B / Elevated Navy #132E45 / Soft Dark Card
+        // #172B3C / Warm Ivory #F5F0E7 / Darwesh Gold #C69A4B / Gold
+        // Light #D8B667 / body copy #C9C2B8 / muted metadata #9E9A93.
+        // Every M3 role below is re-pointed at one of these values only --
+        // no new colors introduced, keeping this file in lockstep with
+        // css/cinematic.css's .cine-scope block (the same palette, same
+        // roles) so admin.html/agent-dashboard.html -- the only two pages
+        // that read these raw values directly instead of through
+        // cine-scope -- match the rest of the site. tertiary* (success
+        // green) is UNCHANGED; error*/on-error* are re-tuned only for
+        // legible contrast on a dark surface, still red. obsidian is
+        // MAM's identity color and is UNCHANGED.
+        "surface-bright": "#0b1117",
+        "on-secondary-fixed-variant": "#afa89d",
         secondary: "#c69a4b",
-        "on-secondary-fixed": "#031d39",
-        "on-primary-fixed": "#031d39",
-        primary: "#031d39",
-        error: "#ba1a1a",
-        "inverse-primary": "#d8b665",
-        "surface-container-low": "#ede3d4",
-        "on-primary-fixed-variant": "#25231f",
+        "on-secondary-fixed": "#f5f0e7",
+        "on-primary-fixed": "#f5f0e7",
+        primary: "#071d33",
+        error: "#ff8a80",
+        "inverse-primary": "#d8b667",
+        "surface-container-low": "#071d33",
+        "on-primary-fixed-variant": "#afa89d",
         "tertiary-fixed": "#6bfe9c",
-        "surface-variant": "#d5c7b5",
+        "surface-variant": "#172b3c",
         "on-tertiary-fixed": "#00210c",
-        "primary-fixed": "#d5c7b5",
-        "on-primary": "#f3ede3",
-        surface: "#f3ede3",
-        "surface-container-high": "#d5c7b5",
-        "inverse-surface": "#031d39",
-        "on-error-container": "#93000a",
-        "on-secondary": "#ffffff",
-        "error-container": "#ffdad6",
-        "inverse-on-surface": "#ede3d4",
-        "on-error": "#ffffff",
-        "outline-variant": "#d5c7b5",
-        outline: "#70685f",
-        "primary-container": "#071b2f",
-        "tertiary-container": "#003115",
+        "primary-fixed": "#132e45",
+        "on-primary": "#f5f0e7",
+        surface: "#0b1117",
+        "surface-container-high": "#132e45",
+        "inverse-surface": "#e8e0d4",
+        "on-error-container": "#ffb4ab",
+        "on-secondary": "#071d33",
+        "error-container": "#5c1a1a",
+        "inverse-on-surface": "#071d33",
+        "on-error": "#071d33",
+        "outline-variant": "rgba(198,154,75,0.18)",
+        outline: "#9e9a93",
+        "primary-container": "#132e45",
+        "tertiary-container": "#0f2e1c",
         "tertiary-fixed-dim": "#4ae183",
-        "primary-fixed-dim": "#f3ede3",
-        "secondary-container": "#d8b665",
+        "primary-fixed-dim": "#f5f0e7",
+        "secondary-container": "#d8b667",
         "secondary-fixed-dim": "#c69a4b",
-        "secondary-fixed": "#d8b665",
-        "surface-dim": "#d5c7b5",
+        "secondary-fixed": "#d8b667",
+        "surface-dim": "#071d33",
         tertiary: "#001a08",
-        "surface-container-lowest": "#ffffff",
-        "on-background": "#172334",
-        "surface-container-highest": "#d5c7b5",
-        "on-tertiary-container": "#00a656",
-        "on-primary-container": "#f3ede3",
+        "surface-container-lowest": "#172b3c",
+        "on-background": "#f5f0e7",
+        "surface-container-highest": "#132e45",
+        "on-tertiary-container": "#6bd99a",
+        "on-primary-container": "#f5f0e7",
         "on-tertiary": "#ffffff",
         "on-tertiary-fixed-variant": "#005228",
-        "on-surface-variant": "#70685f",
-        "surface-tint": "#031d39",
-        "on-secondary-container": "#031d39",
-        "surface-container": "#f3ede3",
-        background: "#f3ede3",
-        "on-surface": "#172334",
+        "on-surface-variant": "#c9c2b8",
+        "surface-tint": "#071d33",
+        "on-secondary-container": "#071d33",
+        "surface-container": "#0d263b",
+        background: "#0b1117",
+        "on-surface": "#f5f0e7",
         // Gold accent family (not part of the original M3 token set --
         // used directly, e.g. bg-gold / text-gold / border-gold).
         gold: "#c69a4b",
