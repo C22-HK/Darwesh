@@ -132,6 +132,10 @@
 .mamco-orb {
   pointer-events: auto;
   position: relative;
+  /* Explicit, because the cups now sit at z-index 0 and the stone has to
+     occlude them. Leaving this at `auto` worked only by DOM order, which is
+     exactly the kind of accident that breaks the next time the tree moves. */
+  z-index: 1;
   width: var(--mamco-size);
   height: var(--mamco-size);
   display: flex;
@@ -142,23 +146,34 @@
      body -- and, more importantly, keeps the orb from clipping nothing it
      needs to clip while costing a paint the halo has to work around. */
   isolation: isolate;
-  /* OBSIDIAN. Near-black polished stone. No key light here -- every
-     specular lives on the surface layer below, so there is exactly one
-     highlight system and it can be made crisp without fighting a second
-     soft one underneath.
-       environment  a faint wide band across the upper third: the room
-                    reflected in the stone, which is the cue that says
-                    polished rather than matte;
-       bounce       warm light returning off the lower right, so the dark
-                    side is not a dead flat area;
-       body         the stone, lifted a little at the lit shoulder and
-                    going almost fully black at the rim, which is how a
-                    dark medium behaves -- the rim is where the light path
-                    through it is longest. */
+  /* OBSIDIAN -- ONE CONTINUOUS MASS.
+     This is where the "black ball sitting on top of MAM" came from, and it
+     was a shape, not a highlight. The previous stone gradient was centred
+     at 42% 24% -- INSIDE the silhouette -- and jumped from #1C1A18 at its
+     centre to #0A0909 by 44% of its radius. A radial gradient whose origin
+     falls inside the body and whose value changes fastest partway out draws
+     a closed disc with a visible edge: a second, lighter sphere resting on
+     the head. No amount of moving it helps, because any origin inside the
+     body closes a ring somewhere inside the body.
+     The fix is topological. The origin now sits ABOVE the top edge, at
+     30% -8%, so every iso-line crossing the body is an ARC rather than a
+     closed curve -- the value falls monotonically from the lit shoulder to
+     the far rim with nothing to read as a boundary. The stops are also
+     spaced evenly, so no one interval carries a step the eye can find.
+     That is light describing curvature, which is what a sculpted body
+     needs, instead of a circular overlay standing in for it.
+       bounce  warm light returning off the lower right, so the dark side
+               is not a dead flat area;
+       stone   the body itself, lifted at the lit shoulder and going nearly
+               black at the rim -- the rim is where the light path through
+               a dark medium is longest. */
   background:
-    radial-gradient(72% 13% at 50% 29%, rgba(228,216,198,0.085) 0%, rgba(228,216,198,0) 72%),
-    radial-gradient(48% 36% at 76% 84%, rgba(255,204,132,0.07) 0%, rgba(255,204,132,0) 62%),
-    radial-gradient(128% 116% at 42% 24%, rgba(28,26,24,0.93) 0%, rgba(10,9,9,0.97) 44%, rgba(1,1,1,0.99) 100%);
+    radial-gradient(54% 42% at 78% 88%, rgba(255,206,136,0.055) 0%, rgba(255,206,136,0) 66%),
+    radial-gradient(160% 150% at 30% -8%,
+      rgba(31,30,28,0.93) 0%,
+      rgba(19,18,17,0.952) 30%,
+      rgba(9,9,9,0.974) 62%,
+      rgba(2,2,2,0.99) 100%);
   backdrop-filter: blur(6px) saturate(0.95);
   -webkit-backdrop-filter: blur(6px) saturate(0.95);
   border: 1px solid var(--mamco-outline);
@@ -218,17 +233,27 @@
 
 /* THE SURFACE -- where every highlight lives. Above the internal light,
    below the eyes, screen-blended so highlights ADD rather than cover.
-   CRISPNESS IS THE FALLOFF, not the size. The previous pass reached 0.16
-   alpha by 52% of its radius and faded out at 78%, which is a soft glow; a
-   reflection in polished stone holds near full brightness and then stops.
-   Each stop below is deliberately steep:
-     core   the hot centre of the reflected source -- tiny, and effectively
-            solid white until it ends;
-     skirt  the little the surface scatters immediately around it;
-     glint  a second, smaller source: a polished surface catches more than
-            one, and a single highlight is the thing that reads as CG;
-     rim    the warm crescent low on the body where light has come around
-            it, tight enough to read as an edge rather than a haze. */
+   POLISHED BLACK GLASS REFLECTING OPEN SKY, not a plastic ball under a
+   point lamp. The previous pass put a solid-white 8.5%x6% core at alpha 1.0
+   next to a second glint, and that pairing is precisely what reads as
+   glossy plastic: a small hot dot means a small hot source, and two of them
+   means a studio. Polished stone outdoors reflects a WIDE source, so the
+   sheen has to be broad and low-contrast and the hard catch has to be
+   small, dim and singular.
+     sheen   a wide, shallow, faintly COOL reflection across the upper
+             shoulder -- 58%x30% and elongated, so it is a band of sky and
+             never a circular patch;
+     wash    a broader, dimmer version behind it, origin above the top edge
+             so it cannot close into a disc, giving the sheen depth instead
+             of one flat ellipse;
+     catch   the single crisp specular. Restrained: 0.62, not 1.0, and half
+             the old area. Crispness is the FALLOFF, so it still stops
+             rather than hazing out;
+     bounce  the warm crescent low on the body where light has come around
+             it, tight enough to read as an edge rather than a haze.
+   Cool sheen over warm bounce is also what separates the two: a sky
+   reflection and a returning warm bounce are different light, and painting
+   both the same white flattened them into one grey wash. */
 .mamco-orb::after {
   content: '';
   position: absolute;
@@ -237,10 +262,10 @@
   pointer-events: none;
   z-index: 3;
   background:
-    radial-gradient(8.5% 6% at 34% 16%, rgba(255,255,254,1) 0%, rgba(255,254,250,0.94) 46%, rgba(255,252,246,0) 74%),
-    radial-gradient(19% 13% at 33.5% 17.5%, rgba(255,252,246,0.34) 0%, rgba(255,250,240,0.07) 46%, rgba(255,250,240,0) 72%),
-    radial-gradient(4.5% 3.2% at 62% 29%, rgba(255,253,247,0.62) 0%, rgba(255,253,247,0.10) 55%, rgba(255,253,247,0) 78%),
-    radial-gradient(38% 17% at 55% 94%, rgba(250,214,148,0.18) 0%, rgba(250,214,148,0.03) 54%, rgba(250,214,148,0) 74%);
+    radial-gradient(4.6% 3.1% at 31% 13%, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.15) 54%, rgba(255,255,255,0) 82%),
+    radial-gradient(58% 30% at 36% 15%, rgba(214,226,238,0.15) 0%, rgba(206,220,234,0.05) 48%, rgba(200,215,230,0) 78%),
+    radial-gradient(88% 54% at 42% -4%, rgba(198,212,228,0.07) 0%, rgba(198,212,228,0) 72%),
+    radial-gradient(42% 16% at 54% 95%, rgba(250,214,148,0.17) 0%, rgba(250,214,148,0.03) 56%, rgba(250,214,148,0) 76%);
   mix-blend-mode: screen;
   /* The surface brightens fractionally with the voice, so a loud syllable
      catches the glass too, not only the light behind it. */
@@ -355,7 +380,6 @@
 }
 .mamco-halo svg { display: block; width: 100%; height: 100%; overflow: visible;
   position: absolute; inset: 0; }
-.mamco-halo-cups { position: absolute; inset: 0; }
 
 /* Behind the body. Dimmer and slightly softened, the way light reads
    through polished stone -- these are the pieces of each strand whose depth
@@ -385,19 +409,31 @@
 .mamco-ribbon--3 { animation: mamco-rib-d 29s ease-in-out infinite; }
 .mamco-ribbon--4 { animation: mamco-rib-e 41s ease-in-out infinite; }
 
-/* The side cups: part of the character, sitting on the silhouette. */
-/* The side cups. Filled dark forms with a warm rim, straddling the
-   silhouette -- part of the character, in the same layer as the face, so
-   they survive with every ribbon switched off. */
-/* The cup is three elements, not one: a shaded body, a rim that is bright
-   only where the light lands, and its own small specular. A single stroked
-   ellipse is what read as a drawn ring. */
+/* THE SIDE CUPS -- behind the stone, cut by the silhouette.
+   Their own layer, below .mamco-orb (1) and above the back ribbons (0), so
+   the body occludes their inner half. That occlusion is the whole point:
+   it is what makes a pod read as part of the sculpted mass rather than an
+   accessory clamped onto it, and no amount of restyling achieved it while
+   they were painted on top of the body.
+   The cup is still three elements, not one: a shaded body, a rim that is
+   bright only where the light lands, and its own small specular. A single
+   stroked ellipse is what read as a drawn ring. The rim is thinner and
+   dimmer than it was -- behind the body it no longer competes with the
+   face, and a bright outline was the other half of the "accessory" read. */
+.mamco-cups {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.mamco-cups svg { position: absolute; inset: 0; display: block;
+  width: 100%; height: 100%; overflow: visible; }
 .mamco-cup-body { stroke: none; }
-.mamco-cup-rim  { fill: none; stroke-width: 1.15; }
+.mamco-cup-rim  { fill: none; stroke-width: 1; }
 .mamco-cup-spec {
-  fill: rgba(255, 250, 240, 0.5);
+  fill: rgba(255, 250, 240, 0.42);
   stroke: none;
-  filter: blur(1.1px);
+  filter: blur(1px);
 }
 
 @keyframes mamco-float {
@@ -765,7 +801,11 @@
      enough to carry them. The eyes stay: at 34px they are still the thing
      that identifies this as MAM rather than a dot. */
   .mamco-halo { display: none; }
-  .mamco-halo-cups { display: none; }
+  /* The CUPS stay at 34px, like the eyes: they are the character, not
+     decoration around it. (A dead `.mamco-halo-cups { display:none }` used
+     to sit here from when they lived in the halo. It matched nothing, but
+     it read as though the cups were hidden on phones -- removed rather than
+     left to mislead the next person.) */
   /* At 34px the bloom is most of what you see, so it goes; the crescents
      themselves are geometry and scale down cleanly on their own. */
   .mamco-eye-pair { filter: none; }

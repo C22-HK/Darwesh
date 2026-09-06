@@ -350,30 +350,50 @@ function ribbonLayer(scope, side) {
 // on the lit shoulder and fades around the back, and a small specular of its
 // own. All three run off the same upper-left key as the body, or the cups
 // look pasted in from a different scene.
+// PART OF THE FORM, NOT ATTACHED TO IT.
+//
+// Two things made these read as headphone earcups clamped onto a sphere.
+// They were 36 tall -- a third of the body's height, taller than they were
+// wide by two and a half times, which is the proportion of a headphone
+// driver. And they sat in the FACE's layer, painted on top of the body,
+// with 82% of each cup outside the silhouette: nothing occluded them, so
+// nothing tied them to the mass.
+//
+// Now they are 23 tall against 16 wide -- close to round, a pod rather than
+// a driver -- and they are drawn BEHIND the body. The silhouette cuts
+// across each one, so what shows is an outer curve emerging from the mass,
+// which is what makes a form read as part of a sculpture instead of an
+// accessory bolted to it. Only about 9% of the body's width protrudes,
+// against 11.8 before, and the rim now catches light only on the outer arc
+// because the inner half is behind the stone.
+//
+// The rim is also dimmer than it was (0.72 peak, not 0.9). Sitting behind
+// the body it no longer has to hold its own against the face, and a bright
+// outline is the other half of what said "accessory".
 const CUPS_SVG = (scope) =>
   '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
   '<defs>' +
-  '<radialGradient id="' + scope + '-cupL" cx="0.34" cy="0.24" r="0.95">' +
-  '<stop offset="0" stop-color="#3C352C"/><stop offset="0.42" stop-color="#15130F"/>' +
-  '<stop offset="1" stop-color="#040403"/></radialGradient>' +
-  '<radialGradient id="' + scope + '-cupR" cx="0.30" cy="0.24" r="0.95">' +
-  '<stop offset="0" stop-color="#342E26"/><stop offset="0.42" stop-color="#131210"/>' +
-  '<stop offset="1" stop-color="#040403"/></radialGradient>' +
-  '<linearGradient id="' + scope + '-cupRim" x1="0.12" y1="0" x2="0.88" y2="1">' +
-  '<stop offset="0" stop-color="#FFE6B8" stop-opacity="0.9"/>' +
-  '<stop offset="0.42" stop-color="#C99D60" stop-opacity="0.44"/>' +
-  '<stop offset="1" stop-color="#6B5230" stop-opacity="0.14"/>' +
+  '<radialGradient id="' + scope + '-cupL" cx="0.30" cy="0.22" r="0.98">' +
+  '<stop offset="0" stop-color="#332E27"/><stop offset="0.45" stop-color="#141210"/>' +
+  '<stop offset="1" stop-color="#040404"/></radialGradient>' +
+  '<radialGradient id="' + scope + '-cupR" cx="0.30" cy="0.22" r="0.98">' +
+  '<stop offset="0" stop-color="#2C2721"/><stop offset="0.45" stop-color="#121110"/>' +
+  '<stop offset="1" stop-color="#040404"/></radialGradient>' +
+  '<linearGradient id="' + scope + '-cupRim" x1="0.10" y1="0" x2="0.90" y2="1">' +
+  '<stop offset="0" stop-color="#FFE6B8" stop-opacity="0.72"/>' +
+  '<stop offset="0.44" stop-color="#C99D60" stop-opacity="0.30"/>' +
+  '<stop offset="1" stop-color="#6B5230" stop-opacity="0.10"/>' +
   '</linearGradient>' +
   '</defs>' +
   '<g class="mamco-cup">' +
-  '<rect class="mamco-cup-body" x="-11.8" y="32" width="14.4" height="36" rx="7.2" fill="url(#' + scope + '-cupL)"/>' +
-  '<rect class="mamco-cup-rim" x="-11.8" y="32" width="14.4" height="36" rx="7.2" stroke="url(#' + scope + '-cupRim)"/>' +
-  '<ellipse class="mamco-cup-spec" cx="-6.2" cy="41" rx="2.1" ry="4.4"/>' +
+  '<rect class="mamco-cup-body" x="-9" y="38.5" width="16" height="23" rx="8" fill="url(#' + scope + '-cupL)"/>' +
+  '<rect class="mamco-cup-rim" x="-9" y="38.5" width="16" height="23" rx="8" stroke="url(#' + scope + '-cupRim)"/>' +
+  '<ellipse class="mamco-cup-spec" cx="-4.6" cy="45" rx="1.7" ry="3.1"/>' +
   '</g>' +
   '<g class="mamco-cup">' +
-  '<rect class="mamco-cup-body" x="97.4" y="32" width="14.4" height="36" rx="7.2" fill="url(#' + scope + '-cupR)"/>' +
-  '<rect class="mamco-cup-rim" x="97.4" y="32" width="14.4" height="36" rx="7.2" stroke="url(#' + scope + '-cupRim)"/>' +
-  '<ellipse class="mamco-cup-spec" cx="103" cy="41" rx="2" ry="4.2"/>' +
+  '<rect class="mamco-cup-body" x="93" y="38.5" width="16" height="23" rx="8" fill="url(#' + scope + '-cupR)"/>' +
+  '<rect class="mamco-cup-rim" x="93" y="38.5" width="16" height="23" rx="8" stroke="url(#' + scope + '-cupRim)"/>' +
+  '<ellipse class="mamco-cup-spec" cx="104.6" cy="45" rx="1.6" ry="3"/>' +
   '</g>' +
   '</svg>';
 
@@ -502,17 +522,24 @@ export class MamCompanion {
     haloFront.className = 'mamco-halo mamco-halo--front';
     haloFront.innerHTML = ribbonLayer(uid + 'f', 'front');
 
+    // The cups sit BEHIND the body, between the back ribbons and the stone.
+    // They used to share the face's layer, painted over the body, and that
+    // is most of why they read as clamped-on headphones: nothing occluded
+    // them, so nothing tied them to the mass. Behind it, the silhouette
+    // cuts across each pod and they become part of the form.
+    const cups = document.createElement('div');
+    cups.className = 'mamco-cups';
+    cups.innerHTML = CUPS_SVG(uid + 'c');
+
     // The eyes ride ABOVE the front ribbons. Nothing may cross the face:
     // a band drawn over them cost the character its expression, which is
     // the one thing the whole object exists to carry.
     const eyes = document.createElement('div');
     eyes.className = 'mamco-eyes';
-    // The cups share the face's layer because they are the same thing: the
-    // parts that make this a character rather than a sphere, and the parts
-    // that must survive with every ribbon switched off.
-    eyes.innerHTML = CUPS_SVG(uid + 'c') + EYES_SVG;
+    eyes.innerHTML = EYES_SVG;
 
     this._float.appendChild(haloBack);
+    this._float.appendChild(cups);
     this._float.appendChild(this._orb);
     this._float.appendChild(haloFront);
     this._float.appendChild(eyes);
