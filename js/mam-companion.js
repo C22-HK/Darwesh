@@ -219,14 +219,14 @@ const CUPS_SVG = (scope) =>
   '</linearGradient>' +
   '</defs>' +
   '<g class="mamco-cup">' +
-  '<ellipse class="mamco-cup-body" cx="9" cy="50" rx="7" ry="13.5" fill="url(#' + scope + '-cupL)"/>' +
-  '<ellipse class="mamco-cup-rim" cx="9" cy="50" rx="7" ry="13.5" stroke="url(#' + scope + '-cupRim)"/>' +
-  '<ellipse class="mamco-cup-spec" cx="7.3" cy="43" rx="2.2" ry="3.2"/>' +
+  '<rect class="mamco-cup-body" x="-11.8" y="32" width="14.4" height="36" rx="7.2" fill="url(#' + scope + '-cupL)"/>' +
+  '<rect class="mamco-cup-rim" x="-11.8" y="32" width="14.4" height="36" rx="7.2" stroke="url(#' + scope + '-cupRim)"/>' +
+  '<ellipse class="mamco-cup-spec" cx="-6.2" cy="41" rx="2.1" ry="4.4"/>' +
   '</g>' +
   '<g class="mamco-cup">' +
-  '<ellipse class="mamco-cup-body" cx="91" cy="50" rx="7" ry="13.5" fill="url(#' + scope + '-cupR)"/>' +
-  '<ellipse class="mamco-cup-rim" cx="91" cy="50" rx="7" ry="13.5" stroke="url(#' + scope + '-cupRim)"/>' +
-  '<ellipse class="mamco-cup-spec" cx="89.3" cy="43" rx="2" ry="3"/>' +
+  '<rect class="mamco-cup-body" x="97.4" y="32" width="14.4" height="36" rx="7.2" fill="url(#' + scope + '-cupR)"/>' +
+  '<rect class="mamco-cup-rim" x="97.4" y="32" width="14.4" height="36" rx="7.2" stroke="url(#' + scope + '-cupRim)"/>' +
+  '<ellipse class="mamco-cup-spec" cx="103" cy="41" rx="2" ry="4.2"/>' +
   '</g>' +
   '</svg>';
 
@@ -235,72 +235,28 @@ const CUPS_SVG = (scope) =>
 // counter keeps every gradient addressable by exactly the bands that use it.
 let instanceUid = 0;
 
-// THE EYES -- soft tapered crescents, not uniform strokes.
+// THE EYES.
 //
-// A stroked path has ONE width for its whole length, and round caps end it
-// with a blunt semicircle. That is a sausage. A drawn crescent is thick
-// through the belly and thins to a point at each tip, and that difference is
-// most of what "softer" means here.
+// The reference's eyes ARCH -- peak in the middle, both ends coming down --
+// and hold a near-uniform thickness with rounded ends. Two things every
+// earlier version got wrong: they bowed downward as smiles, which is a
+// different expression entirely; and the last pass tapered them sharply,
+// which rendered as check-marks, thick on one shoulder and pointed on the
+// other. Uniform width IS the reference here. The softness comes from the
+// bloom around them, not from thinning the ends.
 //
-// So each eye is a FILLED shape: the centreline is sampled and offset by a
-// half-width following sin(t)^0.62. The exponent is below 1 on purpose --
-// it keeps the belly full across most of the arc and spends the taper near
-// the ends, where a plain sine would thin the eye far too early and leave it
-// looking weak.
-//
-// Sized from the reference: the pair spans about 63% of the body, each eye
-// about 25%, the belly about 12% of the body's height. The 12-unit gap
-// between them is load-bearing -- at an earlier size the two nearly met and
-// the pair read as one wide band rather than as two eyes.
-//
-// THE BELLY MUST STAY WELL UNDER THE SAG. A crescent's upper edge is the
-// centreline lifted by the half-width, so its curvature is (sag - w) while
-// the lower edge's is (sag + w). Both have to read as curves or the shape
-// is not a crescent.
-//   sag 7,  w 6.0  ->  top 1.0 / bottom 13.0  -- a HALF-DISC, flat on top
-//   sag 8.6, w 3.9 ->  top 4.7 / bottom 12.5  -- still reads flat-topped
-//   sag 12, w 3.3  ->  top 8.7 / bottom 15.3  -- a crescent
-// The ratio is what matters, not either number alone: the upper edge needs
-// to keep something like two thirds of the lower edge's curvature. Total
-// height is (sag + w), which is what sets how much of the face it fills.
-const EYE_SAMPLES = 26;
-
-function quadPoints(x0, y0, cx, cy, x1, y1) {
-  const pts = [];
-  for (let i = 0; i <= EYE_SAMPLES; i++) {
-    const t = i / EYE_SAMPLES, u = 1 - t;
-    pts.push({
-      x: u * u * x0 + 2 * u * t * cx + t * t * x1,
-      y: u * u * y0 + 2 * u * t * cy + t * t * y1
-    });
-  }
-  return pts;
-}
-
-function crescentPath(pts, wMax) {
-  const n = pts.length;
-  const outer = [], inner = [];
-  for (let i = 0; i < n; i++) {
-    const p = pts[i];
-    const prev = pts[i === 0 ? 0 : i - 1];
-    const next = pts[i === n - 1 ? n - 1 : i + 1];
-    const dx = next.x - prev.x, dy = next.y - prev.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len, ny = dx / len;
-    // See bandPath: sin() at the final sample is a hair BELOW zero, and
-    // Math.pow(negative, fractional) is NaN.
-    const w = wMax * Math.pow(Math.max(0, Math.sin((Math.PI * i) / (n - 1))), 0.62);
-    outer.push([p.x + nx * w, p.y + ny * w]);
-    inner.push([p.x - nx * w, p.y - ny * w]);
-  }
-  return toPath(outer, inner);
-}
-
+// The geometry follows from wanting a specific painted box:
+//     visual width  = chord + stroke   -> 21.6% of the body
+//     visual height = sag   + stroke   -> 14%
+// A 6.5 stroke puts the chord at 15.1 and the sag at 7.5, and a quadratic
+// reaches its sag at half the control offset. Ends at y=58.75 centre the
+// painted shape on 55% down; the pair spans 56% with a 13% gap. Every one
+// of those numbers is measured off the reference sheet.
 const EYES_SVG =
   '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
   '<g class="mamco-eye-pair">' +
-  '<path class="mamco-eye" d="' + crescentPath(quadPoints(18.5, 42, 31.25, 66, 44, 42), 3.3) + '"/>' +
-  '<path class="mamco-eye" d="' + crescentPath(quadPoints(56, 42, 68.75, 66, 81.5, 42), 3.3) + '"/>' +
+  '<path class="mamco-eye" d="M25.15 58.75 Q32.7 43.75 40.25 58.75"/>' +
+  '<path class="mamco-eye" d="M59.75 58.75 Q67.3 43.75 74.85 58.75"/>' +
   '</g></svg>';
 
 // THE EIGHT STATES the product defines, plus two the existing voice flow
