@@ -53,6 +53,16 @@
     const els = Array.from(document.querySelectorAll(SELECTOR));
     if (!els.length) return;
 
+    // Which of these are SCENES (siblings in the page's vertical flow) and
+    // which are LAYERS INSIDE a scene. Only scenes take part in occlusion
+    // ordering. A layer -- the hero's background media plate, say -- is
+    // positioned within its scene's own stacking context and already has a
+    // deliberate z-index there; overwriting it lifts the background over the
+    // foreground. That is exactly the regression this guard exists to stop:
+    // hero-media was being given z-index 46 and painting the plate on top of
+    // the hero headline and the search field.
+    const isScene = els.map((el) => !el.parentElement.closest(SELECTOR));
+
     if (prefersReducedMotion()) {
       // Settled, natural position -- no depth offset -- and never attach
       // a scroll listener at all.
@@ -90,6 +100,10 @@
         // @property registration. It costs one extra style write per scene
         // per frame, inside the existing write batch -- no extra layout
         // read, no second loop.
+        //
+        // Scenes only: a layer nested inside a scene keeps whatever z-index
+        // its own scene gave it (see isScene above).
+        if (!isScene[i]) continue;
         const centred = 1 - Math.abs(values[i] - 0.5) * 2;
         els[i].style.zIndex = String(10 + Math.round(centred * 40));
       }
