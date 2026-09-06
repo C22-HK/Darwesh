@@ -70,15 +70,43 @@ function currentLang() {
 // -- built from the host page's own data-attributes/`?id=`, never from a
 // forwarded URL and never from page text.
 function readPageContext() {
-  const page = mount.getAttribute('data-page') || 'home';
-  const id = mount.getAttribute('data-id') || new URLSearchParams(window.location.search).get('id');
-  const serviceType = mount.getAttribute('data-service-type');
+  return readPageContextFor(
+    mount.getAttribute('data-page'),
+    new URLSearchParams(window.location.search),
+    mount.getAttribute('data-id'),
+    mount.getAttribute('data-service-type')
+  );
+}
+
+/** Split out so a same-document view change can rebuild it from the new
+ *  view's own attributes instead of the mount's now-stale ones. */
+function readPageContextFor(pageAttr, params, idAttr, serviceTypeAttr) {
+  const page = pageAttr || 'home';
+  const id = idAttr || params.get('id');
+  const serviceType = serviceTypeAttr;
   const ctx = { page };
   if (id && page === 'property') ctx.listingId = id;
   if (id && page === 'project') ctx.projectId = id;
   if (id && page === 'professional') ctx.professionalId = id;
   if (serviceType) ctx.serviceType = serviceType;
   return ctx;
+}
+
+// The SAME object identity is handed to the panel and mutated in place on a
+// view change, never replaced. js/mam-chat-panel.js reads pageContext at the
+// moment it sends a turn, so mutating it is what keeps MAM's structured
+// context truthful after a same-document swap -- without changing a single
+// signature. Replacing the object instead would leave the panel holding the
+// stale one.
+function refreshPageContext(ctx) {
+  window.addEventListener('darwesh:viewchange', (e) => {
+    const next = readPageContextFor(
+      (e.detail && e.detail.page) || null,
+      new URLSearchParams((e.detail && e.detail.search) || window.location.search)
+    );
+    Object.keys(ctx).forEach((k) => { delete ctx[k]; });
+    Object.assign(ctx, next);
+  });
 }
 
 function init() {
@@ -103,13 +131,16 @@ function init() {
     variant: isMapPage ? 'bar' : 'orb'
   });
 
+  const pageContext = readPageContext();
+  refreshPageContext(pageContext);
+
   const panel = mountMamChatPanel({
     orbEl: dock.openBtn,          // the whole compact bar opens the overlay
     dockEl: dock.root,            // what the overlay morphs from/to (see mam-chat-panel.js)
     micEls: [dock.micBtn],        // the dock's mic drives the SAME voice state
     companion: dock.companion,
     getLanguage: currentLang,
-    pageContext: readPageContext(),
+    pageContext,
     onResumeHint: (text) => dock.setResumeHint(text),
     // Compact bar and conversation overlay are one surface in two states,
     // so exactly one of them is on screen at a time.

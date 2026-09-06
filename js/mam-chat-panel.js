@@ -30,6 +30,7 @@
 import { auth } from './firebase-init.js';
 import { sendMamChat, BackendUnavailableError, BackendResponseError, fetchMamVoiceConfig, mamVoiceStt, mamVoiceTts } from './mam-api.js';
 import { detectDirectCommand, resolvePage, filtersToMapUrlParams } from './mam-actions.js';
+import { mamNavigate, canNavigateInPlace, bindPopstate } from './mam-shell.js';
 
 // Below this width the panel gives up trying to sit beside the dock and
 // becomes a near-full-width sheet instead -- there simply is not enough
@@ -698,6 +699,19 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       chip.className = 'mamcp-action-chip';
       chip.textContent = tr(a.labelKey, a.labelFallback || 'Open');
       chip.href = href;
+      // A suggested action is MAM moving the visitor, so it takes the same
+      // in-place path as MAM's other navigations -- otherwise "open this
+      // listing" would still cut the voice off mid-sentence, which is the
+      // single most common thing MAM is asked to do. It stays a REAL <a
+      // href> underneath: the fast path is only taken for a plain left
+      // click, so middle-click, ctrl/cmd-click, "open in new tab" and a
+      // crawler following the link all behave exactly as before.
+      chip.addEventListener('click', (e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (!canNavigateInPlace(href)) return;
+        e.preventDefault();
+        mamNavigate(href);
+      });
       wrap.appendChild(chip);
     });
     return wrap.childElementCount ? wrap : null;
@@ -957,7 +971,30 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // watchdog -- which explains itself to the visitor -- wins the race in
   // the case they both cover.
   const NAV_SPEECH_CAP_MS = 3000;
-  function speakThenNavigate(text, navigate, { onDone } = {}) {
+  /**
+   * @param {string} text the acknowledgement to say
+   * @param {() => void} navigate performs the move
+   * @param {{onDone?: Function, href?: string}} [opts] `href`, when the
+   *   destination is known, lets this decide whether the move destroys the
+   *   document or not -- which changes the ordering completely.
+   */
+  function speakThenNavigate(text, navigate, { onDone, href } = {}) {
+    // SAME-DOCUMENT: the document survives, so this audio element and this
+    // speech queue survive with it. Move FIRST and keep talking straight
+    // through it -- that is the entire point of js/mam-shell.js, and waiting
+    // here would reintroduce the very pause it exists to remove.
+    if (href && canNavigateInPlace(href)) {
+      navigate();
+      speak(text, { onDone: onDone });
+      return;
+    }
+    // FULL NAVIGATION: the document, this <audio> element and this utterance
+    // are all about to be destroyed. The only honest ordering is to finish
+    // speaking and leave once it has genuinely ended -- or genuinely failed.
+    // speak() calls onDone on every path (voice off, no engine, ended,
+    // errored, refused), so this is usually immediate. The cap is purely a
+    // safety net for an engine that fires neither `end` nor `error`: broken
+    // TTS must never strand a visitor on the page they asked to leave.
     let handedOff = false;
     const go = () => {
       if (handedOff) return;   // whichever of speech/cap arrives first wins, once
@@ -1021,7 +1058,9 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     const params = filtersToMapUrlParams(mapAction.filters || {});
     if (mapAction.focusListingId) params.set('listing', String(mapAction.focusListingId));
     const href = 'map.html' + (params.toString() ? '?' + params.toString() : '');
-    return () => { location.href = href; };
+    const run = () => { mamNavigate(href); };
+    run.href = href;   // so speakThenNavigate can tell in-place from full
+    return run;
   }
 
   // ---- direct commands -- the small, deterministic action layer --------
@@ -1047,7 +1086,8 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       return {
         confirm: trf('mam.actionOpenedPage', 'Opening {page}…', { page: command.page }),
         navigates: true,
-        run: () => { location.href = page; }
+        href: page,
+        run: () => { mamNavigate(page); }
       };
     }
     if (command.type === 'back') {
@@ -1107,7 +1147,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (resolved.navigates) {
         // Say it, THEN leave -- running the navigation first is what used
         // to throw the acknowledgement away mid-sentence.
-        speakThenNavigate(resolved.confirm || '', resolved.run, { onDone: onReplySpoken });
+        speakThenNavigate(resolved.confirm || '', resolved.run, { onDone: onReplySpoken, href: resolved.href });
       } else {
         resolved.run();
         // speak() is the single gate on whether anything is said: it
@@ -1157,7 +1197,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         // speakThenNavigate bounds how long a long reply can hold up the
         // navigation, and the full text stays visible in the transcript,
         // which the destination page restores without re-speaking it.
-        speakThenNavigate(data.message || '', navigateForAction, { onDone: onReplySpoken });
+        speakThenNavigate(data.message || '', navigateForAction, { onDone: onReplySpoken, href: navigateForAction.href });
       } else {
         speak(data.message || '', { onDone: onReplySpoken });
       }
@@ -1881,6 +1921,10 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // all link to `map.html?ai=1[&q=...]`. That contract used to be handled
   // by the map's own dock; it lives here now so those links keep working
   // and behave the same way on every page.
+  // Back/forward across same-document swaps. Bound once, here, because this
+  // panel is the only thing that ever creates one (js/mam-shell.js).
+  bindPopstate();
+
   const bootParams = new URLSearchParams(window.location.search);
   if (bootParams.get('ai') === '1' || bootParams.get('mam') === '1') open();
   const initialQuery = bootParams.get('q');
