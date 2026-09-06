@@ -18,25 +18,32 @@
  * ========================================================================= */
 
 body.world {
-  /* --- The four stations of the tonal journey ------------------------- */
-  --w-night:   #07070A;   /* deep architectural night   -- arrival        */
-  --w-warm:    #16110C;   /* gradual warming            -- intent/cities  */
-  --w-stone:   #B9A88C;   /* luminous warm stone        -- the high point */
-  --w-dusk:    #14100E;   /* elegant dusk               -- departure      */
+  /* --- The tonal journey: five alternating zones (navy / ivory / navy /
+     ivory / navy -- see .world-field below), replacing the previous
+     four-station always-dark journey. Light-luxury color migration:
+     the world is ivory-dominant now, with navy reserved for Hero,
+     Services and the Departure/Footer close, per the approved brand
+     brief's HOME COLOR FLOW. */
+  --w-navy:     #0B1E33;   /* deep Darwesh navy -- hero / services / departure */
+  --w-navy-hi:  #10263A;   /* soft/raised navy, used in gradients only */
+  --w-ivory:    #FCFAF5;   /* warm ivory -- city / properties / installments / trust */
+  --w-ivory-lo: #F0EAD9;   /* raised ivory tone, used in gradients only */
 
-  --w-gold:      #B89A63;
-  --w-gold-hi:   #DCC39A;
+  --w-gold:      #C9A45C;
+  --w-gold-hi:   #D8B76A;
   --w-gold-deep: #8B7145;
 
   /* Type reads against the world, so it comes in two families that the
-     journey crossfades between rather than one fixed colour. */
-  --w-ink:      #F5F2EB;   /* on dark  */
-  --w-ink-soft: #C9C2B3;
-  --w-ink-dark: #14110B;   /* on stone */
-  --w-ink-dark-mute: #57503F;
+     journey crossfades between rather than one fixed colour. --on-stone
+     (below) now does a real, working flip between them -- see the
+     world-field comment for how the discontinuity is kept safe. */
+  --w-ink:      #FCFAF5;   /* on navy  */
+  --w-ink-soft: #D9D2C0;
+  --w-ink-dark: #0B1E33;   /* on ivory */
+  --w-ink-dark-mute: #6B6558;
 
-  --w-hair:     rgba(245, 242, 235, 0.12);
-  --w-hair-warm:rgba(184, 154, 99, 0.26);
+  --w-hair:     rgba(252, 250, 245, 0.16);
+  --w-hair-warm:rgba(201, 164, 92, 0.28);
 
   --w-ease:     cubic-bezier(0.22, 0.61, 0.36, 1);
   --w-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -54,7 +61,7 @@ body.world {
   --w-air-m: clamp(3rem, 6vw, 5.5rem);
   --w-air-l: clamp(5rem, 10vw, 9rem);
 
-  background: var(--w-night);
+  background: var(--w-navy);
   color: var(--w-ink);
 }
 /* --journey is written by js/cine-scroll-3d.js onto the ROOT element: 0 at
@@ -69,22 +76,71 @@ body.world {
  * One fixed element. It never scrolls, never repeats, and has no edge
  * anywhere in the document, so no scroll position can reveal a boundary.
  *
- * Its appearance evolves by crossfading four atmospheric layers whose
- * opacities are triangular functions of --journey. Crossfading beats
- * interpolating colour because it stays perfectly continuous through the
- * whole range: at any instant at most two stations are visible, and their
- * sum is always 1, so the field never darkens or blooms at a handover.
+ * LIGHT-LUXURY REBUILD. The previous journey kept all four stations below
+ * mid-luminance on purpose (see the removed "SUNSET" comment this replaces)
+ * specifically to dodge a documented failure: a genuinely light station
+ * forced text to flip tone continuously, and a continuous flip necessarily
+ * passes through mid-grey-on-mid-grey at its crossover -- measured at
+ * 1.19:1, far below AA, with no tuning able to fix it because the problem
+ * was the crossing itself, not the colours either side of it.
  *
- * The stations peak at journey = 0.00 / 0.34 / 0.62 / 1.00. Between two
- * peaks the change per viewport-height is a couple of percent -- below the
- * threshold at which an eye can locate a transition, which is the whole
- * requirement. ======================================================== */
+ * The brand brief now requires genuinely light stations (City, Properties,
+ * Installments, Trust must all read as true ivory, not "warm but dark"),
+ * so the flip can no longer be avoided -- it has to be done SAFELY instead.
+ * Two changes make that possible:
+ *
+ *   1. TWO stations, not four, alternating navy/ivory/navy/ivory/navy
+ *      across five ZONES (a zone can repeat a station's colour -- Hero,
+ *      Services and Departure are all "navy", just at different journey
+ *      positions -- so only two actual background recipes exist, --wf-navy
+ *      and --wf-ivory, cross-added below via the same "running difference
+ *      of cumulative ramps" technique the four-station version used,
+ *      generalised to five zones. The four ramps t1..t4 are each a narrow,
+ *      independent crossfade window; because every zone boundary uses the
+ *      same width, opacity_navy + opacity_ivory telescopes to exactly 1 at
+ *      every point in the journey by construction, so there is still no
+ *      seam and no darken/bloom at a handover.
+ *   2. The text flip (--on-stone below) is no longer gradual across that
+ *      whole crossfade window. It snaps -- clamped to a band 1/8th as wide
+ *      as the background's own crossfade, centred on the exact point the
+ *      background itself is a 50/50 navy/ivory blend. That is still,
+ *      technically, a continuous function (not a hard step -- CSS custom
+ *      properties can't discontinuously jump without a hitch), so there is
+ *      no engine issue, but the "both mid-toned" window shrinks from
+ *      spanning most of a crossfade to a sliver a user scrolls through in
+ *      a fraction of a second -- nothing is ever anchored there to read. */
+/* --t1..--t4 / --navy-mix live on body.world itself, NOT on .world-field.
+   They have to: body.world's own --on-stone declaration (used by the text
+   flip further down) reads --navy-mix too, and a custom property declared
+   on a DESCENDANT element (.world-field is a child of body) is invisible
+   to that lookup -- CSS custom properties only resolve against the
+   element itself and its ancestors. Declaring them here means both
+   .world-field's children (which inherit downward, fine) and body.world's
+   own sibling declarations (which need the SAME element, not a child) can
+   both read them correctly. This was found and fixed by rendering the
+   page: the first version silently broke every --on-stone consumer
+   (headings, buttons, hairlines) because --navy-mix resolved to nothing
+   outside .world-field, not because of any error CSS reports. */
+body.world {
+  /* --t1..--t4: the four zone-boundary ramps, each a clamped linear ramp
+     over a narrow --journey window. --navy-mix: the running difference
+     of their cumulative sum -- 1 when the world is fully navy, 0 when
+     fully ivory, and a true, continuous crossfade in between. Widths
+     widened slightly from the boundary's centre (0.08 of --journey) so
+     the visual change per scrolled viewport stays gradual, matching the
+     "couple of percent between peaks" rule the four-station version used. */
+  --t1: clamp(0, calc((var(--journey) - 0.06) / 0.08), 1);
+  --t2: clamp(0, calc((var(--journey) - 0.46) / 0.08), 1);
+  --t3: clamp(0, calc((var(--journey) - 0.66) / 0.08), 1);
+  --t4: clamp(0, calc((var(--journey) - 0.86) / 0.08), 1);
+  --navy-mix: calc(1 - var(--t1) + var(--t2) - var(--t3) + var(--t4));
+}
 .world-field {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--w-night);
+  background: var(--w-navy);
 }
 .world-field > i {
   position: absolute;
@@ -93,54 +149,33 @@ body.world {
   will-change: opacity;
 }
 
-/* NIGHT -- peaks at 0, gone by 0.34 */
-.world-field .wf-night {
-  opacity: clamp(0, calc((0.34 - var(--journey)) / 0.34), 1);
+/* NAVY -- Hero (0), Services (~0.6), Departure/Footer close (~1.0). */
+.world-field .wf-navy {
+  opacity: var(--navy-mix);
   background:
-    radial-gradient(120% 80% at 76% 6%, rgba(184, 154, 99, 0.15), transparent 56%),
-    radial-gradient(90% 70% at 8% 88%, rgba(96, 122, 158, 0.10), transparent 60%),
-    linear-gradient(172deg, #0C0B10 0%, #07070A 58%, #050508 100%);
+    radial-gradient(120% 80% at 76% 6%, rgba(201, 164, 92, 0.14), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(16, 38, 58, 0.30), transparent 60%),
+    linear-gradient(172deg, #10263A 0%, #0B1E33 55%, #081726 100%);
 }
-/* WARMING -- rises from 0, peaks 0.34, gone by 0.62 */
-.world-field .wf-warm {
-  opacity: clamp(0, calc(1 - (max(var(--journey), 0.34) - 0.34) / 0.28 - (0.34 - min(var(--journey), 0.34)) / 0.34), 1);
+/* IVORY -- Intent/City/Properties (~0.14-0.46), Installments/Trust
+   (~0.74-0.86). The dominant surface, per the brief's ~75% target. */
+.world-field .wf-ivory {
+  opacity: calc(1 - var(--navy-mix));
   background:
-    radial-gradient(130% 90% at 62% 4%, rgba(198, 152, 86, 0.26), transparent 58%),
-    radial-gradient(100% 80% at 10% 92%, rgba(120, 84, 52, 0.20), transparent 62%),
-    linear-gradient(170deg, #241A11 0%, #16110C 60%, #0C0A08 100%);
-}
-/* SUNSET -- the luminous high point, peaks 0.62.
-   Originally a pale stone, and that was the one genuinely wrong decision in
-   this pass. A pale ground forces the type to flip tone mid-journey, and a
-   continuous flip necessarily passes through mid-grey text on a mid-grey
-   ground: measured at 1.19:1 at the crossover, far below AA, with no tuning
-   able to fix it because the problem was the crossing itself.
-   A sunset is luminous and warm WITHOUT being light -- which is exactly what
-   the reference direction shows, warm golden sky with white type over it.
-   Keeping every station below mid-luminance means one text tone works
-   everywhere, so there is no flip, no crossover, and no failure window. */
-.world-field .wf-stone {
-  opacity: clamp(0, calc(1 - (max(var(--journey), 0.62) - 0.62) / 0.38 - (0.62 - min(var(--journey), 0.62)) / 0.28), 1);
-  background:
-    radial-gradient(120% 70% at 66% 4%, rgba(255, 176, 92, 0.52), transparent 58%),
-    radial-gradient(140% 80% at 40% 28%, rgba(212, 108, 58, 0.34), transparent 62%),
-    radial-gradient(110% 90% at 12% 98%, rgba(58, 40, 34, 0.90), transparent 68%),
-    linear-gradient(172deg, #6B3F22 0%, #3E2418 52%, #1A1210 100%);
-}
-/* DUSK -- rises from 0.62, peaks at 1 */
-.world-field .wf-dusk {
-  opacity: clamp(0, calc((var(--journey) - 0.62) / 0.38), 1);
-  background:
-    radial-gradient(120% 80% at 74% 8%, rgba(184, 154, 99, 0.20), transparent 58%),
-    radial-gradient(96% 76% at 14% 92%, rgba(84, 74, 96, 0.20), transparent 62%),
-    linear-gradient(174deg, #221B16 0%, #14100E 58%, #0A0809 100%);
+    radial-gradient(120% 80% at 76% 6%, rgba(201, 164, 92, 0.09), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(11, 30, 51, 0.035), transparent 60%),
+    linear-gradient(172deg, #FCFAF5 0%, #F7F3EA 55%, #F0EAD9 100%);
 }
 /* A single vignette over the whole world, so the frame is always held and
-   the extremes always read as further away. Never changes, so it can never
-   introduce a boundary of its own. */
+   the extremes always read as further away -- but only during the navy
+   zones. A dark vignette wash over an ivory section would read as "the
+   light section is still dark at the edges", which is exactly what this
+   whole rebuild removes; scaling it by --navy-mix keeps it a real effect
+   during Hero/Services/Departure and imperceptible during the ivory
+   zones, without needing its own separate ramp. */
 .world-field .wf-vignette {
-  background: radial-gradient(118% 82% at 50% 44%, transparent 40%, rgba(4, 4, 6, 0.55) 100%);
-  opacity: calc(0.5 + (1 - var(--journey)) * 0.5);
+  background: radial-gradient(118% 82% at 50% 44%, transparent 42%, rgba(4, 8, 14, 0.6) 100%);
+  opacity: calc(var(--navy-mix) * 0.55);
 }
 
 /* Everything the visitor reads sits above the world. */
@@ -242,28 +277,32 @@ body.world .mv-in {
   position: relative;
 }
 
-/* Text tone follows the world. Around the stone station the ground is
-   light, so type must flip -- continuously, not at a section edge. The
-   crossover is driven by the same --journey, so it happens gradually
-   across roughly a screen and a half and never lands on a boundary. */
-/* ONE TEXT TONE FOR THE WHOLE JOURNEY.
-   Every station of the world is below mid-luminance by design (see the
-   sunset comment above), so light type reads at every scroll position and
-   there is no tonal flip to go wrong. --on-stone is retained as a constant
-   0 purely so the control rules below keep one expression instead of being
-   rewritten; it is no longer a variable. The modest shadow is for type that
-   sits over photography, not for the world. */
-body.world { --on-stone: 0; }
+/* Text tone follows the world -- REAL flip, re-enabled. --on-stone is 1
+   when the world is ivory (dark text needed) and 0 when it is navy (light
+   text needed), snapped to a band 1/8th the width of the background's own
+   crossfade and centred on the exact --navy-mix=0.5 point (see section 1's
+   comment for why this specific construction avoids the documented
+   mid-grey-on-mid-grey failure a gradual flip produced). */
+body.world { --on-stone: clamp(0, calc((0.505 - var(--navy-mix)) / 0.01), 1); }
 body.world .w-display,
 body.world .w-h2,
-body.world .w-h3 { color: var(--w-ink); }
-body.world .w-body { color: var(--w-ink-soft); }
+body.world .w-h3 {
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+}
+body.world .w-body {
+  color: color-mix(in oklab, var(--w-ink-soft) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark-mute));
+}
 
+/* The shadow exists for type sitting over photography (Hero), where it is
+   still needed regardless of the world's own tone -- but a dark shadow
+   under dark navy text on an ivory ground reads as a smudge, not depth.
+   Scaled by (1 - on-stone) so it fades to nothing exactly where the text
+   itself has flipped dark. */
 body.world .w-display,
 body.world .w-h2,
 body.world .w-h3,
 body.world .w-body {
-  text-shadow: 0 1px 20px rgba(6, 6, 9, 0.72);
+  text-shadow: 0 1px 20px rgba(6, 6, 9, calc((1 - var(--on-stone)) * 0.72));
 }
 /* The eyebrow is the smallest, lightest-weight type on the page and often
    sits over a carried photograph, so it carries the strongest halo of
@@ -472,14 +511,14 @@ body.world[dir="rtl"] .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translat
    contrast object in the frame, on night and on stone alike. */
 body.world .w-btn--primary {
   background: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
-  color: color-mix(in oklab, #0A0906 calc((1 - var(--on-stone)) * 100%), #F6F3EC);
+  color: color-mix(in oklab, #0B1E33 calc((1 - var(--on-stone)) * 100%), #FCFAF5);
 }
 body.world .w-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
 body.world .w-btn--primary:active { transform: translateY(0) scale(0.985); }
 body.world .w-btn--ghost {
   background: transparent;
   color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
-  border-color: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.22));
+  border-color: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.22));
 }
 body.world .w-btn--ghost:hover { border-color: var(--w-gold); }
 
@@ -504,7 +543,7 @@ body.world[dir="rtl"] .w-action svg { transform: scaleX(-1); }
 body.world .w-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 44px; height: 44px; flex: none; border-radius: 50%;
-  border: 1px solid color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.24));
+  border: 1px solid color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.24));
   background: transparent;
   color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
   cursor: pointer;
@@ -570,7 +609,7 @@ body.world .w-answer {
   height: calc(var(--w-air-m) * 2);
   width: 1px;
   background: linear-gradient(180deg,
-    color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.22)),
+    color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.22)),
     transparent);
   z-index: -1;
   pointer-events: none;
@@ -921,7 +960,7 @@ body.world .w-dot {
 }
 body.world .w-dot::after {
   content: ''; width: 6px; height: 6px; border-radius: 50%;
-  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.28));
+  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.28));
   transition: background-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
 }
 body.world .w-dot[aria-current="true"]::after { background: var(--w-gold); transform: scale(1.6); }
@@ -955,11 +994,11 @@ body.world .w-list { display: flex; flex-direction: column; }
 body.world .w-row {
   display: flex; align-items: center; gap: 1.1rem;
   padding: 1.15rem 0;
-  border-block-end: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.14));
+  border-block-end: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.14));
   text-decoration: none;
   transition: padding-inline-start var(--w-mid) var(--w-ease-out);
 }
-body.world .w-row:first-child { border-block-start: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.14)); }
+body.world .w-row:first-child { border-block-start: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.14)); }
 body.world .w-row:hover { padding-inline-start: 0.6rem; }
 body.world .w-row svg:first-child { flex: none; color: var(--w-gold); }
 body.world .w-row-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
@@ -998,14 +1037,14 @@ body.world #siteHeader header {
   transition: background-color var(--w-mid) var(--w-ease), border-color var(--w-mid) var(--w-ease);
 }
 body.world.w-scrolled #siteHeader header {
-  background: color-mix(in oklab, rgba(9,8,11,0.88) calc((1 - var(--on-stone)) * 100%), rgba(238,232,220,0.90));
+  background: color-mix(in oklab, rgba(11,30,51,0.88) calc((1 - var(--on-stone)) * 100%), rgba(252,250,245,0.92));
   backdrop-filter: blur(16px);
-  border-bottom: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.12));
+  border-bottom: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.12));
 }
 body.world .home-bottomnav {
-  background: color-mix(in oklab, rgba(9,8,11,0.92) calc((1 - var(--on-stone)) * 100%), rgba(238,232,220,0.94));
+  background: color-mix(in oklab, rgba(11,30,51,0.92) calc((1 - var(--on-stone)) * 100%), rgba(252,250,245,0.95));
   backdrop-filter: blur(16px);
-  border-top: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.12));
+  border-top: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,30,51,0.12));
 }
 
 /* =========================================================================
@@ -1110,6 +1149,31 @@ body.world .w-gallery { perspective: 1900px; min-height: 62vh; }
      which the old three-column grid + nth-child(n+4){display:none} did. */
   body.world .w-offer { grid-template-columns: 1fr; }
 }
+
+/* =========================================================================
+ * 12. FOOTER -- Deep Navy close
+ * =========================================================================
+ * The footer sits AFTER the journey (--journey has already reached 1 by
+ * the time it's on screen, so the world-field is already fully navy
+ * behind it) but it is its own opaque element, not part of the fixed
+ * field -- css/cinematic.css's `.cine-scope .home-footer` rule gives it a
+ * light ivory surface (correct for every OTHER page that reuses the same
+ * component), which this overrides specifically for Home, per the
+ * approved HOME COLOR FLOW ("Footer = Deep Navy"). Text/link colors
+ * inside it get their own explicit on-navy values rather than reading
+ * --on-stone, since the footer never sits anywhere but the end of the
+ * journey -- it has no tonal ambiguity to resolve. ======================= */
+body.world .home-footer {
+  background: var(--w-navy);
+  border-top: 1px solid rgba(252, 250, 245, 0.12);
+}
+body.world .home-footer-word { color: var(--w-gold-hi); }
+body.world .home-footer-tagline,
+body.world .home-footer-link,
+body.world .home-footer-bottom { color: var(--w-ink-soft); }
+body.world .home-footer-heading { color: var(--w-ink); }
+body.world .home-footer-link:hover { color: var(--w-gold); }
+body.world .home-footer-bottom { border-top-color: rgba(252, 250, 245, 0.12); }
 
 /* =========================================================================
  * 13. REDUCED MOTION
