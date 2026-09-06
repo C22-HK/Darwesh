@@ -10,45 +10,85 @@
  * cinematic.css.
  *
  * =====================================================================
- * WHY THIS LOOKS THE WAY IT DOES: alive, not animated
+ * WHAT THIS IS: the approved MAM object, built in CSS + SVG
  * =====================================================================
- * The previous orb was a perfect circle running `mamco-speak-pulse 0.85s
- * infinite` while speaking. That is the definition of a canned loop: a
- * fixed period, a fixed amplitude, identical every cycle, and completely
- * indifferent to whether MAM is actually saying anything. The eye locks
- * onto the period within about two repeats and it stops reading as life.
+ * The approved reference is a specific thing, not a mood: a DARK,
+ * translucent glass body with warm gold light living inside it, two soft
+ * gold crescents suspended in that light, and thin gold orbits ringing it.
+ * Every decision below serves that object.
  *
- * Three things replace it.
+ * 1. THE BODY IS DARK GLASS, NOT A GOLD BALL. The fill is deep obsidian at
+ *    0.72-0.96 alpha over a backdrop blur -- nowhere opaque. What makes it
+ *    read as a material rather than a hole is the light on and in it: a
+ *    crown highlight where the surface turns away at the top, a warm rim
+ *    along the far bottom edge where light that has passed THROUGH the
+ *    body gathers, and light pooling in the taper where the glass is
+ *    thickest. An earlier pass filled the body with bright gold plasma and
+ *    it read as a solid sphere, which is the failure this structure exists
+ *    to avoid: you cannot see translucency, you can only see through it.
  *
- * 1. NO PERFECT CIRCLE. The body is a liquid droplet -- an eight-value
- *    border-radius that morphs continuously. A circle is a shape; a
- *    droplet holding its own surface tension is a body.
+ * 2. THE ORBITS PROVE THE GLASS. They are drawn twice from the same
+ *    markup, once behind the body and once in front. The back copy is
+ *    visible ONLY because the body transmits, so an orbit crossing behind
+ *    the glass is a live demonstration that the glass is glass. The front
+ *    copy is masked to its lower half, so each ring is bright coming
+ *    toward you and dim going away -- which is what makes two flat
+ *    ellipses read as two rings turning in space, for the cost of a
+ *    gradient mask.
  *
- * 2. NO SHARED PERIOD. Float (11s), breath (7.3s), surface morph (19s) and
- *    the two plasma layers (13s / 21s) run on lengths chosen not to divide
- *    into one another. Their combined pattern takes many minutes to
- *    visibly repeat, so the motion never resolves into a beat you can
- *    predict. That irregularity is the entire trick -- it is what
- *    "organic, calm and slightly imperfect" means mechanically.
+ * 3. NOTHING SPINS AT A CONSTANT RATE. A constant rotation is the single
+ *    most legible motion there is: two rotating gradient layers announce
+ *    exactly how they were built within about two turns. So the internal
+ *    light DRIFTS and swells (13s / 21s) instead of rotating, the orbits
+ *    open and close rather than circling (17s / 23s -- both prime),
+ *    the halo sways +-7deg over 41s rather than turning, and float (11s),
+ *    breath (7.3s), surface morph (19s) and the eye drift (14.3s) share no
+ *    factors either. The combined pattern takes many minutes to visibly
+ *    repeat, which is what "alive, not animated" means mechanically.
  *
- * 3. THE LOUD STATES ARE NOT ANIMATIONS AT ALL. --mam-energy is a real
+ * 4. THE LOUD STATES ARE NOT ANIMATIONS AT ALL. --mam-energy is a real
  *    number, 0..1, written every frame by js/mam-voice-energy.js from an
  *    AnalyserNode on MAM's OWN audio output while speaking, and from the
  *    microphone while listening. Nothing below interpolates it, so when
- *    MAM is silent the body is still and when the voice swells the body
- *    swells with it. If the audio stops, the movement stops -- which is
- *    the observable difference between reacting and performing.
+ *    MAM is silent the body is still and when the voice swells the body,
+ *    the eyes and the internal light swell with it. If the audio stops,
+ *    the movement stops -- the observable difference between reacting and
+ *    performing. No waveform is drawn around the body; the body IS the
+ *    reaction.
  *
- * Cost: transform, scale, opacity and filter only -- all compositor work.
- * No canvas, no WebGL, no animation library, one element hierarchy.
+ * Cost: transform, scale, opacity, mask and two small SVGs -- all
+ * compositor work. No canvas, no WebGL, no animation library.
  * ===================================================================== */
 :root {
   --mamco-surface: #17150F;
   --mamco-surface-high: #221E15;
   --mamco-accent: #B89A63;
   --mamco-glow: #F2EEE5;
-  --mamco-outline: #5D482B;
+  /* Translucent, not solid: a glass edge catches light rather than drawing
+     a line. A solid #5D482B outlined the body like a sticker. */
+  --mamco-outline: rgba(178, 148, 96, 0.42);
   --mamco-error: #E5787A;
+  /* The internal light. Warmer and brighter than the accent, because it is
+     a light source seen through a dark medium, not a surface colour. */
+  --mamco-eye: #FFD9A2;
+  --mamco-orbit: 255, 224, 168;
+
+  /* THE GLASS. Four insets that together describe a THICKNESS rather than
+     a hole, factored out because all eight states need the SAME material:
+     a state may change the light around the body, never what the body is
+     made of.
+       crown    light catching the surface where it turns away at the top
+       far rim  light that has travelled THROUGH the body and gathers at
+                the bottom edge -- the single strongest cue that a dark
+                object is translucent rather than solid
+       pooling  warmth collecting in the taper, where the glass is thickest
+       ambient  the body's own interior shadow, so the middle has depth
+                instead of going flat */
+  --mamco-glass-inset:
+    inset 0 1.5px 1.5px -1px rgba(255, 250, 238, 0.38),
+    inset 0 -3px 6px -3px rgba(247, 214, 150, 0.60),
+    inset 0 -15px 22px -14px rgba(238, 196, 126, 0.30),
+    inset 0 0 24px rgba(0, 0, 0, 0.40);
 }
 
 .mamco-root {
@@ -73,15 +113,21 @@
 /* The float layer exists ONLY to own the drift, so it can never collide
    with the root's positioning transform or the orb's breath. 3px, which is
    inside the 2-4px the brief asks for and below the threshold at which a
-   drifting element starts to look like it is sliding. */
+   drifting element starts to look like it is sliding.
+   It is also the stage the halo and the body share, which is what lets an
+   orbit sit behind the body: a child can never paint behind its own
+   parent's background, so the three are siblings here instead. */
 .mamco-float {
   display: block;
+  position: relative;
+  width: var(--mamco-size);
+  height: var(--mamco-size);
   animation: mamco-float 11s ease-in-out infinite;
   will-change: transform;
 }
 
 /* ---------------------------------------------------------------------
- * THE BODY -- a droplet holding its shape, with weather inside it.
+ * THE BODY -- dark glass with weather inside it.
  * ------------------------------------------------------------------- */
 .mamco-orb {
   pointer-events: auto;
@@ -91,23 +137,55 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;              /* keeps the plasma inside the surface */
+  /* NOT overflow:hidden. The internal light is clipped by .mamco-core
+     instead (see below), which leaves the edge rim free to sit outside the
+     body -- and, more importantly, keeps the orb from clipping nothing it
+     needs to clip while costing a paint the halo has to work around. */
   isolation: isolate;
+  /* TRANSLUCENT, and DARK. Two layers, no opaque stop anywhere: a broad
+     sheen across the upper face, then the material itself -- thinner at
+     the lit shoulder, denser toward the tapered base where more glass sits
+     between you and whatever is behind it.
+     The alphas climb from 0.72 at the lit shoulder to 0.96 at the rim,
+     which is how a dark medium actually behaves: the edge is where the
+     light path through the body is longest, so the edge is where it goes
+     nearly black. An earlier pass ran 0.50-0.86 and the body came out
+     MILKY -- a pale bubble rather than obsidian. Darkening it does not
+     cost the translucency, because what you see through this body is not
+     the wallpaper behind it: it is the bright gold orbit passing behind
+     the glass, which reads clearly through 4% transmission. */
   background:
-    radial-gradient(circle at 50% 52%, #2A2417 0%, #14120C 68%, #0C0B07 100%);
+    linear-gradient(152deg, rgba(255,249,236,0.10) 0%, rgba(255,249,236,0.02) 22%, rgba(255,249,236,0) 42%),
+    radial-gradient(126% 112% at 42% 22%, rgba(44,41,37,0.72) 0%, rgba(17,16,15,0.89) 42%, rgba(5,5,5,0.96) 100%);
+  /* What separates GLASS from a hole: the page behind stays present but
+     softened, the way it would be through a real body. saturate() is held
+     at 1.1 rather than 1.3 -- the higher value pushed the warm grounds
+     this sits on toward olive and tinted the whole body green. */
+  backdrop-filter: blur(8px) saturate(1.1);
+  -webkit-backdrop-filter: blur(8px) saturate(1.1);
   border: 1px solid var(--mamco-outline);
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.85),
+  box-shadow: var(--mamco-glass-inset),
     0 0 22px -6px rgba(184,154,99,0.42),
-    0 8px 28px rgba(9, 10, 10, 0.35);
+    0 10px 26px -8px rgba(9, 10, 10, 0.45);
 
-  /* The droplet. Eight radii, morphing on a long period. */
-  /* Amplitude matters here. The first pass stayed inside 44-56%, which at
-     a 68px body is about 3px of asymmetry -- measured on a render it was
-     invisible and the body read as a plain disc. 39-61% is roughly 7px:
-     unmistakably not a circle, still unmistakably one coherent droplet
-     rather than the "excessive blob deformation" the brief rules out. */
-  border-radius: 42% 58% 55% 45% / 52% 43% 57% 48%;
+  /* The body, TAPERED at the bottom. Eight radii, morphing on a long
+     period.
+     Two things are being held at once.
+     Amplitude: an early pass stayed inside 44-56%, which at a 68px body is
+     about 3px of asymmetry -- measured on a render it was invisible and
+     the body read as a plain disc. The horizontal pair now swings 45-55%,
+     roughly 7px: unmistakably sculpted, still one coherent body rather
+     than the "excessive blob deformation" the brief rules out.
+     Taper: the two BOTTOM vertical radii (~60%) are far deeper than the
+     two top ones (~39%). For a corner ellipse the radius of curvature at
+     its pole is rx^2/ry, so a deeper vertical radius makes a TIGHTER
+     bottom -- the widest point of the body ends up at about 39% height,
+     above centre, and the base draws down and in. Each edge's pair sums to
+     100% deliberately: at exactly 100% the two arcs meet with no straight
+     segment between them, which is where the continuous curve comes from.
+     Held moderate on purpose -- the approved object is a sculpted body,
+     not a teardrop, and a hard point would be a different design. */
+  border-radius: 52% 48% 47% 53% / 38% 41% 59% 62%;
   animation:
     mamco-morph 19s ease-in-out infinite,
     mamco-breath 7.3s ease-in-out infinite;
@@ -124,28 +202,73 @@
   will-change: transform, scale;
 }
 
-/* The containment ring, outside the clipped surface so it can move past
-   the body's own edge. Its opacity also rides --mam-energy. */
+/* The edge rim, just outside the surface. Proportional to the body rather
+   than a fixed 6px: at 34px a fixed offset read as a second circle
+   floating around a small orb, and at 108px it disappeared into the edge.
+   Its opacity rides --mam-energy, so the edge lights up with the voice. */
 .mamco-orb::before {
   content: '';
   position: absolute;
-  inset: -6px;
+  inset: calc(var(--mamco-size) * -0.035);
   border-radius: inherit;
   border: 1.5px solid var(--mamco-accent);
-  opacity: calc(0.34 + var(--mam-energy) * 0.5);
+  opacity: calc(0.30 + var(--mam-energy) * 0.5);
   pointer-events: none;
-  z-index: 3;
+  z-index: 4;
   transition: opacity 200ms ease, border-color 320ms ease;
 }
 
+/* THE SURFACE. Above the internal light and the eyes (so the highlight
+   passes over them the way it would over anything under glass) and below
+   the rim.
+   Three highlights, each doing a different job:
+     catch light  a small bright specular on the upper-left shoulder, where
+                  a single light source strikes a curved surface;
+     sheen        a broad soft sweep down the face, giving the curvature
+                  somewhere to fall away to;
+     pooling      warmth gathering low and centre, in the taper, because
+                  that is where the glass is thickest and light collects.
+   Screen-blended so they ADD to whatever the light inside is doing rather
+   than covering it -- a highlight that hides the light in the body would
+   make it less glassy, not more. */
+.mamco-orb::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+  /* Small and sharp. A wide soft one washed a grey dome over the top third
+     of the body and flattened it -- a specular is a light source seen in a
+     surface, so it should be about the size of the light, not the size of
+     the object. */
+  background:
+    radial-gradient(16% 11% at 34% 17%, rgba(255,253,247,0.92) 0%, rgba(255,251,240,0.16) 52%, rgba(255,251,240,0) 78%),
+    linear-gradient(154deg, rgba(255,248,232,0.11) 0%, rgba(255,248,232,0.025) 22%, rgba(255,248,232,0) 42%),
+    radial-gradient(58% 34% at 54% 92%, rgba(246,214,152,0.21) 0%, rgba(246,214,152,0) 66%);
+  mix-blend-mode: screen;
+  /* The surface brightens fractionally with the voice, so a loud syllable
+     catches the glass too, not only the light behind it. */
+  opacity: calc(0.86 + var(--mam-energy) * 0.14);
+  transition: opacity 90ms linear;
+}
+
+/* ---------------------------------------------------------------------
+ * THE LIGHT INSIDE -- integrated into the material, never a visible layer.
+ * ------------------------------------------------------------------- */
 .mamco-core {
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: transparent;
-  /* Brightness follows the voice too, so a loud syllable lights the body
-     from within rather than only stretching it. */
-  filter: brightness(calc(1 + var(--mam-energy) * 0.55));
+  /* The clip lives here, not on the orb, so the body itself is free of an
+     overflow rule the halo would have to fight. */
+  overflow: hidden;
+  z-index: 0;
+  /* Brightness follows the voice, so a loud syllable lights the body from
+     within rather than only stretching it. */
+  filter: brightness(calc(1 + var(--mam-energy) * 0.26))
+          saturate(calc(1 + var(--mam-energy) * 0.16));
   transition: filter 90ms linear;
 }
 .mamco-core::before,
@@ -156,25 +279,104 @@
   border-radius: 999px;
   will-change: transform;
 }
-/* Layer 1 -- the bright heart and two warm lobes, turning one way. */
+/* Layer 1 -- the warm heart and two lobes, DRIFTING rather than rotating.
+   The alphas are low on purpose: this is a light source seen through a
+   dark medium. An earlier pass ran these near-opaque and the body stopped
+   transmitting entirely -- the light filled the glass instead of living
+   in it. */
 .mamco-core::before {
   background:
-    radial-gradient(circle at 50% 50%, rgba(255,246,224,0.95) 0%, rgba(240,206,132,0.6) 14%, rgba(184,154,99,0.22) 30%, transparent 52%),
-    radial-gradient(circle at 33% 62%, rgba(224,166,74,0.55) 0%, transparent 42%),
-    radial-gradient(circle at 68% 36%, rgba(255,214,150,0.45) 0%, transparent 38%);
-  filter: blur(5px);
-  animation: mamco-swirl-a 13s linear infinite;
+    radial-gradient(circle at 50% 54%, rgba(255,229,182,0.46) 0%, rgba(246,186,98,0.24) 13%, rgba(184,144,80,0.09) 27%, transparent 44%),
+    radial-gradient(circle at 32% 66%, rgba(226,160,66,0.24) 0%, transparent 32%),
+    radial-gradient(circle at 70% 38%, rgba(255,208,138,0.20) 0%, transparent 29%);
+  filter: blur(7px);
+  opacity: calc(0.86 + var(--mam-energy) * 0.14);
+  animation: mamco-drift-a 13s ease-in-out infinite;
 }
-/* Layer 2 -- cooler, dimmer, counter-rotating on a period that is not a
-   multiple of layer 1's. */
+/* Layer 2 -- cooler, dimmer, drifting the other way on a period that is
+   not a multiple of layer 1's. */
 .mamco-core::after {
   background:
-    radial-gradient(circle at 62% 58%, rgba(216,188,128,0.5) 0%, transparent 40%),
-    radial-gradient(circle at 38% 34%, rgba(142,116,72,0.55) 0%, transparent 45%),
-    radial-gradient(circle at 50% 78%, rgba(255,200,120,0.32) 0%, transparent 36%);
-  filter: blur(7px);
+    radial-gradient(circle at 60% 62%, rgba(238,172,88,0.22) 0%, transparent 32%),
+    radial-gradient(circle at 38% 34%, rgba(178,94,38,0.26) 0%, transparent 36%),
+    radial-gradient(circle at 50% 80%, rgba(255,186,104,0.16) 0%, transparent 28%);
+  filter: blur(9px);
   mix-blend-mode: screen;
-  animation: mamco-swirl-b 21s linear infinite;
+  animation: mamco-drift-b 21s ease-in-out infinite;
+}
+
+/* ---------------------------------------------------------------------
+ * THE EYES -- two soft gold crescents suspended IN the glass.
+ * The one element that makes this a being rather than an orb. Below the
+ * surface layer, above the internal light: they are in the material, not
+ * printed on it.
+ * ------------------------------------------------------------------- */
+.mamco-eyes {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.mamco-eyes svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mamco-eye-pair {
+  transform-box: fill-box;
+  transform-origin: center;
+  /* One filter for the pair, not one each. Static -- only the transform
+     animates, so this rasterizes once. */
+  filter: drop-shadow(0 0 2.5px rgba(255, 198, 112, 0.9));
+  animation: mamco-eye-drift 14.3s ease-in-out infinite;
+}
+.mamco-eye {
+  fill: none;
+  stroke: var(--mamco-eye);
+  stroke-width: 5.6;
+  stroke-linecap: round;
+  /* The eyes brighten with the voice along with everything else. */
+  opacity: calc(0.88 + var(--mam-energy) * 0.12);
+  transition: opacity 90ms linear, stroke 320ms ease;
+}
+
+/* ---------------------------------------------------------------------
+ * THE HALO -- thin gold orbits, drawn behind and in front of the body.
+ * ------------------------------------------------------------------- */
+.mamco-halo {
+  position: absolute;
+  inset: -22%;
+  pointer-events: none;
+  /* A sway, not a spin. A constant rotation at any speed fast enough to
+     notice is immediately legible as an animation; +-7deg over 41s reads
+     as an object settling in space. */
+  animation: mamco-halo-sway 41s ease-in-out infinite;
+}
+.mamco-halo svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mamco-halo-orbits, .mamco-halo-ears { position: absolute; inset: 0; }
+/* Behind the body. Visible ONLY because the glass transmits -- this is the
+   layer that proves the material. */
+.mamco-halo--back { z-index: 0; opacity: 0.62; }
+.mamco-halo--front { z-index: 2; }
+/* In front, masked to its near half, so each orbit is bright coming toward
+   you and gone going away. The mask is fixed in screen space while the
+   ellipses turn inside it, which is what makes flat ovals read as rings.
+   Scoped to the ORBITS only: the ears sit inside the mask's ramp and were
+   rendering as half-faded grey brackets when they shared it. */
+.mamco-halo--front .mamco-halo-orbits {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0 44%, #000 68%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0 44%, #000 68%, #000 100%);
+}
+.mamco-orbit { transform-box: fill-box; transform-origin: center; }
+/* Two strokes per orbit rather than one with a drop-shadow: a wide faint
+   stroke under a narrow bright one is the same glow for the cost of paint,
+   and it does not re-rasterize the layer every frame. */
+.mamco-orbit-halo { fill: none; stroke: rgba(var(--mamco-orbit), 0.13); stroke-width: 2.6; }
+.mamco-orbit-line { fill: none; stroke: rgba(var(--mamco-orbit), 0.72); stroke-width: 0.75; }
+/* Prime periods, so the two orbits never come back into phase. */
+.mamco-orbit--a { animation: mamco-orbit-a 17s ease-in-out infinite; }
+.mamco-orbit--b { animation: mamco-orbit-b 23s ease-in-out infinite; }
+.mamco-ear {
+  fill: none;
+  stroke: rgba(var(--mamco-orbit), 0.48);
+  stroke-width: 2.1;
+  stroke-linecap: round;
 }
 
 @keyframes mamco-float {
@@ -186,31 +388,57 @@
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(0.978); }
 }
-/* Asymmetric on purpose: a droplet's surface never returns through the
-   same shape it left by. */
+/* Asymmetric on purpose: a liquid surface never returns through the same
+   shape it left by.
+   The taper is INVARIANT across all four stops -- every keyframe keeps the
+   bottom vertical radii well above the top ones, so the silhouette
+   breathes and leans without ever rolling back into a symmetrical blob.
+   What varies is which shoulder is fuller and how tight the base draws. */
 @keyframes mamco-morph {
-  0%,100% { border-radius: 42% 58% 55% 45% / 52% 43% 57% 48%; }
-  25%     { border-radius: 58% 42% 41% 59% / 43% 57% 43% 57%; }
-  50%     { border-radius: 47% 53% 61% 39% / 60% 48% 52% 40%; }
-  75%     { border-radius: 39% 61% 46% 54% / 46% 56% 44% 54%; }
+  0%,100% { border-radius: 52% 48% 47% 53% / 38% 41% 59% 62%; }
+  25%     { border-radius: 48% 52% 53% 47% / 36% 43% 57% 64%; }
+  50%     { border-radius: 55% 45% 44% 56% / 41% 35% 65% 59%; }
+  75%     { border-radius: 46% 54% 51% 49% / 37% 40% 60% 63%; }
 }
-@keyframes mamco-swirl-a {
-  0%   { transform: rotate(0deg)   scale(1);    }
-  50%  { transform: rotate(180deg) scale(1.09); }
-  100% { transform: rotate(360deg) scale(1);    }
+/* DRIFT, not rotation. See note 3 in the header: a constant spin announces
+   how the animation was built; a wandering mass does not. */
+@keyframes mamco-drift-a {
+  0%,100% { transform: translate3d(-6%, 4%, 0) scale(1.02); }
+  34%     { transform: translate3d(7%, -5%, 0) scale(1.14); }
+  67%     { transform: translate3d(2%, 8%, 0) scale(0.94); }
 }
-@keyframes mamco-swirl-b {
-  0%   { transform: rotate(360deg) scale(1.06); }
-  50%  { transform: rotate(180deg) scale(0.94); }
-  100% { transform: rotate(0deg)   scale(1.06); }
+@keyframes mamco-drift-b {
+  0%,100% { transform: translate3d(5%, -3%, 0) scale(1.08); }
+  40%     { transform: translate3d(-7%, 6%, 0) scale(0.92); }
+  72%     { transform: translate3d(-1%, -7%, 0) scale(1.16); }
+}
+@keyframes mamco-eye-drift {
+  0%,100% { transform: translate(0, 0); }
+  30%     { transform: translate(1.1px, -0.6px); }
+  62%     { transform: translate(-0.9px, 0.5px); }
+}
+@keyframes mamco-halo-sway {
+  0%,100% { transform: rotate(-7deg); }
+  50%     { transform: rotate(7deg); }
+}
+/* Each orbit opens and closes rather than circling: scaleY is a ring
+   turning about its own axis, which is the motion a real orbit has and a
+   spinning oval does not. */
+@keyframes mamco-orbit-a {
+  0%,100% { transform: rotate(-16deg) scaleY(1); }
+  50%     { transform: rotate(-23deg) scaleY(0.40); }
+}
+@keyframes mamco-orbit-b {
+  0%,100% { transform: rotate(38deg) scaleY(0.52); }
+  50%     { transform: rotate(30deg) scaleY(1); }
 }
 @keyframes mamco-rotate { to { transform: rotate(360deg); } }
-@keyframes mamco-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.45; } 50% { transform: scale(1.13); opacity: 0.9; } }
+@keyframes mamco-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.42; } 50% { transform: scale(1.1); opacity: 0.85; } }
 /* Inward, not outward: THINKING draws energy in rather than broadcasting. */
 @keyframes mamco-inward {
-  0%   { transform: rotate(0deg) scale(1.14); opacity: 0.15; }
-  60%  { transform: rotate(200deg) scale(0.86); opacity: 0.85; }
-  100% { transform: rotate(360deg) scale(1.14); opacity: 0.15; }
+  0%   { transform: translate3d(0,0,0) scale(1.18); opacity: 0.18; }
+  60%  { transform: translate3d(2%, -3%, 0) scale(0.82); opacity: 0.9; }
+  100% { transform: translate3d(0,0,0) scale(1.18); opacity: 0.18; }
 }
 
 /* =====================================================================
@@ -218,6 +446,14 @@
  * Each changes the SPEED, WEIGHT and BRIGHTNESS of one body rather than
  * swapping in a different graphic, so identity holds across all of them
  * and a transition reads as one thing changing mood.
+ *
+ * Every state below opens its box-shadow with var(--mamco-glass-inset) and
+ * then adds only OUTER light. That is deliberate: a state may change what
+ * is happening around the body, never what the body is made of. Before
+ * this pass each state re-declared its own heavy inset and they had
+ * drifted apart (0.85 / 0.8 / 0.78 / 0.7), so the material subtly changed
+ * thickness as MAM changed mood -- which is exactly how a presence stops
+ * reading as one object.
  * ===================================================================== */
 
 /* IDLE -- present, breathing, nothing more. */
@@ -226,10 +462,9 @@
 /* hover -- the body notices you. */
 .mamco-orb:hover {
   border-color: rgba(184,154,99,0.75);
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.8),
+  box-shadow: var(--mamco-glass-inset),
     0 0 30px -4px rgba(184,154,99,0.6),
-    0 8px 28px rgba(9, 10, 10, 0.4);
+    0 10px 26px -8px rgba(9, 10, 10, 0.5);
 }
 .mamco-orb:hover .mamco-core::before { animation-duration: 9s; }
 .mamco-orb:hover .mamco-core::after  { animation-duration: 15s; }
@@ -241,11 +476,10 @@
   animation:
     mamco-morph 9s ease-in-out infinite,
     mamco-wake 900ms cubic-bezier(0.22, 1, 0.36, 1) 1;
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.7),
+  box-shadow: var(--mamco-glass-inset),
     0 0 0 6px rgba(184, 154, 99, 0.14),
     0 0 44px -4px rgba(184,154,99,0.62),
-    0 10px 34px rgba(9, 10, 10, 0.4);
+    0 12px 32px -8px rgba(9, 10, 10, 0.45);
 }
 .mamco-orb[data-state="awakening"] .mamco-core::before { animation-duration: 7s; }
 @keyframes mamco-wake {
@@ -255,60 +489,63 @@
 }
 
 /* WAKE-LISTENING -- ambient, waiting only for the phrase "MAM AI". A dim
-   slow ring keeps it readable apart from real listening at a glance. */
+   slow rim keeps it readable apart from real listening at a glance. */
 .mamco-orb[data-state="wake-listening"] {
   border-color: rgba(184,154,99,0.55);
 }
 .mamco-orb[data-state="wake-listening"]::before { animation: mamco-ring-pulse 3.6s ease-in-out infinite; }
 
-/* LISTENING -- the ring holds open and the body answers the MICROPHONE.
+/* LISTENING -- the rim holds open and the body answers the MICROPHONE.
    The movement here is --mam-energy from a real input level; there is no
    listening keyframe, because a body that pulses on a timer while you are
    silent is pretending to hear you. */
 .mamco-orb[data-state="listening"] {
   border-color: var(--mamco-accent);
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.8),
+  box-shadow: var(--mamco-glass-inset),
     0 0 0 calc(4px + var(--mam-energy) * 8px) rgba(184, 154, 99, 0.16),
     0 0 34px -4px rgba(184,154,99,0.55),
-    0 8px 28px rgba(9, 10, 10, 0.35);
+    0 10px 26px -8px rgba(9, 10, 10, 0.42);
   transition: box-shadow 90ms linear, border-color 320ms ease;
 }
 
 /* THINKING -- energy circulates INWARD. Nothing leaves the body; it is
-   working, not broadcasting. */
+   working, not broadcasting. The eyes narrow slightly, which is the
+   cheapest and most legible "considering" cue there is. */
 .mamco-orb[data-state="thinking"]::before {
   border-style: dashed;
-  opacity: 0.85;
+  opacity: 0.8;
   animation: mamco-rotate 3.6s linear infinite;
 }
 .mamco-orb[data-state="thinking"] .mamco-core::before { animation: mamco-inward 2.9s ease-in-out infinite; }
 .mamco-orb[data-state="thinking"] .mamco-core::after  { animation-duration: 9s; }
 .mamco-orb[data-state="thinking"] .mamco-core { filter: brightness(1.12) saturate(1.12); }
+.mamco-orb[data-state="thinking"] .mamco-eye-pair { transform: scaleY(0.74); }
 
 /* SPEAKING -- the body IS the voice. Everything visible here is driven by
    --mam-energy (see the header): scale on .mamco-orb, brightness on
-   .mamco-core, ring opacity, and the bloom below. Deliberately no
-   keyframe: silence must look like silence. */
+   .mamco-core, eye and rim opacity, and the bloom below. Deliberately no
+   keyframe: silence must look like silence, and no waveform is drawn
+   around the body. */
 .mamco-orb[data-state="speaking"] {
   border-color: var(--mamco-accent);
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.78),
+  box-shadow: var(--mamco-glass-inset),
     0 0 calc(18px + var(--mam-energy) * 30px) calc(-6px + var(--mam-energy) * 6px) rgba(184,154,99,calc(0.4 + var(--mam-energy) * 0.42)),
-    0 8px 28px rgba(9, 10, 10, 0.35);
+    0 10px 26px -8px rgba(9, 10, 10, 0.42);
   transition: box-shadow 70ms linear, border-color 320ms ease;
 }
 .mamco-orb[data-state="speaking"] .mamco-core::before { animation-duration: 8s; }
+.mamco-orb[data-state="speaking"] .mamco-eye {
+  stroke-width: calc(5.6px + var(--mam-energy) * 1.5px);
+}
 
 /* GUIDING -- taking you somewhere. Leans in the reading direction and
    holds a steady, quiet confidence; no pulsing, because it is escorting
    rather than talking. */
 .mamco-orb[data-state="guiding"] {
   border-color: rgba(184,154,99,0.9);
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.8),
+  box-shadow: var(--mamco-glass-inset),
     0 0 30px -6px rgba(184,154,99,0.5),
-    0 8px 28px rgba(9, 10, 10, 0.35);
+    0 10px 26px -8px rgba(9, 10, 10, 0.42);
   animation:
     mamco-morph 15s ease-in-out infinite,
     mamco-lean 2.6s ease-in-out infinite;
@@ -324,26 +561,32 @@
 }
 
 /* MINIMIZED -- small again, and still unmistakably alive. Same body, same
-   breath, same plasma, less of it. The one thing that must NOT happen
-   here is stopping: a companion that freezes when it is small reads as
-   switched off. */
+   breath, same light, less of it. The one thing that must NOT happen here
+   is stopping: a companion that freezes when it is small reads as switched
+   off. */
 .mamco-orb[data-state="minimized"] {
   border-color: rgba(184,154,99,0.5);
-  box-shadow:
-    inset 0 0 12px rgba(0,0,0,0.85),
+  /* Thinner glass, not different glass: the same insets at lower
+     intensity, so a small MAM is the same material seen from further away
+     rather than a second, flatter design. */
+  --mamco-glass-inset:
+    inset 0 1.5px 1.5px -1px rgba(255, 250, 238, 0.38),
+    inset 0 -2px 4px -2px rgba(247, 214, 150, 0.38),
+    inset 0 -9px 14px -9px rgba(238, 196, 126, 0.22),
+    inset 0 0 18px rgba(0, 0, 0, 0.48);
+  box-shadow: var(--mamco-glass-inset),
     0 0 14px -6px rgba(184,154,99,0.34),
-    0 4px 16px rgba(9, 10, 10, 0.3);
+    0 5px 14px -6px rgba(9, 10, 10, 0.36);
 }
-.mamco-orb[data-state="minimized"]::before { opacity: 0.22; }
+.mamco-orb[data-state="minimized"]::before { opacity: 0.2; }
 
 /* RESULT-READY -- one bloom, then MamCompanion settles it back itself. */
 .mamco-orb[data-state="result-ready"] {
   border-color: var(--mamco-accent);
-  box-shadow:
-    inset 0 0 18px rgba(0,0,0,0.7),
+  box-shadow: var(--mamco-glass-inset),
     0 0 0 7px rgba(184, 154, 99, 0.2),
     0 0 42px -2px rgba(184,154,99,0.75),
-    0 8px 28px rgba(9, 10, 10, 0.35);
+    0 10px 26px -8px rgba(9, 10, 10, 0.42);
 }
 .mamco-orb[data-state="result-ready"] .mamco-core { filter: brightness(1.4) saturate(1.2); }
 
@@ -359,7 +602,21 @@
 }
 .mamco-orb[data-state="error"] .mamco-core::before { animation-duration: 30s; }
 .mamco-orb[data-state="error"] .mamco-core::after  { animation-duration: 44s; }
-.mamco-orb[data-state="error"]::before { opacity: 0.3; animation: none; }
+.mamco-orb[data-state="error"]::before { opacity: 0.28; animation: none; }
+.mamco-orb[data-state="error"] .mamco-eye { stroke: #E9A9A4; }
+
+/* The halo answers the body's mood too, from the ROOT's presence attribute
+   -- the halo is a sibling of the orb, so it cannot be reached from the
+   orb's own state selector. */
+.mamco-root[data-presence="THINKING"] .mamco-orbit--a { animation-duration: 7s; }
+.mamco-root[data-presence="THINKING"] .mamco-orbit--b { animation-duration: 9s; }
+.mamco-root[data-presence="SPEAKING"] .mamco-orbit-line,
+.mamco-root[data-presence="LISTENING"] .mamco-orbit-line {
+  stroke: rgba(var(--mamco-orbit), calc(0.62 + var(--mam-energy) * 0.38));
+}
+.mamco-root[data-presence="MINIMIZED"] .mamco-halo { opacity: 0.3; }
+.mamco-root[data-presence="ERROR"] .mamco-orbit-line { stroke: rgba(229, 120, 122, 0.6); }
+.mamco-root[data-presence="ERROR"] .mamco-halo { animation-duration: 96s; }
 
 /* =====================================================================
  * FOCUS -- where MAM sits once it has been woken.
@@ -374,10 +631,18 @@
   top: 44%;
 }
 .mamco-root[data-focus="1"] .mamco-orb {
-  box-shadow:
-    inset 0 0 22px rgba(0,0,0,0.72),
+  /* A bigger body is thicker glass: the same highlights, scaled with it,
+     so the crown does not stay a 68px detail on a 108px surface. */
+  --mamco-glass-inset:
+    inset 0 3px 3px -1px rgba(255, 250, 238, 0.58),
+    inset 0 -4px 9px -4px rgba(247, 214, 150, 0.58),
+    inset 0 -22px 34px -20px rgba(238, 196, 126, 0.36),
+    inset 0 0 38px rgba(0, 0, 0, 0.44);
+  backdrop-filter: blur(10px) saturate(1.35);
+  -webkit-backdrop-filter: blur(10px) saturate(1.35);
+  box-shadow: var(--mamco-glass-inset),
     0 0 54px -6px rgba(184,154,99,0.5),
-    0 14px 44px rgba(9, 10, 10, 0.45);
+    0 16px 40px -12px rgba(9, 10, 10, 0.5);
 }
 
 @media (max-width: 767px) {
@@ -392,19 +657,29 @@
 /* =====================================================================
  * REDUCED MOTION -- reduce the movement, never remove the life.
  * The brief is explicit that a visitor asking for less motion should get
- * a calmer MAM, not a dead one. So: the drift, the surface morph and the
- * live energy channel all stop, and the plasma keeps turning very slowly.
- * Every state stays visually distinct, because state is carried by
- * colour, ring and brightness -- not by motion alone.
+ * a calmer MAM, not a dead one. So: the drift, the surface morph, the
+ * orbits' turning and the live energy channel all stop, and the light
+ * inside keeps moving very slowly. Every state stays visually distinct,
+ * because state is carried by colour, rim and brightness -- not by motion
+ * alone.
  * ===================================================================== */
 @media (prefers-reduced-motion: reduce) {
   .mamco-float,
   .mamco-orb,
+  .mamco-halo,
+  .mamco-eye-pair,
   .mamco-orb::before { animation: none !important; }
-  .mamco-orb { scale: 1 !important; border-radius: 48% 52% 51% 49% / 50% 47% 53% 50%; }
+  /* Still tapered when it stops moving. Reduced motion removes the morph,
+     not the silhouette -- a body that settles into a symmetrical blob for
+     these visitors would be a different design, not a calmer one. */
+  .mamco-orb { scale: 1 !important; border-radius: 51% 49% 48% 52% / 38% 40% 60% 62%; }
   .mamco-core { filter: none !important; }
   .mamco-core::before { animation-duration: 90s !important; }
   .mamco-core::after  { animation-duration: 140s !important; }
+  /* The orbits hold a pleasing static arrangement rather than snapping to
+     three identical flat ovals. */
+  .mamco-orbit--a { transform: rotate(-16deg) scaleY(0.92); animation: none; }
+  .mamco-orbit--b { transform: rotate(38deg)  scaleY(0.58); animation: none; }
 }
 
 /* =====================================================================
@@ -412,12 +687,34 @@
  * ===================================================================== */
 @media (max-width: 767px) {
   .mamco-root { right: 10px; top: 148px; transform: none; --mamco-size: 34px; }
-  /* The blur scales with the body or the plasma washes out to a smudge at
-     34px. Fewer, cheaper layers on a phone: the second swirl layer is the
-     expensive one (blur + screen blend) and is the least visible at this
-     size. */
+  /* The blur scales with the body or the light inside washes out to a
+     smudge at 34px. Fewer, cheaper layers on a phone: the second drift
+     layer is the expensive one (blur + screen blend) and is the least
+     visible at this size. */
   .mamco-core::before { filter: blur(3px); }
   .mamco-core::after  { filter: blur(4px); opacity: 0.6; }
+  /* Same reasoning for the glass. A 7px backdrop blur behind a 34px body
+     flattens the page into a smear and the translucency stops reading as
+     translucency; 4px keeps something recognisable behind it. */
+  .mamco-orb {
+    backdrop-filter: blur(4px) saturate(1.25);
+    -webkit-backdrop-filter: blur(4px) saturate(1.25);
+    --mamco-glass-inset:
+      inset 0 1px 1px -0.5px rgba(255, 250, 238, 0.46),
+      inset 0 -2px 3px -2px rgba(247, 214, 150, 0.46),
+      inset 0 -6px 10px -6px rgba(238, 196, 126, 0.26),
+      inset 0 0 12px rgba(0, 0, 0, 0.44);
+  }
+  /* Three orbits at 34px are three 1px lines crossing a 34px disc -- noise,
+     not an object. They come back the moment MAM is in focus and big
+     enough to carry them. The eyes stay: at 34px they are still the thing
+     that identifies this as MAM rather than a dot. */
+  .mamco-halo { display: none; }
+  .mamco-eye-pair { filter: none; }
+  .mamco-eye { stroke-width: 7.5; }
+  .mamco-root[data-focus="1"] .mamco-halo { display: block; }
+  .mamco-root[data-focus="1"] .mamco-eye-pair { filter: drop-shadow(0 0 2.5px rgba(255, 198, 112, 0.9)); }
+  .mamco-root[data-focus="1"] .mamco-eye { stroke-width: 5.6; }
 }
 
 /* =====================================================================
@@ -438,7 +735,7 @@
   gap: 8px;
   align-items: flex-end;
   pointer-events: none;   /* the chips themselves re-enable it */
-  z-index: 2;
+  z-index: 5;
 }
 .mamp-option {
   pointer-events: auto;

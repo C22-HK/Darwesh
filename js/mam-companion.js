@@ -6,9 +6,12 @@
 // .setState(...) / .setEnergy(...); js/mam-companion-launcher.js is a
 // consumer, not a special case baked in here.
 //
-// Visual language: a liquid droplet with weather inside it -- abstract and
-// elegant, never a mascot, a robot or a face. State is expressed through
-// motion, weight and colour only (see css/mam-companion.css).
+// Visual language, from the approved reference: a dark translucent glass
+// body with warm gold light inside it, two soft gold crescents suspended in
+// that light, and thin gold orbits ringing it. Abstract and premium -- a
+// small liquid digital being, never a cartoon mascot or a robot. State is
+// expressed through motion, weight, light and colour, never by swapping in
+// a different graphic (see css/mam-companion.css).
 //
 // Pure CSS animation plus one custom property written from JS. No canvas,
 // no WebGL, no animation library, so this is safe to mount on any page
@@ -22,6 +25,63 @@ function ensureStylesheet() {
   link.href = new URL('../css/mam-companion.css', import.meta.url).href;
   document.head.appendChild(link);
 }
+
+// THE HALO -- thin gold orbits that ring the body, and the two small arcs
+// that sit just off its left and right edge.
+//
+// Drawn TWICE, once behind the body and once in front, from the same
+// markup. That is not decoration: the back copy is only visible because
+// the body is translucent, so the moment you can see a ring passing behind
+// the glass, the glass has proved it is glass. The front copy is masked to
+// its lower half (see the stylesheet) so each orbit is bright as it comes
+// toward you and dim as it goes away -- which is what makes two flat
+// ellipses read as two rings turning in space.
+//
+// Each orbit is two ellipses rather than one with a filter: a wide, faint
+// stroke under a narrow, bright one gives the glow for the cost of paint.
+// A drop-shadow filter would re-rasterize the whole layer every frame.
+const ORBIT = (cls) =>
+  `<g class="mamco-orbit ${cls}">` +
+  `<ellipse class="mamco-orbit-halo" cx="50" cy="50" rx="47" ry="17"/>` +
+  `<ellipse class="mamco-orbit-line" cx="50" cy="50" rx="47" ry="17"/>` +
+  `</g>`;
+
+// TWO orbits, not three. Three crossing ellipses read as an atom diagram --
+// a completely different and much more generic object than the approved
+// one, which carries a single elegant halo system. Two rings at unrelated
+// tilts give the depth without the science-fair association.
+const ORBITS_SVG =
+  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
+  ORBIT('mamco-orbit--a') + ORBIT('mamco-orbit--b') +
+  `</svg>`;
+
+// The two small arcs off the body's left and right edge. They live in their
+// own layer because the orbits' near-half mask would otherwise cut straight
+// through them: the ears sit at y 42-58, right inside the mask's ramp, and
+// rendered as half-faded grey brackets rather than gold. They are not part
+// of the orbit illusion, so they should not inherit its mask.
+const EARS_SVG =
+  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
+  `<path class="mamco-ear" d="M17 44 a6 6 0 0 0 0 12"/>` +
+  `<path class="mamco-ear" d="M83 44 a6 6 0 0 1 0 12"/>` +
+  `</svg>`;
+
+// THE EYES -- the one element that makes this a being rather than an orb.
+// Two soft gold crescents suspended INSIDE the glass (which is why they
+// sit under the surface layer, not on top of it), drifting very slightly
+// so they never look printed on.
+//
+// The gap is load-bearing. A first pass put them at 31-47 and 53-69; with
+// a 6.4 stroke and round caps each crescent grew 3.2 past both ends, so the
+// two met at x=50 and rendered as ONE continuous squiggle -- a moustache,
+// not a pair of eyes. Ends at 44 and 56, against a 5.6 stroke, leave about
+// 6 units of clear dark glass between the caps at every width used here.
+const EYES_SVG =
+  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
+  `<g class="mamco-eye-pair">` +
+  `<path class="mamco-eye" d="M25 47 q9.5 10 19 0"/>` +
+  `<path class="mamco-eye" d="M56 47 q9.5 10 19 0"/>` +
+  `</g></svg>`;
 
 // THE EIGHT STATES the product defines, plus two the existing voice flow
 // already drives and which stay first-class rather than being collapsed
@@ -102,7 +162,31 @@ export class MamCompanion {
     core.className = 'mamco-core';
     this._orb.appendChild(core);
 
+    // Inside the glass, above the internal light, below the surface: the
+    // eyes are suspended IN the material, so the specular highlight passes
+    // over them the way it would over anything else under the surface.
+    const eyes = document.createElement('div');
+    eyes.className = 'mamco-eyes';
+    eyes.innerHTML = EYES_SVG;
+    this._orb.appendChild(eyes);
+
+    // Back half of the halo, then the body, then the front half. Three
+    // siblings rather than one layer, because a child can never paint
+    // behind its own parent's background -- and the ring passing behind
+    // the body is the whole point.
+    const haloBack = document.createElement('div');
+    haloBack.className = 'mamco-halo mamco-halo--back';
+    haloBack.innerHTML = ORBITS_SVG;
+    const haloFront = document.createElement('div');
+    haloFront.className = 'mamco-halo mamco-halo--front';
+    // Orbits are masked to their near half; the ears are not (see EARS_SVG).
+    haloFront.innerHTML =
+      '<div class="mamco-halo-orbits">' + ORBITS_SVG + '</div>' +
+      '<div class="mamco-halo-ears">' + EARS_SVG + '</div>';
+
+    this._float.appendChild(haloBack);
     this._float.appendChild(this._orb);
+    this._float.appendChild(haloFront);
     this._root.appendChild(this._float);
     (mountTarget || document.body).appendChild(this._root);
     this._updateLabel();
