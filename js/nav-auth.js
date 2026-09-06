@@ -15,8 +15,32 @@ const PROFESSIONAL_DESTINATIONS = Object.fromEntries(
 PROFESSIONAL_DESTINATIONS.cleaning_team_or_company_owner = PROFESSIONAL_ROLES.cleaning.page;
 
 
+// Header light-luxury rebuild: guest visitors see Login/Sign Up buttons
+// (#navAuthGuest), signed-in visitors see a single Profile chip
+// (#navProfileLink) -- both markups exist from first paint (see
+// js/site-header.js), this is the one place that decides which shows,
+// using the SAME real auth resolution the rest of this file already does.
+// Neither element exists on every page (js/site-header.js only renders
+// them in the desktop split layout), so both lookups are optional.
+function setAuthUiState(signedIn) {
+  const guest = document.getElementById('navAuthGuest');
+  const chip = document.getElementById('navProfileLink');
+  if (guest) {
+    guest.classList.toggle('hidden', signedIn);
+    guest.classList.toggle('flex', !signedIn);
+  }
+  if (chip) {
+    chip.classList.toggle('hidden', !signedIn);
+    chip.classList.toggle('inline-flex', signedIn);
+  }
+}
+
 onAuthStateChanged(auth, async (user) => {
-  if (!user) return;
+  if (!user) {
+    setAuthUiState(false);
+    return;
+  }
+  setAuthUiState(true);
 
   let dest = 'account.html';
   try {

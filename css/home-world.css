@@ -24,30 +24,42 @@ body.world {
      the world is ivory-dominant now, with navy reserved for Hero,
      Services and the Departure/Footer close, per the approved brand
      brief's HOME COLOR FLOW. */
-  /* Final approved palette (color-only migration): Primary Darwesh Navy
-     #031D39, Deep Navy #071B2F, Darwesh Gold #C69A4B, Gold Light
-     #D9B76A, Warm Ivory #F5F0E7, Premium Cream #FBF8F2, Soft Stone
-     #E7DED0, Muted Text #756E65. --w-gold-deep is a derived, darkened
-     gold (not a new brand color) for gradient depth only. */
-  --w-navy:     #031D39;   /* deep Darwesh navy -- hero / services / departure */
+  /* Luxury palette refinement (color-only): Darwesh Navy #031D39, Deep
+     Navy #071B2F, Darwesh Gold #C69A4B, Gold Highlight #D8B665, Warm
+     Ivory #F3EDE3, Premium Cream #EDE3D4, Architectural Stone #D5C7B5,
+     Primary Dark Text #172334, Secondary Text #70685F. --w-gold-deep is
+     a derived, darkened gold (not a new brand color) for gradient depth
+     only. --w-ink-dark uses the softer Primary Dark Text (not the fully
+     saturated brand navy) so body/heading copy on ivory reads as a
+     comfortable near-navy ink rather than the heavier surface navy. */
+  /* LIGHT-FIRST REBUILD (visual composition change, approved). The journey
+     is now light for its full length except one restrained navy close at
+     the very end (Departure/Footer) -- see --navy-mix below, now a single
+     ramp instead of five alternating zones. Hero/Intent/City/Properties/
+     Services/Installments/Trust are all the light ("ivory") recipe;
+     Departure alone is navy. Backgrounds accordingly move from a warm
+     ivory/cream/stone recipe to a near-white one: Main #FFFFFF, Secondary
+     #FAF9F6, Very Light Warm Surface #F6F3ED (still brightness-ordered
+     bright->deep, same 3-stop gradient shape as before -- see .wf-ivory). */
+  --w-navy:     #031D39;   /* deep Darwesh navy -- Departure only now */
   --w-navy-hi:  #071B2F;   /* soft/raised navy, used in gradients only */
-  --w-ivory:    #F5F0E7;   /* warm ivory -- city / properties / installments / trust */
-  --w-ivory-lo: #E7DED0;   /* raised ivory tone, used in gradients only */
+  --w-ivory:    #FFFFFF;   /* main background -- everything but Departure */
+  --w-ivory-lo: #F6F3ED;   /* very light warm surface, used in gradients only */
 
   --w-gold:      #C69A4B;
-  --w-gold-hi:   #D9B76A;
+  --w-gold-hi:   #D7B56A;
   --w-gold-deep: #8A6A38;
 
   /* Type reads against the world, so it comes in two families that the
      journey crossfades between rather than one fixed colour. --on-stone
      (below) now does a real, working flip between them -- see the
      world-field comment for how the discontinuity is kept safe. */
-  --w-ink:      #FBF8F2;   /* on navy  */
-  --w-ink-soft: #E7DED0;
-  --w-ink-dark: #031D39;   /* on ivory */
-  --w-ink-dark-mute: #756E65;
+  --w-ink:      #F3EDE3;   /* on navy (Departure only) */
+  --w-ink-soft: #D5C7B5;
+  --w-ink-dark: #243445;   /* on white/light -- the page's primary text now */
+  --w-ink-dark-mute: #66717D;
 
-  --w-hair:     rgba(251, 248, 242, 0.16);
+  --w-hair:     rgba(243, 237, 227, 0.16);
   --w-hair-warm:rgba(198, 154, 75, 0.28);
 
   --w-ease:     cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -127,18 +139,19 @@ body.world {
    (headings, buttons, hairlines) because --navy-mix resolved to nothing
    outside .world-field, not because of any error CSS reports. */
 body.world {
-  /* --t1..--t4: the four zone-boundary ramps, each a clamped linear ramp
-     over a narrow --journey window. --navy-mix: the running difference
-     of their cumulative sum -- 1 when the world is fully navy, 0 when
-     fully ivory, and a true, continuous crossfade in between. Widths
-     widened slightly from the boundary's centre (0.08 of --journey) so
-     the visual change per scrolled viewport stays gradual, matching the
-     "couple of percent between peaks" rule the four-station version used. */
-  --t1: clamp(0, calc((var(--journey) - 0.06) / 0.08), 1);
-  --t2: clamp(0, calc((var(--journey) - 0.46) / 0.08), 1);
-  --t3: clamp(0, calc((var(--journey) - 0.66) / 0.08), 1);
+  /* LIGHT-FIRST REBUILD: one ramp, not four. The world stays fully light
+     (--navy-mix 0) from the top of the page through Installments/Trust,
+     and crosses to navy only for the Departure/Footer close in the final
+     14% of the scroll -- an 80/20-ish light/navy split by design, well
+     inside the "80-85% white, restrained navy close" brief. --t1..--t4
+     are kept (unused, value 0) rather than deleted so a future pass that
+     wants zone alternation back only has to change --navy-mix's formula,
+     not reintroduce the ramp machinery. */
+  --t1: 0;
+  --t2: 0;
+  --t3: 0;
   --t4: clamp(0, calc((var(--journey) - 0.86) / 0.08), 1);
-  --navy-mix: calc(1 - var(--t1) + var(--t2) - var(--t3) + var(--t4));
+  --navy-mix: var(--t4);
 }
 .world-field {
   position: fixed;
@@ -167,9 +180,9 @@ body.world {
 .world-field .wf-ivory {
   opacity: calc(1 - var(--navy-mix));
   background:
-    radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.09), transparent 56%),
-    radial-gradient(90% 70% at 8% 88%, rgba(3, 29, 57, 0.035), transparent 60%),
-    linear-gradient(172deg, #FBF8F2 0%, #F5F0E7 55%, #E7DED0 100%);
+    radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.07), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(3, 29, 57, 0.025), transparent 60%),
+    linear-gradient(172deg, #FFFFFF 0%, #FAF9F6 55%, #F6F3ED 100%);
 }
 /* A single vignette over the whole world, so the frame is always held and
    the extremes always read as further away -- but only during the navy
@@ -314,7 +327,12 @@ body.world .w-body {
    anything here -- measured, not assumed. */
 body.world .w-label {
   color: var(--w-gold-hi);
-  text-shadow: 0 1px 3px rgba(6, 6, 9, 0.95), 0 2px 22px rgba(6, 6, 9, 0.85);
+  /* Scaled by (1 - on-stone), same treatment as headings/body above: full
+     halo over Departure's photography-on-navy, none over the light zones
+     where a heavy black halo behind small gold caps would read as a smudge. */
+  text-shadow:
+    0 1px 3px rgba(6, 6, 9, calc((1 - var(--on-stone)) * 0.95)),
+    0 2px 22px rgba(6, 6, 9, calc((1 - var(--on-stone)) * 0.85));
 }
 
 /* =========================================================================
@@ -516,7 +534,7 @@ body.world[dir="rtl"] .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translat
    contrast object in the frame, on night and on stone alike. */
 body.world .w-btn--primary {
   background: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
-  color: color-mix(in oklab, #031D39 calc((1 - var(--on-stone)) * 100%), #FBF8F2);
+  color: color-mix(in oklab, #031D39 calc((1 - var(--on-stone)) * 100%), #F3EDE3);
 }
 body.world .w-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
 body.world .w-btn--primary:active { transform: translateY(0) scale(0.985); }
@@ -680,19 +698,23 @@ body.world .w-search {
   width: 100%; max-width: 38rem; margin-top: 0.4rem;
   padding: 0.5rem 0.5rem 0.5rem 1.15rem;
   border-radius: 22px;
-  border: 1px solid var(--w-hair-warm);
-  background: rgba(9, 8, 11, 0.62);
-  backdrop-filter: blur(14px);
-  transition: border-color var(--w-fast) var(--w-ease), background-color var(--w-fast) var(--w-ease);
+  /* Hero is a light zone now (--navy-mix stays 0 through the whole top of
+     the page), so this is a real white search field with a soft border and
+     shadow, matching the reference's white search surface -- not the old
+     dark glass pill designed for a navy-background hero. */
+  border: 1px solid #E9E5DD;
+  background: #FFFFFF;
+  box-shadow: 0 1px 2px rgba(3, 29, 57, 0.04), 0 8px 24px rgba(3, 29, 57, 0.06);
+  transition: border-color var(--w-fast) var(--w-ease), box-shadow var(--w-fast) var(--w-ease);
 }
-body.world .w-search:focus-within { border-color: var(--w-gold); background: rgba(9, 8, 11, 0.84); }
-body.world .w-search-icon { flex: none; color: var(--w-gold); }
+body.world .w-search:focus-within { border-color: var(--w-gold); box-shadow: 0 1px 2px rgba(3, 29, 57, 0.04), 0 10px 28px rgba(3, 29, 57, 0.1); }
+body.world .w-search-icon { flex: none; color: var(--w-ink-dark-mute); }
 body.world .w-search-input {
   flex: 1; min-width: 0; height: 50px; border: 0; background: transparent;
-  color: var(--w-ink); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
+  color: var(--w-ink-dark); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
   padding-inline: 0.8rem;
 }
-body.world .w-search-input::placeholder { color: var(--w-ink-soft); }
+body.world .w-search-input::placeholder { color: var(--w-ink-dark-mute); }
 body.world .w-search-input:focus { outline: none; }
 body.world .w-search .w-btn { min-height: 50px; border-radius: 15px; padding-inline: 1.3rem; }
 body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
@@ -733,10 +755,10 @@ body.world .w-panel {
   display: block;
   text-decoration: none;
   overflow: hidden;
-  border-inline-end: 1px solid rgba(251, 248, 242, 0.1);
+  border-inline-end: 1px solid rgba(243, 237, 227, 0.1);
   transition: flex-grow var(--w-slow) var(--w-ease-out);
 }
-body.world[dir="rtl"] .w-panel { border-inline-end: 1px solid rgba(251, 248, 242, 0.1); }
+body.world[dir="rtl"] .w-panel { border-inline-end: 1px solid rgba(243, 237, 227, 0.1); }
 body.world .w-panel:last-child { border-inline-end: 0; }
 body.world .w-panel-media {
   position: absolute; inset: 0; z-index: 0;
@@ -923,14 +945,14 @@ body.world .w-plane-body {
 }
 body.world .w-plane-name {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 700; font-size: 1.35rem; letter-spacing: -0.015em; color: #FBF8F2;
+  font-weight: 700; font-size: 1.35rem; letter-spacing: -0.015em; color: #F3EDE3;
   text-shadow: 0 1px 12px rgba(4,4,7,0.9);
   transition: font-size var(--w-slow) var(--w-ease-out);
 }
 body.world .w-plane-note {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   font-size: 0.625rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
-  color: rgba(251,248,242,0.7);
+  color: rgba(243,237,227,0.7);
 }
 body.world .w-plane-go {
   margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.45rem;
@@ -1036,20 +1058,16 @@ body.world .w-departure-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
 /* =========================================================================
  * 11. HEADER
  * ========================================================================= */
-body.world #siteHeader header {
-  background: linear-gradient(180deg, rgba(6,6,9,0.66) 0%, rgba(6,6,9,0.22) 62%, transparent 100%);
-  border-bottom-color: transparent;
-  transition: background-color var(--w-mid) var(--w-ease), border-color var(--w-mid) var(--w-ease);
-}
-body.world.w-scrolled #siteHeader header {
-  background: color-mix(in oklab, rgba(3,29,57,0.88) calc((1 - var(--on-stone)) * 100%), rgba(251,248,242,0.92));
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(3,29,57,0.12));
-}
+/* LIGHT-FIRST REBUILD: the header used to blend into a navy hero via
+   transparency (near-black over the top of the page, solidifying to a
+   navy/ivory blend on scroll). The hero is a light zone now (see section
+   1), so that trick is gone -- Home's header is the same plain white,
+   bordered surface as every other page (js/site-header.js's own
+   bg-white), never overridden here. */
 body.world .home-bottomnav {
-  background: color-mix(in oklab, rgba(3,29,57,0.92) calc((1 - var(--on-stone)) * 100%), rgba(251,248,242,0.95));
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(16px);
-  border-top: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(3,29,57,0.12));
+  border-top: 1px solid #E9E5DD;
 }
 
 /* =========================================================================
@@ -1170,7 +1188,7 @@ body.world .w-gallery { perspective: 1900px; min-height: 62vh; }
  * journey -- it has no tonal ambiguity to resolve. ======================= */
 body.world .home-footer {
   background: var(--w-navy);
-  border-top: 1px solid rgba(251, 248, 242, 0.12);
+  border-top: 1px solid rgba(243, 237, 227, 0.12);
 }
 body.world .home-footer-word { color: var(--w-gold-hi); }
 body.world .home-footer-tagline,
@@ -1178,7 +1196,7 @@ body.world .home-footer-link,
 body.world .home-footer-bottom { color: var(--w-ink-soft); }
 body.world .home-footer-heading { color: var(--w-ink); }
 body.world .home-footer-link:hover { color: var(--w-gold); }
-body.world .home-footer-bottom { border-top-color: rgba(251, 248, 242, 0.12); }
+body.world .home-footer-bottom { border-top-color: rgba(243, 237, 227, 0.12); }
 
 /* =========================================================================
  * 13. REDUCED MOTION

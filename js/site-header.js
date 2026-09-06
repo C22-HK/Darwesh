@@ -15,11 +15,41 @@
 // as its two modes, never a second or third label. MAM is not a
 // standalone nav destination -- it is a compact assistant present on
 // every page (js/mam-companion-launcher.js), see
-// docs/MAM_V2_ARCHITECTURE.md section 21. Before this file existed, every page hand-duplicated its
-// own <header> markup and they had drifted: different nav link sets,
-// different labels, and only some pages had the flag-based language
-// selector while others still had a plain globe icon. This is the single
-// source of truth going forward.
+// docs/MAM_V2_ARCHITECTURE.md section 21.
+//
+// LIGHT-LUXURY HEADER REBUILD (visual composition change, approved).
+// White surface (not the previous navy-forward M3 tokens), Darwesh Navy
+// text/structure, restrained gold accents. The brand lockup -- "Darwesh
+// [official mark] Group" -- is TRUE-centered on the viewport, independent
+// of how wide the left/right control groups are: the two groups sit in a
+// normal flex row, and the lockup is a separate `position:absolute;
+// left:50%; translate(-50%,-50%)` element layered on top of that row, so
+// its center is always the header's own center (== the viewport's, since
+// the header is full-width) no matter what either side contains. This is
+// the standard robust technique for "centered regardless of unequal side
+// widths" -- a plain 3-column grid (1fr/auto/1fr) does NOT guarantee that
+// on its own, because each 1fr track still grows to fit its own content's
+// min-content first and only distributes leftover space proportionally
+// after that, so unequal left/right content pulls the center off-axis.
+//
+// Desktop/wide (lg+, 1024px+) gets the full split layout; below that,
+// mobile keeps a compact bar (language + centered brand + notifications)
+// rather than forcing the split nav to fit -- the bottom tab bar
+// (js/site-mobile-nav.js, already on every page) is the real mobile
+// primary nav, so the mobile top bar does not need to repeat it.
+//
+// Login/Sign Up (guest) vs. a Profile chip (signed in) is a REAL toggle,
+// not decoration: both markups exist from first paint, #navAuthGuest
+// visible and #navProfileLink hidden, and js/nav-auth.js -- the existing,
+// already-wired module that resolves real Firebase auth state and knows
+// the real per-accountType destination page -- flips which one shows
+// once it knows the real state. Nothing here fakes a signed-in UI.
+//
+// Before this file existed, every page hand-duplicated its own <header>
+// markup and they had drifted: different nav link sets, different
+// labels, and only some pages had the flag-based language selector while
+// others still had a plain globe icon. This is the single source of
+// truth going forward.
 //
 // Deliberately a CLASSIC script, not `type="module"`: it must inject its
 // markup into the DOM SYNCHRONOUSLY, before the later classic
@@ -54,66 +84,128 @@
   if (!mount) return;
   var active = mount.getAttribute('data-active') || '';
 
+  var LINK_BASE = 'font-label-caps text-label-caps tracking-wide transition-colors border-b-2 pt-1 pb-[7px] whitespace-nowrap';
+  var LINK_ACTIVE = ' text-[#031D39] font-bold border-[#C69A4B]';
+  var LINK_INACTIVE = ' text-[#66717D] hover:text-[#031D39] border-transparent hover:border-[#E9E5DD]';
+
   function navClass(key) {
-    return key === active
-      ? 'font-label-caps text-label-caps text-primary dark:text-primary-fixed-dim font-bold transition-colors'
-      : 'font-label-caps text-label-caps text-on-surface-variant dark:text-on-surface-variant hover:text-primary transition-colors';
+    return LINK_BASE + (key === active ? LINK_ACTIVE : LINK_INACTIVE);
   }
   function ariaCurrent(key) {
     return key === active ? ' aria-current="page"' : '';
   }
 
-  mount.innerHTML =
-    '<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant dark:border-outline">' +
-      '<div class="flex items-center gap-4">' +
-        '<div class="relative">' +
-          '<button aria-label="Language" class="lang-toggle-btn" type="button">' +
-            '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async">EN</span>' +
-            '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async">KU</span>' +
-            '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async">AR</span>' +
+  function langSelect(size) {
+    var flagW = size === 'sm' ? 18 : 20, flagH = size === 'sm' ? 13 : 14;
+    var pad = size === 'sm' ? 'px-2.5 py-1.5' : 'px-3 py-2';
+    return (
+      '<div class="relative">' +
+        '<button aria-label="Language" class="lang-toggle-btn inline-flex items-center gap-1.5 ' + pad + ' rounded-md border border-[#E9E5DD] bg-[#FFFFFF] text-[#031D39] hover:border-[#C69A4B] transition-colors" type="button">' +
+          '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">EN</span>' +
+          '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">KU</span>' +
+          '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">AR</span>' +
+        '</button>' +
+        '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50 bg-[#FFFFFF] border border-[#E9E5DD] rounded-xl shadow-lg">' +
+          '<button class="lang-option rounded-lg text-[#031D39] hover:bg-[#F6F3ED]" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
+            '<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>' +
+            '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
           '</button>' +
-          '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50">' +
-            '<button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
-              '<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>' +
-              '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
-            '</button>' +
-            '<button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
-              '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>' +
-              '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
-            '</button>' +
-            '<button class="lang-option" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
-              '<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>' +
-              '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
-            '</button>' +
-          '</div>' +
-        '</div>' +
-        '<a class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed-dim" href="index.html">Darwesh Group</a>' +
-      '</div>' +
-      '<nav class="hidden md:flex items-center gap-5" aria-label="Primary">' +
-        '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home"' + ariaCurrent('home') + '>Home</a>' +
-        '<div class="relative flex items-center gap-0.5">' +
-          '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
-          '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-primary dark:text-primary-fixed-dim' : 'text-on-surface-variant dark:text-on-surface-variant hover:text-primary') + ' transition-colors" type="button" aria-label="Buy or rent">' +
-            '<span class="text-[18px]" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>' +
+          '<button class="lang-option rounded-lg text-[#031D39] hover:bg-[#F6F3ED]" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
+            '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>' +
+            '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
           '</button>' +
-          '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-surface-bright dark:bg-surface-dim border border-outline-variant dark:border-outline rounded-xl shadow-lg py-1">' +
-            '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="map.html?type=sale" data-i18n="nav.buy">Buy</a>' +
-            '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="map.html?type=rent" data-i18n="nav.rent">Rent</a>' +
-          '</div>' +
+          '<button class="lang-option rounded-lg text-[#031D39] hover:bg-[#F6F3ED]" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
+            '<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>' +
+            '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
+          '</button>' +
         '</div>' +
-        // Sell is a top-level destination, not a map mode. Buy and Rent are
-        // two views of map.html (see the dropdown above), but selling starts
-        // a different funnel entirely -- sell.html -- and until now that
-        // 1900-line funnel had no entry point in the global nav at all.
-        '<a class="' + navClass('sell') + '" href="sell.html" data-i18n="nav.sell"' + ariaCurrent('sell') + '>Sell</a>' +
-        '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
-        '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
-        '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html" data-i18n="nav.profile">Profile</a>' +
-      '</nav>' +
-      '<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">' +
+      '</div>'
+    );
+  }
+
+  function notifBell(extraClass) {
+    return (
+      '<button aria-label="Notifications" class="' + (extraClass || '') + ' relative p-2.5 rounded-full hover:bg-[#F6F3ED] transition-all duration-200 active:scale-95 text-[#031D39]" type="button" style="--notif-dot-ring:#ffffff">' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>' +
+      '</button>'
+    );
+  }
+
+  // dir="ltr" pinned deliberately: this splits "Darwesh"/mark/"Group" into
+  // three flex children, and a flex row's VISUAL order follows the
+  // container's direction -- under the site's RTL languages (Arabic,
+  // Kurdish/Sorani) that would silently reverse the lockup to
+  // "Group [mark] Darwesh". The brand name is a fixed Latin proper noun,
+  // not translated content, so it stays LTR regardless of page direction,
+  // same as a logo image would.
+  var brandLockup =
+    '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home">' +
+      '<span class="font-headline-md font-bold tracking-tight text-[#031D39]">Darwesh</span>' +
+      '<img src="images/brand/darwesh-mark.png" alt="" width="34" height="34" decoding="async" class="hdr-mark object-contain">' +
+      '<span class="font-headline-md font-bold tracking-tight text-[#031D39]">Group</span>' +
+    '</a>';
+
+  var propertiesMapItem =
+    '<div class="relative flex items-center gap-0.5">' +
+      '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
+      '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-[#031D39]' : 'text-[#66717D] hover:text-[#031D39]') + ' transition-colors" type="button" aria-label="Buy or rent">' +
+        '<span class="text-[18px]" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>' +
       '</button>' +
+      '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-[#FFFFFF] border border-[#E9E5DD] rounded-xl shadow-lg py-1">' +
+        '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-[#031D39] hover:bg-[#F6F3ED] transition-colors" href="map.html?type=sale" data-i18n="nav.buy">Buy</a>' +
+        '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-[#031D39] hover:bg-[#F6F3ED] transition-colors" href="map.html?type=rent" data-i18n="nav.rent">Rent</a>' +
+      '</div>' +
+    '</div>';
+
+  var authGuest =
+    '<span id="navAuthGuest" class="flex items-center gap-3">' +
+      '<a href="login.html" class="inline-flex items-center h-9 px-4 rounded-md border border-[#C9D2DA] text-[#031D39] text-sm font-semibold hover:border-[#031D39] transition-colors" data-i18n="nav.login">Login</a>' +
+      '<a href="signup.html" class="inline-flex items-center h-9 px-4 rounded-md bg-[#C69A4B] text-[#FFFFFF] text-sm font-bold hover:bg-[#D7B56A] transition-colors" data-i18n="nav.signUp">Sign Up</a>' +
+    '</span>';
+
+  var profileChip =
+    '<a id="navProfileLink" class="hidden items-center h-9 px-4 rounded-full border border-[#E9E5DD] hover:border-[#C69A4B] text-[#031D39] text-sm font-semibold transition-colors" href="login.html" data-i18n="nav.profile">Profile</a>';
+
+  mount.innerHTML =
+    '<header class="fixed top-0 left-0 w-full z-50 h-[76px] bg-[#FFFFFF] border-b border-[#E9E5DD]">' +
+
+      // ---- Desktop / wide-tablet split layout (lg+) ----
+      '<div class="hidden lg:block relative h-full">' +
+        '<div class="h-full flex items-center justify-between px-margin-desktop max-w-[1680px] mx-auto">' +
+          '<div class="flex items-center gap-6">' +
+            langSelect('md') +
+            '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home"' + ariaCurrent('home') + '>Home</a>' +
+            propertiesMapItem +
+            '<a class="' + navClass('sell') + '" href="sell.html" data-i18n="nav.sell"' + ariaCurrent('sell') + '>Sell</a>' +
+          '</div>' +
+          '<div class="flex items-center gap-6">' +
+            '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
+            '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
+            notifBell('') +
+            authGuest +
+            profileChip +
+          '</div>' +
+        '</div>' +
+        '<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">' +
+          '<div class="pointer-events-auto text-[22px]">' + brandLockup + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      // ---- Compact mobile/tablet bar (below lg) ----
+      '<div class="flex lg:hidden items-center justify-between h-full px-4">' +
+        '<div class="flex items-center">' + langSelect('sm') + '</div>' +
+        '<div class="text-[17px]">' + brandLockup + '</div>' +
+        '<div class="flex items-center">' + notifBell('') + '</div>' +
+      '</div>' +
     '</header>';
+
+  // hdr-mark: the logo mark's pixel size scales with its lockup's own font
+  // size (34px on desktop's 22px lockup, ~26px on mobile's 17px lockup) so
+  // one shared brandLockup() string works at both sizes without a size
+  // parameter -- em-based sizing here, set once, no per-call plumbing.
+  var style = document.createElement('style');
+  style.textContent = '.hdr-mark{height:1.55em;width:1.55em}';
+  document.head.appendChild(style);
 
   // Buy/Rent dropdown wiring -- deliberately its own small implementation
   // (own class names, own listeners) rather than reusing js/i18n.js's

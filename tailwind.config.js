@@ -38,62 +38,65 @@ module.exports = {
         // error/error-container and tertiary*/on-tertiary* (the
         // success-green family) are UNCHANGED -- semantic status colors,
         // out of scope for this migration.
-        // ---- FINAL APPROVED PALETTE (color-only migration) -------------
-        // Primary Darwesh Navy #031D39 / Deep Navy #071B2F / Darwesh Gold
-        // #C69A4B / Gold Light #D9B76A / Warm Ivory #F5F0E7 / Premium
-        // Cream #FBF8F2 / Soft Stone #E7DED0 / Warm Charcoal #25231F /
-        // Muted Text #756E65 / White #FFFFFF. Every M3 role below is
-        // re-pointed at one of these ten values only -- no new colors
+        // ---- LUXURY PALETTE REFINEMENT (color-only, Home/Intro-led) -----
+        // Darwesh Navy #031D39 / Deep Navy #071B2F / Warm Ivory #F3EDE3 /
+        // Premium Cream #EDE3D4 / Architectural Stone #D5C7B5 / Darwesh
+        // Gold #C69A4B / Gold Highlight #D8B665 / Primary Dark Text
+        // #172334 / Secondary Text #70685F / White #FFFFFF. Every M3 role
+        // below is re-pointed at one of these values only -- no new colors
         // introduced. tertiary* (success green) and error* (red) are
         // semantic status colors and are UNCHANGED. obsidian is MAM's
-        // identity color and is UNCHANGED.
-        "surface-bright": "#fbf8f2",
+        // identity color and is UNCHANGED. on-surface now uses the softer
+        // Primary Dark Text (not the fully saturated brand navy) for
+        // everyday body/heading copy; primary/surfaces keep the full
+        // Darwesh Navy.
+        "surface-bright": "#ede3d4",
         "on-secondary-fixed-variant": "#25231f",
         secondary: "#c69a4b",
         "on-secondary-fixed": "#031d39",
         "on-primary-fixed": "#031d39",
         primary: "#031d39",
         error: "#ba1a1a",
-        "inverse-primary": "#d9b76a",
-        "surface-container-low": "#fbf8f2",
+        "inverse-primary": "#d8b665",
+        "surface-container-low": "#ede3d4",
         "on-primary-fixed-variant": "#25231f",
         "tertiary-fixed": "#6bfe9c",
-        "surface-variant": "#e7ded0",
+        "surface-variant": "#d5c7b5",
         "on-tertiary-fixed": "#00210c",
-        "primary-fixed": "#e7ded0",
-        "on-primary": "#fbf8f2",
-        surface: "#f5f0e7",
-        "surface-container-high": "#e7ded0",
+        "primary-fixed": "#d5c7b5",
+        "on-primary": "#f3ede3",
+        surface: "#f3ede3",
+        "surface-container-high": "#d5c7b5",
         "inverse-surface": "#031d39",
         "on-error-container": "#93000a",
         "on-secondary": "#ffffff",
         "error-container": "#ffdad6",
-        "inverse-on-surface": "#fbf8f2",
+        "inverse-on-surface": "#ede3d4",
         "on-error": "#ffffff",
-        "outline-variant": "#e7ded0",
-        outline: "#756e65",
+        "outline-variant": "#d5c7b5",
+        outline: "#70685f",
         "primary-container": "#071b2f",
         "tertiary-container": "#003115",
         "tertiary-fixed-dim": "#4ae183",
-        "primary-fixed-dim": "#f5f0e7",
-        "secondary-container": "#d9b76a",
+        "primary-fixed-dim": "#f3ede3",
+        "secondary-container": "#d8b665",
         "secondary-fixed-dim": "#c69a4b",
-        "secondary-fixed": "#d9b76a",
-        "surface-dim": "#e7ded0",
+        "secondary-fixed": "#d8b665",
+        "surface-dim": "#d5c7b5",
         tertiary: "#001a08",
         "surface-container-lowest": "#ffffff",
-        "on-background": "#031d39",
-        "surface-container-highest": "#e7ded0",
+        "on-background": "#172334",
+        "surface-container-highest": "#d5c7b5",
         "on-tertiary-container": "#00a656",
-        "on-primary-container": "#f5f0e7",
+        "on-primary-container": "#f3ede3",
         "on-tertiary": "#ffffff",
         "on-tertiary-fixed-variant": "#005228",
-        "on-surface-variant": "#756e65",
+        "on-surface-variant": "#70685f",
         "surface-tint": "#031d39",
         "on-secondary-container": "#031d39",
-        "surface-container": "#f5f0e7",
-        background: "#f5f0e7",
-        "on-surface": "#031d39",
+        "surface-container": "#f3ede3",
+        background: "#f3ede3",
+        "on-surface": "#172334",
         // Gold accent family (not part of the original M3 token set --
         // used directly, e.g. bg-gold / text-gold / border-gold).
         gold: "#c69a4b",

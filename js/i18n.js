@@ -108,6 +108,8 @@ const translations = {
     'nav.backToSite': 'گەڕانەوە بۆ ماڵپەڕ',
     'nav.signIn': 'چوونەژوورەوە',
     'nav.createAccount': 'دروستکردنی هەژمار',
+    'nav.login': 'چوونەژوورەوە',
+    'nav.signUp': 'دروستکردنی هەژمار',
 
     'about.eyebrow': 'دەربارەی دەرەوشی گروپ',
     'about.heroTitle': 'خانووبەرەیەک کە دڵنیای لێی، کەسانێک کە متمانەیان پێدەکەیت.',
@@ -1749,6 +1751,8 @@ const translations = {
     'nav.backToSite': 'العودة إلى الموقع',
     'nav.signIn': 'تسجيل الدخول',
     'nav.createAccount': 'إنشاء حساب',
+    'nav.login': 'تسجيل الدخول',
+    'nav.signUp': 'إنشاء حساب',
 
     'about.eyebrow': 'من نحن - دارويش جروب',
     'about.heroTitle': 'عقارات يمكنك التحقق منها، وأشخاص يمكنك الوثوق بهم.',
