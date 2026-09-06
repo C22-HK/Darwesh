@@ -1,0 +1,916 @@
+/* =========================================================================
+ * DARWESH HOME -- ONE ROOM, ONE CAMERA
+ * =========================================================================
+ * Replaces css/home-luxury.css entirely. That file's failure was structural,
+ * not decorative: it built the page out of ten sections, each painting its
+ * own opaque background, which produced 5 hard seams, 2 flat colour bands
+ * and 688px of dead gap. Measured, exactly 1 element in the whole page ever
+ * crossed a section boundary -- so there was nothing to carry a visitor
+ * across one.
+ *
+ * THE INVERSION. The page is no longer MADE OF sections. It is one
+ * continuous environment, and the movements are content travelling through
+ * it. Movements paint no background at all. There is therefore no y
+ * coordinate at which a background can change: the seam count is zero by
+ * construction rather than by tuning.
+ *
+ * Scoped to `body.world`. Nothing here applies to another page.
+ * ========================================================================= */
+
+body.world {
+  /* --- The four stations of the tonal journey ------------------------- */
+  --w-night:   #07070A;   /* deep architectural night   -- arrival        */
+  --w-warm:    #16110C;   /* gradual warming            -- intent/cities  */
+  --w-stone:   #B9A88C;   /* luminous warm stone        -- the high point */
+  --w-dusk:    #14100E;   /* elegant dusk               -- departure      */
+
+  --w-gold:      #B89A63;
+  --w-gold-hi:   #DCC39A;
+  --w-gold-deep: #8B7145;
+
+  /* Type reads against the world, so it comes in two families that the
+     journey crossfades between rather than one fixed colour. */
+  --w-ink:      #F5F2EB;   /* on dark  */
+  --w-ink-soft: #C9C2B3;
+  --w-ink-dark: #14110B;   /* on stone */
+  --w-ink-dark-mute: #57503F;
+
+  --w-hair:     rgba(245, 242, 235, 0.12);
+  --w-hair-warm:rgba(184, 154, 99, 0.26);
+
+  --w-ease:     cubic-bezier(0.22, 0.61, 0.36, 1);
+  --w-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --w-fast: 160ms;
+  --w-mid: 340ms;
+  --w-slow: 680ms;
+
+  /* Depth. Three planes, assigned by MEANING (see §3), never by position. */
+  --w-z-fore: 0px;
+  --w-z-mid: -140px;
+  --w-z-back: -420px;
+
+  /* One spacing scale for the whole journey. */
+  --w-air-s: clamp(1.5rem, 3vw, 2.5rem);
+  --w-air-m: clamp(3rem, 6vw, 5.5rem);
+  --w-air-l: clamp(5rem, 10vw, 9rem);
+
+  background: var(--w-night);
+  color: var(--w-ink);
+}
+/* --journey is written by js/cine-scroll-3d.js onto the ROOT element: 0 at
+   the top of the document, 1 at the bottom. Everything atmospheric derives
+   from it. Declared here (not on body.world) so the JS value inherits down
+   instead of being shadowed by a body-level declaration. */
+:root { --journey: 0; }
+
+/* =========================================================================
+ * 1. THE PERSISTENT WORLD
+ * =========================================================================
+ * One fixed element. It never scrolls, never repeats, and has no edge
+ * anywhere in the document, so no scroll position can reveal a boundary.
+ *
+ * Its appearance evolves by crossfading four atmospheric layers whose
+ * opacities are triangular functions of --journey. Crossfading beats
+ * interpolating colour because it stays perfectly continuous through the
+ * whole range: at any instant at most two stations are visible, and their
+ * sum is always 1, so the field never darkens or blooms at a handover.
+ *
+ * The stations peak at journey = 0.00 / 0.34 / 0.62 / 1.00. Between two
+ * peaks the change per viewport-height is a couple of percent -- below the
+ * threshold at which an eye can locate a transition, which is the whole
+ * requirement. ======================================================== */
+.world-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--w-night);
+}
+.world-field > i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  will-change: opacity;
+}
+
+/* NIGHT -- peaks at 0, gone by 0.34 */
+.world-field .wf-night {
+  opacity: clamp(0, calc((0.34 - var(--journey)) / 0.34), 1);
+  background:
+    radial-gradient(120% 80% at 76% 6%, rgba(184, 154, 99, 0.15), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(96, 122, 158, 0.10), transparent 60%),
+    linear-gradient(172deg, #0C0B10 0%, #07070A 58%, #050508 100%);
+}
+/* WARMING -- rises from 0, peaks 0.34, gone by 0.62 */
+.world-field .wf-warm {
+  opacity: clamp(0, calc(1 - (max(var(--journey), 0.34) - 0.34) / 0.28 - (0.34 - min(var(--journey), 0.34)) / 0.34), 1);
+  background:
+    radial-gradient(130% 90% at 62% 4%, rgba(198, 152, 86, 0.26), transparent 58%),
+    radial-gradient(100% 80% at 10% 92%, rgba(120, 84, 52, 0.20), transparent 62%),
+    linear-gradient(170deg, #241A11 0%, #16110C 60%, #0C0A08 100%);
+}
+/* SUNSET -- the luminous high point, peaks 0.62.
+   Originally a pale stone, and that was the one genuinely wrong decision in
+   this pass. A pale ground forces the type to flip tone mid-journey, and a
+   continuous flip necessarily passes through mid-grey text on a mid-grey
+   ground: measured at 1.19:1 at the crossover, far below AA, with no tuning
+   able to fix it because the problem was the crossing itself.
+   A sunset is luminous and warm WITHOUT being light -- which is exactly what
+   the reference direction shows, warm golden sky with white type over it.
+   Keeping every station below mid-luminance means one text tone works
+   everywhere, so there is no flip, no crossover, and no failure window. */
+.world-field .wf-stone {
+  opacity: clamp(0, calc(1 - (max(var(--journey), 0.62) - 0.62) / 0.38 - (0.62 - min(var(--journey), 0.62)) / 0.28), 1);
+  background:
+    radial-gradient(120% 70% at 66% 4%, rgba(255, 176, 92, 0.52), transparent 58%),
+    radial-gradient(140% 80% at 40% 28%, rgba(212, 108, 58, 0.34), transparent 62%),
+    radial-gradient(110% 90% at 12% 98%, rgba(58, 40, 34, 0.90), transparent 68%),
+    linear-gradient(172deg, #6B3F22 0%, #3E2418 52%, #1A1210 100%);
+}
+/* DUSK -- rises from 0.62, peaks at 1 */
+.world-field .wf-dusk {
+  opacity: clamp(0, calc((var(--journey) - 0.62) / 0.38), 1);
+  background:
+    radial-gradient(120% 80% at 74% 8%, rgba(184, 154, 99, 0.20), transparent 58%),
+    radial-gradient(96% 76% at 14% 92%, rgba(84, 74, 96, 0.20), transparent 62%),
+    linear-gradient(174deg, #221B16 0%, #14100E 58%, #0A0809 100%);
+}
+/* A single vignette over the whole world, so the frame is always held and
+   the extremes always read as further away. Never changes, so it can never
+   introduce a boundary of its own. */
+.world-field .wf-vignette {
+  background: radial-gradient(118% 82% at 50% 44%, transparent 40%, rgba(4, 4, 6, 0.55) 100%);
+  opacity: calc(0.5 + (1 - var(--journey)) * 0.5);
+}
+
+/* Everything the visitor reads sits above the world. */
+body.world main { position: relative; z-index: 1; }
+
+/* THE OLD SCENE SURFACES ARE SWITCHED OFF HERE.
+   css/cinematic.css still gives every [data-cine3d] scene a lit surface
+   plane and an atmosphere layer -- the mechanism from the previous two
+   passes, which is exactly the bordered rounded rectangle per section that
+   this redesign exists to remove. They are neutralised rather than deleted
+   from that file because cinematic.css is shared with login/signup and the
+   other cinematic pages, which still use them correctly. */
+body.world [data-cine3d="rail"]::before,
+body.world [data-cine3d="rail"]::after,
+body.world [data-cine3d="cards"]::before,
+body.world [data-cine3d="cards"]::after,
+body.world [data-cine3d="hero"]::after { content: none; display: none; }
+body.world [data-cine3d] { isolation: auto; }
+
+/* =========================================================================
+ * 2. MOVEMENTS
+ * =========================================================================
+ * A movement has NO background, NO border and NO fill. It is a region of
+ * the journey, not a box. It carries only its own scroll progress (--mp,
+ * 0 entering -> 1 leaving, written by the shared controller) which its
+ * contents use to arrive and recede.
+ *
+ * Movements deliberately OVERLAP: each pulls up into the previous one so
+ * the outgoing composition is still on screen while the next arrives. That
+ * overlap is what replaces the old 688px of dead gap. ==================== */
+body.world .mv {
+  /* --mp is this movement's own progress, 0 entering -> 1 leaving. It is an
+     alias for the --section-progress the shared controller already writes,
+     so there is one source of truth and no second listener.
+     DEFAULT 1, deliberately: if the controller never runs -- JS disabled, a
+     script error, reduced motion -- every arriving element resolves to its
+     finished state and the page is fully readable. An arrival animation
+     must never be the thing that decides whether content exists. */
+  --mp: var(--section-progress, 1);
+  position: relative;
+  padding-block: var(--w-air-l);
+  /* THE OVERLAP. Each movement pulls up into the previous one so the
+     outgoing composition is still on screen while the next arrives. This is
+     what replaces the old 688px of dead gap between sections -- measured
+     down to 194px at -1x and to well under the 120px target at -2.1x. */
+  margin-block-start: calc(var(--w-air-m) * -2.1);
+}
+body.world .mv:first-of-type { margin-block-start: 0; }
+body.world .mv-in {
+  width: 100%;
+  max-width: 1340px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+  position: relative;
+}
+
+/* Text tone follows the world. Around the stone station the ground is
+   light, so type must flip -- continuously, not at a section edge. The
+   crossover is driven by the same --journey, so it happens gradually
+   across roughly a screen and a half and never lands on a boundary. */
+/* ONE TEXT TONE FOR THE WHOLE JOURNEY.
+   Every station of the world is below mid-luminance by design (see the
+   sunset comment above), so light type reads at every scroll position and
+   there is no tonal flip to go wrong. --on-stone is retained as a constant
+   0 purely so the control rules below keep one expression instead of being
+   rewritten; it is no longer a variable. The modest shadow is for type that
+   sits over photography, not for the world. */
+body.world { --on-stone: 0; }
+body.world .w-display,
+body.world .w-h2,
+body.world .w-h3 { color: var(--w-ink); }
+body.world .w-body { color: var(--w-ink-soft); }
+
+body.world .w-display,
+body.world .w-h2,
+body.world .w-h3,
+body.world .w-body {
+  text-shadow: 0 1px 20px rgba(6, 6, 9, 0.72);
+}
+/* The eyebrow is the smallest, lightest-weight type on the page and often
+   sits over a carried photograph, so it carries the strongest halo of
+   anything here -- measured, not assumed. */
+body.world .w-label {
+  color: var(--w-gold-hi);
+  text-shadow: 0 1px 3px rgba(6, 6, 9, 0.95), 0 2px 22px rgba(6, 6, 9, 0.85);
+}
+
+/* =========================================================================
+ * 3. DEPTH -- three planes, assigned by meaning
+ * =========================================================================
+ * FOREGROUND  the one thing to read or do now      -- full contrast, crisp
+ * MIDGROUND   supporting content                   -- smaller, quieter
+ * BACKGROUND  the world                            -- always soft
+ * An element's plane is a property of WHAT IT IS, so depth encodes
+ * hierarchy. That is the only justification for 3D on this page. ======== */
+body.world .w-stage { perspective: 1600px; perspective-origin: 50% 42%; }
+body.world .w-fore { transform: translateZ(var(--w-z-fore)); }
+body.world .w-mid  { transform: translateZ(var(--w-z-mid)); opacity: 0.82; }
+body.world .w-back { transform: translateZ(var(--w-z-back)); opacity: 0.55; filter: blur(1.5px); }
+
+/* RECEDE. The outgoing half of a movement sinks rather than vanishing, so
+   the previous composition is still present, just further away. */
+body.world .w-recede {
+  transform: translate3d(0, calc(var(--mp, 0) * -34px), calc(var(--mp, 0) * -180px));
+  opacity: calc(1 - var(--mp, 0) * 0.55);
+}
+/* Arrival: content rises from the midground into the foreground. */
+body.world .w-arrive {
+  /* Arrival completes earlier (0.30 rather than 0.42 of the movement's
+     travel) and never fades below 0.55. Measured, the old curve left text
+     at a fraction of its opacity while it was already on screen and being
+     read near the foot of the viewport -- "EXPLORE BY CITY" scored 1.38:1
+     there purely because it was still fading in. An arrival is a flourish
+     on content that is already legible, never a gate on legibility. */
+  --a: clamp(0, calc(var(--mp, 0) / 0.30), 1);
+  transform: translate3d(0, calc((1 - var(--a)) * 34px), calc((1 - var(--a)) * -140px));
+  opacity: calc(0.55 + var(--a) * 0.45);
+}
+
+/* =========================================================================
+ * 4. TYPOGRAPHY
+ * ========================================================================= */
+body.world .w-display {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.6rem, 6.6vw, 5.6rem);
+  line-height: 1.01;
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+  margin: 0;
+}
+body.world .w-h2 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.85rem, 3.6vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.024em;
+  text-wrap: balance;
+  margin: 0;
+}
+body.world .w-h3 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 1.6vw, 1.4rem);
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+body.world .w-body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: clamp(0.975rem, 1.1vw, 1.1rem);
+  line-height: 1.64;
+  max-width: 58ch;
+  margin: 0;
+}
+body.world .w-label {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  margin: 0;
+}
+/* Sorani and Arabic are not English with other words in it: joined script
+   sits lower, needs more leading, and is actively damaged by the tight
+   negative tracking that makes the Latin display face architectural. */
+body.world[dir="rtl"] .w-display { letter-spacing: 0; line-height: 1.22; font-size: clamp(2.1rem, 5.4vw, 4.5rem); }
+body.world[dir="rtl"] .w-h2 { letter-spacing: 0; line-height: 1.34; }
+body.world[dir="rtl"] .w-h3 { letter-spacing: 0; line-height: 1.42; }
+body.world[dir="rtl"] .w-body { line-height: 1.9; }
+body.world[dir="rtl"] .w-label { letter-spacing: 0.12em; }
+
+/* =========================================================================
+ * 5. CONTROLS
+ * =========================================================================
+ * The button system from the previous pass tested well and is kept -- the
+ * objection this round was composition, not controls. What changes is
+ * PLACEMENT (one action per movement) and that every variant now reads
+ * against a world that changes tone underneath it. ===================== */
+body.world .w-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6em;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.9375rem; font-weight: 700; line-height: 1;
+  padding: 0.95rem 1.6rem; min-height: 48px;
+  border-radius: 10px; border: 1px solid transparent;
+  cursor: pointer; text-decoration: none;
+  transition: background-color var(--w-fast) var(--w-ease), border-color var(--w-fast) var(--w-ease),
+              color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-btn-arrow { flex: none; transition: transform var(--w-mid) var(--w-ease-out); }
+body.world .w-btn:hover .w-btn-arrow { transform: translateX(3px); }
+body.world[dir="rtl"] .w-btn-arrow { transform: scaleX(-1); }
+body.world[dir="rtl"] .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translateX(3px); }
+
+/* Primary inverts across the tonal journey so it is always the highest
+   contrast object in the frame, on night and on stone alike. */
+body.world .w-btn--primary {
+  background: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  color: color-mix(in oklab, #0A0906 calc((1 - var(--on-stone)) * 100%), #F6F3EC);
+}
+body.world .w-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+body.world .w-btn--primary:active { transform: translateY(0) scale(0.985); }
+body.world .w-btn--ghost {
+  background: transparent;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  border-color: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.22));
+}
+body.world .w-btn--ghost:hover { border-color: var(--w-gold); }
+
+body.world .w-action {
+  display: inline-flex; align-items: center; gap: 0.5em; position: relative;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-gold-deep));
+  text-decoration: none; padding: 0.6rem 0; min-height: 44px;
+}
+body.world .w-action::after {
+  content: ''; position: absolute; inset-inline-start: 0; bottom: 0.4rem;
+  width: 100%; height: 1px; background: currentColor;
+  transform: scaleX(0); transform-origin: inline-start;
+  transition: transform var(--w-mid) var(--w-ease-out);
+}
+body.world .w-action:hover::after { transform: scaleX(1); }
+body.world .w-action svg { flex: none; transition: transform var(--w-mid) var(--w-ease-out); }
+body.world .w-action:hover svg { transform: translateX(3px); }
+body.world[dir="rtl"] .w-action svg { transform: scaleX(-1); }
+
+body.world .w-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex: none; border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.24));
+  background: transparent;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  cursor: pointer;
+  transition: background-color var(--w-fast) var(--w-ease), border-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-icon-btn:hover { border-color: var(--w-gold); }
+body.world .w-icon-btn:active { transform: scale(0.94); }
+body.world .w-icon-btn svg { width: 18px; height: 18px; }
+body.world[dir="rtl"] .w-icon-btn svg { transform: scaleX(-1); }
+
+body.world .w-btn:focus-visible,
+body.world .w-action:focus-visible,
+body.world .w-icon-btn:focus-visible,
+body.world .w-open:focus-visible,
+body.world .w-plane:focus-visible {
+  outline: 2px solid var(--w-gold-hi); outline-offset: 3px;
+}
+
+/* =========================================================================
+ * 6. HANDOFFS -- carry, answer, aperture, recede
+ * =========================================================================
+ * The four moves, defined once and reused. Every one of them is an element
+ * that physically spans two movements, which is the mechanism by which the
+ * "elements crossing a boundary" count rises from 1 to one-per-handoff. */
+
+/* CARRY -- an image plane that begins in one movement and is still on
+   screen, deeper and dimmer, in the next. Absolutely positioned so it can
+   extend past its own movement's box without affecting layout. */
+body.world .w-carry {
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  border-radius: 20px;
+  opacity: calc(0.08 + (1 - var(--mp, 0)) * 0.12);
+  transform: translate3d(0, calc(var(--mp, 0) * -60px), calc(-260px - var(--mp, 0) * 160px)) ;
+  filter: blur(calc(1px + var(--mp, 0) * 3px));
+  -webkit-mask-image: radial-gradient(72% 72% at 50% 50%, #000 38%, transparent 78%);
+          mask-image: radial-gradient(72% 72% at 50% 50%, #000 38%, transparent 78%);
+}
+
+/* ANSWER -- a hairline plus a line of type that leaves one movement and is
+   picked up by the next. The rule itself spans the boundary. */
+body.world .w-answer {
+  position: absolute;
+  inset-inline-start: clamp(1.25rem, 4vw, 4.5rem);
+  bottom: calc(var(--w-air-m) * -1);
+  height: calc(var(--w-air-m) * 2);
+  width: 1px;
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.22)),
+    transparent);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* APERTURE -- the next environment revealed THROUGH the current one.
+   The first attempt used two opaque shutters that slid apart. They worked
+   mechanically and were wrong in principle: a shutter is a filled rectangle
+   with hard top, bottom and outer edges, which is precisely the object this
+   redesign exists to delete -- and it looked like one, a dark block sitting
+   over the city wall.
+   This version has no element of its own at all. The aperture is a MASK on
+   the revealed content: a soft-edged opening that widens with the movement's
+   progress, so the cities are uncovered through the composition rather than
+   arriving below it. No fill, no border, no edge anywhere. */
+body.world .w-aperture {
+  overflow: hidden;
+  --ap: 0;
+  -webkit-mask-image: radial-gradient(120% 130% at 50% 46%,
+    #000 calc(var(--ap) * 62%),
+    rgba(0,0,0,0.55) calc(18% + var(--ap) * 46%),
+    transparent calc(42% + var(--ap) * 58%));
+          mask-image: radial-gradient(120% 130% at 50% 46%,
+    #000 calc(var(--ap) * 62%),
+    rgba(0,0,0,0.55) calc(18% + var(--ap) * 46%),
+    transparent calc(42% + var(--ap) * 58%));
+}
+
+/* =========================================================================
+ * 7. ARRIVAL
+ * ========================================================================= */
+body.world .w-hero {
+  position: relative;
+  min-height: clamp(600px, 88vh, 900px);
+  display: flex;
+  align-items: flex-end;
+  padding-block: clamp(6rem, 12vh, 9rem) var(--w-air-m);
+}
+/* The hero photograph is a PLANE inside the world, not a full-bleed
+   background band -- it has soft edges on every side, so it never draws a
+   rectangle across the page. */
+body.world .w-hero-plane {
+  position: absolute;
+  inset: 0 0 0 34%;
+  z-index: -1;
+  background-size: cover;
+  background-position: center 40%;
+  border-start-start-radius: 28px;
+  transform: translateZ(-200px) scale(1.12);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+          mask-composite: intersect;
+}
+body.world[dir="rtl"] .w-hero-plane {
+  inset: 0 34% 0 0;
+  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+          mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+}
+body.world .w-hero-copy { max-width: 44rem; display: flex; flex-direction: column; gap: 1.3rem; align-items: flex-start; }
+
+body.world .w-search {
+  display: flex; align-items: center; gap: 0.5rem;
+  width: 100%; max-width: 38rem; margin-top: 0.4rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.15rem;
+  border-radius: 22px;
+  border: 1px solid var(--w-hair-warm);
+  background: rgba(9, 8, 11, 0.62);
+  backdrop-filter: blur(14px);
+  transition: border-color var(--w-fast) var(--w-ease), background-color var(--w-fast) var(--w-ease);
+}
+body.world .w-search:focus-within { border-color: var(--w-gold); background: rgba(9, 8, 11, 0.84); }
+body.world .w-search-icon { flex: none; color: var(--w-gold); }
+body.world .w-search-input {
+  flex: 1; min-width: 0; height: 50px; border: 0; background: transparent;
+  color: var(--w-ink); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
+  padding-inline: 0.8rem;
+}
+body.world .w-search-input::placeholder { color: var(--w-ink-soft); }
+body.world .w-search-input:focus { outline: none; }
+body.world .w-search .w-btn { min-height: 50px; border-radius: 15px; padding-inline: 1.3rem; }
+body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
+
+/* =========================================================================
+ * 8. INTENT -- five openings, not five cards
+ * =========================================================================
+ * Buy / Rent / Build / Renovate / Sell are cut INTO the world as tall
+ * apertures with soft edges, standing at slightly different depths like a
+ * colonnade. No card, no fill, no shared rectangle behind them. */
+body.world .w-colonnade {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: clamp(0.5rem, 1.2vw, 1.1rem);
+  align-items: end;
+}
+body.world .w-open {
+  position: relative;
+  display: block;
+  text-decoration: none;
+  border-radius: 180px 180px 14px 14px;   /* an opening, not a tile */
+  overflow: hidden;
+  aspect-ratio: 5 / 9;
+  transform: translateZ(calc(var(--d, 0) * -70px)) translateY(calc(var(--d, 0) * 14px));
+  transition: transform var(--w-slow) var(--w-ease-out);
+}
+body.world .w-open::before {
+  content: ''; position: absolute; inset: 0; z-index: 0;
+  background-image: var(--img); background-size: cover; background-position: center;
+  filter: saturate(0.82) contrast(1.04);
+  transition: transform var(--w-slow) var(--w-ease-out), filter var(--w-mid) var(--w-ease);
+}
+/* The opening is darkened toward its own edges so it dissolves into the
+   world instead of ending on a hard rectangle. */
+body.world .w-open::after {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background:
+    linear-gradient(0deg, rgba(6,6,9,0.94) 0%, rgba(6,6,9,0.42) 44%, rgba(6,6,9,0.10) 100%),
+    radial-gradient(120% 90% at 50% 40%, transparent 46%, rgba(6,6,9,0.6) 100%);
+}
+body.world .w-open-label {
+  position: absolute; inset-inline: 0; bottom: 0; z-index: 2;
+  padding: 1rem 0.9rem 1.15rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
+  text-align: center;
+}
+body.world .w-open-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: clamp(1rem, 1.5vw, 1.3rem);
+  letter-spacing: -0.012em; color: var(--w-ink);
+}
+body.world .w-open-sub {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--w-gold);
+}
+@media (hover: hover) {
+  body.world .w-open:hover { transform: translateZ(20px) translateY(-6px); }
+  body.world .w-open:hover::before { transform: scale(1.06); filter: saturate(1) contrast(1.04); }
+}
+
+/* =========================================================================
+ * 9. CITY DISCOVERY -- rebuilt from nothing
+ * =========================================================================
+ * The previous version was rejected outright: a cream rectangle, a row of
+ * identical arch cards, and beige emptiness. It is gone completely.
+ *
+ * This is a spatial gallery. The cities stand on a curved wall receding in
+ * Z and rotating in Y around a focused city, so moving between them reads
+ * as moving THROUGH a place rather than sliding a carousel.
+ *
+ * ON IMAGERY -- the honest part. The repository's eight "city" images are
+ * not city photography: Erbil and Kirkuk are the identical file, and six of
+ * the eight are the same interior renders used by the Buy/Rent/Build/
+ * Renovate/Sell cards. Labelling those as cities is a claim about a place
+ * that the asset does not support. So a plane's face is NOT a photograph
+ * pretending to be that city. It is a composed architectural light-field,
+ * distinct per city and clearly abstract, with the city NAME as the
+ * dominant element. `--img` is left as an optional layer: the day a real,
+ * licensed photograph of Erbil exists, it drops into that one property with
+ * no redesign. ========================================================== */
+/* The wall fans out from the focused city, so with the first city focused
+   every plane sits to one side and half the frame was empty. Rather than
+   re-centring the wall (which would push the focused city off-axis), the
+   movement itself becomes asymmetric: type holds the near side, the wall
+   occupies the space it actually fans into. */
+body.world .w-city-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
+  align-items: center;
+}
+body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
+@media (max-width: 1023px) {
+  body.world .w-city-layout { grid-template-columns: 1fr; }
+  body.world .w-city-copy { margin-bottom: var(--w-air-s); }
+  /* One column means the wall has no side column to fan into, so it goes
+     back to fanning symmetrically from the centre. */
+  body.world .w-gallery { justify-content: center; }
+}
+
+body.world .w-gallery {
+  position: relative;
+  perspective: 1500px;
+  perspective-origin: 50% 46%;
+  min-height: clamp(340px, 46vh, 520px);
+  display: flex; align-items: center; justify-content: flex-start;
+  touch-action: pan-y;
+}
+body.world .w-wall {
+  position: relative;
+  width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  display: flex; align-items: center; justify-content: center;
+}
+body.world .w-plane {
+  position: absolute;
+  width: clamp(200px, 20vw, 280px);
+  aspect-ratio: 3 / 4.2;
+  border-radius: 16px;
+  overflow: hidden;
+  text-decoration: none;
+  transform-style: preserve-3d;
+  /* --o is the plane's signed offset from the focused city, written by the
+     gallery controller. Position on the wall is a pure function of it. */
+  transform:
+    translateX(calc(var(--o) * clamp(150px, 15vw, 210px)))
+    translateZ(calc(abs(var(--o)) * -190px))
+    rotateY(calc(var(--o) * -26deg));
+  z-index: calc(20 - abs(var(--o)));
+  opacity: calc(1 - min(abs(var(--o)), 3) * 0.16);
+  transition: transform var(--w-slow) var(--w-ease-out), opacity var(--w-slow) var(--w-ease-out);
+}
+/* The face: a composed light-field, deterministic per city via --h/--s/--l.
+   Abstract by intent -- it does not claim to be a photograph of anywhere. */
+body.world .w-plane-face {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    var(--img, none),
+    radial-gradient(120% 76% at 30% 8%, hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 26%)), transparent 62%),
+    linear-gradient(168deg,
+      hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 10%)) 0%,
+      hsl(calc(var(--h) - 14) calc(var(--s) * 1%) calc(var(--l) * 1% - 8%)) 100%);
+  background-size: cover;
+  background-position: center;
+}
+/* A horizon, a light source above it, and a few soft masses standing on
+   it: enough to read as a place with architecture in it, without asserting
+   any particular skyline. Deterministic per city via --h, so no two planes
+   look the same and none of them claims to be a photograph. */
+body.world .w-plane-face::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    /* foreground masses */
+    linear-gradient(90deg, transparent 8%, rgba(6,6,9,0.55) 8%, rgba(6,6,9,0.55) 20%, transparent 20%),
+    linear-gradient(90deg, transparent 30%, rgba(6,6,9,0.42) 30%, rgba(6,6,9,0.42) 46%, transparent 46%),
+    linear-gradient(90deg, transparent 60%, rgba(6,6,9,0.5) 60%, rgba(6,6,9,0.5) 72%, transparent 72%),
+    /* the horizon and the light sitting on it */
+    linear-gradient(0deg, transparent 40.6%, rgba(255,241,214,0.34) 41%, transparent 41.6%),
+    radial-gradient(60% 26% at 50% 41%, rgba(255,226,178,0.30), transparent 70%),
+    /* the ground the type sits on */
+    linear-gradient(0deg, rgba(6,6,9,0.95) 0%, rgba(6,6,9,0.30) 40%, transparent 66%);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 41%, transparent 41%), linear-gradient(#000, #000);
+  -webkit-mask-composite: source-over;
+          mask-image: linear-gradient(0deg, #000 0%, #000 41%, transparent 41%), linear-gradient(#000, #000);
+          mask-composite: add;
+}
+body.world .w-plane-body {
+  position: absolute; inset-inline: 0; bottom: 0; z-index: 1;
+  padding: 1.1rem 1.1rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+body.world .w-plane-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: 1.35rem; letter-spacing: -0.015em; color: #F7F4ED;
+  text-shadow: 0 1px 12px rgba(4,4,7,0.9);
+  transition: font-size var(--w-slow) var(--w-ease-out);
+}
+body.world .w-plane-note {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(247,244,237,0.7);
+}
+body.world .w-plane-go {
+  margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.45rem;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--w-gold-hi);
+  opacity: 0; transform: translateY(6px);
+  transition: opacity var(--w-mid) var(--w-ease-out), transform var(--w-mid) var(--w-ease-out);
+}
+/* Only the focused plane offers its action, so there is one obvious thing
+   to do rather than eight competing links. */
+body.world .w-plane[data-focus="1"] { opacity: 1; }
+body.world .w-plane[data-focus="1"] .w-plane-go { opacity: 1; transform: none; }
+body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.7rem; }
+body.world[dir="rtl"] .w-plane-go svg { transform: scaleX(-1); }
+
+body.world .w-gallery-nav {
+  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  margin-top: var(--w-air-s);
+}
+body.world .w-gallery-dots { display: flex; gap: 0.4rem; align-items: center; }
+/* A REAL 44px button that draws a 6px mark, rather than a 6px button with a
+   padded pseudo-element pretending to be one. The padded version measured
+   44px only exactly, and neighbouring dots' expanded areas overlapped each
+   other so a hit test near the edge landed on the wrong dot. A genuine box
+   with the mark drawn inside it has none of those problems and needs no
+   special case in any test. */
+body.world .w-dot {
+  width: 44px; height: 44px; border: 0; padding: 0; cursor: pointer;
+  background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+body.world .w-dot::after {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.28));
+  transition: background-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-dot[aria-current="true"]::after { background: var(--w-gold); transform: scale(1.6); }
+body.world .w-gallery-dots { gap: 0; }
+
+/* =========================================================================
+ * 10. PROPERTIES, SERVICES, OFFER, DEPARTURE
+ * =========================================================================
+ * All open compositions. A property card keeps an edge because a listing IS
+ * a discrete object; nothing else does. */
+body.world .w-rail {
+  display: flex; gap: clamp(1rem, 1.6vw, 1.5rem);
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-block: 0.25rem 1rem; scrollbar-width: none;
+}
+body.world .w-rail::-webkit-scrollbar { display: none; }
+body.world .w-rail > * { scroll-snap-align: start; }
+
+/* Empty state: no panel, no fill. Type and one action, standing in the
+   world -- so zero listings looks composed rather than broken. */
+body.world .w-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1.1rem;
+  padding-block: var(--w-air-s);
+  max-width: 34rem;
+}
+body.world .w-empty-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+body.world .w-rail:has(.w-empty) { display: block; overflow: visible; }
+
+/* Services: an editorial column of rules, not a grid of boxes. */
+body.world .w-list { display: flex; flex-direction: column; }
+body.world .w-row {
+  display: flex; align-items: center; gap: 1.1rem;
+  padding: 1.15rem 0;
+  border-block-end: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.14));
+  text-decoration: none;
+  transition: padding-inline-start var(--w-mid) var(--w-ease-out);
+}
+body.world .w-row:first-child { border-block-start: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.14)); }
+body.world .w-row:hover { padding-inline-start: 0.6rem; }
+body.world .w-row svg:first-child { flex: none; color: var(--w-gold); }
+body.world .w-row-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+body.world .w-row-cue { margin-inline-start: auto; flex: none; opacity: 0.5; transition: transform var(--w-mid) var(--w-ease-out), opacity var(--w-fast) var(--w-ease); }
+body.world .w-row:hover .w-row-cue { opacity: 1; transform: translateX(4px); }
+body.world[dir="rtl"] .w-row-cue { transform: scaleX(-1); }
+body.world[dir="rtl"] .w-row:hover .w-row-cue { transform: scaleX(-1) translateX(4px); }
+
+/* The offer. Sits at the luminous high point of the journey, so its white
+   QR belongs to the light rather than punching a hole in the dark. */
+body.world .w-offer { display: grid; grid-template-columns: minmax(0,0.8fr) minmax(0,1.2fr); gap: clamp(1.5rem,4vw,4rem); align-items: center; }
+body.world .w-figure {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-weight: 700;
+  font-size: clamp(4.5rem, 12vw, 9.5rem); line-height: 0.85; letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+}
+body.world .w-offer-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1.4rem; }
+body.world .w-qr { display: block; flex: none; padding: 0.6rem; border-radius: 12px; background: #fff; line-height: 0; }
+
+/* Trust: a typographic list. No hairline grid, no cells, no boxes. */
+body.world .w-trust { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--w-air-s) clamp(1.5rem,4vw,3.5rem); }
+body.world .w-trust-item { display: flex; flex-direction: column; gap: 0.5rem; max-width: 34ch; }
+body.world .w-trust-item svg { color: var(--w-gold); }
+
+/* Departure. Quiet: type and two actions standing in the dusk. */
+body.world .w-departure { display: flex; flex-direction: column; align-items: flex-start; gap: 1.3rem; padding-block: var(--w-air-m); }
+body.world .w-departure-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+
+/* =========================================================================
+ * 11. HEADER
+ * ========================================================================= */
+body.world #siteHeader header {
+  background: linear-gradient(180deg, rgba(6,6,9,0.66) 0%, rgba(6,6,9,0.22) 62%, transparent 100%);
+  border-bottom-color: transparent;
+  transition: background-color var(--w-mid) var(--w-ease), border-color var(--w-mid) var(--w-ease);
+}
+body.world.w-scrolled #siteHeader header {
+  background: color-mix(in oklab, rgba(9,8,11,0.88) calc((1 - var(--on-stone)) * 100%), rgba(238,232,220,0.90));
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.12));
+}
+body.world .home-bottomnav {
+  background: color-mix(in oklab, rgba(9,8,11,0.92) calc((1 - var(--on-stone)) * 100%), rgba(238,232,220,0.94));
+  backdrop-filter: blur(16px);
+  border-top: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(20,17,11,0.12));
+}
+
+/* =========================================================================
+ * 12. MOBILE -- the same world, fewer planes
+ * =========================================================================
+ * Not a stacked desktop. Continuity, atmosphere, hierarchy and every
+ * handoff survive; what reduces is plane count (2 not 3), travel distance,
+ * and blur cost. The world becomes ABSOLUTE rather than FIXED: a fixed
+ * full-viewport painted layer is the classic mobile scroll-jank trap, and
+ * the continuity requirement is satisfied either way because the element
+ * still has no edge inside the document. ============================== */
+@media (max-width: 767px) {
+  body.world .world-field { position: absolute; height: 100%; }
+  body.world .world-field > i { position: fixed; }
+  body.world .wf-vignette { display: none; }
+
+  body.world .mv { padding-block: var(--w-air-m); margin-block-start: calc(var(--w-air-s) * -1); }
+  body.world .w-hero { min-height: 86svh; padding-block: 5rem var(--w-air-s); }
+  body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+            mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
+  body.world .w-hero-copy { padding-inline-end: 3.2rem; gap: 1rem; }
+  body.world .w-search { border-radius: 16px; padding: 0.4rem 0.4rem 0.4rem 0.9rem; }
+  body.world .w-search-input { height: 46px; font-size: 0.975rem; }
+  body.world .w-search .w-btn { min-height: 46px; border-radius: 12px; padding-inline: 0.85rem; }
+  body.world .w-search .w-btn-text { display: none; }
+
+  /* Intent: the colonnade becomes a peek-scrolled row of the same openings
+     -- still apertures, never five equal cards in a grid. */
+  body.world .w-colonnade {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 46%;
+    overflow-x: auto; scroll-snap-type: x mandatory; gap: 0.6rem;
+    scroll-padding-inline: 1.25rem; scrollbar-width: none;
+  }
+  body.world .w-colonnade::-webkit-scrollbar { display: none; }
+  body.world .w-open { scroll-snap-align: center; aspect-ratio: 5 / 8; transform: none; }
+
+  /* City gallery keeps its perspective -- this is the moment that must not
+     degrade to a list -- but shows fewer neighbours and swipes. */
+  /* The wall fans out from the focused city, so with the first city focused
+   every plane sits to one side and half the frame was empty. Rather than
+   re-centring the wall (which would push the focused city off-axis), the
+   movement itself becomes asymmetric: type holds the near side, the wall
+   occupies the space it actually fans into. */
+body.world .w-city-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
+  align-items: center;
+}
+body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
+@media (max-width: 1023px) {
+  body.world .w-city-layout { grid-template-columns: 1fr; }
+  body.world .w-city-copy { margin-bottom: var(--w-air-s); }
+  /* One column means the wall has no side column to fan into, so it goes
+     back to fanning symmetrically from the centre. */
+  body.world .w-gallery { justify-content: center; }
+}
+
+body.world .w-gallery { perspective: 1000px; min-height: 62vh; }
+  body.world .w-plane {
+    width: 62vw;
+    transform:
+      translateX(calc(var(--o) * 48vw))
+      translateZ(calc(abs(var(--o)) * -230px))
+      rotateY(calc(var(--o) * -22deg));
+    opacity: calc(1 - min(abs(var(--o)), 2) * 0.26);
+  }
+  body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.5rem; }
+
+  body.world .w-offer { grid-template-columns: 1fr; gap: 1.4rem; }
+  body.world .w-figure { font-size: clamp(3.6rem, 22vw, 5.4rem); }
+  body.world .w-trust { grid-template-columns: 1fr; }
+  body.world .w-empty-actions { width: 100%; }
+  body.world .w-empty-actions .w-btn { flex: 1 1 auto; }
+  body.world .w-carry { display: none; }   /* cost without benefit at this size */
+  body.world { padding-bottom: 4.5rem; }   /* clear of the fixed bottom nav */
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  body.world .w-colonnade { grid-template-columns: repeat(3, 1fr); }
+  body.world .w-open:nth-child(n+4) { display: none; }
+  body.world .w-offer { grid-template-columns: 1fr; }
+}
+
+/* =========================================================================
+ * 13. REDUCED MOTION
+ * =========================================================================
+ * The world, the tonal journey and every composition remain. Only the
+ * movement stops: planes rest at their designed positions, and the gallery
+ * still changes focus -- instantly instead of gliding. ================== */
+@media (prefers-reduced-motion: reduce) {
+  body.world .w-plane,
+  body.world .w-open,
+  body.world .w-btn,
+  body.world .w-btn-arrow,
+  body.world .w-action::after,
+  body.world .w-row,
+  body.world .w-row-cue,
+  body.world .w-icon-btn { transition: none; }
+  body.world .w-recede,
+  body.world .w-arrive { transform: none; opacity: 1; }
+  body.world .w-carry { filter: none; }
+  /* The aperture mask opens instantly rather than being animated. */
+  body.world .w-aperture { -webkit-mask-image: none; mask-image: none; }
+}
