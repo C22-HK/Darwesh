@@ -65,8 +65,12 @@
 
     if (prefersReducedMotion()) {
       // Settled, natural position -- no depth offset -- and never attach
-      // a scroll listener at all.
+      // a scroll listener at all. The world still gets an atmosphere: it is
+      // parked at the warm station rather than left at night, so a
+      // reduced-motion visitor gets a composed, deliberate environment
+      // instead of the unlit start of a journey they will never travel.
       els.forEach((el) => el.style.setProperty('--section-progress', '1'));
+      document.documentElement.style.setProperty('--journey', '0.34');
       return;
     }
 
@@ -84,7 +88,19 @@
       const vh = window.innerHeight;
       // Batch 1: reads.
       const values = els.map((el) => progressFor(el.getBoundingClientRect(), vh));
+      // ONE more read, for the whole-document journey: 0 at the top, 1 at
+      // the bottom. Every atmospheric property of the persistent world is a
+      // function of this single number, which is what makes the tonal
+      // evolution continuous -- there is no per-section value anywhere, so
+      // there is no scroll position at which the world can step.
+      const doc = document.documentElement;
+      const span = doc.scrollHeight - vh;
+      const journey = span > 0 ? Math.min(1, Math.max(0, window.scrollY / span)) : 0;
       // Batch 2: writes.
+      doc.style.setProperty('--journey', journey.toFixed(4));
+      // The header's own state rides the same frame rather than adding a
+      // second scroll listener.
+      document.body.classList.toggle('w-scrolled', window.scrollY > 40);
       for (let i = 0; i < els.length; i++) {
         els[i].style.setProperty('--section-progress', values[i].toFixed(4));
         // OCCLUSION ORDER. Occlusion -- one thing visibly covering another
@@ -101,6 +117,16 @@
         // per frame, inside the existing write batch -- no extra layout
         // read, no second loop.
         //
+        // APERTURE. A movement containing one opens its shutters as it
+        // advances, uncovering the world behind the previous composition
+        // rather than starting a new section below it. Driven from the same
+        // progress value in the same write batch -- no extra listener, no
+        // second loop. Mapped so the opening completes early (by 45% of the
+        // movement's travel) and then simply stays open, which keeps the
+        // reveal a moment rather than a thing that tracks your scrollbar.
+        const ap = els[i].querySelector('.w-aperture');
+        if (ap) ap.style.setProperty('--ap', Math.min(1, values[i] / 0.45).toFixed(4));
+
         // Scenes only: a layer nested inside a scene keeps whatever z-index
         // its own scene gave it (see isScene above).
         if (!isScene[i]) continue;
