@@ -87,7 +87,7 @@
   --mamco-glass-inset:
     inset 0 1.5px 1.5px -1px rgba(255, 250, 238, 0.38),
     inset 0 -3px 6px -3px rgba(247, 214, 150, 0.60),
-    inset 0 -15px 22px -14px rgba(238, 196, 126, 0.30),
+    inset 0 -15px 22px -14px rgba(238, 196, 126, 0.20),
     inset 0 0 24px rgba(0, 0, 0, 0.40);
 }
 
@@ -142,27 +142,34 @@
      body -- and, more importantly, keeps the orb from clipping nothing it
      needs to clip while costing a paint the halo has to work around. */
   isolation: isolate;
-  /* TRANSLUCENT, and DARK. Two layers, no opaque stop anywhere: a broad
-     sheen across the upper face, then the material itself -- thinner at
-     the lit shoulder, denser toward the tapered base where more glass sits
-     between you and whatever is behind it.
-     The alphas climb from 0.72 at the lit shoulder to 0.96 at the rim,
-     which is how a dark medium actually behaves: the edge is where the
-     light path through the body is longest, so the edge is where it goes
-     nearly black. An earlier pass ran 0.50-0.86 and the body came out
-     MILKY -- a pale bubble rather than obsidian. Darkening it does not
-     cost the translucency, because what you see through this body is not
-     the wallpaper behind it: it is the bright gold orbit passing behind
-     the glass, which reads clearly through 4% transmission. */
+  /* OBSIDIAN. Near-black and glossy, with the light living INSIDE it.
+     Four layers, painted back to front:
+       key         the hard specular where the light source strikes the
+                   upper-left shoulder -- small and bright, because a
+                   specular is the size of the LIGHT, not of the object;
+       sheen       a broad soft fall-off away from that highlight, which is
+                   what gives the surface its curvature;
+       bounce      warm light coming back up off the lower-right, so the
+                   dark side is not a dead flat area;
+       body        the obsidian itself, lifted slightly at the lit shoulder
+                   and going almost fully black at the rim, which is how a
+                   dark medium behaves: the rim is where the light path
+                   through it is longest.
+     A previous pass ran the body at 0.72 alpha in the middle and it read as
+     a translucent bubble rather than as polished stone. What you see
+     through MAM is not the wallpaper -- it is the ribbon passing behind the
+     glass, and that reads through a very dark body precisely because the
+     ribbon is bright. */
   background:
-    linear-gradient(152deg, rgba(255,249,236,0.10) 0%, rgba(255,249,236,0.02) 22%, rgba(255,249,236,0) 42%),
-    radial-gradient(126% 112% at 42% 22%, rgba(44,41,37,0.72) 0%, rgba(17,16,15,0.89) 42%, rgba(5,5,5,0.96) 100%);
-  /* What separates GLASS from a hole: the page behind stays present but
-     softened, the way it would be through a real body. saturate() is held
-     at 1.1 rather than 1.3 -- the higher value pushed the warm grounds
-     this sits on toward olive and tinted the whole body green. */
-  backdrop-filter: blur(8px) saturate(1.1);
-  -webkit-backdrop-filter: blur(8px) saturate(1.1);
+    radial-gradient(20% 14% at 33% 17%, rgba(255,253,248,0.92) 0%, rgba(255,250,240,0.16) 52%, rgba(255,250,240,0) 78%),
+    radial-gradient(66% 52% at 30% 20%, rgba(255,250,240,0.13) 0%, rgba(255,248,236,0.03) 45%, rgba(255,248,236,0) 72%),
+    radial-gradient(54% 42% at 74% 86%, rgba(255,204,132,0.15) 0%, rgba(255,204,132,0) 62%),
+    radial-gradient(128% 116% at 42% 24%, rgba(28,26,24,0.93) 0%, rgba(10,9,9,0.97) 44%, rgba(1,1,1,0.99) 100%);
+  /* Kept small: at this darkness the backdrop barely shows through, and the
+     blur is there to keep any hard edge behind MAM from telegraphing
+     through the rim rather than to abstract a visible scene. */
+  backdrop-filter: blur(6px) saturate(0.95);
+  -webkit-backdrop-filter: blur(6px) saturate(0.95);
   border: 1px solid var(--mamco-outline);
   box-shadow: var(--mamco-glass-inset),
     0 0 22px -6px rgba(184,154,99,0.42),
@@ -214,7 +221,7 @@
   border: 1.5px solid var(--mamco-accent);
   opacity: calc(0.30 + var(--mam-energy) * 0.5);
   pointer-events: none;
-  z-index: 4;
+  z-index: 2;
   transition: opacity 200ms ease, border-color 320ms ease;
 }
 
@@ -286,9 +293,9 @@
    in it. */
 .mamco-core::before {
   background:
-    radial-gradient(circle at 50% 54%, rgba(255,229,182,0.46) 0%, rgba(246,186,98,0.24) 13%, rgba(184,144,80,0.09) 27%, transparent 44%),
-    radial-gradient(circle at 32% 66%, rgba(226,160,66,0.24) 0%, transparent 32%),
-    radial-gradient(circle at 70% 38%, rgba(255,208,138,0.20) 0%, transparent 29%);
+    radial-gradient(circle at 50% 60%, rgba(255,226,174,0.26) 0%, rgba(246,182,92,0.13) 11%, rgba(184,144,80,0.04) 22%, transparent 34%),
+    radial-gradient(circle at 34% 68%, rgba(226,158,62,0.13) 0%, transparent 25%),
+    radial-gradient(circle at 68% 62%, rgba(255,204,132,0.10) 0%, transparent 23%);
   filter: blur(7px);
   opacity: calc(0.86 + var(--mam-energy) * 0.14);
   animation: mamco-drift-a 13s ease-in-out infinite;
@@ -297,9 +304,9 @@
    not a multiple of layer 1's. */
 .mamco-core::after {
   background:
-    radial-gradient(circle at 60% 62%, rgba(238,172,88,0.22) 0%, transparent 32%),
-    radial-gradient(circle at 38% 34%, rgba(178,94,38,0.26) 0%, transparent 36%),
-    radial-gradient(circle at 50% 80%, rgba(255,186,104,0.16) 0%, transparent 28%);
+    radial-gradient(circle at 60% 66%, rgba(238,168,80,0.11) 0%, transparent 25%),
+    radial-gradient(circle at 40% 58%, rgba(178,94,38,0.13) 0%, transparent 28%),
+    radial-gradient(circle at 50% 80%, rgba(255,182,96,0.09) 0%, transparent 22%);
   filter: blur(9px);
   mix-blend-mode: screen;
   animation: mamco-drift-b 21s ease-in-out infinite;
@@ -314,7 +321,8 @@
 .mamco-eyes {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  /* Above the front ribbons (2). Nothing crosses the face. */
+  z-index: 3;
   pointer-events: none;
 }
 .mamco-eyes svg { display: block; width: 100%; height: 100%; overflow: visible; }
@@ -323,13 +331,13 @@
   transform-origin: center;
   /* One filter for the pair, not one each. Static -- only the transform
      animates, so this rasterizes once. */
-  filter: drop-shadow(0 0 2.5px rgba(255, 198, 112, 0.9));
+  filter: drop-shadow(0 0 3.5px rgba(255, 196, 104, 0.95));
   animation: mamco-eye-drift 14.3s ease-in-out infinite;
 }
 .mamco-eye {
   fill: none;
   stroke: var(--mamco-eye);
-  stroke-width: 5.6;
+  stroke-width: 6.6;
   stroke-linecap: round;
   /* The eyes brighten with the voice along with everything else. */
   opacity: calc(0.88 + var(--mam-energy) * 0.12);
@@ -341,50 +349,51 @@
  * ------------------------------------------------------------------- */
 .mamco-halo {
   position: absolute;
-  inset: -22%;
+  /* -14%, not -22%. The rejected version put the ribbons out at 1.47x the
+     body's radius, where they stopped reading as light ON MAM and started
+     reading as orbits AROUND a nucleus. At this inset the same geometry
+     lands between 0.95x and 1.20x -- wrapped, not orbiting. */
+  inset: -14%;
   pointer-events: none;
   /* A sway, not a spin. A constant rotation at any speed fast enough to
      notice is immediately legible as an animation; +-7deg over 41s reads
      as an object settling in space. */
   animation: mamco-halo-sway 41s ease-in-out infinite;
 }
-.mamco-halo svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.mamco-halo-orbits, .mamco-halo-trim { position: absolute; inset: 0; }
-/* Behind the body. Visible ONLY because the glass transmits -- this is the
-   layer that proves the material. */
-.mamco-halo--back { z-index: 0; opacity: 0.62; }
+.mamco-halo svg { display: block; width: 100%; height: 100%; overflow: visible;
+  position: absolute; inset: 0; }
+.mamco-halo-cups { position: absolute; inset: 0; }
+
+/* Behind the body. Dimmer and slightly softened, the way light reads
+   through polished stone -- this is the half of every ribbon whose depth
+   came out negative, so it is genuinely occluded rather than styled to look
+   like it. */
+.mamco-halo--back { z-index: 0; opacity: 0.46; filter: blur(0.4px); }
+/* In front, at full strength. No mask: the geometry already knows which
+   half is which. */
 .mamco-halo--front { z-index: 2; }
-/* In front, masked to its near half, so each orbit is bright coming toward
-   you and gone going away. The mask is fixed in screen space while the
-   ellipses turn inside it, which is what makes flat ovals read as rings.
-   Scoped to the ORBITS only. The crown sits above the mask entirely and the
-   ears inside its ramp, so sharing it erased the crown and left the ears as
-   half-faded grey brackets; they take their depth from the ribbon gradient
-   instead. */
-.mamco-halo--front .mamco-halo-orbits {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0 44%, #000 68%, #000 100%);
-  mask-image: linear-gradient(to bottom, transparent 0 44%, #000 68%, #000 100%);
-}
-.mamco-orbit { transform-box: fill-box; transform-origin: center; }
-/* Two strokes per orbit rather than one with a drop-shadow: a wide faint
-   stroke under a narrow bright one is the same glow for the cost of paint,
-   and it does not re-rasterize the layer every frame. */
-/* Width and stroke are set inline per ribbon -- the unequal hierarchy is
-   the thing that keeps five ribbons from reading as an atom, so it belongs
-   with the markup that declares each one, not in a rule that flattens them.
-   The stylesheet keeps only what they share. */
-.mamco-orbit-halo { fill: none; stroke: rgba(var(--mamco-orbit), 0.10); }
-.mamco-orbit-line { fill: none; }
-/* Prime periods, so no two ribbons ever come back into phase. */
-.mamco-orbit--a     { animation: mamco-orbit-a 17s ease-in-out infinite; }
-.mamco-orbit--b     { animation: mamco-orbit-b 23s ease-in-out infinite; }
-.mamco-orbit--c     { animation: mamco-orbit-c 29s ease-in-out infinite; }
-.mamco-orbit--d     { animation: mamco-orbit-d 31s ease-in-out infinite; }
-.mamco-orbit--crown { animation: mamco-orbit-crown 37s ease-in-out infinite; }
-.mamco-ear {
+
+.mamco-ribbon { transform-box: fill-box; transform-origin: center; }
+.mamco-ribbon-glow, .mamco-ribbon-core { stroke: none; }
+/* The bloom sits under the core at low alpha rather than behind a blur
+   filter, which would re-rasterize the whole layer every frame. */
+.mamco-ribbon-glow { opacity: 0.85; }
+
+/* Motion is deliberately TINY. Each band carries baked-in depth -- where it
+   is thick, where it is bright, where it tapers under the silhouette -- and
+   a large rotation would carry all of that to the wrong place. A few
+   degrees on prime periods keeps the depth true and still never repeats. */
+.mamco-ribbon--0 { animation: mamco-rib-a 23s ease-in-out infinite; }
+.mamco-ribbon--1 { animation: mamco-rib-b 31s ease-in-out infinite; }
+.mamco-ribbon--2 { animation: mamco-rib-c 19s ease-in-out infinite; }
+.mamco-ribbon--3 { animation: mamco-rib-d 29s ease-in-out infinite; }
+.mamco-ribbon--4 { animation: mamco-rib-e 37s ease-in-out infinite; }
+
+/* The side cups: part of the character, sitting on the silhouette. */
+.mamco-cup {
   fill: none;
-  stroke: rgba(var(--mamco-orbit), 0.38);
-  stroke-width: 1.8;
+  stroke: rgba(var(--mamco-orbit), 0.42);
+  stroke-width: 1.6;
   stroke-linecap: round;
 }
 
@@ -433,27 +442,27 @@
 /* Each orbit opens and closes rather than circling: scaleY is a ring
    turning about its own axis, which is the motion a real orbit has and a
    spinning oval does not. */
-@keyframes mamco-orbit-a {
-  0%,100% { transform: rotate(-16deg) scaleY(1); }
-  50%     { transform: rotate(-23deg) scaleY(0.40); }
+@keyframes mamco-rib-a {
+  0%,100% { transform: rotate(-2.4deg) scale(1); }
+  50%     { transform: rotate(2.1deg) scale(1.018); }
 }
-@keyframes mamco-orbit-b {
-  0%,100% { transform: rotate(38deg) scaleY(0.52); }
-  50%     { transform: rotate(30deg) scaleY(1); }
+@keyframes mamco-rib-b {
+  0%,100% { transform: rotate(1.9deg) scale(1.014); }
+  50%     { transform: rotate(-2.6deg) scale(0.992); }
 }
-@keyframes mamco-orbit-c {
-  0%,100% { transform: rotate(68deg) scaleY(0.94); }
-  50%     { transform: rotate(74deg) scaleY(0.31); }
+@keyframes mamco-rib-c {
+  0%,100% { transform: rotate(-1.5deg) scale(0.996); }
+  50%     { transform: rotate(2.8deg) scale(1.02); }
 }
-@keyframes mamco-orbit-d {
-  0%,100% { transform: rotate(7deg) scaleY(0.36); }
-  50%     { transform: rotate(2deg) scaleY(1.08); }
+@keyframes mamco-rib-d {
+  0%,100% { transform: rotate(2.7deg) scale(1.008); }
+  50%     { transform: rotate(-1.8deg) scale(0.99); }
 }
-/* The crown turns least of all: it is the one ribbon whose position on the
-   body reads as a fixed feature rather than as an orbit passing through. */
-@keyframes mamco-orbit-crown {
-  0%,100% { transform: rotate(-9deg) scaleY(0.86); }
-  50%     { transform: rotate(-3deg) scaleY(1.06); }
+/* The crown moves least: it reads as a fixed feature of the character
+   rather than as light passing through. */
+@keyframes mamco-rib-e {
+  0%,100% { transform: rotate(-1.1deg) scale(1); }
+  50%     { transform: rotate(1.4deg) scale(1.012); }
 }
 @keyframes mamco-rotate { to { transform: rotate(360deg); } }
 @keyframes mamco-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.42; } 50% { transform: scale(1.1); opacity: 0.85; } }
@@ -558,7 +567,7 @@
 }
 .mamco-orb[data-state="speaking"] .mamco-core::before { animation-duration: 8s; }
 .mamco-orb[data-state="speaking"] .mamco-eye {
-  stroke-width: calc(5.6px + var(--mam-energy) * 1.5px);
+  stroke-width: calc(6.6px + var(--mam-energy) * 1.6px);
 }
 
 /* GUIDING -- taking you somewhere. Leans in the reading direction and
@@ -631,17 +640,28 @@
 /* The halo answers the body's mood too, from the ROOT's presence attribute
    -- the halo is a sibling of the orb, so it cannot be reached from the
    orb's own state selector. */
-.mamco-root[data-presence="THINKING"] .mamco-orbit--a { animation-duration: 7s; }
-.mamco-root[data-presence="THINKING"] .mamco-orbit--b { animation-duration: 9s; }
-.mamco-root[data-presence="THINKING"] .mamco-orbit--c { animation-duration: 11s; }
-.mamco-root[data-presence="THINKING"] .mamco-orbit--d { animation-duration: 13s; }
-.mamco-root[data-presence="SPEAKING"] .mamco-orbit-line,
-.mamco-root[data-presence="LISTENING"] .mamco-orbit-line {
-  opacity: calc(0.74 + var(--mam-energy) * 0.26);
+/* THINKING draws the light inward: the bands quicken and tighten toward the
+   body rather than reaching outward. */
+.mamco-root[data-presence="THINKING"] .mamco-ribbon--0 { animation-duration: 8s; }
+.mamco-root[data-presence="THINKING"] .mamco-ribbon--1 { animation-duration: 11s; }
+.mamco-root[data-presence="THINKING"] .mamco-ribbon--2 { animation-duration: 7s; }
+.mamco-root[data-presence="THINKING"] .mamco-ribbon--3 { animation-duration: 13s; }
+/* SPEAKING and LISTENING: the light answers the voice with the rest of the
+   body. Opacity, never stroke -- the bands are filled with a gradient, and
+   repainting them flat would throw away the depth baked into every one. */
+.mamco-root[data-presence="SPEAKING"] .mamco-ribbon-core,
+.mamco-root[data-presence="LISTENING"] .mamco-ribbon-core {
+  opacity: calc(0.78 + var(--mam-energy) * 0.22);
 }
-.mamco-root[data-presence="MINIMIZED"] .mamco-halo { opacity: 0.3; }
-.mamco-root[data-presence="ERROR"] .mamco-halo { filter: hue-rotate(-42deg) saturate(0.85); }
-.mamco-root[data-presence="ERROR"] .mamco-halo { animation-duration: 96s; }
+.mamco-root[data-presence="SPEAKING"] .mamco-ribbon-glow,
+.mamco-root[data-presence="LISTENING"] .mamco-ribbon-glow {
+  opacity: calc(0.72 + var(--mam-energy) * 0.5);
+}
+.mamco-root[data-presence="MINIMIZED"] .mamco-halo { opacity: 0.34; }
+/* ERROR drains the gold toward rose across the whole halo at once, rather
+   than repainting each band -- calm, and never a flashing alarm. */
+.mamco-root[data-presence="ERROR"] .mamco-halo { filter: hue-rotate(-42deg) saturate(0.8); }
+.mamco-root[data-presence="ERROR"] .mamco-ribbon { animation-duration: 96s; }
 
 /* =====================================================================
  * FOCUS -- where MAM sits once it has been woken.
@@ -701,13 +721,11 @@
   .mamco-core { filter: none !important; }
   .mamco-core::before { animation-duration: 90s !important; }
   .mamco-core::after  { animation-duration: 140s !important; }
-  /* The orbits hold a pleasing static arrangement rather than snapping to
-     three identical flat ovals. */
-  .mamco-orbit--a     { transform: rotate(-16deg) scaleY(0.92); animation: none; }
-  .mamco-orbit--b     { transform: rotate(38deg)  scaleY(0.58); animation: none; }
-  .mamco-orbit--c     { transform: rotate(68deg)  scaleY(0.44); animation: none; }
-  .mamco-orbit--d     { transform: rotate(7deg)   scaleY(0.88); animation: none; }
-  .mamco-orbit--crown { transform: rotate(-9deg)  scaleY(0.96); animation: none; }
+  /* The bands simply stop where they are. Their arrangement, thickness and
+     brightness all come from geometry rather than from motion, so a still
+     MAM keeps the whole composition -- unlike the old orbits, which needed
+     hand-picked resting poses or they collapsed into one flat oval. */
+  .mamco-ribbon { animation: none !important; }
 }
 
 /* =====================================================================
@@ -738,11 +756,12 @@
      enough to carry them. The eyes stay: at 34px they are still the thing
      that identifies this as MAM rather than a dot. */
   .mamco-halo { display: none; }
+  .mamco-halo-cups { display: none; }
   .mamco-eye-pair { filter: none; }
   .mamco-eye { stroke-width: 7.5; }
   .mamco-root[data-focus="1"] .mamco-halo { display: block; }
-  .mamco-root[data-focus="1"] .mamco-eye-pair { filter: drop-shadow(0 0 2.5px rgba(255, 198, 112, 0.9)); }
-  .mamco-root[data-focus="1"] .mamco-eye { stroke-width: 5.6; }
+  .mamco-root[data-focus="1"] .mamco-eye-pair { filter: drop-shadow(0 0 3.5px rgba(255, 196, 104, 0.95)); }
+  .mamco-root[data-focus="1"] .mamco-eye { stroke-width: 6.6; }
 }
 
 /* =====================================================================
