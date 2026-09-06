@@ -161,7 +161,7 @@ const translations = {
     'common.continue': 'بەردەوامبوون',
     'common.optional': '(هەڵبژاردەیی)',
 
-    'index.searchPlaceholder': 'گەڕان بۆ خانووبەرە لە عێراق و کوردستان...',
+    'index.searchPlaceholder': 'گەڕان بۆ خانووبەرە لە کوردستان...',
     'index.searchAction': 'گەڕان',
     'index.heroEyebrow': 'خانووبەرە · پیشەگەران · خزمەتگوزاری',
     'index.heroLine1': 'خانووبەرەی تایبەت.',
@@ -1802,7 +1802,7 @@ const translations = {
     'common.continue': 'متابعة',
     'common.optional': '(اختياري)',
 
-    'index.searchPlaceholder': 'ابحث عن عقارات في العراق وكردستان...',
+    'index.searchPlaceholder': 'ابحث عن عقارات في كردستان...',
     'index.searchAction': 'بحث',
     'index.heroEyebrow': 'عقارات · محترفون · خدمات',
     'index.heroLine1': 'عقارات مميزة.',
