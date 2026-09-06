@@ -320,17 +320,17 @@
   transform-origin: center;
   /* One filter for the pair, not one each. Static -- only the transform
      animates, so this rasterizes once. */
-  filter: drop-shadow(0 0 4.5px rgba(255, 190, 96, 0.95));
+  filter: drop-shadow(0 0 4px rgba(255, 190, 96, 0.92));
   animation: mamco-eye-drift 14.3s ease-in-out infinite;
 }
 .mamco-eye {
-  fill: none;
-  stroke: var(--mamco-eye);
-  stroke-width: 8.5;
-  stroke-linecap: round;
-  /* The eyes brighten with the voice along with everything else. */
-  opacity: calc(0.88 + var(--mam-energy) * 0.12);
-  transition: opacity 90ms linear, stroke 320ms ease;
+  /* Filled, not stroked: the crescent's taper is in its geometry (see
+     crescentPath in the module), and a stroke would flatten it back to one
+     width with blunt round caps at the tips. */
+  fill: var(--mamco-eye);
+  stroke: none;
+  opacity: calc(0.9 + var(--mam-energy) * 0.1);
+  transition: opacity 90ms linear, fill 320ms ease;
 }
 
 /* ---------------------------------------------------------------------
@@ -382,10 +382,15 @@
 /* The side cups. Filled dark forms with a warm rim, straddling the
    silhouette -- part of the character, in the same layer as the face, so
    they survive with every ribbon switched off. */
-.mamco-cup ellipse {
-  fill: rgba(9, 9, 9, 0.94);
-  stroke: rgba(var(--mamco-orbit), 0.5);
-  stroke-width: 1.1;
+/* The cup is three elements, not one: a shaded body, a rim that is bright
+   only where the light lands, and its own small specular. A single stroked
+   ellipse is what read as a drawn ring. */
+.mamco-cup-body { stroke: none; }
+.mamco-cup-rim  { fill: none; stroke-width: 1.15; }
+.mamco-cup-spec {
+  fill: rgba(255, 250, 240, 0.5);
+  stroke: none;
+  filter: blur(1.1px);
 }
 
 @keyframes mamco-float {
@@ -542,7 +547,7 @@
 .mamco-orb[data-state="thinking"] .mamco-core::before { animation: mamco-inward 2.9s ease-in-out infinite; }
 .mamco-orb[data-state="thinking"] .mamco-core::after  { animation-duration: 9s; }
 .mamco-orb[data-state="thinking"] .mamco-core { filter: brightness(1.12) saturate(1.12); }
-.mamco-orb[data-state="thinking"] .mamco-eye-pair { transform: scaleY(0.74); }
+.mamco-root[data-presence="THINKING"] .mamco-eye-pair { transform: scaleY(0.76); }
 
 /* SPEAKING -- the body IS the voice. Everything visible here is driven by
    --mam-energy (see the header): scale on .mamco-orb, brightness on
@@ -557,8 +562,13 @@
   transition: box-shadow 70ms linear, border-color 320ms ease;
 }
 .mamco-orb[data-state="speaking"] .mamco-core::before { animation-duration: 8s; }
-.mamco-orb[data-state="speaking"] .mamco-eye {
-  stroke-width: calc(8.5px + var(--mam-energy) * 1.8px);
+/* SPEAKING: the face answers the voice. A filled crescent has no stroke to
+   thicken, so the whole face swells fractionally instead -- on the
+   independent `scale` property, so it never fights the eye drift's
+   transform. */
+.mamco-root[data-presence="SPEAKING"] .mamco-eyes,
+.mamco-root[data-presence="LISTENING"] .mamco-eyes {
+  scale: calc(1 + var(--mam-energy) * 0.045);
 }
 
 /* GUIDING -- taking you somewhere. Leans in the reading direction and
@@ -626,7 +636,7 @@
 .mamco-orb[data-state="error"] .mamco-core::before { animation-duration: 30s; }
 .mamco-orb[data-state="error"] .mamco-core::after  { animation-duration: 44s; }
 .mamco-orb[data-state="error"]::before { opacity: 0.28; animation: none; }
-.mamco-orb[data-state="error"] .mamco-eye { stroke: #E9A9A4; }
+.mamco-root[data-presence="ERROR"] .mamco-eye { fill: #E9A9A4; }
 
 /* The halo answers the body's mood too, from the ROOT's presence attribute
    -- the halo is a sibling of the orb, so it cannot be reached from the
@@ -749,11 +759,11 @@
      that identifies this as MAM rather than a dot. */
   .mamco-halo { display: none; }
   .mamco-halo-cups { display: none; }
+  /* At 34px the bloom is most of what you see, so it goes; the crescents
+     themselves are geometry and scale down cleanly on their own. */
   .mamco-eye-pair { filter: none; }
-  .mamco-eye { stroke-width: 7.5; }
   .mamco-root[data-focus="1"] .mamco-halo { display: block; }
-  .mamco-root[data-focus="1"] .mamco-eye-pair { filter: drop-shadow(0 0 4.5px rgba(255, 190, 96, 0.95)); }
-  .mamco-root[data-focus="1"] .mamco-eye { stroke-width: 8.5; }
+  .mamco-root[data-focus="1"] .mamco-eye-pair { filter: drop-shadow(0 0 4px rgba(255, 190, 96, 0.92)); }
 }
 
 /* =====================================================================

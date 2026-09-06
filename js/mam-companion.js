@@ -91,6 +91,23 @@ function ribbonHalves({ r, cx = 50, cy = 50, tilt, alpha }) {
   return { front: arc(0, Math.PI), back: arc(Math.PI, Math.PI * 2) };
 }
 
+/**
+ * Serialise an offset band, refusing to emit a coordinate that is not
+ * finite. SVG treats a bad number as the end of the path and closes what it
+ * has, with no error anywhere -- so a single NaN silently amputates a shape.
+ * Better to notice.
+ */
+function toPath(outer, inner) {
+  const f = (v) => {
+    if (!Number.isFinite(v)) throw new RangeError('mam-companion: non-finite path coordinate');
+    return v.toFixed(2);
+  };
+  let d = 'M' + f(outer[0][0]) + ' ' + f(outer[0][1]);
+  for (let i = 1; i < outer.length; i++) d += 'L' + f(outer[i][0]) + ' ' + f(outer[i][1]);
+  for (let i = inner.length - 1; i >= 0; i--) d += 'L' + f(inner[i][0]) + ' ' + f(inner[i][1]);
+  return d + 'Z';
+}
+
 /** Offset a sampled curve into a closed band whose width follows depth. */
 function bandPath(pts, wBase) {
   const n = pts.length;
@@ -105,17 +122,16 @@ function bandPath(pts, wBase) {
     const u = i / (n - 1);
     // Full width through the middle of the arc, tapering to nothing at the
     // two silhouette crossings so the band slips under the body's edge.
-    const taper = Math.pow(Math.sin(Math.PI * u), 0.45);
+    // max(0, ...) is load-bearing: sin(PI*u) at u=1 comes out at -3.2e-16
+    // rather than 0, and Math.pow of a negative is NaN -- which an SVG path
+    // does not report, it just stops parsing there.
+    const taper = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.45);
     const near = (Math.abs(p.d) + 1) / 2;          // 0.5 at the crossing, 1 at the pole
     const w = wBase * taper * (0.30 + 0.70 * near);
     outer.push([p.x + nx * w, p.y + ny * w]);
     inner.push([p.x - nx * w, p.y - ny * w]);
   }
-  const f = (v) => v.toFixed(2);
-  let d = 'M' + f(outer[0][0]) + ' ' + f(outer[0][1]);
-  for (let i = 1; i < n; i++) d += 'L' + f(outer[i][0]) + ' ' + f(outer[i][1]);
-  for (let i = n - 1; i >= 0; i--) d += 'L' + f(inner[i][0]) + ' ' + f(inner[i][1]);
-  return d + 'Z';
+  return toPath(outer, inner);
 }
 
 // Radii sit between 0.95 and 1.20 of the body's own radius: the light HUGS
@@ -179,13 +195,39 @@ function ribbonLayer(scope, side) {
   return out + '</svg>';
 }
 
-// The two cups at MAM's sides. In the reference they are solid parts of the
-// character sitting on the silhouette, not arcs floating clear of it, so
-// they are filled shapes with a warm rim rather than open strokes.
-const CUPS_SVG =
+// THE SIDE CUPS. Sculpted forms, not outlined ovals.
+//
+// A thin gold rim around a flat dark ellipse reads as a drawn ring sitting
+// on the body. What makes a form solid is that it has its OWN light: a fill
+// that lifts where the key strikes it and deepens away, a rim that is bright
+// on the lit shoulder and fades around the back, and a small specular of its
+// own. All three run off the same upper-left key as the body, or the cups
+// look pasted in from a different scene.
+const CUPS_SVG = (scope) =>
   '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
-  '<g class="mamco-cup"><ellipse cx="9" cy="50" rx="6.5" ry="12"/></g>' +
-  '<g class="mamco-cup"><ellipse cx="91" cy="50" rx="6.5" ry="12"/></g>' +
+  '<defs>' +
+  '<radialGradient id="' + scope + '-cupL" cx="0.34" cy="0.24" r="0.95">' +
+  '<stop offset="0" stop-color="#3C352C"/><stop offset="0.42" stop-color="#15130F"/>' +
+  '<stop offset="1" stop-color="#040403"/></radialGradient>' +
+  '<radialGradient id="' + scope + '-cupR" cx="0.30" cy="0.24" r="0.95">' +
+  '<stop offset="0" stop-color="#342E26"/><stop offset="0.42" stop-color="#131210"/>' +
+  '<stop offset="1" stop-color="#040403"/></radialGradient>' +
+  '<linearGradient id="' + scope + '-cupRim" x1="0.12" y1="0" x2="0.88" y2="1">' +
+  '<stop offset="0" stop-color="#FFE6B8" stop-opacity="0.9"/>' +
+  '<stop offset="0.42" stop-color="#C99D60" stop-opacity="0.44"/>' +
+  '<stop offset="1" stop-color="#6B5230" stop-opacity="0.14"/>' +
+  '</linearGradient>' +
+  '</defs>' +
+  '<g class="mamco-cup">' +
+  '<ellipse class="mamco-cup-body" cx="9" cy="50" rx="7" ry="13.5" fill="url(#' + scope + '-cupL)"/>' +
+  '<ellipse class="mamco-cup-rim" cx="9" cy="50" rx="7" ry="13.5" stroke="url(#' + scope + '-cupRim)"/>' +
+  '<ellipse class="mamco-cup-spec" cx="7.3" cy="43" rx="2.2" ry="3.2"/>' +
+  '</g>' +
+  '<g class="mamco-cup">' +
+  '<ellipse class="mamco-cup-body" cx="91" cy="50" rx="7" ry="13.5" fill="url(#' + scope + '-cupR)"/>' +
+  '<ellipse class="mamco-cup-rim" cx="91" cy="50" rx="7" ry="13.5" stroke="url(#' + scope + '-cupRim)"/>' +
+  '<ellipse class="mamco-cup-spec" cx="89.3" cy="43" rx="2" ry="3"/>' +
+  '</g>' +
   '</svg>';
 
 // Gradient ids have to be unique per document, and a page may mount more
@@ -193,22 +235,73 @@ const CUPS_SVG =
 // counter keeps every gradient addressable by exactly the bands that use it.
 let instanceUid = 0;
 
-// THE EYES -- the one element that makes this a being rather than an orb.
-// Two soft gold crescents suspended INSIDE the glass (which is why they
-// sit under the surface layer, not on top of it), drifting very slightly
-// so they never look printed on.
+// THE EYES -- soft tapered crescents, not uniform strokes.
 //
-// The gap is load-bearing. A first pass put them at 31-47 and 53-69; with
-// a 6.4 stroke and round caps each crescent grew 3.2 past both ends, so the
-// two met at x=50 and rendered as ONE continuous squiggle -- a moustache,
-// not a pair of eyes. Ends at 44 and 56, against a 5.6 stroke, leave about
-// 6 units of clear dark glass between the caps at every width used here.
+// A stroked path has ONE width for its whole length, and round caps end it
+// with a blunt semicircle. That is a sausage. A drawn crescent is thick
+// through the belly and thins to a point at each tip, and that difference is
+// most of what "softer" means here.
+//
+// So each eye is a FILLED shape: the centreline is sampled and offset by a
+// half-width following sin(t)^0.62. The exponent is below 1 on purpose --
+// it keeps the belly full across most of the arc and spends the taper near
+// the ends, where a plain sine would thin the eye far too early and leave it
+// looking weak.
+//
+// Sized from the reference: the pair spans about 63% of the body, each eye
+// about 25%, the belly about 12% of the body's height. The 12-unit gap
+// between them is load-bearing -- at an earlier size the two nearly met and
+// the pair read as one wide band rather than as two eyes.
+//
+// THE BELLY MUST STAY WELL UNDER THE SAG. A crescent's upper edge is the
+// centreline lifted by the half-width, so its curvature is (sag - w) while
+// the lower edge's is (sag + w). Both have to read as curves or the shape
+// is not a crescent.
+//   sag 7,  w 6.0  ->  top 1.0 / bottom 13.0  -- a HALF-DISC, flat on top
+//   sag 8.6, w 3.9 ->  top 4.7 / bottom 12.5  -- still reads flat-topped
+//   sag 12, w 3.3  ->  top 8.7 / bottom 15.3  -- a crescent
+// The ratio is what matters, not either number alone: the upper edge needs
+// to keep something like two thirds of the lower edge's curvature. Total
+// height is (sag + w), which is what sets how much of the face it fills.
+const EYE_SAMPLES = 26;
+
+function quadPoints(x0, y0, cx, cy, x1, y1) {
+  const pts = [];
+  for (let i = 0; i <= EYE_SAMPLES; i++) {
+    const t = i / EYE_SAMPLES, u = 1 - t;
+    pts.push({
+      x: u * u * x0 + 2 * u * t * cx + t * t * x1,
+      y: u * u * y0 + 2 * u * t * cy + t * t * y1
+    });
+  }
+  return pts;
+}
+
+function crescentPath(pts, wMax) {
+  const n = pts.length;
+  const outer = [], inner = [];
+  for (let i = 0; i < n; i++) {
+    const p = pts[i];
+    const prev = pts[i === 0 ? 0 : i - 1];
+    const next = pts[i === n - 1 ? n - 1 : i + 1];
+    const dx = next.x - prev.x, dy = next.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    // See bandPath: sin() at the final sample is a hair BELOW zero, and
+    // Math.pow(negative, fractional) is NaN.
+    const w = wMax * Math.pow(Math.max(0, Math.sin((Math.PI * i) / (n - 1))), 0.62);
+    outer.push([p.x + nx * w, p.y + ny * w]);
+    inner.push([p.x - nx * w, p.y - ny * w]);
+  }
+  return toPath(outer, inner);
+}
+
 const EYES_SVG =
-  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
-  `<g class="mamco-eye-pair">` +
-  `<path class="mamco-eye" d="M23.5 45 q8.5 12 17 0"/>` +
-  `<path class="mamco-eye" d="M59.5 45 q8.5 12 17 0"/>` +
-  `</g></svg>`;
+  '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
+  '<g class="mamco-eye-pair">' +
+  '<path class="mamco-eye" d="' + crescentPath(quadPoints(18.5, 42, 31.25, 66, 44, 42), 3.3) + '"/>' +
+  '<path class="mamco-eye" d="' + crescentPath(quadPoints(56, 42, 68.75, 66, 81.5, 42), 3.3) + '"/>' +
+  '</g></svg>';
 
 // THE EIGHT STATES the product defines, plus two the existing voice flow
 // already drives and which stay first-class rather than being collapsed
@@ -314,7 +407,7 @@ export class MamCompanion {
     // The cups share the face's layer because they are the same thing: the
     // parts that make this a character rather than a sphere, and the parts
     // that must survive with every ribbon switched off.
-    eyes.innerHTML = CUPS_SVG + EYES_SVG;
+    eyes.innerHTML = CUPS_SVG(uid + 'c') + EYES_SVG;
 
     this._float.appendChild(haloBack);
     this._float.appendChild(this._orb);
