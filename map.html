@@ -2048,15 +2048,24 @@ function selectListing(id, opts) {
 //     center as the real selection via selectListing(), so map/marker
 //     state follows the wheel the same way it follows a click.
 // ---------------------------------------------------------------------
-let wheelObserver = null;
-let wheelVisibleCards = new Set();
-let wheelRafId = null;
-let wheelLastScrollAt = 0;
-let wheelSettleTimer = null;
-let wheelScrollHandler = null;
-let wheelScrollendHandler = null;
-let wheelKeydownHandler = null;
-const WHEEL_HAS_SCROLLEND = 'onscrollend' in window;
+// var, not let/const: teardownWheel()/wireWheel() are called from
+// renderList(), which runs off an async Firestore load (loadListings())
+// and can fire before the script's own top-to-bottom execution reaches
+// this point (confirmed live: "Cannot access 'wheelObserver' before
+// initialization" on every map.html load). var's hoisting gives every one
+// of these an immediate `undefined` value with no temporal dead zone, so
+// an early call sees "not set up yet" instead of throwing -- teardownWheel
+// already null-checks wheelObserver/wheelRafId before using them, so that
+// is exactly the behavior it already expected.
+var wheelObserver = null;
+var wheelVisibleCards = new Set();
+var wheelRafId = null;
+var wheelLastScrollAt = 0;
+var wheelSettleTimer = null;
+var wheelScrollHandler = null;
+var wheelScrollendHandler = null;
+var wheelKeydownHandler = null;
+var WHEEL_HAS_SCROLLEND = 'onscrollend' in window;
 
 function prefersReducedMotion() {
   return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
