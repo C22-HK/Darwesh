@@ -11,6 +11,10 @@
 //      trAdmin() literal call resolves to a real i18n key
 //   4. Every internal href="*.html" points at a file that actually exists
 //   5. No duplicate id="..." within a single page
+//   6. Map controls are inline SVG + labelled, and no public page reads a
+//      private location field
+//   7. Every Leaflet bindTooltip/bindPopup renders escaped or literal text
+//   8. No CSS declaration silently swallows the one after it
 //
 // Exits non-zero (fails the build) if any check finds a real problem.
 
@@ -323,6 +327,120 @@ htmlFiles.forEach(f => {
   }
 });
 if (!tooltipSinkIssues) ok('every Leaflet bindTooltip/bindPopup renders escaped or literal content');
+
+// --- 8. CSS structural sanity ------------------------------------------
+// CSS has no error reporting. A malformed declaration is not a build
+// failure and not a console warning -- the browser discards it and the page
+// simply renders wrong. Nothing else in this file looks at CSS at all, so
+// this class of bug ships green.
+//
+// It is not hypothetical here. A `background:` list in css/mam-companion.css
+// ended in a comma instead of a semicolon; the `mix-blend-mode` on the next
+// line was parsed as one more background layer, the whole declaration became
+// invalid and was dropped, and MAM lost its entire highlight system. Console
+// clean, CI green, and it took a screenshot to notice.
+//
+// This does NOT parse CSS. It looks for the single shape that fails
+// silently and costs a whole declaration: inside an INNERMOST block -- one
+// with no nested block, so it can only contain declarations -- a chunk
+// between semicolons holding more than one top-level colon. A well-formed
+// declaration has exactly one. Two means the semicolon that should have
+// ended the first is missing or was typed as a comma, so the second
+// property got swallowed into the first one's value.
+//
+// Colons and semicolons inside parentheses (url(data:...), gradients) or
+// inside quotes (content: "a:b") are not top-level and do not count.
+function scanCssText(src) {
+  // Blank out comments but keep their newlines, so reported lines stay true.
+  let text = '';
+  for (let i = 0; i < src.length; ) {
+    if (src.startsWith('/*', i)) {
+      const end = src.indexOf('*/', i + 2);
+      if (end === -1) {
+        return { unterminated: src.slice(0, i).split('\n').length, issues: [] };
+      }
+      text += src.slice(i, end + 2).replace(/[^\n]/g, ' ');
+      i = end + 2;
+    } else {
+      text += src[i++];
+    }
+  }
+
+  const issues = [];
+  const opens = (text.match(/\{/g) || []).length;
+  const closes = (text.match(/\}/g) || []).length;
+  if (opens !== closes) issues.push({ line: 0, kind: 'braces', detail: `${opens} "{" vs ${closes} "}"` });
+
+  const lineOf = (idx) => text.slice(0, idx).split('\n').length;
+  const block = /\{([^{}]*)\}/g;
+  let m;
+  while ((m = block.exec(text)) !== null) {
+    const body = m[1];
+    const base = m.index + 1;
+
+    // Split the block into declarations on top-level semicolons.
+    const chunks = [];
+    let depth = 0, quote = '', start = 0;
+    for (let k = 0; k <= body.length; k++) {
+      const c = body[k];
+      if (k === body.length) { chunks.push({ at: start, text: body.slice(start, k) }); break; }
+      if (quote) { if (c === quote && body[k - 1] !== '\\') quote = ''; continue; }
+      if (c === '"' || c === "'") quote = c;
+      else if (c === '(') depth++;
+      else if (c === ')') depth = Math.max(0, depth - 1);
+      else if (c === ';' && depth === 0) { chunks.push({ at: start, text: body.slice(start, k) }); start = k + 1; }
+    }
+
+    for (const ch of chunks) {
+      if (!ch.text.trim()) continue;
+      let depth2 = 0, quote2 = '', colons = 0, secondAt = -1;
+      for (let k = 0; k < ch.text.length; k++) {
+        const c = ch.text[k];
+        if (quote2) { if (c === quote2 && ch.text[k - 1] !== '\\') quote2 = ''; continue; }
+        if (c === '"' || c === "'") quote2 = c;
+        else if (c === '(') depth2++;
+        else if (c === ')') depth2 = Math.max(0, depth2 - 1);
+        else if (c === ':' && depth2 === 0) { colons++; if (colons === 2) secondAt = k; }
+      }
+      if (colons > 1) {
+        issues.push({
+          line: lineOf(base + ch.at + secondAt),
+          kind: 'swallowed',
+          detail: ch.text.trim().replace(/\s+/g, ' ').slice(0, 90)
+        });
+      }
+    }
+  }
+  return { unterminated: 0, issues };
+}
+
+const cssSources = fs.readdirSync(path.join(ROOT, 'css'))
+  .filter(f => f.endsWith('.css'))
+  .map(f => ['css/' + f, fs.readFileSync(path.join(ROOT, 'css', f), 'utf8')]);
+// Inline <style> blocks too -- same failure mode, same silence.
+htmlFiles.forEach(f => {
+  const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].forEach((sm, i) => {
+    cssSources.push([`${f} <style> #${i}`, sm[1]]);
+  });
+});
+
+let cssIssues = false;
+cssSources.forEach(([name, src]) => {
+  const { unterminated, issues } = scanCssText(src);
+  if (unterminated) {
+    fail(`${name}:${unterminated}: unterminated /* comment -- everything after it is swallowed`);
+    cssIssues = true;
+  }
+  issues.forEach(iss => {
+    if (iss.kind === 'braces') fail(`${name}: unbalanced braces (${iss.detail})`);
+    else fail(`${name}:${iss.line}: a declaration swallowed the next property -- ` +
+              `the one before it is missing its ";" (often typed as ",") so the whole ` +
+              `declaration is dropped silently. Got: ${iss.detail}`);
+    cssIssues = true;
+  });
+});
+if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.length} stylesheets and inline blocks`);
 
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
