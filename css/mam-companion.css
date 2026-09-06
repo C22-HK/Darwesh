@@ -85,10 +85,10 @@
        ambient  the body's own interior shadow, so the middle has depth
                 instead of going flat */
   --mamco-glass-inset:
-    inset 0 1.5px 1.5px -1px rgba(255, 250, 238, 0.38),
-    inset 0 -3px 6px -3px rgba(247, 214, 150, 0.60),
-    inset 0 -15px 22px -14px rgba(238, 196, 126, 0.20),
-    inset 0 0 24px rgba(0, 0, 0, 0.40);
+    inset 0 1.4px 0.9px -0.6px rgba(255, 252, 246, 0.78),
+    inset 0 -2.2px 2.6px -1.8px rgba(255, 216, 150, 0.78),
+    inset 0 -14px 20px -14px rgba(238, 196, 126, 0.16),
+    inset 0 0 24px rgba(0, 0, 0, 0.44);
 }
 
 .mamco-root {
@@ -142,32 +142,23 @@
      body -- and, more importantly, keeps the orb from clipping nothing it
      needs to clip while costing a paint the halo has to work around. */
   isolation: isolate;
-  /* OBSIDIAN. Near-black and glossy, with the light living INSIDE it.
-     Four layers, painted back to front:
-       key         the hard specular where the light source strikes the
-                   upper-left shoulder -- small and bright, because a
-                   specular is the size of the LIGHT, not of the object;
-       sheen       a broad soft fall-off away from that highlight, which is
-                   what gives the surface its curvature;
-       bounce      warm light coming back up off the lower-right, so the
-                   dark side is not a dead flat area;
-       body        the obsidian itself, lifted slightly at the lit shoulder
-                   and going almost fully black at the rim, which is how a
-                   dark medium behaves: the rim is where the light path
-                   through it is longest.
-     A previous pass ran the body at 0.72 alpha in the middle and it read as
-     a translucent bubble rather than as polished stone. What you see
-     through MAM is not the wallpaper -- it is the ribbon passing behind the
-     glass, and that reads through a very dark body precisely because the
-     ribbon is bright. */
+  /* OBSIDIAN. Near-black polished stone. No key light here -- every
+     specular lives on the surface layer below, so there is exactly one
+     highlight system and it can be made crisp without fighting a second
+     soft one underneath.
+       environment  a faint wide band across the upper third: the room
+                    reflected in the stone, which is the cue that says
+                    polished rather than matte;
+       bounce       warm light returning off the lower right, so the dark
+                    side is not a dead flat area;
+       body         the stone, lifted a little at the lit shoulder and
+                    going almost fully black at the rim, which is how a
+                    dark medium behaves -- the rim is where the light path
+                    through it is longest. */
   background:
-    radial-gradient(20% 14% at 33% 17%, rgba(255,253,248,0.92) 0%, rgba(255,250,240,0.16) 52%, rgba(255,250,240,0) 78%),
-    radial-gradient(66% 52% at 30% 20%, rgba(255,250,240,0.13) 0%, rgba(255,248,236,0.03) 45%, rgba(255,248,236,0) 72%),
+    radial-gradient(72% 13% at 50% 29%, rgba(228,216,198,0.085) 0%, rgba(228,216,198,0) 72%),
     radial-gradient(54% 42% at 74% 86%, rgba(255,204,132,0.15) 0%, rgba(255,204,132,0) 62%),
     radial-gradient(128% 116% at 42% 24%, rgba(28,26,24,0.93) 0%, rgba(10,9,9,0.97) 44%, rgba(1,1,1,0.99) 100%);
-  /* Kept small: at this darkness the backdrop barely shows through, and the
-     blur is there to keep any hard edge behind MAM from telegraphing
-     through the rim rather than to abstract a visible scene. */
   backdrop-filter: blur(6px) saturate(0.95);
   -webkit-backdrop-filter: blur(6px) saturate(0.95);
   border: 1px solid var(--mamco-outline);
@@ -225,19 +216,19 @@
   transition: opacity 200ms ease, border-color 320ms ease;
 }
 
-/* THE SURFACE. Above the internal light and the eyes (so the highlight
-   passes over them the way it would over anything under glass) and below
-   the rim.
-   Three highlights, each doing a different job:
-     catch light  a small bright specular on the upper-left shoulder, where
-                  a single light source strikes a curved surface;
-     sheen        a broad soft sweep down the face, giving the curvature
-                  somewhere to fall away to;
-     pooling      warmth gathering low and centre, in the taper, because
-                  that is where the glass is thickest and light collects.
-   Screen-blended so they ADD to whatever the light inside is doing rather
-   than covering it -- a highlight that hides the light in the body would
-   make it less glassy, not more. */
+/* THE SURFACE -- where every highlight lives. Above the internal light,
+   below the eyes, screen-blended so highlights ADD rather than cover.
+   CRISPNESS IS THE FALLOFF, not the size. The previous pass reached 0.16
+   alpha by 52% of its radius and faded out at 78%, which is a soft glow; a
+   reflection in polished stone holds near full brightness and then stops.
+   Each stop below is deliberately steep:
+     core   the hot centre of the reflected source -- tiny, and effectively
+            solid white until it ends;
+     skirt  the little the surface scatters immediately around it;
+     glint  a second, smaller source: a polished surface catches more than
+            one, and a single highlight is the thing that reads as CG;
+     rim    the warm crescent low on the body where light has come around
+            it, tight enough to read as an edge rather than a haze. */
 .mamco-orb::after {
   content: '';
   position: absolute;
@@ -245,14 +236,11 @@
   border-radius: inherit;
   pointer-events: none;
   z-index: 3;
-  /* Small and sharp. A wide soft one washed a grey dome over the top third
-     of the body and flattened it -- a specular is a light source seen in a
-     surface, so it should be about the size of the light, not the size of
-     the object. */
   background:
-    radial-gradient(16% 11% at 34% 17%, rgba(255,253,247,0.92) 0%, rgba(255,251,240,0.16) 52%, rgba(255,251,240,0) 78%),
-    linear-gradient(154deg, rgba(255,248,232,0.11) 0%, rgba(255,248,232,0.025) 22%, rgba(255,248,232,0) 42%),
-    radial-gradient(58% 34% at 54% 92%, rgba(246,214,152,0.21) 0%, rgba(246,214,152,0) 66%);
+    radial-gradient(8.5% 6% at 34% 16%, rgba(255,255,254,1) 0%, rgba(255,254,250,0.94) 46%, rgba(255,252,246,0) 74%),
+    radial-gradient(19% 13% at 33.5% 17.5%, rgba(255,252,246,0.34) 0%, rgba(255,250,240,0.07) 46%, rgba(255,250,240,0) 72%),
+    radial-gradient(4.5% 3.2% at 62% 29%, rgba(255,253,247,0.62) 0%, rgba(255,253,247,0.10) 55%, rgba(255,253,247,0) 78%),
+    radial-gradient(46% 24% at 55% 93%, rgba(250,214,148,0.26) 0%, rgba(250,214,148,0.05) 52%, rgba(250,214,148,0) 74%);
   mix-blend-mode: screen;
   /* The surface brightens fractionally with the voice, so a loud syllable
      catches the glass too, not only the light behind it. */
@@ -368,7 +356,7 @@
    through polished stone -- this is the half of every ribbon whose depth
    came out negative, so it is genuinely occluded rather than styled to look
    like it. */
-.mamco-halo--back { z-index: 0; opacity: 0.46; filter: blur(0.4px); }
+.mamco-halo--back { z-index: 0; opacity: 0.40; filter: blur(0.4px); }
 /* In front, at full strength. No mask: the geometry already knows which
    half is which. */
 .mamco-halo--front { z-index: 2; }
@@ -377,7 +365,7 @@
 .mamco-ribbon-glow, .mamco-ribbon-core { stroke: none; }
 /* The bloom sits under the core at low alpha rather than behind a blur
    filter, which would re-rasterize the whole layer every frame. */
-.mamco-ribbon-glow { opacity: 0.85; }
+.mamco-ribbon-glow { opacity: 0.72; }
 
 /* Motion is deliberately TINY. Each band carries baked-in depth -- where it
    is thick, where it is bright, where it tapers under the silhouette -- and
@@ -387,7 +375,11 @@
 .mamco-ribbon--1 { animation: mamco-rib-b 31s ease-in-out infinite; }
 .mamco-ribbon--2 { animation: mamco-rib-c 19s ease-in-out infinite; }
 .mamco-ribbon--3 { animation: mamco-rib-d 29s ease-in-out infinite; }
-.mamco-ribbon--4 { animation: mamco-rib-e 37s ease-in-out infinite; }
+.mamco-ribbon--4 { animation: mamco-rib-b 41s ease-in-out infinite; }
+.mamco-ribbon--5 { animation: mamco-rib-c 37s ease-in-out infinite; }
+.mamco-ribbon--6 { animation: mamco-rib-a 43s ease-in-out infinite; }
+.mamco-ribbon--7 { animation: mamco-rib-d 47s ease-in-out infinite; }
+.mamco-ribbon--8 { animation: mamco-rib-e 53s ease-in-out infinite; }
 
 /* The side cups: part of the character, sitting on the silhouette. */
 .mamco-cup {

@@ -124,12 +124,30 @@ function bandPath(pts, wBase) {
 // ribbon is deliberately INSIDE the silhouette, so some light reads as
 // travelling across the face rather than around it.
 // No two share a radius, a centre, a tilt, a plane angle or a weight.
+// NINE strands. Density is the point -- MAM should read as wrapped in
+// living light, not ringed by a few lines -- but density is also what
+// smothered the face on an earlier pass, so it is bought with COUNT and
+// paid for with WEIGHT: the widest strand here is thinner than the widest
+// of the five it replaces, and six of the nine are under 0.5.
+//
+// Every alpha sits between 38 and 68. That band is deliberate. Near 90 a
+// ring is edge-on, and an edge-on circle projects to a straight line --
+// which is exactly how one earlier strand came to draw a bright scratch
+// down the middle of the face.
+//
+// No two share a radius, a centre, a tilt, a plane angle or a weight, and
+// the tilts are spread right across -62..72 degrees. Uniformity, not
+// number, is what made the first version read as an atom.
 const RIBBONS = [
-  { r: 45, cy: 50, tilt: -17, alpha: 64, w: 1.05 },
-  { r: 42, cy: 52, tilt: 34, alpha: 47, w: 0.85 },
-  { r: 47, cy: 49, tilt: 58, alpha: 58, w: 0.62 },
-  { r: 43, cy: 53, tilt: 6, alpha: 38, w: 0.55 },
-  { r: 30, cy: 23, tilt: -7, alpha: 66, w: 0.80 }   // the crown, over the head
+  { r: 46, cy: 50, tilt: -17, alpha: 64, w: 1.00 },   // prominent
+  { r: 42, cy: 52, tilt: 34, alpha: 47, w: 0.82 },    // prominent
+  { r: 47, cy: 49, tilt: 58, alpha: 56, w: 0.60 },
+  { r: 44, cy: 53, tilt: 6, alpha: 38, w: 0.52 },
+  { r: 48, cy: 51, tilt: -41, alpha: 68, w: 0.46 },
+  { r: 40, cy: 47, tilt: 72, alpha: 44, w: 0.40 },
+  { r: 45, cy: 55, tilt: 22, alpha: 61, w: 0.44 },
+  { r: 38, cy: 46, tilt: -62, alpha: 51, w: 0.36 },
+  { r: 30, cy: 23, tilt: -7, alpha: 66, w: 0.72 }     // the crown, over the head
 ];
 
 const RIB_DEFS = (scope) =>
@@ -160,7 +178,7 @@ function ribbonLayer(scope, side) {
     // and steadier than a blur filter, which would re-rasterize the layer on
     // every animation frame.
     out += '<g class="mamco-ribbon mamco-ribbon--' + i + '">' +
-      '<path class="mamco-ribbon-glow" d="' + bandPath(pts, cfg.w * 2.3) + '" fill="url(#' + scope + '-glow)"/>' +
+      '<path class="mamco-ribbon-glow" d="' + bandPath(pts, cfg.w * 2.0) + '" fill="url(#' + scope + '-glow)"/>' +
       '<path class="mamco-ribbon-core" d="' + bandPath(pts, cfg.w) + '" fill="url(#' + scope + '-core)"/>' +
       '</g>';
   });
