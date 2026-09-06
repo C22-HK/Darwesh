@@ -46,8 +46,8 @@ body.world {
 
   /* Depth. Three planes, assigned by MEANING (see §3), never by position. */
   --w-z-fore: 0px;
-  --w-z-mid: -140px;
-  --w-z-back: -420px;
+  --w-z-mid: -46px;
+  --w-z-back: -130px;
 
   /* One spacing scale for the whole journey. */
   --w-air-s: clamp(1.5rem, 3vw, 2.5rem);
@@ -158,7 +158,48 @@ body.world [data-cine3d="rail"]::after,
 body.world [data-cine3d="cards"]::before,
 body.world [data-cine3d="cards"]::after,
 body.world [data-cine3d="hero"]::after { content: none; display: none; }
-body.world [data-cine3d] { isolation: auto; }
+
+/* AND THE SECTION MOTION ITSELF -- the actual source of the shutter.
+   css/cinematic.css gives every [data-cine3d] scene a scroll-driven
+   transform on the SECTION:
+
+     [data-cine3d="rail"], [data-cine3d="cards"] {
+       transform: perspective(1400px)
+         translate3d(0, calc(var(--e) * 90px - var(--l) * 70px),
+                        calc(var(--d) * -220px))
+         scale(calc(1 - var(--e) * 0.06 - var(--l) * 0.08));
+       opacity: calc(1 - var(--e) * 0.25 - var(--l) * 0.5); }
+
+   90px of vertical travel, 220px of Z and a 0.92 scale, applied to a whole
+   <section>. That is a rectangular panel moving as one object, and it is
+   the largest movement on the page by an order of magnitude -- the
+   `.w-arrive` block motion this pass removed was only ever riding on top of
+   it. Measured before this rule existed: a .mv still carried y=-26.6px
+   z=-41.7px at scrollY 5562 even after every Home-side transform was gone.
+
+   Neutralised here rather than deleted from css/cinematic.css, which is
+   loaded by all 33 pages for its palette and is left untouched by this
+   pass. (index.html is in fact the only page carrying a data-cine3d
+   attribute, so these rules are now inert everywhere -- but removing them
+   is a wider change than fixing Home's scroll, and this pass does not make
+   it.) Home's motion comes from the flow system in section 3 and nowhere
+   else: one mechanism, not two competing ones. */
+body.world [data-cine3d],
+body.world [data-cine3d="hero"],
+body.world [data-cine3d="hero-media"],
+body.world [data-cine3d="rail"],
+body.world [data-cine3d="cards"],
+body.world [data-cine3d="promo"] {
+  transform: none;
+  opacity: 1;
+  isolation: auto;
+}
+/* Note on ordering: .w-hero-plane carries BOTH data-cine3d="hero-media" and
+   data-flow="visual", and the two selectors have identical specificity, so
+   the flow rule wins only because section 3 comes later in this file. Do not
+   move this block below it. Nothing here touches `position`: the hero plane
+   is absolutely positioned and resetting that would drop it out of its
+   composition entirely. */
 
 /* =========================================================================
  * 2. MOVEMENTS
@@ -172,21 +213,25 @@ body.world [data-cine3d] { isolation: auto; }
  * the outgoing composition is still on screen while the next arrives. That
  * overlap is what replaces the old 688px of dead gap. ==================== */
 body.world .mv {
-  /* --mp is this movement's own progress, 0 entering -> 1 leaving. It is an
-     alias for the --section-progress the shared controller already writes,
-     so there is one source of truth and no second listener.
-     DEFAULT 1, deliberately: if the controller never runs -- JS disabled, a
-     script error, reduced motion -- every arriving element resolves to its
-     finished state and the page is fully readable. An arrival animation
-     must never be the thing that decides whether content exists. */
-  --mp: var(--section-progress, 1);
+  /* A movement is a LAYOUT container and nothing else. It has no progress
+     value, no transform, no opacity and no z-index -- deliberately, because
+     every one of those turns it into an animated rectangle. The old --mp
+     alias (of --section-progress) lived here and drove `.w-arrive` /
+     `.w-recede` / `.w-carry`; all three now read their own element's --fp
+     instead, so nothing on this page is animated per-section any more. */
   position: relative;
   padding-block: var(--w-air-l);
   /* THE OVERLAP. Each movement pulls up into the previous one so the
-     outgoing composition is still on screen while the next arrives. This is
-     what replaces the old 688px of dead gap between sections -- measured
-     down to 194px at -1x and to well under the 120px target at -2.1x. */
-  margin-block-start: calc(var(--w-air-m) * -2.1);
+     outgoing composition is still on screen while the next arrives -- this
+     is what replaced the old 688px of dead gap between sections.
+     Eased from -2.1x to -1.4x. At -2.1x the overlap (185px at desktop
+     width) exceeded the movement's own top padding (144px), so two content
+     boxes genuinely intersected. That was survivable only while the
+     controller was writing a z-index to decide which won -- which is
+     exactly the mechanism that made sections look like panels sliding over
+     each other, and it is gone. At -1.4x the AIR overlaps and the CONTENT
+     never does, so there is still no gap and nothing to stack. */
+  margin-block-start: calc(var(--w-air-m) * -1.4);
 }
 body.world .mv:first-of-type { margin-block-start: 0; }
 body.world .mv-in {
@@ -229,36 +274,124 @@ body.world .w-label {
 }
 
 /* =========================================================================
- * 3. DEPTH -- three planes, assigned by meaning
+ * 3. FLOW -- the scroll choreography. Elements, never sections.
+ * =========================================================================
+ * WHAT THIS REPLACED, AND WHY.
+ *
+ * The previous system animated whole compositions: `.w-arrive` moved an
+ * entire copy block 34px up and 140px back in Z as one object, `.w-recede`
+ * sank the outgoing half the same way, and js/cine-scroll-3d.js gave each
+ * section a scroll-driven z-index so the centred one painted over its
+ * neighbours. Every part of that was deliberate and every part of it was
+ * wrong: a section is a rectangle, so animating one animates a rectangle,
+ * and rectangles sliding over rectangles read as a shop shutter no matter
+ * how gently they are eased. It is not a tuning problem. A block that moves
+ * is a block you can see moving.
+ *
+ * So nothing here animates a `.mv`. Every value below is applied to a
+ * single ELEMENT -- one headline, one photograph, one paragraph -- and each
+ * element derives its progress from ITS OWN box (js/cine-scroll-3d.js's
+ * flowProgress). Two elements in the same movement therefore hold different
+ * progress at the same instant and drift apart by themselves. That is the
+ * mechanism: no shared value exists for a block to move by.
+ *
+ * THE WINDOW. Each element's travel is split into three, and the middle one
+ * is the point of the whole design:
+ *
+ *   0.06 -> 0.30   ENTER   rising in, becoming legible
+ *   0.30 -> 0.74   HOLD    nothing moves at all
+ *   0.74 -> 0.98   EXIT    going quiet as it leaves the top
+ *
+ * The hold spans the entire comfortable reading band, so text is never
+ * moving or fading while it is being read -- the difference between motion
+ * that supports content and motion that competes with it. The exit is what
+ * keeps the promise that old content is gone before new content is
+ * readable: an element only starts leaving once it is ~190px from the top
+ * of the viewport, by which point the next one is still deep in its hold.
+ *
+ * --fp DEFAULTS TO 0.5, deliberately: mid-hold, fully settled, fully
+ * opaque. If the controller never runs -- JS disabled, a script error, a
+ * blocked file -- every element resolves to its finished state and the page
+ * reads perfectly. An entrance animation must never be the thing that
+ * decides whether content exists.
+ *
+ * The per-role windows below are overridden by setting --in-start/--in-len/
+ * --out-start/--out-len rather than by redeclaring --in/--out. Custom
+ * property substitution is lazy, so --in and --out resolve against whatever
+ * the element's own window values are, and a role rule cannot lose a
+ * specificity race with the base rule. ================================== */
+body.world [data-flow] {
+  --fp: 0.5;
+  --fs: 0;            /* per-element stagger, in progress units (0 - 0.10) */
+  --in-start: 0.06;
+  --in-len: 0.18;
+  --out-start: 0.74;
+  --out-len: 0.24;
+  --in:  clamp(0, calc((var(--fp) - var(--in-start) - var(--fs)) / var(--in-len)), 1);
+  --out: clamp(0, calc((var(--fp) - var(--out-start)) / var(--out-len)), 1);
+}
+
+/* PRIMARY HEADLINE. Typography enters and leaves on its own account, with
+   no scale and no depth -- letterforms distort under either and the eye
+   reads it as the page zooming rather than as the line arriving. */
+body.world [data-flow="lead"] {
+  /* The 0.55 FLOOR on the entering half. A headline is content, not an
+     effect: it must be legible from the moment it is on screen, and an
+     entrance is a flourish on top of that. Measured on a 430px phone
+     before this floor existed, "Verified & Recommended" sat at opacity
+     0.887 while 70% of the way down the viewport -- already being read,
+     still fading in. The floor applies only to the enter term, so the exit
+     still takes it all the way down to 0.06 and old content really does
+     leave. */
+  opacity: calc((0.55 + var(--in) * 0.45) * (1 - var(--out) * 0.94));
+  transform: translate3d(0, calc((1 - var(--in)) * 16px + var(--out) * -20px), 0);
+}
+
+/* PRIMARY VISUAL. The image changes crop and weight rather than travelling:
+   a small scale either side of 1 plus a fade, which reads as the camera
+   settling on it and then losing interest, not as a panel sliding past. */
+body.world [data-flow="visual"] {
+  opacity: calc((0.18 + var(--in) * 0.82) * (1 - var(--out) * 0.8));
+  transform: translate3d(0, calc(var(--out) * -12px), 0)
+             scale(calc(1.035 - var(--in) * 0.035 - var(--out) * 0.055));
+}
+
+/* SUPPORTING CONTENT. Leaves EARLIER than the headline it belongs to, so a
+   composition empties in a considered order instead of all at once. */
+body.world [data-flow="support"] {
+  --out-start: 0.68;
+  --out-len: 0.22;
+  opacity: calc(var(--in) * (1 - var(--out)));
+  transform: translate3d(0, calc((1 - var(--in)) * 12px + var(--out) * -14px), 0);
+}
+
+/* QUIET. Eyebrows, labels, fine print. Opacity carries almost all of it --
+   these are the smallest type on the page and any real movement on them
+   registers as flicker. */
+body.world [data-flow="quiet"] {
+  --in-len: 0.18;
+  opacity: calc(var(--in) * (1 - var(--out)));
+  transform: translate3d(0, calc((1 - var(--in)) * 8px), 0);
+}
+
+/* =========================================================================
+ * 3b. DEPTH -- three planes, assigned by meaning
  * =========================================================================
  * FOREGROUND  the one thing to read or do now      -- full contrast, crisp
  * MIDGROUND   supporting content                   -- smaller, quieter
  * BACKGROUND  the world                            -- always soft
  * An element's plane is a property of WHAT IT IS, so depth encodes
- * hierarchy. That is the only justification for 3D on this page. ======== */
-body.world .w-stage { perspective: 1600px; perspective-origin: 50% 42%; }
+ * hierarchy rather than decorating it.
+ *
+ * The Z distances are a third of what they were. At -140/-420px the
+ * midground and background were far enough back to be read as separate
+ * layers sitting behind the page -- literally "content stacked behind
+ * content". Kept shallow, the same cue now reads as one composition with
+ * soft and crisp parts, which is what depth is for here. ================ */
+body.world .w-stage { perspective: 2600px; perspective-origin: 50% 46%; }
 body.world .w-fore { transform: translateZ(var(--w-z-fore)); }
-body.world .w-mid  { transform: translateZ(var(--w-z-mid)); opacity: 0.82; }
-body.world .w-back { transform: translateZ(var(--w-z-back)); opacity: 0.55; filter: blur(1.5px); }
-
-/* RECEDE. The outgoing half of a movement sinks rather than vanishing, so
-   the previous composition is still present, just further away. */
-body.world .w-recede {
-  transform: translate3d(0, calc(var(--mp, 0) * -34px), calc(var(--mp, 0) * -180px));
-  opacity: calc(1 - var(--mp, 0) * 0.55);
-}
-/* Arrival: content rises from the midground into the foreground. */
-body.world .w-arrive {
-  /* Arrival completes earlier (0.30 rather than 0.42 of the movement's
-     travel) and never fades below 0.55. Measured, the old curve left text
-     at a fraction of its opacity while it was already on screen and being
-     read near the foot of the viewport -- "EXPLORE BY CITY" scored 1.38:1
-     there purely because it was still fading in. An arrival is a flourish
-     on content that is already legible, never a gate on legibility. */
-  --a: clamp(0, calc(var(--mp, 0) / 0.30), 1);
-  transform: translate3d(0, calc((1 - var(--a)) * 34px), calc((1 - var(--a)) * -140px));
-  opacity: calc(0.55 + var(--a) * 0.45);
-}
+body.world .w-mid  { transform: translateZ(var(--w-z-mid)); opacity: 0.86; }
+body.world .w-back { transform: translateZ(var(--w-z-back)); opacity: 0.62; filter: blur(1.1px); }
 
 /* =========================================================================
  * 4. TYPOGRAPHY
@@ -407,9 +540,23 @@ body.world .w-carry {
   background-size: cover;
   background-position: center;
   border-radius: 20px;
-  opacity: calc(0.08 + (1 - var(--mp, 0)) * 0.12);
-  transform: translate3d(0, calc(var(--mp, 0) * -60px), calc(-260px - var(--mp, 0) * 160px)) ;
-  filter: blur(calc(1px + var(--mp, 0) * 3px));
+  /* Soft parallax, which the brief allows, rather than a moving plane,
+     which it does not. This used to sit between -260px and -420px in Z and
+     travel -60px: at that distance it was a large perspective plane parked
+     behind the page, exactly the "content stacked behind content" read.
+     Now it drifts +-11px against the scroll with no Z at all -- the
+     background stays visually connected across the two movements it spans,
+     which is the whole point of a carry, without ever becoming an object
+     you can see moving. Driven by the element's own --fp like everything
+     else, so there is one motion system on this page, not two. */
+  opacity: calc(0.10 + var(--in) * 0.10 - var(--out) * 0.14);
+  /* Translate only, no scale. A scale of 1.02-1.04 on this plate pushed it
+     16px past the document's right edge (measured) -- it is absolutely
+     positioned and nothing clips it, and the -260px Z it used to sit at was
+     what had been hiding that by shrinking it perspectively. Vertical
+     parallax is the whole effect anyway; the scale added nothing. */
+  transform: translate3d(0, calc((var(--fp) - 0.5) * -22px), 0);
+  filter: blur(2px);
   -webkit-mask-image: radial-gradient(72% 72% at 50% 50%, #000 38%, transparent 78%);
           mask-image: radial-gradient(72% 72% at 50% 50%, #000 38%, transparent 78%);
 }
@@ -429,28 +576,17 @@ body.world .w-answer {
   pointer-events: none;
 }
 
-/* APERTURE -- the next environment revealed THROUGH the current one.
-   The first attempt used two opaque shutters that slid apart. They worked
-   mechanically and were wrong in principle: a shutter is a filled rectangle
-   with hard top, bottom and outer edges, which is precisely the object this
-   redesign exists to delete -- and it looked like one, a dark block sitting
-   over the city wall.
-   This version has no element of its own at all. The aperture is a MASK on
-   the revealed content: a soft-edged opening that widens with the movement's
-   progress, so the cities are uncovered through the composition rather than
-   arriving below it. No fill, no border, no edge anywhere. */
-body.world .w-aperture {
-  overflow: hidden;
-  --ap: 0;
-  -webkit-mask-image: radial-gradient(120% 130% at 50% 46%,
-    #000 calc(var(--ap) * 62%),
-    rgba(0,0,0,0.55) calc(18% + var(--ap) * 46%),
-    transparent calc(42% + var(--ap) * 58%));
-          mask-image: radial-gradient(120% 130% at 50% 46%,
-    #000 calc(var(--ap) * 62%),
-    rgba(0,0,0,0.55) calc(18% + var(--ap) * 46%),
-    transparent calc(42% + var(--ap) * 58%));
-}
+/* APERTURE -- REMOVED, and the class kept only as a plain clipping box.
+   It went through two versions and both were the same mistake twice. The
+   first was a pair of opaque shutters that slid apart. The second replaced
+   them with a scroll-driven radial mask, on the theory that a mask has no
+   edges of its own so it could not read as a shutter. It still did: an
+   opening that widens as you scroll is an iris, an iris is a door, and the
+   content behind it is revealed rather than composed. "No visible edges" is
+   not the same property as "does not behave like a shutter".
+   What is left is a clip, so the gallery's own overflow stays contained on
+   narrow viewports. Nothing about it is animated and no JS writes to it. */
+body.world .w-aperture { overflow: hidden; }
 
 /* =========================================================================
  * 7. ARRIVAL
@@ -472,7 +608,13 @@ body.world .w-hero-plane {
   background-size: cover;
   background-position: center 40%;
   border-start-start-radius: 28px;
-  transform: translateZ(-200px) scale(1.12);
+  /* No transform of its own. The hero photograph is the Arrival movement's
+     primary visual, so its motion comes from [data-flow="visual"] -- a
+     small scale change and a fade, nothing else. It previously sat at
+     translateZ(-200px) scale(1.12), which is the "large Z movement" and
+     "big perspective plane" this pass removes: at that distance it read as
+     a separate slab parked behind the page rather than as part of one
+     composition. */
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
                       linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
   -webkit-mask-composite: source-in;
@@ -610,7 +752,7 @@ body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
 
 body.world .w-gallery {
   position: relative;
-  perspective: 1500px;
+  perspective: 2400px;
   perspective-origin: 50% 46%;
   min-height: clamp(340px, 46vh, 520px);
   display: flex; align-items: center; justify-content: flex-start;
@@ -631,11 +773,17 @@ body.world .w-plane {
   text-decoration: none;
   transform-style: preserve-3d;
   /* --o is the plane's signed offset from the focused city, written by the
-     gallery controller. Position on the wall is a pure function of it. */
+     gallery controller. Position on the wall is a pure function of it.
+     FLATTENED. This was translateZ(-190px) rotateY(-26deg) per step: a
+     genuinely curved wall with large perspective planes, which is the one
+     depth figure explicitly ruled out. The lateral travel is unchanged --
+     that is what makes it a wall you move along rather than a strip of
+     cards -- but the rotation and the Z are now small enough to read as
+     "angled away" instead of as a carousel of billboards swinging past. */
   transform:
     translateX(calc(var(--o) * clamp(150px, 15vw, 210px)))
-    translateZ(calc(abs(var(--o)) * -190px))
-    rotateY(calc(var(--o) * -26deg));
+    translateZ(calc(abs(var(--o)) * -64px))
+    rotateY(calc(var(--o) * -9deg));
   z-index: calc(20 - abs(var(--o)));
   opacity: calc(1 - min(abs(var(--o)), 3) * 0.16);
   transition: transform var(--w-slow) var(--w-ease-out), opacity var(--w-slow) var(--w-ease-out);
@@ -867,13 +1015,16 @@ body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
   body.world .w-gallery { justify-content: center; }
 }
 
-body.world .w-gallery { perspective: 1000px; min-height: 62vh; }
+body.world .w-gallery { perspective: 1900px; min-height: 62vh; }
+  /* Phone: flatter still. A steep angle costs more to composite and, on a
+     390px viewport, an angled neighbour is mostly off-screen anyway -- so
+     the depth cue buys nothing and the flatter wall scrolls better. */
   body.world .w-plane {
     width: 62vw;
     transform:
       translateX(calc(var(--o) * 48vw))
-      translateZ(calc(abs(var(--o)) * -230px))
-      rotateY(calc(var(--o) * -22deg));
+      translateZ(calc(abs(var(--o)) * -52px))
+      rotateY(calc(var(--o) * -7deg));
     opacity: calc(1 - min(abs(var(--o)), 2) * 0.26);
   }
   body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.5rem; }
@@ -908,9 +1059,9 @@ body.world .w-gallery { perspective: 1000px; min-height: 62vh; }
   body.world .w-row,
   body.world .w-row-cue,
   body.world .w-icon-btn { transition: none; }
-  body.world .w-recede,
-  body.world .w-arrive { transform: none; opacity: 1; }
+  /* Every choreographed element rests at its finished state. The controller
+     also parks --fp at 0.5 and never attaches a scroll listener, so this is
+     belt and braces rather than the only defence. */
+  body.world [data-flow] { transform: none !important; opacity: 1 !important; }
   body.world .w-carry { filter: none; }
-  /* The aperture mask opens instantly rather than being animated. */
-  body.world .w-aperture { -webkit-mask-image: none; mask-image: none; }
 }
