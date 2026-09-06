@@ -174,16 +174,22 @@ function toPath(outer, inner) {
 
 // THE FACE'S RIGHT OF WAY.
 //
-// In the halo's box the body spans 10.9..89.1 (the halo is inset -14%, so
-// the box is 128% of the body). The painted eye block sits at x 28..72,
-// y 48.5..59.4. This ellipse is that block with clearance, and any front
-// strand inside it is starved rather than cut -- a clip would leave a hard
-// edge, and a hard edge is the one thing that would make the light read as
-// a drawn object again.
-const FACE = { cx: 50, cy: 54, rx: 27, ry: 13.5 };
+// Measured off the shipped body: the eyes span x 22.1..78.0 (55.9% of the
+// body) and y 47.6..61.6 (14%), centred at y 54.6%. This ellipse is that
+// block plus a small margin -- rx 29, ry 9 -- and any front strand inside
+// it is starved rather than cut, so light thins toward the eye row rather
+// than stopping at a hard edge.
+//
+// An earlier pass set ry to 13.5 -- 27% of body height, almost double the
+// eyes' own 14%. That band reached from the crown nearly to the cups, so
+// most of every front strand's length fell inside it and the whole halo
+// read as barely there. Protecting only the eyes' own row, not the whole
+// lower face, is what lets the crown and the falls either side of it stay
+// visible while the eyes still win wherever a strand actually crosses them.
+const FACE = { cx: 50, cy: 54.6, rx: 29, ry: 9 };
 function faceEase(p) {
   const q = ((p.x - FACE.cx) / FACE.rx) ** 2 + ((p.y - FACE.cy) / FACE.ry) ** 2;
-  return q >= 1 ? 1 : 0.12 + 0.88 * Math.pow(q, 0.7);
+  return q >= 1 ? 1 : 0.16 + 0.84 * Math.pow(q, 0.6);
 }
 
 /**
@@ -204,8 +210,16 @@ function bandPath(pts, wBase, isFront) {
     // max(0, ...) is load-bearing: sin(PI*u) at u=1 comes out at -3.2e-16
     // rather than 0, and Math.pow of a negative is NaN -- which an SVG path
     // does not report, it just stops parsing there.
+    // The floor was 0.30 -- near a depth crossing (|d| close to 0) a piece
+    // thinned to less than a third of wBase even at the middle of its own
+    // taper, and stacked with the taper curve itself that was most of why
+    // the halo read as a set of faint curls rather than light: too much of
+    // every piece's length sat below a third strength before the specular
+    // gradient and opacity even got a turn at it. 0.48 keeps the depth cue
+    // -- a piece still swells toward the pole and thins toward the crossing
+    // -- without so much of it disappearing first.
     const taper = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.4);
-    let w = wBase * taper * (0.30 + 0.70 * Math.abs(p.d));
+    let w = wBase * taper * (0.48 + 0.52 * Math.abs(p.d));
     if (isFront) w *= faceEase(p);
     outer.push([p.x + nx * w, p.y + ny * w]);
     inner.push([p.x - nx * w, p.y - ny * w]);
@@ -253,16 +267,23 @@ function bandPath(pts, wBase, isFront) {
 // somewhere in the span or the strand never changes sign, stays in one
 // layer and never weaves -- which is what left the crown wholly behind the
 // body and invisible.
+// Weights (w) and lengths (span) both went up a step from the pass before
+// this one. Rendered with the body dimmed away, that pass measured out at
+// under 26% of a full 5-strand budget and it SHOWED: two of the five barely
+// registered next to the crown and the right fall. Wider strands and a
+// little more arc length close that gap without touching what made the
+// earlier version read as light rather than rings -- open ends, no shared
+// centre, independent harmonics.
 const RIBBONS = [
   // The crown flow. Boldest of the five, and the only one over the brow:
   // it rises at one temple, gathers over the head, dissolves at the other.
-  { r: 34, cx: 50, cy: 35, tilt: -8, alpha: 46, w: 0.88,
-    span: [Math.PI * 1.12, Math.PI * 1.92],
+  { r: 34, cx: 50, cy: 35, tilt: -8, alpha: 46, w: 1.05,
+    span: [Math.PI * 1.06, Math.PI * 1.98],
     rMod: [{ k: 1, a: 0.12, p: 1.9 }, { k: 2, a: 0.07, p: 0.6 }],
     zMod: [{ k: 2, a: 0.58, p: 2.2 }] },
   // The fall down the right, carrying on from where the crown lets go.
-  { r: 41, cx: 49, cy: 52, tilt: 10, alpha: 52, w: 0.56,
-    span: [Math.PI * 1.72, Math.PI * 2.24],
+  { r: 41, cx: 49, cy: 52, tilt: 10, alpha: 52, w: 0.72,
+    span: [Math.PI * 1.66, Math.PI * 2.30],
     rMod: [{ k: 1, a: 0.11, p: 0.4 }, { k: 2, a: 0.06, p: 2.1 }],
     zMod: [{ k: 1, a: 0.62, p: 0.9 }] },
   // The fall down the left -- thinner and longer than its opposite number.
@@ -270,22 +291,22 @@ const RIBBONS = [
   // body: an earlier placement left the whole strand behind MAM, and a side
   // with nothing on it but occluded light reads as a side that was
   // forgotten rather than one deliberately kept quiet.
-  { r: 43, cx: 51, cy: 51, tilt: -14, alpha: 42, w: 0.40,
-    span: [Math.PI * 0.70, Math.PI * 1.26],
+  { r: 43, cx: 51, cy: 51, tilt: -14, alpha: 42, w: 0.56,
+    span: [Math.PI * 0.62, Math.PI * 1.32],
     rMod: [{ k: 1, a: 0.14, p: 1.3 }, { k: 3, a: 0.05, p: 2.7 }],
     zMod: [{ k: 1, a: 0.55, p: 2.6 }] },
   // One quiet arc under the chin. One, not three: it grounds the figure
   // without hanging a collar on it.
-  { r: 40, cx: 48, cy: 54, tilt: 8, alpha: 38, w: 0.36,
-    span: [Math.PI * 0.34, Math.PI * 0.74],
+  { r: 40, cx: 48, cy: 54, tilt: 8, alpha: 38, w: 0.50,
+    span: [Math.PI * 0.26, Math.PI * 0.82],
     rMod: [{ k: 2, a: 0.10, p: 0.5 }],
     zMod: [{ k: 1, a: 0.44, p: 1.7 }] },
   // A brief glint low on the left. The shortest span here -- it exists to
   // break the regularity of the other four, nothing more. It sits opposite
   // the right-hand fall rather than alongside it: put here first, the two
   // landed on top of each other and tied a bright knot over the right cup.
-  { r: 38, cx: 47, cy: 53, tilt: -20, alpha: 50, w: 0.50,
-    span: [Math.PI * 0.54, Math.PI * 0.82],
+  { r: 38, cx: 47, cy: 53, tilt: -20, alpha: 50, w: 0.64,
+    span: [Math.PI * 0.48, Math.PI * 0.88],
     rMod: [{ k: 1, a: 0.16, p: 0.8 }],
     zMod: [{ k: 2, a: 0.40, p: 1.1 }] }
 ];
