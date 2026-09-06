@@ -124,30 +124,24 @@ function bandPath(pts, wBase) {
 // ribbon is deliberately INSIDE the silhouette, so some light reads as
 // travelling across the face rather than around it.
 // No two share a radius, a centre, a tilt, a plane angle or a weight.
-// NINE strands. Density is the point -- MAM should read as wrapped in
-// living light, not ringed by a few lines -- but density is also what
-// smothered the face on an earlier pass, so it is bought with COUNT and
-// paid for with WEIGHT: the widest strand here is thinner than the widest
-// of the five it replaces, and six of the nine are under 0.5.
+// FOUR strands and a crown. Density was the wrong goal: nine strands made
+// the light the first thing you saw, and the face is the identity. These
+// support the character instead of competing with it -- if the ribbons pull
+// your eye before the eyes do, there are too many or they are too bright.
 //
-// Every alpha sits between 38 and 68. That band is deliberate. Near 90 a
-// ring is edge-on, and an edge-on circle projects to a straight line --
-// which is exactly how one earlier strand came to draw a bright scratch
-// down the middle of the face.
+// The crown is deliberately the boldest of the five and sits ABOVE the
+// head, because in the reference it is a distinct halo rather than one more
+// strand lost in a tangle.
 //
-// No two share a radius, a centre, a tilt, a plane angle or a weight, and
-// the tilts are spread right across -62..72 degrees. Uniformity, not
-// number, is what made the first version read as an atom.
+// Every plane angle stays between 40 and 68 degrees. Near 90 a ring is
+// edge-on, and an edge-on circle projects to a straight line -- which is
+// how one strand once drew a bright scratch down the middle of the face.
 const RIBBONS = [
-  { r: 46, cy: 50, tilt: -17, alpha: 64, w: 1.00 },   // prominent
-  { r: 42, cy: 52, tilt: 34, alpha: 47, w: 0.82 },    // prominent
-  { r: 47, cy: 49, tilt: 58, alpha: 56, w: 0.60 },
-  { r: 44, cy: 53, tilt: 6, alpha: 38, w: 0.52 },
-  { r: 48, cy: 51, tilt: -41, alpha: 68, w: 0.46 },
-  { r: 40, cy: 47, tilt: 72, alpha: 44, w: 0.40 },
-  { r: 45, cy: 55, tilt: 22, alpha: 61, w: 0.44 },
-  { r: 38, cy: 46, tilt: -62, alpha: 51, w: 0.36 },
-  { r: 30, cy: 23, tilt: -7, alpha: 66, w: 0.72 }     // the crown, over the head
+  { r: 45, cy: 51, tilt: -17, alpha: 62, w: 0.85 },
+  { r: 42, cy: 53, tilt: 36, alpha: 46, w: 0.66 },
+  { r: 47, cy: 50, tilt: 58, alpha: 55, w: 0.50 },
+  { r: 40, cy: 54, tilt: 8, alpha: 40, w: 0.44 },
+  { r: 31, cy: 20, tilt: -6, alpha: 68, w: 0.95 }   // the crown, over the head
 ];
 
 const RIB_DEFS = (scope) =>
@@ -190,8 +184,8 @@ function ribbonLayer(scope, side) {
 // they are filled shapes with a warm rim rather than open strokes.
 const CUPS_SVG =
   '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' +
-  '<path class="mamco-cup" d="M13.5 43 a7.5 8 0 0 0 0 14"/>' +
-  '<path class="mamco-cup" d="M86.5 43 a7.5 8 0 0 1 0 14"/>' +
+  '<g class="mamco-cup"><ellipse cx="9" cy="50" rx="6.5" ry="12"/></g>' +
+  '<g class="mamco-cup"><ellipse cx="91" cy="50" rx="6.5" ry="12"/></g>' +
   '</svg>';
 
 // Gradient ids have to be unique per document, and a page may mount more
@@ -212,8 +206,8 @@ let instanceUid = 0;
 const EYES_SVG =
   `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
   `<g class="mamco-eye-pair">` +
-  `<path class="mamco-eye" d="M26 46 q9 11 18 0"/>` +
-  `<path class="mamco-eye" d="M56 46 q9 11 18 0"/>` +
+  `<path class="mamco-eye" d="M23.5 45 q8.5 12 17 0"/>` +
+  `<path class="mamco-eye" d="M59.5 45 q8.5 12 17 0"/>` +
   `</g></svg>`;
 
 // THE EIGHT STATES the product defines, plus two the existing voice flow
@@ -310,15 +304,17 @@ export class MamCompanion {
     haloBack.innerHTML = ribbonLayer(uid + 'b', 'back');
     const haloFront = document.createElement('div');
     haloFront.className = 'mamco-halo mamco-halo--front';
-    haloFront.innerHTML = ribbonLayer(uid + 'f', 'front') +
-      '<div class="mamco-halo-cups">' + CUPS_SVG + '</div>';
+    haloFront.innerHTML = ribbonLayer(uid + 'f', 'front');
 
     // The eyes ride ABOVE the front ribbons. Nothing may cross the face:
     // a band drawn over them cost the character its expression, which is
     // the one thing the whole object exists to carry.
     const eyes = document.createElement('div');
     eyes.className = 'mamco-eyes';
-    eyes.innerHTML = EYES_SVG;
+    // The cups share the face's layer because they are the same thing: the
+    // parts that make this a character rather than a sphere, and the parts
+    // that must survive with every ribbon switched off.
+    eyes.innerHTML = CUPS_SVG + EYES_SVG;
 
     this._float.appendChild(haloBack);
     this._float.appendChild(this._orb);
