@@ -36,6 +36,60 @@
   --ps-color-outline: #74777d;
   --ps-color-outline-variant: #c4c6cd;
 
+  /* ---- THE BRAND SYSTEM: navy / gold / ivory / neutral-dark ----------
+   * Named aliases, not new colors. An audit of every hex value in this
+   * codebase (css/*.css, every *.html) turned up no burgundy or red used
+   * as a brand color anywhere -- the handful of dark-red hexes that
+   * exist (#8b0000, #c62828, #8f1c1c) are a Leaflet draw-tool boundary
+   * stroke and map verification-pin/legend colors, both semantic and
+   * both left untouched. The site's actual dominant palette has been
+   * navy + gold + ivory since the Phase 3 token system above and the
+   * cinematic system in css/cinematic.css -- this block only gives that
+   * existing palette one canonical, brand-named layer instead of two
+   * differently-named systems (M3's "primary/secondary" here, "cine-*"
+   * and "mamco-*" elsewhere) that happen to agree.
+   *
+   * There ARE two golds in this codebase and that is deliberate, not a
+   * drift to fix: --ps-color-secondary (#775a19, with its pale
+   * --ps-color-secondary-container #fed488) is the muted Material
+   * utility gold used on data-dense classic pages (admin.html,
+   * agent-dashboard.html, buy.html); --brand-gold below (#B89A63,
+   * already "Antique Gold" throughout css/cinematic.css and
+   * css/mam-companion.css) is the warmer, more saturated premium accent
+   * used on every consumer-facing luxury surface. Keeping them distinct
+   * is what stops the admin console from turning into a jewelry catalog
+   * -- see "GOLD = controlled accent" below; a duller gold on data
+   * screens IS the control.
+   *
+   * Also exported as JSON at docs/brand/darwesh-brand-tokens.json, flat
+   * and framework-agnostic, so a future iOS/Android app can import the
+   * identical hex values rather than re-eyeballing them off screenshots.
+   */
+  /* NAVY -- dominant luxury surface. Same value as --ps-color-primary
+     and Tailwind's `primary`; this is the one already on every button,
+     header wordmark and CTA on the site. */
+  --brand-navy: #041627;
+  --brand-navy-container: #1a2b3c;   /* Tailwind primary-container -- raised navy surfaces */
+  --brand-navy-on: #ffffff;          /* text/icons on a navy surface */
+  /* GOLD -- controlled accent: CTAs, selected state, the one warm note
+     against navy. Not a wash -- see the two-golds note above. */
+  --brand-gold: #b89a63;
+  --brand-gold-soft: #d8bc80;        /* cinematic secondary-glint gold, for a lighter touch */
+  --brand-gold-on: #1a1400;          /* text on a gold-filled surface */
+  /* IVORY -- primary light text/surface. #f2eee5 is "Soft Ivory," the
+     warm off-white already carrying the cinematic system's light text
+     and glow; #f7f9ff/#ffffff are the cooler near-white used as the
+     classic (non-cinematic) page background -- both are ivory-family,
+     kept distinct because one sits on dark navy and the other IS the
+     page surface. */
+  --brand-ivory: #f2eee5;
+  --brand-ivory-surface: #f7f9ff;
+  /* NEUTRAL DARK -- supporting depth, not a second black. The obsidian
+     near-blacks already used across css/cinematic.css and
+     css/home-world.css for recessed/backdrop surfaces. */
+  --brand-neutral-dark: #0a0a0a;
+  --brand-neutral-dark-raised: #17150f;
+
   /* Tokens with no existing Tailwind config equivalent. */
   --ps-radius-card: 16px;
   --ps-radius-control: 10px;
@@ -78,6 +132,19 @@
   --ease-premium: cubic-bezier(0.22, 0.61, 0.36, 1);
   --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+/* Every native checkbox/radio on the site, one rule, everywhere this file
+   loads (all 33 pages). Without this a checkbox renders the browser's
+   default blue -- confirmed live on login.html's "Remember me": every
+   other color on that screen is obsidian/gold/ivory and the checkbox was
+   plain OS blue, a stray off-brand color with no semantic meaning to
+   protect. Two pages had already fixed this locally (admin.html's
+   map-layer toggles at a lighter gold, signup-professional.html's
+   checkbox row) -- both keep their own more specific rule and simply
+   agree with this default now instead of overriding a browser blue. */
+html {
+  accent-color: var(--brand-gold);
 }
 
 /* ---- Layout shell -------------------------------------------------- */
