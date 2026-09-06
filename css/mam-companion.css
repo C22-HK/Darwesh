@@ -349,7 +349,7 @@
   animation: mamco-halo-sway 41s ease-in-out infinite;
 }
 .mamco-halo svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.mamco-halo-orbits, .mamco-halo-ears { position: absolute; inset: 0; }
+.mamco-halo-orbits, .mamco-halo-trim { position: absolute; inset: 0; }
 /* Behind the body. Visible ONLY because the glass transmits -- this is the
    layer that proves the material. */
 .mamco-halo--back { z-index: 0; opacity: 0.62; }
@@ -357,8 +357,10 @@
 /* In front, masked to its near half, so each orbit is bright coming toward
    you and gone going away. The mask is fixed in screen space while the
    ellipses turn inside it, which is what makes flat ovals read as rings.
-   Scoped to the ORBITS only: the ears sit inside the mask's ramp and were
-   rendering as half-faded grey brackets when they shared it. */
+   Scoped to the ORBITS only. The crown sits above the mask entirely and the
+   ears inside its ramp, so sharing it erased the crown and left the ears as
+   half-faded grey brackets; they take their depth from the ribbon gradient
+   instead. */
 .mamco-halo--front .mamco-halo-orbits {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0 44%, #000 68%, #000 100%);
   mask-image: linear-gradient(to bottom, transparent 0 44%, #000 68%, #000 100%);
@@ -367,15 +369,22 @@
 /* Two strokes per orbit rather than one with a drop-shadow: a wide faint
    stroke under a narrow bright one is the same glow for the cost of paint,
    and it does not re-rasterize the layer every frame. */
-.mamco-orbit-halo { fill: none; stroke: rgba(var(--mamco-orbit), 0.13); stroke-width: 2.6; }
-.mamco-orbit-line { fill: none; stroke: rgba(var(--mamco-orbit), 0.72); stroke-width: 0.75; }
-/* Prime periods, so the two orbits never come back into phase. */
-.mamco-orbit--a { animation: mamco-orbit-a 17s ease-in-out infinite; }
-.mamco-orbit--b { animation: mamco-orbit-b 23s ease-in-out infinite; }
+/* Width and stroke are set inline per ribbon -- the unequal hierarchy is
+   the thing that keeps five ribbons from reading as an atom, so it belongs
+   with the markup that declares each one, not in a rule that flattens them.
+   The stylesheet keeps only what they share. */
+.mamco-orbit-halo { fill: none; stroke: rgba(var(--mamco-orbit), 0.10); }
+.mamco-orbit-line { fill: none; }
+/* Prime periods, so no two ribbons ever come back into phase. */
+.mamco-orbit--a     { animation: mamco-orbit-a 17s ease-in-out infinite; }
+.mamco-orbit--b     { animation: mamco-orbit-b 23s ease-in-out infinite; }
+.mamco-orbit--c     { animation: mamco-orbit-c 29s ease-in-out infinite; }
+.mamco-orbit--d     { animation: mamco-orbit-d 31s ease-in-out infinite; }
+.mamco-orbit--crown { animation: mamco-orbit-crown 37s ease-in-out infinite; }
 .mamco-ear {
   fill: none;
-  stroke: rgba(var(--mamco-orbit), 0.48);
-  stroke-width: 2.1;
+  stroke: rgba(var(--mamco-orbit), 0.38);
+  stroke-width: 1.8;
   stroke-linecap: round;
 }
 
@@ -431,6 +440,20 @@
 @keyframes mamco-orbit-b {
   0%,100% { transform: rotate(38deg) scaleY(0.52); }
   50%     { transform: rotate(30deg) scaleY(1); }
+}
+@keyframes mamco-orbit-c {
+  0%,100% { transform: rotate(68deg) scaleY(0.94); }
+  50%     { transform: rotate(74deg) scaleY(0.31); }
+}
+@keyframes mamco-orbit-d {
+  0%,100% { transform: rotate(7deg) scaleY(0.36); }
+  50%     { transform: rotate(2deg) scaleY(1.08); }
+}
+/* The crown turns least of all: it is the one ribbon whose position on the
+   body reads as a fixed feature rather than as an orbit passing through. */
+@keyframes mamco-orbit-crown {
+  0%,100% { transform: rotate(-9deg) scaleY(0.86); }
+  50%     { transform: rotate(-3deg) scaleY(1.06); }
 }
 @keyframes mamco-rotate { to { transform: rotate(360deg); } }
 @keyframes mamco-ring-pulse { 0%, 100% { transform: scale(1); opacity: 0.42; } 50% { transform: scale(1.1); opacity: 0.85; } }
@@ -610,12 +633,14 @@
    orb's own state selector. */
 .mamco-root[data-presence="THINKING"] .mamco-orbit--a { animation-duration: 7s; }
 .mamco-root[data-presence="THINKING"] .mamco-orbit--b { animation-duration: 9s; }
+.mamco-root[data-presence="THINKING"] .mamco-orbit--c { animation-duration: 11s; }
+.mamco-root[data-presence="THINKING"] .mamco-orbit--d { animation-duration: 13s; }
 .mamco-root[data-presence="SPEAKING"] .mamco-orbit-line,
 .mamco-root[data-presence="LISTENING"] .mamco-orbit-line {
-  stroke: rgba(var(--mamco-orbit), calc(0.62 + var(--mam-energy) * 0.38));
+  opacity: calc(0.74 + var(--mam-energy) * 0.26);
 }
 .mamco-root[data-presence="MINIMIZED"] .mamco-halo { opacity: 0.3; }
-.mamco-root[data-presence="ERROR"] .mamco-orbit-line { stroke: rgba(229, 120, 122, 0.6); }
+.mamco-root[data-presence="ERROR"] .mamco-halo { filter: hue-rotate(-42deg) saturate(0.85); }
 .mamco-root[data-presence="ERROR"] .mamco-halo { animation-duration: 96s; }
 
 /* =====================================================================
@@ -678,8 +703,11 @@
   .mamco-core::after  { animation-duration: 140s !important; }
   /* The orbits hold a pleasing static arrangement rather than snapping to
      three identical flat ovals. */
-  .mamco-orbit--a { transform: rotate(-16deg) scaleY(0.92); animation: none; }
-  .mamco-orbit--b { transform: rotate(38deg)  scaleY(0.58); animation: none; }
+  .mamco-orbit--a     { transform: rotate(-16deg) scaleY(0.92); animation: none; }
+  .mamco-orbit--b     { transform: rotate(38deg)  scaleY(0.58); animation: none; }
+  .mamco-orbit--c     { transform: rotate(68deg)  scaleY(0.44); animation: none; }
+  .mamco-orbit--d     { transform: rotate(7deg)   scaleY(0.88); animation: none; }
+  .mamco-orbit--crown { transform: rotate(-9deg)  scaleY(0.96); animation: none; }
 }
 
 /* =====================================================================

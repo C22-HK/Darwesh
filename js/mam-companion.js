@@ -26,45 +26,85 @@ function ensureStylesheet() {
   document.head.appendChild(link);
 }
 
-// THE HALO -- thin gold orbits that ring the body, and the two small arcs
-// that sit just off its left and right edge.
+// THE HALO -- gold light ribbons wound around the body, the crown arc over
+// it, and the two small arcs off its left and right edge.
 //
 // Drawn TWICE, once behind the body and once in front, from the same
 // markup. That is not decoration: the back copy is only visible because
-// the body is translucent, so the moment you can see a ring passing behind
-// the glass, the glass has proved it is glass. The front copy is masked to
-// its lower half (see the stylesheet) so each orbit is bright as it comes
-// toward you and dim as it goes away -- which is what makes two flat
-// ellipses read as two rings turning in space.
+// the body is translucent, so the moment you can see a ribbon passing
+// behind the glass, the glass has proved it is glass. The front copy is
+// masked to its lower half (see the stylesheet) so each ribbon is bright as
+// it comes toward you and dim as it goes away.
 //
-// Each orbit is two ellipses rather than one with a filter: a wide, faint
+// WHY FIVE RIBBONS AND NOT TWO. An earlier pass used two, because three
+// equal ellipses at symmetric tilts had read as an atom diagram. That
+// diagnosis was half right: the atom look comes from UNIFORMITY, not from
+// the count. Five ribbons that differ in radius, height, tilt, weight and
+// brightness read as a tangle of light; three identical ones read as
+// electrons whatever their number. So the set below is deliberately
+// unequal -- two prominent, three quiet, no two the same size, none at a
+// tidy angle -- which is what lets it carry the reference's density
+// without collapsing into a science-fair orbit.
+//
+// Each ribbon is two ellipses rather than one with a filter: a wide, faint
 // stroke under a narrow, bright one gives the glow for the cost of paint.
 // A drop-shadow filter would re-rasterize the whole layer every frame.
-const ORBIT = (cls) =>
+//
+// The bright stroke is painted with a GRADIENT rather than a flat colour,
+// so a ribbon fades along its own length -- bright where it swings toward
+// you, nearly gone where it turns away. That is per-ribbon depth, which the
+// layer mask cannot give (one mask, fixed in screen space, treats every
+// ribbon alike), and it is most of what separates a light ribbon from a
+// drawn ellipse.
+const RIB_GRAD = (scope) =>
+  `<defs><linearGradient id="${scope}-rib" x1="0" y1="0.1" x2="1" y2="0.9">` +
+  `<stop offset="0" stop-color="#FFE0A8" stop-opacity="0.06"/>` +
+  `<stop offset="0.3" stop-color="#FFE7B8" stop-opacity="0.82"/>` +
+  `<stop offset="0.62" stop-color="#FFD79A" stop-opacity="0.42"/>` +
+  `<stop offset="1" stop-color="#FFE0A8" stop-opacity="0.1"/>` +
+  `</linearGradient></defs>`;
+
+// Widths are inline because they vary per ribbon and are the whole point of
+// the hierarchy; they are in viewBox units, so they scale with the body
+// instead of needing a breakpoint. Nothing in the stylesheet sets `stroke`
+// on these, so the gradient is never overridden -- the states tint the
+// whole halo with a filter instead of repainting the stroke.
+const RIB = (scope, cls, cy, rx, ry, w, glow) =>
   `<g class="mamco-orbit ${cls}">` +
-  `<ellipse class="mamco-orbit-halo" cx="50" cy="50" rx="47" ry="17"/>` +
-  `<ellipse class="mamco-orbit-line" cx="50" cy="50" rx="47" ry="17"/>` +
+  `<ellipse class="mamco-orbit-halo" cx="50" cy="${cy}" rx="${rx}" ry="${ry}" style="stroke-width:${glow}"/>` +
+  `<ellipse class="mamco-orbit-line" cx="50" cy="${cy}" rx="${rx}" ry="${ry}"` +
+  ` style="stroke-width:${w};stroke:url(#${scope}-rib)"/>` +
   `</g>`;
 
-// TWO orbits, not three. Three crossing ellipses read as an atom diagram --
-// a completely different and much more generic object than the approved
-// one, which carries a single elegant halo system. Two rings at unrelated
-// tilts give the depth without the science-fair association.
-const ORBITS_SVG =
-  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
-  ORBIT('mamco-orbit--a') + ORBIT('mamco-orbit--b') +
+// The four body-centred ribbons. cy is nudged off 50 on three of them so
+// they do not all share a centre -- concentric rings are the other half of
+// the atom look.
+const ORBITS_SVG = (scope) =>
+  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` + RIB_GRAD(scope) +
+  RIB(scope, 'mamco-orbit--a', 50, 48, 19, 0.90, 2.6) +   // prominent
+  RIB(scope, 'mamco-orbit--b', 51, 43, 27, 0.78, 2.2) +   // prominent
+  RIB(scope, 'mamco-orbit--c', 49, 37, 11, 0.60, 1.8) +   // quiet, tight
+  RIB(scope, 'mamco-orbit--d', 52, 51,  8, 0.55, 1.6) +   // quiet, wide
   `</svg>`;
 
-// The two small arcs off the body's left and right edge. They live in their
-// own layer because the orbits' near-half mask would otherwise cut straight
-// through them: the ears sit at y 42-58, right inside the mask's ramp, and
-// rendered as half-faded grey brackets rather than gold. They are not part
-// of the orbit illusion, so they should not inherit its mask.
-const EARS_SVG =
-  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` +
+// The crown arc over the body, plus the two small arcs off its edges. These
+// share a layer because none of them takes the orbits' near-half mask: the
+// crown sits at y~27 and the ears at y 44-56, both above or inside the
+// mask's ramp, so the mask would erase the crown outright and leave the
+// ears as half-faded grey brackets. They get their depth from the ribbon
+// gradient instead, which is per-element and needs no mask.
+const TRIM_SVG = (scope) =>
+  `<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">` + RIB_GRAD(scope) +
+  RIB(scope, 'mamco-orbit--crown', 27, 29, 7, 0.58, 1.8) +
   `<path class="mamco-ear" d="M17 44 a6 6 0 0 0 0 12"/>` +
   `<path class="mamco-ear" d="M83 44 a6 6 0 0 1 0 12"/>` +
   `</svg>`;
+
+// Gradient ids have to be unique per document, and a page may mount more
+// than one companion (the specimen sheet mounts thirteen). A per-instance
+// counter keeps every <linearGradient> addressable by exactly the ribbons
+// that should use it.
+let instanceUid = 0;
 
 // THE EYES -- the one element that makes this a being rather than an orb.
 // Two soft gold crescents suspended INSIDE the glass (which is why they
@@ -174,15 +214,18 @@ export class MamCompanion {
     // siblings rather than one layer, because a child can never paint
     // behind its own parent's background -- and the ring passing behind
     // the body is the whole point.
+    const uid = 'mamco' + (++instanceUid);
     const haloBack = document.createElement('div');
     haloBack.className = 'mamco-halo mamco-halo--back';
-    haloBack.innerHTML = ORBITS_SVG;
+    haloBack.innerHTML = ORBITS_SVG(uid + 'b');
     const haloFront = document.createElement('div');
     haloFront.className = 'mamco-halo mamco-halo--front';
-    // Orbits are masked to their near half; the ears are not (see EARS_SVG).
+    // Ribbons are masked to their near half; the crown and ears are not
+    // (see TRIM_SVG). Each layer gets its own gradient scope so the two
+    // copies never collide on an id.
     haloFront.innerHTML =
-      '<div class="mamco-halo-orbits">' + ORBITS_SVG + '</div>' +
-      '<div class="mamco-halo-ears">' + EARS_SVG + '</div>';
+      '<div class="mamco-halo-orbits">' + ORBITS_SVG(uid + 'f') + '</div>' +
+      '<div class="mamco-halo-trim">' + TRIM_SVG(uid + 't') + '</div>';
 
     this._float.appendChild(haloBack);
     this._float.appendChild(this._orb);
