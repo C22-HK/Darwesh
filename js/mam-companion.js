@@ -26,69 +26,133 @@ function ensureStylesheet() {
   document.head.appendChild(link);
 }
 
-// THE HALO -- bands of light wound around the body.
+// THE HALO -- light flowing around the body. STAGE 2.
 //
-// The previous version drew SVG <ellipse> outlines. Rendered, they read as
-// an atom diagram: hairline mathematical curves, sprawling well past the
-// silhouette, all sharing one centre. Rejected, and correctly so -- the
-// approved reference has no lines in it at all. It has light WRAPPING a
-// sphere.
+// Two generations died here and both died of the same cause. The first drew
+// SVG <ellipse> outlines and read as an atom diagram. The second replaced
+// them with real circles in 3D, tilted and projected -- which is a better
+// story but the same picture, because THE PROJECTION OF A TILTED CIRCLE IS
+// AN ELLIPSE. Perfect, closed, symmetrical about two axes, uniform curvature
+// everywhere. The spec rules out exactly that: no mathematical ellipses, no
+// orbital rings, no uniform circles, no technical-diagram geometry.
 //
-// So the geometry is no longer an ellipse. Each ribbon is a real circle in
-// 3D, tilted in its own plane and projected to 2D, then SPLIT AT THE
-// SILHOUETTE into the half with positive depth and the half with negative
-// depth. The two halves go into different layers -- one painted behind the
-// body, one in front. That is what makes light disappear behind MAM and
-// emerge again on the other side, which no amount of styling an ellipse can
-// fake.
+// So the strand is no longer a circle. Its radius is a circle plus a couple
+// of slow harmonics, and its DEPTH carries harmonics of its own that the
+// screen position never sees. The first breaks the closed-form curve -- the
+// path wanders in and out, tighter on one shoulder than the other, with no
+// axis of symmetry to find. The second means a strand can dip behind the
+// body and come back out at a place the outline gives no hint of, which is
+// what light on a real surface does and what a ring cannot do.
 //
-// Along each band the half-width and the brightness follow the SAME depth
-// value, so a ribbon swells and brightens as it swings toward the viewer
-// and thins away as it turns back -- and it tapers to nothing exactly where
-// it crosses the silhouette, so it slides under the body's edge instead of
-// stopping against it. Bright and quiet stretches along one ribbon come out
-// of the geometry rather than being drawn in.
+// Because depth now wobbles independently, a strand no longer crosses the
+// silhouette at two tidy antipodes. It can cross four or six times, at
+// irregular places. So the split is no longer "front half, back half": the
+// strand is cut wherever its depth changes sign, and each piece is filed
+// into the layer its own depth belongs to. That irregular weaving is most of
+// what separates flowing light from an orbit.
 //
-// Each band is a FILLED path, not a stroke, because a stroke has one width
-// for its whole length and the width variation is most of what separates a
-// light ribbon from a drawn curve.
+// Along each piece the half-width follows |depth| and tapers to nothing at
+// both cut ends, so light slides under the body's edge rather than stopping
+// against it. Bright and quiet runs come out of the geometry, not out of
+// hand-placed stops.
 //
-// Cost: the geometry is computed once at construction and never again. The
-// living motion is CSS transforms on the groups, and it is deliberately
-// small and slow -- a few degrees -- so the depth baked into each band stays
-// true. That is also exactly the "very slowly and organically" the brief
-// asks for.
-const RIB_SAMPLES = 34;          // per half-ribbon; smooth at every size shipped
+// THE FACE OUTRANKS THE LIGHT. Any front-layer piece passing over the eye
+// region is thinned toward vanishing by faceEase() -- not clipped, which
+// would leave a cut edge, but starved, so it reads as light passing behind
+// the glow of the face. If the halo pulls the eye before the eyes do, the
+// hierarchy is wrong, and this is the mechanism that keeps it right.
+//
+// Each band is a FILLED path, not a stroke: a stroke has one width for its
+// whole length, and varying width is most of what separates light from a
+// drawn curve.
+//
+// Cost is unchanged -- geometry is computed once at construction and never
+// again; the living motion is CSS transforms on the groups.
+const TAU = Math.PI * 2;
+const DEG = Math.PI / 180;
+const RIB_SAMPLES = 140;         // over a whole loop; smooth at every shipped size
 
 /**
- * One tilted circle, projected. `alpha` is how far the ring's plane is
- * turned away from the screen: 0 faces you (no depth), 90 is edge-on (all
- * depth). Returns the front half and the back half separately, because
- * depth is what the two layers are for.
+ * One wandering strand in 3D, projected to the halo's 100x100 box.
+ *
+ * `alpha` is how far the strand's plane is turned away from the screen: 0
+ * faces you (no depth), 90 is edge-on. It stays well under 90 -- an edge-on
+ * loop projects to a straight line, which once drew a bright scratch across
+ * the face.
+ *
+ * `rMod` are radius harmonics {k, a, p}: what makes the outline stop being
+ * an ellipse. `zMod` are depth harmonics: what makes the weave irregular.
+ * `span` cuts an open arc out of the loop instead of closing it.
  */
-function ribbonHalves({ r, cx = 50, cy = 50, tilt, alpha }) {
-  const th = (tilt * Math.PI) / 180;
-  const a = (alpha * Math.PI) / 180;
-  const k = Math.cos(a);         // foreshortening across the ring
-  const s = Math.sin(a);         // how much of the ring is depth
-  const ct = Math.cos(th), st = Math.sin(th);
-  const arc = (t0, t1) => {
-    const pts = [];
-    for (let i = 0; i <= RIB_SAMPLES; i++) {
-      const t = t0 + ((t1 - t0) * i) / RIB_SAMPLES;
-      const x0 = r * Math.cos(t);
-      const y0 = r * Math.sin(t) * k;
-      pts.push({
-        x: cx + x0 * ct - y0 * st,
-        y: cy + x0 * st + y0 * ct,
-        d: Math.sin(t) * s        // -1 far .. +1 near
-      });
+function strandPoints({ r, cx = 50, cy = 50, tilt, alpha, rMod = [], zMod = [], span }) {
+  const [t0, t1] = span || [0, TAU];
+  const samples = Math.max(28, Math.round((RIB_SAMPLES * (t1 - t0)) / TAU));
+  const a = alpha * DEG;
+  const ck = Math.cos(a);        // foreshortening across the strand
+  const sk = Math.sin(a);        // how much of the sweep is depth
+  const ct = Math.cos(tilt * DEG), st = Math.sin(tilt * DEG);
+  const pts = [];
+  for (let i = 0; i <= samples; i++) {
+    const t = t0 + ((t1 - t0) * i) / samples;
+    let rr = r;
+    for (const m of rMod) rr += r * m.a * Math.sin(m.k * t + m.p);
+    const x0 = rr * Math.cos(t);
+    const y0 = rr * Math.sin(t) * ck;
+    let z = rr * Math.sin(t) * sk;
+    for (const m of zMod) z += r * m.a * Math.sin(m.k * t + m.p);
+    pts.push({
+      x: cx + x0 * ct - y0 * st,
+      y: cy + x0 * st + y0 * ct,
+      d: Math.max(-1, Math.min(1, z / r))     // -1 far .. +1 near
+    });
+  }
+  return pts;
+}
+
+/**
+ * Start a closed loop at a depth crossing.
+ *
+ * Sampling starts wherever t=0 happens to land, which is almost never a
+ * crossing -- so the first and last pieces of the loop are one continuous
+ * run of light that would get tapered to nothing at both ends and leave a
+ * dark notch at an arbitrary angle. Rotating the array so it begins just
+ * after a sign change puts that seam exactly where the strand passes under
+ * the silhouette, where it is invisible by construction.
+ */
+function rotateToCrossing(pts) {
+  const n = pts.length - 1;      // last point duplicates the first
+  for (let i = 0; i < n; i++) {
+    if ((pts[i].d >= 0) !== (pts[(i + 1) % n].d >= 0)) {
+      const out = [];
+      for (let j = 0; j <= n; j++) out.push(pts[(i + 1 + j) % n]);
+      return out;
     }
-    return pts;
-  };
-  // sin(t) carries the sign of the depth, so the split is exact at t=0 and
-  // t=PI -- precisely where the ring crosses the silhouette.
-  return { front: arc(0, Math.PI), back: arc(Math.PI, Math.PI * 2) };
+  }
+  return pts;                    // never crosses; one piece, one layer
+}
+
+/**
+ * Cut a strand wherever its depth changes sign, interpolating the exact
+ * crossing so each piece ends ON the silhouette rather than near it.
+ */
+function depthSegments(pts) {
+  const segs = [];
+  let cur = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    if ((a.d >= 0) !== (b.d >= 0)) {
+      const f = Math.abs(a.d) / (Math.abs(a.d) + Math.abs(b.d) || 1);
+      const cross = { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f, d: 0 };
+      segs.push(cur.concat([cross]));
+      cur = [cross, b];
+    } else {
+      cur.push(b);
+    }
+  }
+  segs.push(cur);
+  // Slivers of three points or fewer are sampling noise around a crossing,
+  // not light. They would render as specks.
+  return segs.filter((s) => s.length > 3);
 }
 
 /**
@@ -108,8 +172,25 @@ function toPath(outer, inner) {
   return d + 'Z';
 }
 
-/** Offset a sampled curve into a closed band whose width follows depth. */
-function bandPath(pts, wBase) {
+// THE FACE'S RIGHT OF WAY.
+//
+// In the halo's box the body spans 10.9..89.1 (the halo is inset -14%, so
+// the box is 128% of the body). The painted eye block sits at x 28..72,
+// y 48.5..59.4. This ellipse is that block with clearance, and any front
+// strand inside it is starved rather than cut -- a clip would leave a hard
+// edge, and a hard edge is the one thing that would make the light read as
+// a drawn object again.
+const FACE = { cx: 50, cy: 54, rx: 27, ry: 13.5 };
+function faceEase(p) {
+  const q = ((p.x - FACE.cx) / FACE.rx) ** 2 + ((p.y - FACE.cy) / FACE.ry) ** 2;
+  return q >= 1 ? 1 : 0.12 + 0.88 * Math.pow(q, 0.7);
+}
+
+/**
+ * Offset one piece into a closed band. Width follows depth and tapers to
+ * nothing at the piece's own ends, which are silhouette crossings.
+ */
+function bandPath(pts, wBase, isFront) {
   const n = pts.length;
   const outer = [], inner = [];
   for (let i = 0; i < n; i++) {
@@ -120,44 +201,93 @@ function bandPath(pts, wBase) {
     const len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len, ny = dx / len;
     const u = i / (n - 1);
-    // Full width through the middle of the arc, tapering to nothing at the
-    // two silhouette crossings so the band slips under the body's edge.
     // max(0, ...) is load-bearing: sin(PI*u) at u=1 comes out at -3.2e-16
     // rather than 0, and Math.pow of a negative is NaN -- which an SVG path
     // does not report, it just stops parsing there.
-    const taper = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.45);
-    const near = (Math.abs(p.d) + 1) / 2;          // 0.5 at the crossing, 1 at the pole
-    const w = wBase * taper * (0.30 + 0.70 * near);
+    const taper = Math.pow(Math.max(0, Math.sin(Math.PI * u)), 0.4);
+    let w = wBase * taper * (0.30 + 0.70 * Math.abs(p.d));
+    if (isFront) w *= faceEase(p);
     outer.push([p.x + nx * w, p.y + ny * w]);
     inner.push([p.x - nx * w, p.y - ny * w]);
   }
   return toPath(outer, inner);
 }
 
-// Radii sit between 0.95 and 1.20 of the body's own radius: the light HUGS
-// MAM. The rejected version reached 1.47, which is what made it sprawl and
-// read as orbits around a nucleus rather than as light on a surface. One
-// ribbon is deliberately INSIDE the silhouette, so some light reads as
-// travelling across the face rather than around it.
-// No two share a radius, a centre, a tilt, a plane angle or a weight.
-// FOUR strands and a crown. Density was the wrong goal: nine strands made
-// the light the first thing you saw, and the face is the identity. These
-// support the character instead of competing with it -- if the ribbons pull
-// your eye before the eyes do, there are too many or they are too bright.
+// NOTHING HERE CLOSES.
 //
-// The crown is deliberately the boldest of the five and sits ABOVE the
-// head, because in the reference it is a distinct halo rather than one more
-// strand lost in a tangle.
+// The first attempt at this stage kept the strands as closed loops and
+// tried to make them organic by wobbling the radius. Rendered with the body
+// dimmed away it was still, unmistakably, an atom: five circuits sharing
+// one centre. That is the lesson -- a strand that completes a full circuit
+// IS an orbit no matter what its radius does along the way, because the
+// closure is what the eye reads, not the curvature. And a shared centre is
+// what turns a group of them into a nucleus.
 //
-// Every plane angle stays between 40 and 68 degrees. Near 90 a ring is
-// edge-on, and an edge-on circle projects to a straight line -- which is
-// how one strand once drew a bright scratch down the middle of the face.
+// So every strand is an OPEN ARC, and a short one: it comes up out of
+// nothing, sweeps, and dissolves. No span reaches even three quarters of a
+// circuit, so there is never a closing half for the eye to complete. No two
+// share a centre, a radius, a length, a tilt, a plane angle, a weight or a
+// set of harmonics. That is flowing light; the previous version was
+// geometry.
+//
+// The body's radius in this box is 39.1 (the halo is inset -14%). Radii sit
+// near 0.85-1.15 of it, so the light HUGS MAM -- an early version reached
+// 1.47 and sprawled.
+//
+// Plane angles stay between 38 and 60. Near 90 a strand is edge-on, and an
+// edge-on arc projects to a straight line -- which is how one once drew a
+// bright scratch across the face.
+//
+// COMPOSITION, not scatter. `span` runs in the strand's own parameter,
+// where t near 0 is the right of the body, PI/2 below it, PI the left and
+// 3PI/2 above. Placed with that in hand the five read as one arrangement:
+// the crown over the head, a fall down each side, one quiet arc grounding
+// the chin, and a single brief glint. Left and right carry different
+// weights and different lengths, so it balances without being symmetrical.
+//
+// A first pass placed them by feel and put three of the five across the
+// bottom -- the light pooled under the chin like a collar and the crown,
+// the one place the reference actually gathers light, had none.
+//
+// zMod amplitudes are large on purpose. They have to beat sin(t)*sin(alpha)
+// somewhere in the span or the strand never changes sign, stays in one
+// layer and never weaves -- which is what left the crown wholly behind the
+// body and invisible.
 const RIBBONS = [
-  { r: 45, cy: 51, tilt: -17, alpha: 62, w: 0.85 },
-  { r: 42, cy: 53, tilt: 36, alpha: 46, w: 0.66 },
-  { r: 47, cy: 50, tilt: 58, alpha: 55, w: 0.50 },
-  { r: 40, cy: 54, tilt: 8, alpha: 40, w: 0.44 },
-  { r: 31, cy: 20, tilt: -6, alpha: 68, w: 0.95 }   // the crown, over the head
+  // The crown flow. Boldest of the five, and the only one over the brow:
+  // it rises at one temple, gathers over the head, dissolves at the other.
+  { r: 34, cx: 50, cy: 35, tilt: -8, alpha: 46, w: 0.88,
+    span: [Math.PI * 1.12, Math.PI * 1.92],
+    rMod: [{ k: 1, a: 0.12, p: 1.9 }, { k: 2, a: 0.07, p: 0.6 }],
+    zMod: [{ k: 2, a: 0.58, p: 2.2 }] },
+  // The fall down the right, carrying on from where the crown lets go.
+  { r: 41, cx: 49, cy: 52, tilt: 10, alpha: 52, w: 0.56,
+    span: [Math.PI * 1.72, Math.PI * 2.24],
+    rMod: [{ k: 1, a: 0.11, p: 0.4 }, { k: 2, a: 0.06, p: 2.1 }],
+    zMod: [{ k: 1, a: 0.62, p: 0.9 }] },
+  // The fall down the left -- thinner and longer than its opposite number.
+  // The span starts high enough that part of it surfaces in FRONT of the
+  // body: an earlier placement left the whole strand behind MAM, and a side
+  // with nothing on it but occluded light reads as a side that was
+  // forgotten rather than one deliberately kept quiet.
+  { r: 43, cx: 51, cy: 51, tilt: -14, alpha: 42, w: 0.40,
+    span: [Math.PI * 0.70, Math.PI * 1.26],
+    rMod: [{ k: 1, a: 0.14, p: 1.3 }, { k: 3, a: 0.05, p: 2.7 }],
+    zMod: [{ k: 1, a: 0.55, p: 2.6 }] },
+  // One quiet arc under the chin. One, not three: it grounds the figure
+  // without hanging a collar on it.
+  { r: 40, cx: 48, cy: 54, tilt: 8, alpha: 38, w: 0.36,
+    span: [Math.PI * 0.34, Math.PI * 0.74],
+    rMod: [{ k: 2, a: 0.10, p: 0.5 }],
+    zMod: [{ k: 1, a: 0.44, p: 1.7 }] },
+  // A brief glint low on the left. The shortest span here -- it exists to
+  // break the regularity of the other four, nothing more. It sits opposite
+  // the right-hand fall rather than alongside it: put here first, the two
+  // landed on top of each other and tied a bright knot over the right cup.
+  { r: 38, cx: 47, cy: 53, tilt: -20, alpha: 50, w: 0.50,
+    span: [Math.PI * 0.54, Math.PI * 0.82],
+    rMod: [{ k: 1, a: 0.16, p: 0.8 }],
+    zMod: [{ k: 2, a: 0.40, p: 1.1 }] }
 ];
 
 const RIB_DEFS = (scope) =>
@@ -179,18 +309,35 @@ const RIB_DEFS = (scope) =>
   '</linearGradient>' +
   '</defs>';
 
-/** @param {'front'|'back'} side */
+/**
+ * One layer of the halo. A strand contributes every piece whose depth
+ * belongs to this side -- which may be none, one, or several, since the
+ * depth harmonics decide where it dives and surfaces.
+ *
+ * One <g> per strand per layer regardless, so the per-strand animation
+ * classes stay stable no matter how the geometry happens to cut.
+ *
+ * @param {'front'|'back'} side
+ */
 function ribbonLayer(scope, side) {
+  const wantFront = side === 'front';
   let out = '<svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">' + RIB_DEFS(scope);
   RIBBONS.forEach((cfg, i) => {
-    const pts = ribbonHalves(cfg)[side];
-    // Two passes: a wide soft bloom under a narrower bright core. Cheaper
-    // and steadier than a blur filter, which would re-rasterize the layer on
-    // every animation frame.
-    out += '<g class="mamco-ribbon mamco-ribbon--' + i + '">' +
-      '<path class="mamco-ribbon-glow" d="' + bandPath(pts, cfg.w * 2.0) + '" fill="url(#' + scope + '-glow)"/>' +
-      '<path class="mamco-ribbon-core" d="' + bandPath(pts, cfg.w) + '" fill="url(#' + scope + '-core)"/>' +
-      '</g>';
+    let pts = strandPoints(cfg);
+    if (!cfg.span) pts = rotateToCrossing(pts);
+    out += '<g class="mamco-ribbon mamco-ribbon--' + i + '">';
+    for (const seg of depthSegments(pts)) {
+      const mid = seg[seg.length >> 1];
+      if ((mid.d >= 0) !== wantFront) continue;
+      // Two passes: a wide soft bloom under a narrower bright core. Cheaper
+      // and steadier than a blur filter, which would re-rasterize the layer
+      // on every animation frame.
+      out += '<path class="mamco-ribbon-glow" d="' + bandPath(seg, cfg.w * 2.0, wantFront) +
+        '" fill="url(#' + scope + '-glow)"/>' +
+        '<path class="mamco-ribbon-core" d="' + bandPath(seg, cfg.w, wantFront) +
+        '" fill="url(#' + scope + '-core)"/>';
+    }
+    out += '</g>';
   });
   return out + '</svg>';
 }
