@@ -48,6 +48,7 @@
 // about properties; a services page can ask about something else).
 import { mountMamDock } from './mam-dock.js';
 import { mountMamChatPanel, isMamMounted } from './mam-chat-panel.js';
+import { createPresence } from './mam-presence.js';
 
 // Only map.html uses this `data-page` value (confirmed against every
 // other page's own launcher markup) -- what decides its dock defaults to
@@ -148,6 +149,41 @@ function init() {
   });
 
   if (!panel) return;   // a second mount was refused -- nothing more to wire
+
+  // ---- THE LIVING PRESENCE ---------------------------------------------
+  // VOICE-FIRST. The first click no longer opens the conversation panel:
+  // MAM comes to a focal position, grows, and greets out loud in the
+  // active language, then listens. The panel is still there -- it is how
+  // someone types, reads the transcript, or works with audio off -- but it
+  // is reached deliberately (a second click, or the dock's own control)
+  // rather than being thrown up in front of a spoken answer.
+  //
+  // Everything security-relevant stays where it was: the validated action
+  // registry, the session, the allowlisted destinations and the router's
+  // re-entrancy gate all live in the modules this composes, not here.
+  const presence = createPresence({ companion: dock.companion, panel, dockEl: dock.root });
+  panel.onVoiceState((next) => presence.adopt(next));
+
+  dock.openBtn.addEventListener('click', (e) => {
+    if (presence.hasAwakened) return;   // already awake -- let the dock's own toggle run
+    // Only intercept where a spoken greeting is actually possible. With no
+    // speech engine the old behaviour (open the panel) is strictly better
+    // than a silent body that appears to have done nothing.
+    if (!window.speechSynthesis) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    presence.awaken();
+  }, true);   // capture, so this runs before the panel's own open handler
+
+  // Escape returns MAM to its corner: small again, still alive.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && presence.hasAwakened) presence.minimize();
+  });
+
+  // Exposed for the presence QA harness and for a host page that wants to
+  // drive the body directly. Read-only from the outside: every mutation
+  // still goes through the state machine's own legality check.
+  window.DarweshMamPresence = presence;
 
   document.addEventListener('darwesh:langchange', () => {
     dock.setLabel(mount.getAttribute('data-label') || tr('mam.dockPrompt', 'Ask MAM about properties…'));

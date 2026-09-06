@@ -31,6 +31,7 @@ import { auth } from './firebase-init.js';
 import { sendMamChat, BackendUnavailableError, BackendResponseError, fetchMamVoiceConfig, mamVoiceStt, mamVoiceTts } from './mam-api.js';
 import { detectDirectCommand, resolvePage, filtersToMapUrlParams } from './mam-actions.js';
 import { mamNavigate, canNavigateInPlace, bindPopstate } from './mam-shell.js';
+import { VoiceEnergy } from './mam-voice-energy.js';
 
 // Below this width the panel gives up trying to sit beside the dock and
 // becomes a near-full-width sheet instead -- there simply is not enough
@@ -238,11 +239,32 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // with handsFree=true, and this placeholder is never invoked either.
   let handleBargeIn = () => {};
 
+  // THE LIVE BODY. One channel, from MAM's real audio to the companion's
+  // --mam-energy. Nothing here invents a level: when MAM is silent this
+  // publishes 0 and the body is still, which is the observable difference
+  // between a companion that reacts and one that performs.
+  //
+  // Declared HERE, beside the state machine that uses it, rather than
+  // beside the <audio> element it taps 500 lines below -- setVoiceState()
+  // references it, and a `const` initialised after its first use would sit
+  // in the temporal dead zone and throw.
+  const voiceEnergy = new VoiceEnergy((level) => companion.setEnergy(level));
+
+  // Anyone who needs to stay in step with the one authoritative machine.
+  // js/mam-presence.js subscribes so the visible body and the conversation
+  // can never drift apart.
+  const voiceStateListeners = [];
+
   function setVoiceState(next) {
     if (!VOICE_STATES.includes(next)) return;
     const prev = voiceState;
     voiceState = next;
-    companion.setState(VOICE_STATE_TO_COMPANION[next]);
+    // The companion's own state is set by whoever owns presentation:
+    // js/mam-presence.js when it is mounted (it maps this machine onto the
+    // eight product states), and this line otherwise, so a page using the
+    // panel without the presence layer still gets a live body.
+    if (!voiceStateListeners.length) companion.setState(VOICE_STATE_TO_COMPANION[next]);
+    voiceStateListeners.forEach((fn) => { try { fn(next, prev); } catch (err) { console.warn('[mam] voice state listener failed', err); } });
     // Only on an ACTUAL transition into/out of SPEAKING -- not on a
     // same-state re-call -- so a second speak() while already SPEAKING
     // (e.g. a KurdishTTS failure falling back to the browser voice
@@ -251,6 +273,16 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       startBargeInWatch(() => handleBargeIn());
     } else if (prev === 'SPEAKING' && next !== 'SPEAKING') {
       stopBargeInWatch();
+    }
+    // THE LIVE BODY, listening half. While LISTENING the companion answers
+    // the MICROPHONE, so the movement is the visitor's own voice rather
+    // than a timer -- a body that pulses rhythmically while you are silent
+    // is pretending to hear you. A denied or missing microphone simply
+    // means MAM listens without moving, which is honest.
+    if (next === 'LISTENING' && prev !== 'LISTENING') {
+      voiceEnergy.attachToMicrophone();
+    } else if (prev === 'LISTENING' && next !== 'LISTENING' && next !== 'SPEAKING') {
+      voiceEnergy.stop();
     }
   }
 
@@ -813,6 +845,10 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // sendMessage() interrupting an in-flight reply.
   const kurdishAudioEl = new Audio();
   kurdishAudioEl.preload = 'auto';
+  // Needed before createMediaElementSource can read this element without
+  // tainting the graph; the blob is same-origin anyway, so this only
+  // matters if a future path serves audio from elsewhere.
+  kurdishAudioEl.crossOrigin = 'anonymous';
   let kurdishTtsController = null;   // aborts an in-flight (now-obsolete) synthesis request
   let lastKurdishTtsText = null;     // cost control: never re-synthesize the same reply twice in a row
   let lastKurdishTtsBlobUrl = null;
@@ -855,11 +891,21 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       // sites in the recognition block), which sets LISTENING -- setting
       // IDLE here first would just be an instantly-overwritten flash.
       // Only force IDLE when nothing else is about to take over.
+      // The voice has stopped, so the body must stop with it -- a level
+      // left frozen at its last value is exactly the "canned" look this
+      // design exists to avoid.
+      voiceEnergy.stop();
       if (!handsFree) setVoiceState('IDLE');
       kurdishTtsController = null;
       if (onDone) onDone();
     }
-    kurdishAudioEl.onplay = () => setVoiceState('SPEAKING');
+    kurdishAudioEl.onplay = () => {
+      setVoiceState('SPEAKING');
+      // PATH A -- a real AnalyserNode on MAM's own output. This is the
+      // path that gives true per-frame amplitude, and Kurdish is the
+      // primary language here, so it is the one that matters most.
+      voiceEnergy.attachToAudioElement(kurdishAudioEl);
+    };
     kurdishAudioEl.onended = settle;
     kurdishAudioEl.onerror = () => { speakWithBrowserVoice(text, { onDone }); }; // playback itself failed -- fall back rather than going silent
     try {
@@ -923,13 +969,25 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       settled = true;
       clearTimeout(watchdog);
       // See speakWithKurdishTts's settle() for why this is conditional.
+      // The voice has stopped, so the body must stop with it -- a level
+      // left frozen at its last value is exactly the "canned" look this
+      // design exists to avoid.
+      voiceEnergy.stop();
       if (!handsFree) setVoiceState('IDLE');
       if (onDone) onDone();
     }
     utterance.addEventListener('start', () => {
       clearTimeout(watchdog);          // speech really began -- not blocked
       setVoiceState('SPEAKING');
+      // PATH B -- speechSynthesis exposes NO audio node, by design, so
+      // there is no amplitude to read. What it does expose is `boundary`,
+      // which fires as each word begins, so the envelope below is driven
+      // by MAM's REAL word timing; only the shape between words is
+      // inferred. See js/mam-voice-energy.js for why this distinction is
+      // kept visible instead of being papered over.
+      voiceEnergy.startEnvelope();
     });
+    utterance.addEventListener('boundary', () => voiceEnergy.impulse());
     utterance.addEventListener('end', settle);
     utterance.addEventListener('error', settle);
     watchdog = setTimeout(() => {
@@ -1936,7 +1994,15 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     toggleHandsFree: voiceApi.toggleHandsFree,
     isVoiceSupported: voiceApi.isSupported,
     /** True if a conversation was already carried in when this page loaded. */
-    hasExistingConversation: hadExistingConversation
+    hasExistingConversation: hadExistingConversation,
+    /** Speak through the SAME voice path, language selection and Kurdish
+     *  TTS as every other MAM utterance -- exposed so js/mam-presence.js
+     *  can greet without becoming a second speech implementation. */
+    speak,
+    /** Observe the authoritative voice machine. js/mam-presence.js adopts
+     *  these so the body and the conversation can never disagree about
+     *  what MAM is doing. */
+    onVoiceState(fn) { if (typeof fn === 'function') voiceStateListeners.push(fn); }
   };
 }
 
