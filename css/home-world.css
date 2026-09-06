@@ -827,25 +827,31 @@ body.world .w-panel-sub {
 }
 
 /* =========================================================================
- * 9. CITY DISCOVERY -- rebuilt from nothing
+ * 9. CITY DISCOVERY -- layered cascade rebuild
  * =========================================================================
- * The previous version was rejected outright: a cream rectangle, a row of
- * identical arch cards, and beige emptiness. It is gone completely.
+ * Replaces the rotated-wall version (planes on a curved wall, receding in Z
+ * and rotating in Y) with a flatter, brighter horizontal cascade: the
+ * focused city is the largest card, pinned forward with a gold ring and the
+ * strongest shadow; each step away shrinks, drops back slightly and settles
+ * behind the one before it, overlapping edge-to-edge -- matching the
+ * approved reference (large photographic-feeling cards, layered depth,
+ * active card obviously selected) without ever tipping into a literal 3D
+ * carousel.
  *
- * This is a spatial gallery. The cities stand on a curved wall receding in
- * Z and rotating in Y around a focused city, so moving between them reads
- * as moving THROUGH a place rather than sliding a carousel.
- *
- * ON IMAGERY -- the honest part. The repository's eight "city" images are
- * not city photography: Erbil and Kirkuk are the identical file, and six of
- * the eight are the same interior renders used by the Buy/Rent/Build/
- * Renovate/Sell cards. Labelling those as cities is a claim about a place
- * that the asset does not support. So a plane's face is NOT a photograph
- * pretending to be that city. It is a composed architectural light-field,
- * distinct per city and clearly abstract, with the city NAME as the
- * dominant element. `--img` is left as an optional layer: the day a real,
- * licensed photograph of Erbil exists, it drops into that one property with
- * no redesign. ========================================================== */
+ * ON IMAGERY -- still the honest part, unchanged in substance. No file in
+ * this repository is a real, licensed photograph of Kirkuk, Erbil, or any
+ * of the other six cities -- there is no per-city photography asset to
+ * draw from at all (confirmed: images/ holds only brand marks and flag
+ * icons). Labelling a stock or placeholder image as a specific city would
+ * be a false claim about a place, so a plane's face is still NOT a
+ * photograph pretending to be that city -- per the brief's own fallback
+ * ("use an honest neutral architectural/city placeholder rather than
+ * misrepresenting another city"), it is a brighter, warmer composed
+ * sky-and-skyline light-field, deterministic per city via --h/--s/--l, with
+ * the city NAME as the dominant readable element. `--img` remains an
+ * optional first layer: the day a real, licensed per-city photograph
+ * exists, dropping it into that one custom property adopts it with no
+ * other redesign. ========================================================= */
 /* The wall fans out from the focused city, so with the first city focused
    every plane sits to one side and half the frame was empty. Rather than
    re-centring the wall (which would push the focused city off-axis), the
@@ -868,75 +874,85 @@ body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
 
 body.world .w-gallery {
   position: relative;
-  perspective: 2400px;
-  perspective-origin: 50% 46%;
-  min-height: clamp(340px, 46vh, 520px);
+  min-height: clamp(340px, 46vh, 480px);
   display: flex; align-items: center; justify-content: flex-start;
   touch-action: pan-y;
 }
 body.world .w-wall {
   position: relative;
   width: 100%; height: 100%;
-  transform-style: preserve-3d;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: center; justify-content: flex-start;
 }
 body.world .w-plane {
   position: absolute;
-  width: clamp(200px, 20vw, 280px);
-  aspect-ratio: 3 / 4.2;
-  border-radius: 16px;
+  width: clamp(230px, 21vw, 320px);
+  aspect-ratio: 3 / 3.7;
+  border-radius: 20px;
   overflow: hidden;
   text-decoration: none;
-  transform-style: preserve-3d;
+  box-shadow: 0 16px 34px -14px rgba(3, 29, 57, 0.28);
   /* --o is the plane's signed offset from the focused city, written by the
-     gallery controller. Position on the wall is a pure function of it.
-     FLATTENED. This was translateZ(-190px) rotateY(-26deg) per step: a
-     genuinely curved wall with large perspective planes, which is the one
-     depth figure explicitly ruled out. The lateral travel is unchanged --
-     that is what makes it a wall you move along rather than a strip of
-     cards -- but the rotation and the Z are now small enough to read as
-     "angled away" instead of as a carousel of billboards swinging past. */
+     gallery controller. Position is a pure function of it: a horizontal
+     cascade, not a rotated wall -- each step away from the focused card
+     shifts sideways by --step (less than the card's own width, so
+     neighbours overlap edge-to-edge like the approved reference), shrinks a
+     touch, and settles a few px lower/behind. z-index falls with distance
+     so the focused card always reads as the one in front.
+     --dir flips the cascade's physical direction for RTL (below): raw
+     translateX is never direction-aware on its own, and the gallery sits on
+     the LEFT of its copy column in RTL (the grid's columns mirror with the
+     page), so without this the cascade would shift cards rightward -- into
+     the copy text -- instead of mirroring away from it as it does in LTR. */
+  --dir: 1;
+  --step: clamp(96px, 9vw, 150px);
   transform:
-    translateX(calc(var(--o) * clamp(150px, 15vw, 210px)))
-    translateZ(calc(abs(var(--o)) * -64px))
-    rotateY(calc(var(--o) * -9deg));
-  z-index: calc(20 - abs(var(--o)));
-  opacity: calc(1 - min(abs(var(--o)), 3) * 0.16);
-  transition: transform var(--w-slow) var(--w-ease-out), opacity var(--w-slow) var(--w-ease-out);
+    translateX(calc(var(--o) * var(--step) * var(--dir)))
+    translateY(calc(min(abs(var(--o)), 1) * 10px))
+    scale(calc(1 - min(abs(var(--o)), 4) * 0.1));
+  z-index: calc(30 - abs(var(--o)));
+  opacity: calc(1 - min(abs(var(--o)), 4) * 0.15);
+  transition: transform var(--w-slow) var(--w-ease-out), opacity var(--w-slow) var(--w-ease-out), box-shadow var(--w-mid) var(--w-ease);
 }
-/* The face: a composed light-field, deterministic per city via --h/--s/--l.
-   Abstract by intent -- it does not claim to be a photograph of anywhere. */
+/* html[dir="rtl"], not body[dir="rtl"]: js/i18n.js only ever sets the dir
+   attribute on document.documentElement, never on body (confirmed live --
+   document.body.getAttribute('dir') is null even while its computed
+   direction is rtl), so a body[dir="rtl"] selector here would silently
+   never match. */
+html[dir="rtl"] body.world .w-plane { --dir: -1; }
+/* The face: a bright, warm sky-and-skyline light-field, deterministic per
+   city via --h/--s/--l -- brighter and fuller than a dark strip so the card
+   reads as "a photograph of a place" at a glance, while staying honestly
+   abstract up close (see the section comment above). */
 body.world .w-plane-face {
   position: absolute; inset: 0; z-index: 0;
   background:
     var(--img, none),
-    radial-gradient(120% 76% at 30% 8%, hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 26%)), transparent 62%),
-    linear-gradient(168deg,
-      hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 10%)) 0%,
-      hsl(calc(var(--h) - 14) calc(var(--s) * 1%) calc(var(--l) * 1% - 8%)) 100%);
+    radial-gradient(48% 32% at 74% 16%, hsla(44, 78%, 91%, 0.6), transparent 72%),
+    linear-gradient(180deg,
+      hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 50%)) 0%,
+      hsl(calc(var(--h) - 6) calc(var(--s) * 1%) calc(var(--l) * 1% + 34%)) 48%,
+      hsl(calc(var(--h) - 12) calc(var(--s) * 1%) calc(var(--l) * 1% + 16%)) 100%);
   background-size: cover;
   background-position: center;
 }
-/* A horizon, a light source above it, and a few soft masses standing on
-   it: enough to read as a place with architecture in it, without asserting
-   any particular skyline. Deterministic per city via --h, so no two planes
-   look the same and none of them claims to be a photograph. */
-body.world .w-plane-face::after {
-  content: ''; position: absolute; inset: 0;
-  background:
-    /* foreground masses */
-    linear-gradient(90deg, transparent 8%, rgba(6,6,9,0.55) 8%, rgba(6,6,9,0.55) 20%, transparent 20%),
-    linear-gradient(90deg, transparent 30%, rgba(6,6,9,0.42) 30%, rgba(6,6,9,0.42) 46%, transparent 46%),
-    linear-gradient(90deg, transparent 60%, rgba(6,6,9,0.5) 60%, rgba(6,6,9,0.5) 72%, transparent 72%),
-    /* the horizon and the light sitting on it */
-    linear-gradient(0deg, transparent 40.6%, rgba(255,241,214,0.34) 41%, transparent 41.6%),
-    radial-gradient(60% 26% at 50% 41%, rgba(255,226,178,0.30), transparent 70%),
-    /* the ground the type sits on */
-    linear-gradient(0deg, rgba(6,6,9,0.95) 0%, rgba(6,6,9,0.30) 40%, transparent 66%);
-  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 41%, transparent 41%), linear-gradient(#000, #000);
-  -webkit-mask-composite: source-over;
-          mask-image: linear-gradient(0deg, #000 0%, #000 41%, transparent 41%), linear-gradient(#000, #000);
-          mask-composite: add;
+/* A soft ground/skyline band standing under the sky, deterministic per city
+   via --h -- enough to say "architecture, here" without asserting a
+   specific skyline or reading as a mechanical repeating pattern. */
+body.world .w-plane-skyline {
+  position: absolute; inset-inline: 0; bottom: 0; z-index: 0;
+  height: 30%;
+  background: linear-gradient(0deg,
+    hsl(calc(var(--h) - 16) calc(var(--s) * 1%) 13%) 0%,
+    hsl(calc(var(--h) - 16) calc(var(--s) * 1%) 15%) 40%,
+    transparent 100%);
+}
+/* The one dark note, confined to the lower third so the rest of the card
+   stays bright and fully visible -- "subtle dark gradient ONLY at the
+   bottom of each image", per the brief, replacing the old wash that
+   darkened most of the plane. */
+body.world .w-plane-scrim {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(0deg, rgba(3, 15, 28, 0.86) 0%, rgba(3, 15, 28, 0.4) 34%, transparent 60%);
 }
 body.world .w-plane-body {
   position: absolute; inset-inline: 0; bottom: 0; z-index: 1;
@@ -945,7 +961,7 @@ body.world .w-plane-body {
 }
 body.world .w-plane-name {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 700; font-size: 1.35rem; letter-spacing: -0.015em; color: #F3EDE3;
+  font-weight: 700; font-size: 1.1rem; letter-spacing: -0.015em; color: #F3EDE3;
   text-shadow: 0 1px 12px rgba(4,4,7,0.9);
   transition: font-size var(--w-slow) var(--w-ease-out);
 }
@@ -963,10 +979,15 @@ body.world .w-plane-go {
   transition: opacity var(--w-mid) var(--w-ease-out), transform var(--w-mid) var(--w-ease-out);
 }
 /* Only the focused plane offers its action, so there is one obvious thing
-   to do rather than eight competing links. */
-body.world .w-plane[data-focus="1"] { opacity: 1; }
+   to do rather than eight competing links. It also carries the whole
+   "obviously selected" language on its own: forward (no offset/scale-down),
+   a thin gold ring, and the strongest shadow of the cascade. */
+body.world .w-plane[data-focus="1"] {
+  opacity: 1;
+  box-shadow: 0 30px 56px -16px rgba(3, 29, 57, 0.34), 0 10px 20px -8px rgba(3, 29, 57, 0.2), 0 0 0 2px var(--w-gold) inset;
+}
 body.world .w-plane[data-focus="1"] .w-plane-go { opacity: 1; transform: none; }
-body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.7rem; }
+body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.45rem; }
 body.world[dir="rtl"] .w-plane-go svg { transform: scaleX(-1); }
 
 body.world .w-gallery-nav {
@@ -1143,19 +1164,22 @@ body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
   body.world .w-gallery { justify-content: center; }
 }
 
-body.world .w-gallery { perspective: 1900px; min-height: 62vh; }
-  /* Phone: flatter still. A steep angle costs more to composite and, on a
-     390px viewport, an angled neighbour is mostly off-screen anyway -- so
-     the depth cue buys nothing and the flatter wall scrolls better. */
+body.world .w-gallery { min-height: 56vh; }
+  /* Phone: one dominant card with the next city peeking in from the side --
+     the same cascade as desktop, just closer together so a neighbour is
+     still reachable by swipe without ever pushing the active card's own
+     content off-screen or overflowing the viewport. */
   body.world .w-plane {
-    width: 62vw;
+    width: 74vw;
+    aspect-ratio: 3 / 3.9;
+    --step: 60vw;
     transform:
-      translateX(calc(var(--o) * 48vw))
-      translateZ(calc(abs(var(--o)) * -52px))
-      rotateY(calc(var(--o) * -7deg));
-    opacity: calc(1 - min(abs(var(--o)), 2) * 0.26);
+      translateX(calc(var(--o) * var(--step) * var(--dir)))
+      translateY(calc(min(abs(var(--o)), 1) * 8px))
+      scale(calc(1 - min(abs(var(--o)), 3) * 0.08));
+    opacity: calc(1 - min(abs(var(--o)), 3) * 0.22);
   }
-  body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.5rem; }
+  body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.3rem; }
 
   body.world .w-offer { grid-template-columns: 1fr; gap: 1.4rem; }
   body.world .w-figure { font-size: clamp(3.6rem, 22vw, 5.4rem); }

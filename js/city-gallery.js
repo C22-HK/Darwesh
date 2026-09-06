@@ -33,16 +33,18 @@
   if (!mount) return;
 
   // The city set and its destinations are unchanged -- same real ?city=
-  // handoff into buy.html that the previous version used.
+  // handoff into buy.html that the previous version used. Kirkuk leads
+  // (and is the default focused/active card) per the approved brief;
+  // the rest keep their previous relative order.
   const CITIES = [
+    { key: 'Kirkuk',       h: 36, s: 22, l: 20 },
     { key: 'Erbil',        h: 26, s: 22, l: 30 },
     { key: 'Sulaymaniyah', h: 34, s: 18, l: 26 },
     { key: 'Duhok',        h: 18, s: 20, l: 32 },
     { key: 'Zakho',        h: 40, s: 16, l: 24 },
     { key: 'Soran',        h: 12, s: 24, l: 28 },
     { key: 'Koya',         h: 30, s: 20, l: 22 },
-    { key: 'Halabja',      h: 22, s: 18, l: 34 },
-    { key: 'Kirkuk',       h: 36, s: 22, l: 20 }
+    { key: 'Halabja',      h: 22, s: 18, l: 34 }
   ];
 
   const tr = (k, fallback) => (window.t && window.t(k)) || fallback;
@@ -62,6 +64,8 @@
           '<a class="w-plane" href="buy.html?type=apartment&city=' + encodeURIComponent(c.key) + '"' +
              ' data-i="' + i + '" style="--h:' + c.h + ';--s:' + c.s + ';--l:' + c.l + '">' +
             '<span class="w-plane-face" aria-hidden="true"></span>' +
+            '<span class="w-plane-skyline" aria-hidden="true"></span>' +
+            '<span class="w-plane-scrim" aria-hidden="true"></span>' +
             '<span class="w-plane-body">' +
               '<span class="w-plane-name">' + esc(c.key) + '</span>' +
               '<span class="w-plane-note" data-city-note></span>' +
