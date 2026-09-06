@@ -18,16 +18,15 @@
 // (click, key, swipe, wheel-intent); the motion between states is done by a
 // CSS transition on transform/opacity, which is compositor work.
 //
-// ON IMAGERY -- the honest constraint. The repository's eight "city" images
-// are not photographs of those cities: Erbil and Kirkuk are the identical
-// file, and six of the eight are the same interior renders used by the
-// Buy/Rent/Build/Renovate/Sell cards. Presenting them as Erbil or Duhok is a
-// claim about a place the asset cannot support, so this component does not
-// do it. Each plane's face is a composed architectural light-field, distinct
-// per city and plainly abstract, with the NAME as the dominant element. The
-// `--img` custom property is left in place as an optional first background
-// layer: the day a real licensed photograph of a city exists, setting that
-// one property adopts it with no other change.
+// ON IMAGERY -- each plane now carries a real, verified photograph of its
+// own named landmark (images/cities/*.jpg): Kirkuk, Erbil Citadel,
+// Sulaymaniyah, Duhok Dam, the Zakho Delal Bridge, the Halabja Martyrs
+// Monument, the Rawanduz/Bekhal canyon near Soran, and historic Koya --
+// never one city's photo standing in for another. Set via the `--img`
+// custom property, which css/home-world.css already layers as the
+// frontmost background of `.w-plane-face` (`background-size: cover`), so a
+// plane with no `img` (should one ever be removed) falls back to the
+// original abstract light-field untouched.
 (function () {
   const mount = document.getElementById('cityGallery');
   if (!mount) return;
@@ -36,15 +35,20 @@
   // handoff into buy.html that the previous version used. Kirkuk leads
   // (and is the default focused/active card) per the approved brief;
   // the rest keep their previous relative order.
+  // Root-relative (`/images/...`), not `images/...`: a url() inside a CSS
+  // custom property resolves against wherever the var() consuming it
+  // lives (css/home-world.css's `.w-plane-face` rule), not against this
+  // page's own URL or this script's -- a page-relative path here would
+  // silently resolve to a nonexistent css/images/cities/ and 404.
   const CITIES = [
-    { key: 'Kirkuk',       h: 36, s: 22, l: 20 },
-    { key: 'Erbil',        h: 26, s: 22, l: 30 },
-    { key: 'Sulaymaniyah', h: 34, s: 18, l: 26 },
-    { key: 'Duhok',        h: 18, s: 20, l: 32 },
-    { key: 'Zakho',        h: 40, s: 16, l: 24 },
-    { key: 'Soran',        h: 12, s: 24, l: 28 },
-    { key: 'Koya',         h: 30, s: 20, l: 22 },
-    { key: 'Halabja',      h: 22, s: 18, l: 34 }
+    { key: 'Kirkuk',       h: 36, s: 22, l: 20, img: '/images/cities/kirkuk-citadel.jpg' },
+    { key: 'Erbil',        h: 26, s: 22, l: 30, img: '/images/cities/erbil-citadel.jpg' },
+    { key: 'Sulaymaniyah', h: 34, s: 18, l: 26, img: '/images/cities/sulaymaniyah-city.jpg' },
+    { key: 'Duhok',        h: 18, s: 20, l: 32, img: '/images/cities/duhok-city.jpg' },
+    { key: 'Zakho',        h: 40, s: 16, l: 24, img: '/images/cities/zakho-delal-bridge.jpg' },
+    { key: 'Soran',        h: 12, s: 24, l: 28, img: '/images/cities/soran-bekhal-waterfall.jpg' },
+    { key: 'Koya',         h: 30, s: 20, l: 22, img: '/images/cities/koya-town.jpg' },
+    { key: 'Halabja',      h: 22, s: 18, l: 34, img: '/images/cities/halabja-monument.jpg' }
   ];
 
   const tr = (k, fallback) => (window.t && window.t(k)) || fallback;
@@ -62,9 +66,9 @@
       '<div class="w-wall">' +
         CITIES.map((c, i) =>
           '<a class="w-plane" href="buy.html?type=apartment&city=' + encodeURIComponent(c.key) + '"' +
-             ' data-i="' + i + '" style="--h:' + c.h + ';--s:' + c.s + ';--l:' + c.l + '">' +
+             ' data-i="' + i + '" style="--h:' + c.h + ';--s:' + c.s + ';--l:' + c.l +
+             (c.img ? ';--img:url(' + c.img + ')' : '') + '">' +
             '<span class="w-plane-face" aria-hidden="true"></span>' +
-            '<span class="w-plane-skyline" aria-hidden="true"></span>' +
             '<span class="w-plane-scrim" aria-hidden="true"></span>' +
             '<span class="w-plane-body">' +
               '<span class="w-plane-name">' + esc(c.key) + '</span>' +
