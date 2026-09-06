@@ -518,7 +518,7 @@ body.world[dir="rtl"] .w-icon-btn svg { transform: scaleX(-1); }
 body.world .w-btn:focus-visible,
 body.world .w-action:focus-visible,
 body.world .w-icon-btn:focus-visible,
-body.world .w-open:focus-visible,
+body.world .w-panel:focus-visible,
 body.world .w-plane:focus-visible {
   outline: 2px solid var(--w-gold-hi); outline-offset: 3px;
 }
@@ -654,60 +654,110 @@ body.world .w-search .w-btn { min-height: 50px; border-radius: 15px; padding-inl
 body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
 
 /* =========================================================================
- * 8. INTENT -- five openings, not five cards
+ * 8. INTENT -- one wall, five panels, no cards
  * =========================================================================
- * Buy / Rent / Build / Renovate / Sell are cut INTO the world as tall
- * apertures with soft edges, standing at slightly different depths like a
- * colonnade. No card, no fill, no shared rectangle behind them. */
-body.world .w-colonnade {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: clamp(0.5rem, 1.2vw, 1.1rem);
-  align-items: end;
+ * Rejected and removed outright: the "colonnade" version, five separate
+ * apertures with rounded-capsule tops (border-radius: 180px 180px 14px
+ * 14px) standing at staggered depths. However soft-edged, that shape reads
+ * as a door/arch silhouette, and each opening was still its own floating
+ * object with a gap next to its neighbour -- exactly what was rejected.
+ *
+ * This is the replacement: Buy / Rent / Build / Renovate / Sell are five
+ * flex children of ONE full-width row, touching edge-to-edge (a 1px hairline
+ * seam between them, not a gap), square-cornered, no shadow, no radius,
+ * no per-panel depth transform. At rest every panel is equal width, holding
+ * only its image and a centred vertical title. Hovering or keyboard-
+ * focusing a panel is the sole trigger that widens it -- flex-grow is an
+ * animatable number, so the row itself does the layout math every frame;
+ * nothing here computes widths in JS. The other four compress to narrow
+ * strips in the same row; none of them is ever hidden or removed. The
+ * vertical title and the horizontal title+subtitle are two separately
+ * positioned elements, crossfaded by opacity -- writing-mode itself cannot
+ * be transitioned smoothly, so this is a deliberate crossfade, not a
+ * simulated rotation. */
+body.world .w-panels {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: clamp(360px, 44vw, 560px);
+  overflow: hidden;
 }
-body.world .w-open {
+body.world .w-panel {
   position: relative;
+  flex: 1 1 0%;
+  min-width: 0;
   display: block;
   text-decoration: none;
-  border-radius: 180px 180px 14px 14px;   /* an opening, not a tile */
   overflow: hidden;
-  aspect-ratio: 5 / 9;
-  transform: translateZ(calc(var(--d, 0) * -70px)) translateY(calc(var(--d, 0) * 14px));
-  transition: transform var(--w-slow) var(--w-ease-out);
+  border-inline-end: 1px solid rgba(252, 250, 245, 0.1);
+  transition: flex-grow var(--w-slow) var(--w-ease-out);
 }
-body.world .w-open::before {
-  content: ''; position: absolute; inset: 0; z-index: 0;
+body.world[dir="rtl"] .w-panel { border-inline-end: 1px solid rgba(252, 250, 245, 0.1); }
+body.world .w-panel:last-child { border-inline-end: 0; }
+body.world .w-panel-media {
+  position: absolute; inset: 0; z-index: 0;
   background-image: var(--img); background-size: cover; background-position: center;
-  filter: saturate(0.82) contrast(1.04);
+  transform: scale(1.05);
+  filter: saturate(0.76) contrast(1.03);
   transition: transform var(--w-slow) var(--w-ease-out), filter var(--w-mid) var(--w-ease);
 }
-/* The opening is darkened toward its own edges so it dissolves into the
-   world instead of ending on a hard rectangle. */
-body.world .w-open::after {
+/* Constant, panel-wide overlay so the seam between panels never shows a
+   brightness jump -- it only softens (not disappears) when a panel opens. */
+body.world .w-panel::after {
   content: ''; position: absolute; inset: 0; z-index: 1;
-  background:
-    linear-gradient(0deg, rgba(6,6,9,0.94) 0%, rgba(6,6,9,0.42) 44%, rgba(6,6,9,0.10) 100%),
-    radial-gradient(120% 90% at 50% 40%, transparent 46%, rgba(6,6,9,0.6) 100%);
+  background: linear-gradient(0deg, rgba(6,6,9,0.88) 0%, rgba(6,6,9,0.48) 46%, rgba(6,6,9,0.3) 100%);
+  transition: background var(--w-mid) var(--w-ease);
 }
-body.world .w-open-label {
-  position: absolute; inset-inline: 0; bottom: 0; z-index: 2;
-  padding: 1rem 0.9rem 1.15rem;
-  display: flex; flex-direction: column; align-items: center; gap: 0.3rem;
-  text-align: center;
+body.world .w-panel-face,
+body.world .w-panel-open {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity var(--w-mid) var(--w-ease);
 }
-body.world .w-open-name {
+body.world .w-panel-vert {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  white-space: nowrap;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 700; font-size: clamp(1rem, 1.5vw, 1.3rem);
-  letter-spacing: -0.012em; color: var(--w-ink);
+  font-weight: 700; font-size: clamp(0.95rem, 1.5vw, 1.3rem);
+  letter-spacing: 0.05em; color: var(--w-ink);
 }
-body.world .w-open-sub {
+body.world .w-panel-open {
+  flex-direction: column; gap: 0.5rem; opacity: 0;
+  padding-inline: 1.5rem; text-align: center;
+}
+body.world .w-panel-title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: clamp(1.35rem, 2.3vw, 2.1rem);
+  letter-spacing: -0.012em; color: var(--w-ink); white-space: nowrap;
+}
+body.world .w-panel-sub {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
-  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
-  color: var(--w-gold);
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--w-gold-hi); opacity: 0; transform: translateY(6px);
+  transition: opacity var(--w-mid) var(--w-ease) 0.08s, transform var(--w-mid) var(--w-ease) 0.08s;
+  white-space: nowrap;
 }
 @media (hover: hover) {
-  body.world .w-open:hover { transform: translateZ(20px) translateY(-6px); }
-  body.world .w-open:hover::before { transform: scale(1.06); filter: saturate(1) contrast(1.04); }
+  body.world .w-panel:hover,
+  body.world .w-panel:focus-visible {
+    flex-grow: 3.6;
+  }
+  body.world .w-panel:hover .w-panel-media,
+  body.world .w-panel:focus-visible .w-panel-media {
+    transform: scale(1); filter: saturate(0.95) contrast(1.02);
+  }
+  body.world .w-panel:hover::after,
+  body.world .w-panel:focus-visible::after {
+    background: linear-gradient(0deg, rgba(6,6,9,0.66) 0%, rgba(6,6,9,0.16) 55%, rgba(6,6,9,0.04) 100%);
+  }
+  body.world .w-panel:hover .w-panel-face,
+  body.world .w-panel:focus-visible .w-panel-face { opacity: 0; }
+  body.world .w-panel:hover .w-panel-open,
+  body.world .w-panel:focus-visible .w-panel-open { opacity: 1; }
+  body.world .w-panel:hover .w-panel-sub,
+  body.world .w-panel:focus-visible .w-panel-sub { opacity: 1; transform: translateY(0); }
 }
 
 /* =========================================================================
@@ -983,15 +1033,31 @@ body.world .home-bottomnav {
   body.world .w-search .w-btn { min-height: 46px; border-radius: 12px; padding-inline: 0.85rem; }
   body.world .w-search .w-btn-text { display: none; }
 
-  /* Intent: the colonnade becomes a peek-scrolled row of the same openings
-     -- still apertures, never five equal cards in a grid. */
-  body.world .w-colonnade {
-    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 46%;
-    overflow-x: auto; scroll-snap-type: x mandatory; gap: 0.6rem;
-    scroll-padding-inline: 1.25rem; scrollbar-width: none;
+  /* Intent: the panel wall becomes a horizontal snap-scroller. There is no
+     hover on touch, so js/home-intent-panels.js tracks whichever panel
+     sits nearest the row's centre and marks it .is-active -- dominant
+     width, horizontal title. Partial neighbours stay visible either side,
+     so this still reads as one wall being swiped through, not a deck of
+     separate cards, and every panel (the whole tappable area, far past the
+     44px minimum) still navigates on tap regardless of active state. */
+  body.world .w-panels {
+    height: 58vh; min-height: 420px;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    scroll-padding-inline: 11vw; scrollbar-width: none;
   }
-  body.world .w-colonnade::-webkit-scrollbar { display: none; }
-  body.world .w-open { scroll-snap-align: center; aspect-ratio: 5 / 8; transform: none; }
+  body.world .w-panels::-webkit-scrollbar { display: none; }
+  body.world .w-panel {
+    flex: 0 0 76%; scroll-snap-align: center;
+    transition: flex-basis var(--w-mid) var(--w-ease);
+  }
+  body.world .w-panel.is-active { flex: 0 0 84%; }
+  body.world .w-panel.is-active .w-panel-face { opacity: 0; }
+  body.world .w-panel.is-active .w-panel-open { opacity: 1; }
+  body.world .w-panel.is-active .w-panel-sub { opacity: 1; transform: none; }
+  body.world .w-panel.is-active .w-panel-media { transform: scale(1); filter: saturate(0.95) contrast(1.02); }
+  body.world .w-panel.is-active::after {
+    background: linear-gradient(0deg, rgba(6,6,9,0.7) 0%, rgba(6,6,9,0.2) 55%, rgba(6,6,9,0.05) 100%);
+  }
 
   /* City gallery keeps its perspective -- this is the moment that must not
      degrade to a list -- but shows fewer neighbours and swipes. */
@@ -1039,8 +1105,9 @@ body.world .w-gallery { perspective: 1900px; min-height: 62vh; }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
-  body.world .w-colonnade { grid-template-columns: repeat(3, 1fr); }
-  body.world .w-open:nth-child(n+4) { display: none; }
+  /* No override needed for .w-panels here: the base five-equal-panel flex
+     row (section 8) already fits this width without hiding any panel,
+     which the old three-column grid + nth-child(n+4){display:none} did. */
   body.world .w-offer { grid-template-columns: 1fr; }
 }
 
@@ -1052,7 +1119,11 @@ body.world .w-gallery { perspective: 1900px; min-height: 62vh; }
  * still changes focus -- instantly instead of gliding. ================== */
 @media (prefers-reduced-motion: reduce) {
   body.world .w-plane,
-  body.world .w-open,
+  body.world .w-panel,
+  body.world .w-panel-media,
+  body.world .w-panel-face,
+  body.world .w-panel-open,
+  body.world .w-panel-sub,
   body.world .w-btn,
   body.world .w-btn-arrow,
   body.world .w-action::after,
