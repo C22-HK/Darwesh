@@ -75,15 +75,15 @@
           '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50">' +
             '<button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
               '<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>' +
-              '<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>' +
+              '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
             '</button>' +
             '<button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
               '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>' +
-              '<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>' +
+              '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
             '</button>' +
             '<button class="lang-option" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
               '<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>' +
-              '<span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>' +
+              '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
             '</button>' +
           '</div>' +
         '</div>' +
@@ -94,7 +94,7 @@
         '<div class="relative flex items-center gap-0.5">' +
           '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
           '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-primary dark:text-primary-fixed-dim' : 'text-on-surface-variant dark:text-on-surface-variant hover:text-primary') + ' transition-colors" type="button" aria-label="Buy or rent">' +
-            '<span class="material-symbols-outlined text-[18px]" aria-hidden="true">expand_more</span>' +
+            '<span class="text-[18px]" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>' +
           '</button>' +
           '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-surface-bright dark:bg-surface-dim border border-outline-variant dark:border-outline rounded-xl shadow-lg py-1">' +
             '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-colors" href="map.html?type=sale" data-i18n="nav.buy">Buy</a>' +
@@ -111,7 +111,7 @@
         '<a id="navProfileLink" class="' + navClass('profile') + '" href="login.html" data-i18n="nav.profile">Profile</a>' +
       '</nav>' +
       '<button aria-label="Notifications" class="p-2 rounded-full hover:bg-surface-container-high dark:hover:bg-surface-container-highest transition-all duration-200 active:scale-95 text-on-surface-variant dark:text-on-surface-variant" type="button">' +
-        '<span class="material-symbols-outlined" aria-hidden="true">notifications</span>' +
+        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>' +
       '</button>' +
     '</header>';
 

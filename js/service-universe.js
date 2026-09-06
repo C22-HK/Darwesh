@@ -77,10 +77,10 @@ function build(mount) {
           <div class="su-orbit" id="suOrbit" role="listbox" aria-label="${esc(tr('svc.universeAriaLabel', 'Darwesh service planets'))}"></div>
           <div class="su-nav">
             <button type="button" class="su-nav-btn" id="suPrevBtn" aria-label="${esc(tr('svc.prevService', 'Previous service'))}">
-              <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
             <button type="button" class="su-nav-btn" id="suNextBtn" aria-label="${esc(tr('svc.nextService', 'Next service'))}">
-              <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
             </button>
           </div>
         </div>

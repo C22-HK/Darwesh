@@ -68,10 +68,10 @@ function build(mount, platforms) {
         <div class="so-orbit" id="soOrbit" role="listbox" aria-label="${esc(tr('social.universeAriaLabel', 'Darwesh social channels'))}"></div>
         <div class="so-nav">
           <button type="button" class="so-nav-btn" id="soPrevBtn" aria-label="${esc(tr('social.prevPlatform', 'Previous channel'))}">
-            <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           </button>
           <button type="button" class="so-nav-btn" id="soNextBtn" aria-label="${esc(tr('social.nextPlatform', 'Next channel'))}">
-            <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
           </button>
         </div>
       </div>
