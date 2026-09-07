@@ -27,17 +27,9 @@ import { sendMamChat, BackendUnavailableError, BackendResponseError, fetchMamVoi
 import { detectDirectCommand, resolvePage, filtersToMapUrlParams } from './mam-actions.js';
 import { mamNavigate, canNavigateInPlace, bindPopstate } from './mam-shell.js';
 import { VoiceEnergy } from './mam-voice-energy.js';
+import * as spatialFlows from './mam-spatial-flows.js';
+import { createSpatialChoice } from './mam-spatial-choice.js';
 
-// Below this width the panel gives up trying to sit beside the dock and
-// becomes a near-full-width sheet instead -- there simply is not enough
-// room on a phone for "360px wide, anchored to one edge" to mean
-// anything. It keeps the SAME vertical anchor logic as wide viewports
-// (still grows from wherever the dock is, up or down), so it is still
-// the dock expanding in place, just full-width while it does it.
-const NARROW_VIEWPORT_PX = 480;
-const PANEL_MARGIN_PX = 12;
-const PANEL_WIDTH_PX = 360;
-const PANEL_MAX_HEIGHT_PX = 560;
 // How far the grab handle must be dragged down before a release counts as
 // "collapse" rather than "snap back" -- see the grab-handle block below.
 const COLLAPSE_DRAG_PX = 70;
@@ -54,6 +46,7 @@ const ICON_MIC_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none
 const ICON_SEND_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>';
 const ICON_VOLUME_ON_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 const ICON_VOLUME_OFF_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/></svg>';
+const ICON_HISTORY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg>';
 
 const MAX_MESSAGE_LENGTH = 1000;
 const SESSION_KEY = 'darwesh_mam_companion_session_id';
@@ -167,27 +160,35 @@ export function isMamMounted() { return mounted; }
 /**
  * @param {Object} opts
  * @param {Element} opts.orbEl The orb itself -- this module wires its
- *   click/keyboard activation to open/toggle the panel; the caller
- *   never has to do that itself.
- * @param {Element} [opts.dockEl] The panel's anchor element -- its live
- *   position is what the panel anchors to and morphs from/to on every
- *   open and close -- without it the panel falls back to a fixed centred
- *   position, which is only ever used defensively (every real caller
- *   passes this).
- * @param {Element[]} [opts.micEls] Extra mic buttons outside the panel
- *   to drive from the SAME voice state as the panel's own.
+ *   click/keyboard activation to open/toggle the history sheet; the
+ *   caller never has to do that itself.
+ * @param {Element[]} [opts.micEls] Extra mic buttons outside the composer
+ *   to drive from the SAME voice state as the composer's own.
  * @param {{root: Element, element: Element, setState: Function, setEnergy: Function, setFocus: Function, getState: Function, destroy: Function}} opts.companion
  * @param {() => string} [opts.getLanguage]
  * @param {(state: {handsFree: boolean, listening: boolean, wakeEnabled: boolean, wakeListening: boolean}) => void} [opts.onVoiceUi]
  * @param {(text: string|null) => void} [opts.onResumeHint]
  * @param {(isOpen: boolean) => void} [opts.onOpenState] Told whenever the
- *   overlay opens/closes, so the caller can collapse the compact dock
- *   while the expanded state is on screen.
+ *   history sheet opens/closes.
+ * @param {Element} [opts.spatialChoiceHost] Empty container for the
+ *   adaptive spatial question/card flow (js/mam-spatial-choice.js). Omit
+ *   it on a page that hasn't adopted the flow yet -- every vague-need
+ *   detection below simply never fires and every turn behaves exactly as
+ *   it always has, unchanged.
  * @param {Object} opts.pageContext Structured, ID-only context (never
  *   scraped DOM) -- same shape as backend/app/mam/schemas.py's
  *   PageContext: {page, listingId?, projectId?, professionalId?, serviceType?}.
+ * @param {(type: string, payload: Object) => void} [opts.onSpatialEvent]
+ *   Fired at real turn-lifecycle moments this function already reaches
+ *   for its own reasons -- never a second, parallel progress system.
+ *   Types: 'start' {text} when a turn is sent (thinking begins);
+ *   'result' {message, cards, mapAction, suggestedActions} once a REAL
+ *   backend reply has actually arrived; 'navigate' {href, mapAction}
+ *   when this reply is about to move the visitor (same href
+ *   speakThenNavigate itself uses); 'error' {message} on a failed turn.
+ *   Purely observational -- never changes what this function does.
  */
-export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLanguage, pageContext, onVoiceUi, onResumeHint, onOpenState }) {
+export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, pageContext, onVoiceUi, onResumeHint, onOpenState, onSpatialEvent, spatialChoiceHost }) {
   if (mounted) {
     console.warn('[mam-chat-panel] already mounted on this page -- ignoring the second mount');
     return null;
@@ -195,6 +196,8 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   mounted = true;
   const currentLang = currentLangFactory(getLanguage);
   ensureStylesheet();
+  function emitSpatial(type, payload) { if (typeof onSpatialEvent === 'function') onSpatialEvent(type, payload); }
+  const spatialChoice = spatialChoiceHost ? createSpatialChoice({ hostEl: spatialChoiceHost }) : null;
 
   // ---- KurdishTTS Sorani voice capability -------------------------------
   // Probed ONCE per page load, best-effort, never blocking anything --
@@ -280,6 +283,19 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       voiceEnergy.attachToMicrophone();
     } else if (prev === 'LISTENING' && next !== 'LISTENING' && next !== 'SPEAKING') {
       voiceEnergy.stop();
+    }
+    // The ephemeral composer status line's Listening half -- honest about
+    // what SpeechRecognition here actually delivers (interimResults is
+    // off; there is no live partial transcript to show, only this label
+    // while real capture is in progress). Thinking's own half lives in
+    // showThinking()/hideThinking() below, which know this is a REAL
+    // network wait rather than every incidental PROCESSING beat (e.g. the
+    // Kurdish greeting's acknowledgement pulse, which must not stomp on
+    // the greeting text addAssistantBubble just set).
+    if (next === 'LISTENING' && prev !== 'LISTENING') {
+      setStatusLine(tr('mamai.stateListening', 'Listening…'), { persist: true });
+    } else if (prev === 'LISTENING' && next !== 'LISTENING' && next !== 'PROCESSING') {
+      setStatusLine(null);
     }
   }
 
@@ -367,26 +383,23 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     if (bargeInStream) { bargeInStream.getTracks().forEach((t) => t.stop()); bargeInStream = null; }
   }
 
+  // ---- the history sheet -- collapsed by default, a fixed bottom sheet
+  // opened ONLY by explicit action (the history toggle below, the entity
+  // orb, or a voice/error moment that genuinely needs attention) -- never
+  // the surface a visitor lands on. The always-on composer further down
+  // is what's actually visible at rest. -----------------------------------
   const panel = document.createElement('div');
   panel.className = 'mamcp-panel';
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-modal', 'false');
-  panel.setAttribute('aria-label', 'MAM');
+  panel.setAttribute('aria-label', tr('mam.historyLabel', 'Conversation history'));
   // Closed by default. Visibility/interactivity/animation are all driven
   // by the `.is-open` class (css/mam-chat-panel.css) rather than the
-  // `hidden` attribute now -- `hidden` forces `display:none`, which
-  // cannot be transitioned, and an animated "grow from the dock" open is
-  // exactly what this panel needs to not look detached (see
-  // computeAnchoredPosition() below).
+  // `hidden` attribute -- `hidden` forces `display:none`, which cannot be
+  // transitioned, and this sheet slides up from the bottom edge.
   panel.setAttribute('aria-hidden', 'true');
 
-  // ---- grab handle -- replaces the old "popup with an X" pattern -------
-  // A premium bottom-sheet/panel is grabbed and dragged away, not closed
-  // with a button in the corner. This is the PRIMARY way to collapse:
-  // drag it down past COLLAPSE_DRAG_PX and release (see the pointer
-  // handlers below, wired after `close` exists). It is also a real
-  // control for anyone who can't drag -- role="button" plus tabindex, so
-  // Enter/Space collapses it from the keyboard exactly like a click would.
+  // ---- grab handle -- drag it down (or click, or Enter/Space) to collapse
   const grabHandle = document.createElement('div');
   grabHandle.className = 'mamcp-grab-handle';
   grabHandle.setAttribute('role', 'button');
@@ -398,15 +411,15 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   grabHandle.appendChild(grabBar);
   panel.appendChild(grabHandle);
 
+  // A small, quiet header -- no giant "MAM" title (the entity itself
+  // already carries that identity): a small label plus the two controls
+  // that genuinely belong at sheet level (voice replies, collapse).
   const header = document.createElement('div');
   header.className = 'mamcp-header';
-  const titleWrap = document.createElement('div');
-  titleWrap.className = 'mamcp-title-wrap';
-  const title = document.createElement('span');
-  title.className = 'mamcp-title';
-  title.textContent = 'MAM';
-  titleWrap.appendChild(title);
-  header.appendChild(titleWrap);
+  const sheetLabel = document.createElement('span');
+  sheetLabel.className = 'mamcp-sheet-label';
+  sheetLabel.textContent = tr('mam.historyLabel', 'Conversation history');
+  header.appendChild(sheetLabel);
 
   const headerActions = document.createElement('div');
   headerActions.className = 'mamcp-header-actions';
@@ -421,11 +434,6 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   voiceToggleBtn.appendChild(voiceToggleIcon);
   headerActions.appendChild(voiceToggleBtn);
 
-  // A small, quiet collapse control for keyboard/screen-reader use and
-  // anyone who would rather click than drag -- deliberately NOT the
-  // prominent circular X a popup normally gets; the grab handle above is
-  // the surface's real, primary affordance for closing. Same action as
-  // before (`close()`), a calmer icon and label for it.
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'mamcp-icon-btn mamcp-collapse-btn';
@@ -446,9 +454,42 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   emptyState.textContent = tr('mam.greeting', "Ask me about Darwesh listings, projects, or service providers.");
   log.appendChild(emptyState);
 
+  document.body.appendChild(panel);
+
+  // ---- the composer -- the one thing (besides the entity) that is
+  // always on screen. Fixed, bottom-centred, never grows into a panel of
+  // its own: focus/listening/thinking/response are CSS states toggled on
+  // composerRoot, and the full transcript always lives in the history
+  // sheet above -- never duplicated here. --------------------------------
+  const composerRoot = document.createElement('div');
+  composerRoot.className = 'mamcp-composer-root';
+
+  // Ephemeral pre-interaction suggestions -- renderChips() below already
+  // hides these the moment a real conversation exists.
   const chipsEl = document.createElement('div');
   chipsEl.className = 'mamcp-chips';
-  panel.appendChild(chipsEl);
+  composerRoot.appendChild(chipsEl);
+
+  // One ephemeral line above the bar -- "Listening…" / "Thinking…" / a
+  // short reply. Never a transcript: the full reply is always also
+  // recorded into the history sheet's log; this is a fading glance at it.
+  const statusLine = document.createElement('div');
+  statusLine.className = 'mamcp-status';
+  statusLine.setAttribute('role', 'status');
+  statusLine.setAttribute('aria-live', 'polite');
+  statusLine.hidden = true;
+  composerRoot.appendChild(statusLine);
+
+  const barWrap = document.createElement('div');
+  barWrap.className = 'mamcp-bar-wrap';
+
+  const historyBtn = document.createElement('button');
+  historyBtn.type = 'button';
+  historyBtn.className = 'mamcp-icon-btn mamcp-history-btn';
+  historyBtn.setAttribute('aria-label', tr('mam.historyLabel', 'Conversation history'));
+  historyBtn.setAttribute('aria-pressed', 'false');
+  historyBtn.innerHTML = ICON_HISTORY_SVG;
+  barWrap.appendChild(historyBtn);
 
   const form = document.createElement('form');
   form.className = 'mamcp-bar';
@@ -457,7 +498,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   input.type = 'text';
   input.autocomplete = 'off';
   input.maxLength = MAX_MESSAGE_LENGTH;
-  input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM about the market…');
+  input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM anything…');
   input.setAttribute('aria-label', 'Ask MAM');
   form.appendChild(input);
 
@@ -475,112 +516,34 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   sendBtn.setAttribute('aria-label', 'Send message');
   sendBtn.innerHTML = ICON_SEND_SVG;
   form.appendChild(sendBtn);
-  panel.appendChild(form);
+  barWrap.appendChild(form);
+  composerRoot.appendChild(barWrap);
 
   // Appended to <body>, deliberately NOT inside orbRoot: an orb root that
   // carries its own CSS `transform` would become the containing block for
-  // any `position: fixed` descendant and silently break this panel's
-  // viewport-relative positioning/stacking. Positioning it independently
-  // keeps it reliably on top of page content regardless of where the
-  // orb's own root happens to sit in the DOM.
-  document.body.appendChild(panel);
+  // any `position: fixed` descendant and silently break fixed positioning.
+  document.body.appendChild(composerRoot);
 
-  // ---- anchoring the panel to the dock's CURRENT position --------------
-  // This is the whole fix for "MAM jumps to a detached right-side panel":
-  // the panel's position is computed fresh, every time, from where the
-  // dock ACTUALLY is on screen right now -- never a fixed CSS position
-  // independent of it. Measured and applied BEFORE the caller collapses
-  // the dock (see open() below), so this always reads the dock's real,
-  // uncollapsed layout position, not a slightly-transformed one.
-  let lastAnchor = null;   // reused by close() so it shrinks back to the exact spot it grew from
-  function computeAnchoredPosition() {
-    if (!dockEl) return null;
-    const r = dockEl.getBoundingClientRect();
-    if (r.width === 0 || r.height === 0) return null;   // dock not laid out yet -- fall back to CSS defaults
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const narrow = vw < NARROW_VIEWPORT_PX;
-
-    // Horizontal anchor: whichever side of the viewport the dock's centre
-    // is nearer to is the edge the panel grows from too -- docked right,
-    // it expands leftward/inward; docked left, rightward/inward.
-    const anchorRight = (r.left + r.width / 2) > vw / 2;
-    // Vertical anchor: same idea. A dock sitting in the bottom half (the
-    // map's own bottom-safe dock) makes the panel grow UPWARD from it;
-    // one in the top half grows downward.
-    const anchorBottom = (r.top + r.height / 2) > vh / 2;
-
-    const style = {};
-    if (narrow) {
-      // Full-width-minus-margins: there is no meaningful "grow sideways"
-      // on a phone screen, so only the vertical anchor still does real
-      // work here.
-      style.left = PANEL_MARGIN_PX + 'px';
-      style.right = PANEL_MARGIN_PX + 'px';
-      style.width = 'auto';
-    } else {
-      const w = Math.min(PANEL_WIDTH_PX, vw - 2 * PANEL_MARGIN_PX);
-      style.width = w + 'px';
-      if (anchorRight) {
-        style.right = Math.max(PANEL_MARGIN_PX, vw - r.right) + 'px';
-        style.left = 'auto';
-      } else {
-        style.left = Math.max(PANEL_MARGIN_PX, r.left) + 'px';
-        style.right = 'auto';
-      }
-    }
-    if (anchorBottom) {
-      style.bottom = Math.max(PANEL_MARGIN_PX, vh - r.bottom) + 'px';
-      style.top = 'auto';
-      style.maxHeight = Math.min(PANEL_MAX_HEIGHT_PX, r.top - PANEL_MARGIN_PX) + 'px';
-    } else {
-      style.top = Math.max(PANEL_MARGIN_PX, r.top) + 'px';
-      style.bottom = 'auto';
-      style.maxHeight = Math.min(PANEL_MAX_HEIGHT_PX, vh - r.bottom - PANEL_MARGIN_PX) + 'px';
-    }
-    const transformOrigin = (narrow ? '50%' : (anchorRight ? '100%' : '0%')) + ' ' + (anchorBottom ? '100%' : '0%');
-    return { style, transformOrigin };
-  }
-  function applyAnchor(anchor) {
-    if (!anchor) return;
-    Object.assign(panel.style, anchor.style);
-    panel.style.transformOrigin = anchor.transformOrigin;
-  }
-
-  // ---- open/close -- panel state is never destroyed, only hidden;
-  // conversation/session survive close/reopen for the whole page visit,
-  // exactly like map.html's own dock. ----------------------------------
-  // The compact dock and this overlay are two states of ONE surface, not
-  // two things on screen at once: the overlay is the dock expanded. Both
-  // are fixed-position and the visitor can park the dock anywhere, so
-  // leaving the dock up would sooner or later put it on top of the
-  // conversation (or the conversation on top of it, swallowing taps meant
-  // for the dock -- which is exactly what happened before this). The
-  // caller is told which state we are in and collapses the dock while the
-  // overlay is up; the overlay's own close button brings it back.
+  // ---- open/close -- the HISTORY SHEET only. Never destroyed, only
+  // hidden; conversation/session survive close/reopen for the whole page
+  // visit. The composer above is unaffected either way -- it is always
+  // present regardless of whether the sheet is open. ----------------------
   let isOpen = false;
   function setOpenState(nextOpen) {
     if (nextOpen === isOpen) return;
     isOpen = nextOpen;
-    if (isOpen) {
-      // Measure and position FIRST, while the dock is still in its normal
-      // (uncollapsed) layout position -- onOpenState below is what
-      // collapses it, and must run after this.
-      lastAnchor = computeAnchoredPosition();
-      applyAnchor(lastAnchor);
-    } else if (lastAnchor) {
-      // Shrink back to the exact spot it grew from, not wherever the dock
-      // happens to measure right now (it's invisible/collapsed at this
-      // point, so re-measuring it would be measuring a moving target).
-      applyAnchor(lastAnchor);
-    }
     panel.classList.toggle('is-open', isOpen);
     panel.setAttribute('aria-hidden', String(!isOpen));
+    historyBtn.setAttribute('aria-pressed', String(isOpen));
+    composerRoot.classList.toggle('history-open', isOpen);
+    if (isOpen) scrollLogToBottom();
     if (onOpenState) onOpenState(isOpen);
   }
   function open() { setOpenState(true); }
   function close() { setOpenState(false); }
-  function toggle() { if (!isOpen) { open(); input.focus(); } else close(); }
+  function toggle() { if (!isOpen) open(); else close(); }
   closeBtn.addEventListener('click', close);
+  historyBtn.addEventListener('click', toggle);
   if (orbEl) orbEl.addEventListener('click', toggle);
 
   // Escape collapses from anywhere in the panel -- a real keyboard path
@@ -604,8 +567,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // The primary gesture this surface offers instead of a popup's X: grab
   // the handle, pull it down, let go. Short of the threshold, it springs
   // back -- nothing closes on an accidental nudge. Horizontal movement is
-  // ignored entirely (this is a vertical dismiss gesture, not a drag-to-
-  // move -- the dock itself already owns repositioning).
+  // ignored entirely (this is a vertical dismiss gesture only).
   let handleDrag = null;
   grabHandle.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
@@ -634,27 +596,66 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   grabHandle.addEventListener('pointerup', endHandleDrag);
   grabHandle.addEventListener('pointercancel', endHandleDrag);
 
-  // A resize/rotation while the panel is OPEN must keep it correctly
-  // anchored and clamped -- the anchor element stays in normal layout
-  // throughout, so re-measuring it on a debounce still gives a usable,
-  // up-to-date rect.
-  let resizeTimer = null;
-  window.addEventListener('resize', () => {
-    if (!isOpen) return;
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { if (isOpen && dockEl) { lastAnchor = computeAnchoredPosition() || lastAnchor; applyAnchor(lastAnchor); } }, 120);
+  // ---- composer focus/blur -- its own small "Focused" expand state,
+  // entirely decoupled from the history sheet's open/close (no longer
+  // opens the sheet on focus -- that used to be the "permanent chatbot
+  // panel" behaviour this redesign specifically removes). -----------------
+  form.addEventListener('focusin', () => composerRoot.classList.add('is-focused'));
+  form.addEventListener('focusout', () => {
+    if (!form.contains(document.activeElement)) composerRoot.classList.remove('is-focused');
   });
+
+  // ---- mobile on-screen keyboard: keep the composer above it instead of
+  // letting the keyboard cover it -- visualViewport is the only reliable
+  // signal a keyboard opened/closed on mobile Safari/Chrome. --------------
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    let vvTimer = null;
+    function syncViewportInset() {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      composerRoot.style.setProperty('--mamcp-vv-inset', inset + 'px');
+      composerRoot.classList.toggle('keyboard-open', inset > 80);
+    }
+    vv.addEventListener('resize', () => { clearTimeout(vvTimer); vvTimer = setTimeout(syncViewportInset, 60); });
+    vv.addEventListener('scroll', () => { clearTimeout(vvTimer); vvTimer = setTimeout(syncViewportInset, 60); });
+  }
 
   function scrollLogToBottom() { log.scrollTop = log.scrollHeight; }
   function clearEmptyState() { if (emptyState.parentNode) emptyState.remove(); }
 
+  // ---- ephemeral status/response line -----------------------------------
+  // Drives the ONE thing visible near the composer besides the entity
+  // itself: "Listening…" / "Thinking…" / a short glance at the reply.
+  // Never the full transcript -- that always lives in the history sheet's
+  // log (see addUserBubble/addAssistantBubble), never duplicated here.
+  const RESPONSE_LINE_MS = 6000;
+  let statusLineTimer = null;
+  function setStatusLine(text, { persist = false } = {}) {
+    clearTimeout(statusLineTimer);
+    statusLineTimer = null;
+    if (!text) { statusLine.hidden = true; statusLine.textContent = ''; return; }
+    statusLine.textContent = text;
+    statusLine.hidden = false;
+    if (!persist) statusLineTimer = setTimeout(() => setStatusLine(null), RESPONSE_LINE_MS);
+  }
+
   function addUserBubble(text) {
     clearEmptyState();
     const b = document.createElement('div');
-    b.className = 'mamcp-bubble mamcp-bubble-user';
-    b.textContent = text;
+    b.className = 'mamcp-entry mamcp-entry-user';
+    const marker = document.createElement('span');
+    marker.className = 'mamcp-entry-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    b.appendChild(marker);
+    const p = document.createElement('p');
+    p.textContent = text;
+    b.appendChild(p);
     log.appendChild(b);
     scrollLogToBottom();
+    // A real conversation now exists -- the ephemeral pre-interaction
+    // suggestions fade for good (renderChips()'s own check), regardless of
+    // whether this turn started by typing, voice, or a suggestion click.
+    renderChips();
   }
 
   function buildRefCard(card) {
@@ -705,7 +706,11 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       body.className = 'mamcp-ref-card-body';
       const t = document.createElement('p');
       t.className = 'mamcp-ref-card-title';
-      t.textContent = card.name || tr('mam.professional', 'Professional');
+      // backend/app/mam/routes.py's _serialize_card sends `displayName`
+      // for a professional card (never `name` -- that's the project
+      // card's own field) -- this used to silently always fall back to
+      // the generic label below.
+      t.textContent = card.displayName || tr('mam.professional', 'Professional');
       body.appendChild(t);
       a.appendChild(body);
       return a;
@@ -745,7 +750,11 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   function addAssistantBubble(data, { failed = false, retryText = null } = {}) {
     clearEmptyState();
     const b = document.createElement('div');
-    b.className = 'mamcp-bubble mamcp-bubble-assistant' + (failed ? ' mamcp-bubble-error' : '');
+    b.className = 'mamcp-entry mamcp-entry-assistant' + (failed ? ' mamcp-entry-error' : '');
+    const marker = document.createElement('span');
+    marker.className = 'mamcp-entry-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    b.appendChild(marker);
     if (data.message) {
       const p = document.createElement('p');
       p.textContent = data.message;
@@ -770,25 +779,27 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     if (suggested) b.appendChild(suggested);
     log.appendChild(b);
     scrollLogToBottom();
+    // A short glance at the reply near the composer -- text only, never
+    // the cards/actions above (those stay in the history sheet and the
+    // spatial result layer; the ephemeral line never duplicates them).
+    if (data.message) setStatusLine(data.message);
+    renderChips();
     return b;
   }
 
-  let thinkingEl = null;
+  // Drives the composer's "Thinking…" line for a REAL network wait only
+  // (a turn is genuinely in flight) -- separate from setVoiceState's own
+  // PROCESSING transitions, some of which are purely cosmetic acknowledgement
+  // beats (e.g. speakGreeting()'s) that must never overwrite text a reply
+  // just set.
+  let thinking = false;
   function showThinking() {
-    if (thinkingEl) return;
+    if (thinking) return;
+    thinking = true;
     setVoiceState('PROCESSING');
-    thinkingEl = document.createElement('div');
-    thinkingEl.className = 'mamcp-bubble mamcp-bubble-assistant mamcp-thinking';
-    thinkingEl.setAttribute('aria-label', tr('mam.orbThinking', 'MAM is thinking'));
-    for (let i = 0; i < 3; i++) {
-      const dot = document.createElement('span');
-      dot.className = 'mamcp-dot';
-      thinkingEl.appendChild(dot);
-    }
-    log.appendChild(thinkingEl);
-    scrollLogToBottom();
+    setStatusLine(tr('mamai.stateThinking', 'Thinking…'), { persist: true });
   }
-  function hideThinking() { if (thinkingEl) { thinkingEl.remove(); thinkingEl = null; } }
+  function hideThinking() { thinking = false; }
 
   // ---- Voice output (TTS) -- OFF by default (never autoplays on load),
   // the same localStorage preference the map's MAM dock uses so it
@@ -1176,6 +1187,120 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     return null;
   }
 
+  // ---- adaptive spatial question/card flow -------------------------------
+  // The "missing-information resolver" half of the pipeline js/mam-spatial-
+  // flows.js's own header comment describes: this orchestrates WHICH
+  // question to ask next and WHAT a completed flow does, using only that
+  // file's pure functions -- js/mam-spatial-choice.js (spatialChoice above)
+  // only ever renders whatever question/choices it's handed and resolves a
+  // Promise on a pick, never deciding any of this itself. `activeFlow` is
+  // null whenever no clarification is in progress, which is the normal
+  // case for every turn that is already specific enough -- see
+  // isVaguePropertyNeed()/isVagueProfessionalNeed()'s own "never asks what
+  // it doesn't need to" contract.
+  let activeFlow = null; // { kind: 'property'|'professional'|'sell', questions, slots, originalText, viaVoice, category? }
+
+  function cancelActiveFlow() {
+    if (!activeFlow) return;
+    activeFlow = null;
+    if (spatialChoice) spatialChoice.cancel();
+  }
+
+  function describeSlotLabel(questionId, slots) {
+    if (questionId === 'intent' && slots.intent) {
+      const c = spatialFlows.INTENT_CHOICES.find((x) => x.id === slots.intent);
+      return c ? tr(c.labelKey, c.fallback) : null;
+    }
+    if (questionId === 'city' && slots.city) return spatialFlows.cityLabel(slots.city);
+    if (questionId === 'type' && slots.propertyType) {
+      const t = spatialFlows.PROPERTY_TYPES.find((x) => x.word === slots.propertyType);
+      return t ? tr(t.labelKey, t.fallback) : null;
+    }
+    return null;
+  }
+
+  function applyChoiceToSlots(flow, questionId, value) {
+    if (questionId === 'intent') {
+      flow.slots.intent = value;
+      // Sell has its own single-question flow (city only) -- Phase 1
+      // explicitly does not recreate the 7-step Sell form here, so a
+      // 'sell' pick swaps the whole flow rather than continuing to ask
+      // property-search questions (type/rooms) that don't apply to it.
+      if (value === 'sell' && flow.kind === 'property') {
+        flow.kind = 'sell';
+        flow.questions = spatialFlows.SELL_QUESTIONS;
+        flow.slots = { city: null };
+      }
+    } else if (questionId === 'city') {
+      flow.slots.city = value;
+    } else if (questionId === 'type') {
+      flow.slots.propertyType = value;
+    }
+  }
+
+  async function advanceFlow() {
+    if (!activeFlow || !spatialChoice) return;
+    const flow = activeFlow;
+    const question = spatialFlows.nextQuestion(flow.questions, flow.slots);
+    if (!question) { await completeFlow(flow); return; }
+    const built = question.build(currentLang());
+    built.breadcrumb = flow.questions
+      .map((q) => describeSlotLabel(q.id, flow.slots))
+      .filter(Boolean);
+    const choice = await spatialChoice.ask(built);
+    if (activeFlow !== flow || !choice) return; // cancelled mid-ask, or superseded
+    applyChoiceToSlots(flow, question.id, choice.value);
+    await advanceFlow();
+  }
+
+  async function completeFlow(flow) {
+    activeFlow = null;
+    const lang = currentLang();
+    if (flow.kind === 'sell') {
+      setStatusLine(tr('mamai.spatial.openingSell', 'Opening Sell…'), { persist: true });
+      const { setSellField } = await import('./mam-command-registry.js');
+      const result = setSellField('city', String(flow.slots.city || '').toLowerCase());
+      if (!result.ok) {
+        setStatusLine(null);
+        addAssistantBubble({ message: tr('mam.genericError', "That didn't go through. Please try again.") }, { failed: true });
+      }
+      return; // a successful setSellField() already navigated away
+    }
+    const synthesized = flow.kind === 'professional'
+      ? spatialFlows.synthesizeProfessionalMessage(flow.originalText, flow.slots.city, lang)
+      : spatialFlows.synthesizePropertyMessage(flow.slots, lang);
+    setStatusLine(tr('mamai.spatial.findingMatches', 'Let me find the best matches.'), { persist: true });
+    await sendMessage(synthesized, { viaVoice: flow.viaVoice });
+  }
+
+  function startPropertyFlow(text, viaVoice) {
+    const signals = spatialFlows.detectPropertySignals(text);
+    activeFlow = {
+      kind: 'property',
+      questions: spatialFlows.PROPERTY_QUESTIONS,
+      slots: {
+        intent: signals.dealType === 'rent' ? 'rent' : signals.dealType === 'buy' ? 'buy' : null,
+        city: signals.city || null,
+        propertyType: signals.propertyType || null
+      },
+      originalText: text,
+      viaVoice
+    };
+    advanceFlow();
+  }
+
+  function startProfessionalFlow(text, category, viaVoice) {
+    activeFlow = {
+      kind: 'professional',
+      questions: spatialFlows.PROFESSIONAL_QUESTIONS,
+      slots: { city: null },
+      originalText: text,
+      category,
+      viaVoice
+    };
+    advanceFlow();
+  }
+
   // ---- sending a turn -----------------------------------------------
   let sending = false;
   let pendingController = null;
@@ -1190,8 +1315,25 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   async function sendMessage(rawText, { viaVoice = false, onReplySpoken, onFailed } = {}) {
     const text = (rawText || '').trim();
     if (!text || sending) return;
+
+    // ---- an active spatial question intercepts EVERY channel this same
+    // function already receives typed/voice input through. A click/tap on
+    // a card never reaches here at all -- it resolves spatialChoice's
+    // Promise directly (see js/mam-spatial-choice.js's resolveChoice) --
+    // this is only the voice/typed path into that SAME one handler, via
+    // trySelectFromText's call to the identical resolveChoice(). Text that
+    // doesn't match any current choice abandons the flow rather than
+    // silently swallowing a real message the visitor typed or said.
+    if (activeFlow && spatialChoice && spatialChoice.isActive()) {
+      if (spatialChoice.trySelectFromText(text)) {
+        addUserBubble(text);
+        recordTurn({ role: 'user', text });
+        return;
+      }
+      cancelActiveFlow();
+    }
+
     if (text.length > MAX_MESSAGE_LENGTH) {
-      open();
       addAssistantBubble({ message: trf('mam.tooLong', 'That message is too long (max {n} characters).', { n: MAX_MESSAGE_LENGTH }) });
       if (onFailed) onFailed();
       return;
@@ -1200,11 +1342,12 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     // Direct commands short-circuit the entire backend round trip -- see
     // executeDirectCommand() above. Typed or spoken, this is the exact
     // same check either way, in the exact same session/transcript as a
-    // normal turn.
+    // normal turn. Recorded into the history log exactly as before --
+    // just no longer forced open: a routine turn stays in the ephemeral
+    // composer layer, and the history sheet is a visitor's own choice.
     const direct = detectDirectCommand(text);
     const resolved = direct && executeDirectCommand(direct);
     if (resolved) {
-      open();
       lastTurnWasVoice = viaVoice;
       addUserBubble(text);
       recordTurn({ role: 'user', text });
@@ -1213,6 +1356,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         recordTurn({ role: 'assistant', text: resolved.confirm, cards: [] });
       }
       if (resolved.navigates) {
+        if (resolved.href) emitSpatial('navigate', { href: resolved.href, mapAction: null });
         // Say it, THEN leave -- running the navigation first is what used
         // to throw the acknowledgement away mid-sentence.
         speakThenNavigate(resolved.confirm || '', resolved.run, { onDone: onReplySpoken, href: resolved.href });
@@ -1228,7 +1372,29 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       return;
     }
 
-    open();
+    // ---- start the adaptive flow for a genuinely vague need, before this
+    // turn would otherwise go straight to the backend unanswered-enough.
+    // See js/mam-spatial-flows.js's own header comment for why this never
+    // competes with the real backend parse: it only ever decides WHETHER
+    // to ask first, never what a message means -- a request that is
+    // already specific (Flow B) never triggers either check below and
+    // falls straight through to the exact same backend turn as before.
+    if (spatialChoice && !direct) {
+      if (spatialFlows.isVaguePropertyNeed(text)) {
+        addUserBubble(text);
+        recordTurn({ role: 'user', text });
+        startPropertyFlow(text, viaVoice);
+        return;
+      }
+      const profNeed = spatialFlows.isVagueProfessionalNeed(text);
+      if (profNeed && !profNeed.city) {
+        addUserBubble(text);
+        recordTurn({ role: 'user', text });
+        startProfessionalFlow(text, profNeed.category, viaVoice);
+        return;
+      }
+    }
+
     lastTurnWasVoice = viaVoice;
 
     if (pendingController) pendingController.abort();
@@ -1240,6 +1406,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     input.value = '';
     setSendingState(true);
     showThinking();
+    emitSpatial('start', { text });
 
     try {
       const data = await sendMamChat(
@@ -1253,6 +1420,12 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       recordTurn({ role: 'assistant', text: data.message || '', cards: Array.isArray(data.cards) ? data.cards : [] });
       const navigateForAction = applyMapAction(data.mapAction);
       companion.setState('result-ready');
+      emitSpatial('result', {
+        message: data.message || '',
+        cards: Array.isArray(data.cards) ? data.cards : [],
+        mapAction: data.mapAction || null,
+        suggestedActions: Array.isArray(data.suggestedActions) ? data.suggestedActions : []
+      });
       // Whether anything is spoken is speak()'s own decision (voice output
       // on, or this turn came in by voice -- beginHandsFree turns the
       // preference on for the duration of a spoken conversation). The call
@@ -1260,6 +1433,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       // visitor who switched the speaker on and then TYPED got silence:
       // the toggle set a preference nothing downstream ever consulted.
       if (navigateForAction) {
+        emitSpatial('navigate', { href: navigateForAction.href, mapAction: data.mapAction || null });
         // This reply also moves the visitor to the map. Speak first so the
         // sentence is not cut off by the document going away; the cap in
         // speakThenNavigate bounds how long a long reply can hold up the
@@ -1273,15 +1447,18 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
       if (thisController.signal.aborted) { hideThinking(); return; }
       hideThinking();
       setVoiceState('ERROR');
+      let errMsg;
       if (err instanceof BackendResponseError && err.status === 429) {
-        addAssistantBubble({ message: tr('mam.rateLimited', "You're sending messages a little fast — please wait a moment and try again.") }, { failed: true, retryText: text });
+        errMsg = tr('mam.rateLimited', "You're sending messages a little fast — please wait a moment and try again.");
       } else if (err && err.name === 'AbortError') {
-        addAssistantBubble({ message: tr('mam.timeout', 'That took too long to answer. Please try again.') }, { failed: true, retryText: text });
+        errMsg = tr('mam.timeout', 'That took too long to answer. Please try again.');
       } else if (err instanceof BackendUnavailableError) {
-        addAssistantBubble({ message: tr('mam.offline', "I couldn't reach the Darwesh server. Check your connection and try again.") }, { failed: true, retryText: text });
+        errMsg = tr('mam.offline', "I couldn't reach the Darwesh server. Check your connection and try again.");
       } else {
-        addAssistantBubble({ message: tr('mam.genericError', "That didn't go through. Please try again.") }, { failed: true, retryText: text });
+        errMsg = tr('mam.genericError', "That didn't go through. Please try again.");
       }
+      addAssistantBubble({ message: errMsg }, { failed: true, retryText: text });
+      emitSpatial('error', { message: errMsg });
       if (onFailed) onFailed();
     } finally {
       if (pendingController === thisController) {
@@ -1292,7 +1469,6 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   }
 
   form.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(input.value); });
-  input.addEventListener('focus', open);
 
   // ---- Voice input (STT) -- browser SpeechRecognition only, and honest
   // about it: if the browser/platform has no
@@ -1490,7 +1666,10 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
     }
 
     function voiceProblem(messageKey, fallback) {
-      open();
+      // Recorded into the history log like any other reply (addAssistantBubble
+      // does that) and surfaced via the ephemeral status line -- no longer a
+      // forced-open panel: the redesign's whole point is that a routine
+      // (if unwelcome) voice hiccup does not summon a permanent chat surface.
       addAssistantBubble({ message: tr(messageKey, fallback) }, { failed: true });
     }
 
@@ -1611,8 +1790,11 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
         recognition.start();
         recogMode = 'conversation';
         listening = true;
+        // setVoiceState('LISTENING') already drives the ephemeral
+        // "Listening…" status line -- no longer forcing the history
+        // sheet open every time voice mode starts (that was the exact
+        // "permanent chat panel" behaviour this redesign removes).
         setVoiceState('LISTENING');
-        open();
         startKurdishRecording();
       } catch {
         // Already started, or the mic was refused: drop the mode rather
@@ -1751,7 +1933,6 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
 
     const GREETING_TEXT_KU = 'سڵاو، من مامم. چۆن دەتوانم یارمەتیت بدەم؟';
     function speakGreeting() {
-      open();
       addAssistantBubble({ message: GREETING_TEXT_KU });
       recordTurn({ role: 'assistant', text: GREETING_TEXT_KU, cards: [] });
       setVoiceState('PROCESSING'); // acknowledgement beat, mirrors the wake-handoff one above
@@ -1947,7 +2128,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   ];
   function renderChips() {
     chipsEl.textContent = '';
-    if (log.querySelector('.mamcp-bubble')) return;   // a conversation is under way
+    if (log.querySelector('.mamcp-entry')) return;   // a conversation is under way -- ephemeral suggestions fade for good
     CHIPS.forEach(([key, fallback]) => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -1959,7 +2140,7 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   }
 
   document.addEventListener('darwesh:langchange', () => {
-    input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM about the market…');
+    input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM anything…');
     renderChips();
   });
 

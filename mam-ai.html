@@ -26,17 +26,162 @@ convention); nothing here widens the policy. -->
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
-  #mamAiEntityHost { width: 220px; height: 220px; }
-  @media (min-width: 768px) { #mamAiEntityHost { width: 320px; height: 320px; } }
-  @media (min-width: 1024px) { #mamAiEntityHost { width: 420px; height: 420px; } }
-  #mamAiStage { min-height: 420px; }
-  @media (min-width: 1024px) { #mamAiStage { min-height: 640px; } }
+  /* ---- MAM's own world, not a page section --------------------------
+     The Entity is sized off the viewport itself (min() of vw/vh, capped)
+     so it stays large and dominant at every window shape -- roughly
+     45-65% of the visible scene on desktop, 45-60% of it on mobile,
+     never the small fixed-px box this used to be. The stage that holds
+     it fills exactly the viewport below the header (100dvh, not 100vh --
+     dvh already accounts for a mobile browser's own retracting chrome,
+     which matters here since the whole point is no page scroll except a
+     rare overflow safety net). */
+  #mamAiEntityHost { width: min(100vw, 56dvh, 480px); height: min(100vw, 56dvh, 480px); }
+  @media (min-width: 768px) {
+    #mamAiEntityHost { width: min(54vw, 54dvh, 680px); height: min(54vw, 54dvh, 680px); }
+  }
+  /* Mobile polish only (desktop rule above is untouched): the Entity
+     stays large (roughly 40-55% of the usable height, per device) but
+     sits closer to the top of the stage instead of dead-center, so the
+     question/card zone below it has real room to breathe instead of
+     fighting the composer for the bottom quarter of a short phone
+     screen. */
+  @media (max-width: 640px) {
+    /* Second position/scale pass: ~17% larger than the first reference-
+       composition pass (was 96vw/55dvh/430px), driven by dvh so the
+       increase holds proportionally at 360/390/430 rather than being
+       tuned per-breakpoint; the generous vw/px ceilings exist only so
+       width never becomes the binding constraint on these narrow phones. */
+    #mamAiEntityHost { width: min(118vw, 52dvh, 490px); height: min(118vw, 52dvh, 490px); }
+    #mamAiStage { justify-content: flex-start; padding-block-start: clamp(10px, 3.4dvh, 26px); }
+    /* Position-only: pull the Entity further up than the stage's own top
+       padding alone would place it -- ~80-110px more than the first pass
+       at 390px, scaling with viewport width so it holds at 360/430 too.
+       Same size contribution is above; this only shifts vertical
+       position. Clamped so it can never fully cancel the stage's own
+       header clearance above. */
+    #mamAiEntityHost { margin-block-start: clamp(-160px, -36vw, -120px); }
+  }
+  :root {
+    /* The composer's own full footprint (its fixed bottom offset + bar
+       height + the ephemeral status/chips row that renders ABOVE the bar
+       inside the same fixed composerRoot) -- the ONE reserved-space value
+       every piece of stage content below the Entity is measured against,
+       so the stage's own padding and each absolutely-anchored element
+       (results, disclaimer) can never individually drift back into
+       disagreement about where "the composer's zone" starts. */
+    --mam-stage-safe: calc(var(--mamcp-composer-b, 108px) + var(--mamcp-bar-h, 56px) + 90px);
+  }
+  /* Placed AFTER the base :root rule above (same specificity -- later
+     source wins) so this mobile-only override actually takes effect:
+     pulls the disclaimer block (.mam-stage-content, below) closer to the
+     Entity above it, WITHOUT moving the composer/chips/mic/send -- their
+     fixed position comes from --mamcp-composer-b/--mamcp-bar-h in
+     css/mam-chat-panel.css, a completely separate value untouched here. */
+  @media (max-width: 640px) {
+    :root { --mam-stage-safe: calc(var(--mamcp-composer-b, 108px) + var(--mamcp-bar-h, 56px) + 130px); }
+  }
+  #mamAiStage {
+    height: calc(100dvh - 76px);
+    justify-content: center;
+    padding-inline: 20px;
+  }
+
+  /* A quiet radial glow behind the Entity -- pure CSS depth cue, no
+     asset, no motion of its own (the particle field already supplies
+     all the motion this scene needs). */
+  .mam-stage-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(closest-side, color-mix(in srgb, #C69A4B 10%, transparent), transparent 72%);
+  }
+  #mamAiEntityHost { position: relative; z-index: 1; flex: none; }
+
+  /* ONE bottom-anchored stack for everything below the Entity --
+     caption, task nodes, results, disclaimer -- pinned together as a
+     single block rather than each piece floating independently. Several
+     earlier attempts at pinning each piece on its own each individually
+     collided with a DIFFERENT neighbour depending on which combination
+     of caption/nodes/results was present at the time (a Playwright
+     layout probe caught three separate cases); consolidating into one
+     flex column removes that whole category of bug -- everything inside
+     it stacks in normal document flow relative to EACH OTHER, and only
+     the block's own outer edges (bottom pinned above the composer,
+     max-height capped) need to stay correct relative to the rest of the
+     page. Large contextual language IS allowed to sit over the Entity's
+     own lower particles when this block grows tall -- the brief's own
+     "near/through the Entity" language, not a bug. */
+  .mam-stage-content {
+    position: absolute;
+    z-index: 1;
+    inset-inline: 20px;
+    bottom: var(--mam-stage-safe);
+    max-height: 46dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    overflow-y: auto;
+    margin-inline: auto;
+    width: fit-content;
+    max-width: calc(100% - 40px);
+  }
+
+  /* Large contextual language -- the SAME real voice-state text the
+     composer's own ephemeral status line shows (js/mam-chat-panel.js's
+     setStatusLine), given cinematic weight here next to the Entity
+     itself rather than tucked into a small caption. */
+  .mam-stage-caption {
+    flex: none;
+    max-width: min(90vw, 620px);
+    text-align: center;
+    font-family: 'Plus Jakarta Sans', 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    font-size: clamp(20px, 3.6vw, 34px);
+    letter-spacing: -0.01em;
+    color: #F4EFE7;
+    text-wrap: balance;
+    transition: opacity 320ms ease, filter 320ms ease, transform 320ms ease;
+  }
+  .mam-stage-caption:empty { display: none; }
+  .mam-stage-caption.is-entering {
+    animation: mam-caption-materialize 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes mam-caption-materialize {
+    from { opacity: 0; filter: blur(6px); transform: translateY(6px); }
+    to { opacity: 1; filter: blur(0); transform: none; }
+  }
+
+  .mam-stage-choice { flex: none; width: 100%; }
+  .mam-stage-choice:empty { display: none; }
+  .mam-stage-nodes { flex: none; }
+  .mam-stage-results { flex: none; max-width: 100%; }
+
+  .mam-stage-disclaimer {
+    flex: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    color: color-mix(in srgb, #F4EFE7 55%, transparent);
+    text-align: center;
+    max-width: 420px;
+    line-height: 1.5;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mam-stage-caption.is-entering { animation: none; }
+  }
 </style>
 </head>
 <!-- data-mam-reentrant: this page's only classic top-level script is the
      IIFE-wrapped language bootstrap, same as every other page -- see the
      note in listing.html/about.html. -->
-<body data-mam-reentrant data-page="mamai" class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-[76px] pb-24 md:pb-0">
+<!-- No bottom padding: #mamAiStage's own padding-block-end (see the
+     <style> block above) already reserves the composer's footprint, and
+     the stage fills exactly 100dvh - header, so the page itself never
+     scrolls -- one continuous immersive scene, not a page with dead
+     space reserved below it. -->
+<body data-mam-reentrant data-page="mamai" class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-[76px]">
 <!-- TopAppBar -->
 <div id="siteHeader" data-active="mamai"></div>
 <script src="./js/site-header.js"></script>
@@ -52,22 +197,55 @@ convention); nothing here widens the policy. -->
      other page's old floating companion (orb, dock, "Ask MAM" bar) has
      been removed in favor of this single dedicated destination, reachable
      from the header/mobile-nav "MAM AI" entry on every page. -->
-<main class="w-full max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-10">
-<div class="grid grid-cols-1 lg:grid-cols-[1.15fr_380px] gap-6 lg:gap-8 items-stretch">
-
-<section id="mamAiStage" class="relative rounded-3xl overflow-hidden flex flex-col items-center justify-center gap-5 bg-surface-container-low/40 border border-outline-variant/40 px-6 py-10">
-<div id="mamAiEntityHost"></div>
-<p id="mamAiStatusLabel" class="font-label-caps text-label-caps text-on-surface-variant text-center min-h-[1.2em]" aria-live="polite"></p>
-<div class="flex items-center gap-3">
-<button id="mamAiMicBtn" type="button" class="flex items-center justify-center w-14 h-14 rounded-full bg-secondary text-on-secondary hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n-aria="mamai.askMam" aria-label="Ask MAM">
-<span class="material-symbols-outlined" aria-hidden="true">mic</span>
-</button>
-</div>
-<p class="font-body-md text-[12px] text-on-surface-variant/80 text-center max-w-sm" data-i18n="mam.disclaimer">MAM answers using Darwesh Group's real, current listings, projects and market data. Full conversational AI reasoning is not fully enabled yet -- confirm important details with an agent.</p>
-</section>
-
-<aside id="mamAiDockAnchor" class="relative rounded-3xl border border-outline-variant/40 bg-surface-container-low/25 min-h-[320px] lg:min-h-[640px]"></aside>
-
+<!-- MAM's own world, not a page section: no framed box, no rounded card,
+     no border distinguishing this from the page background -- the Entity
+     stands directly in the same obsidian environment the whole page
+     already renders (bg-background on .cine-scope IS the obsidian tone,
+     #0B0E12 -- see css/cinematic.css). The composer (js/mam-chat-panel.js)
+     is a separate fixed overlay and is not inside this section at all. -->
+<main id="mamAiStage" class="relative flex flex-col items-center overflow-hidden">
+<!-- A quiet radial glow behind the Entity -- depth, not decoration for
+     its own sake: purely CSS, never competes with the particle field
+     for detail or motion. -->
+<div class="mam-stage-glow" aria-hidden="true"></div>
+<div id="mamAiEntityHost" class="mam-stage-entity"></div>
+<!-- ONE bottom-anchored stack for everything below the Entity -- pinned
+     as a single block (see .mam-stage-content below) rather than each
+     piece floating independently, which is what let caption/nodes/
+     results/disclaimer each individually collide with one another (and
+     with the composer) at different content combinations; a Playwright
+     layout probe caught several of those before this consolidation.
+     Large contextual language here IS allowed to sit over the Entity's
+     own lower particles when content is tall -- that overlap is the
+     brief's own "near/through the Entity" language, not a bug; a
+     collision between two pieces of UI chrome is. -->
+<div class="mam-stage-content">
+<!-- Large contextual language, not a chat bubble: the SAME real voice
+     states js/mam-chat-panel.js's ephemeral composer status line already
+     reflects (see the script below), just given cinematic weight here,
+     close to the Entity itself. -->
+<p id="mamAiStatusLabel" class="mam-stage-caption" aria-live="polite"></p>
+<!-- The adaptive spatial question/card flow (js/mam-spatial-choice.js) --
+     large obsidian/gold cards materialize here ONLY when MAM genuinely
+     needs to ask something (js/mam-spatial-flows.js's missing-information
+     resolver decided a real turn was too vague), never a fixed wizard.
+     Empty the rest of the time, exactly like the nodes/results hosts
+     below it. -->
+<div id="mamAiSpatialChoice" class="mam-stage-choice"></div>
+<!-- Real task state, materialized as chips -- see js/mam-spatial-ui.js's
+     header comment for exactly what "real" means here (only fields the
+     backend's own MapAction/cards for THIS turn actually returned). -->
+<div id="mamAiTaskNodes" class="mam-spatial-nodes mam-stage-nodes"></div>
+<!-- No separate large mic button here -- the composer (js/mam-chat-panel.js)
+     IS the minimal lower interaction zone the brief asks for, its own mic
+     already thumb-reachable at the bottom on every viewport; a second big
+     circular control here would duplicate it and cost the Entity real
+     vertical space. -->
+<!-- The SAME data.cards array the transcript log renders, a second
+     cinematic view of it -- never a second data source (see
+     js/mam-spatial-ui.js). -->
+<div id="mamAiSpatialResults" class="mam-spatial-results mam-stage-results"></div>
+<p class="mam-stage-disclaimer" data-i18n="mam.disclaimer">MAM answers using Darwesh Group's real, current listings, projects and market data. Full conversational AI reasoning is not fully enabled yet -- confirm important details with an agent.</p>
 </div>
 </main>
 
@@ -85,24 +263,44 @@ convention); nothing here widens the policy. -->
   import { createMamEntity3D } from './js/mam-entity-3d.js';
   import { mountMamChatPanel } from './js/mam-chat-panel.js';
   import { createPresence } from './js/mam-presence.js';
+  import { createSpatialUI } from './js/mam-spatial-ui.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
   function currentLang() { return localStorage.getItem('darwesh_lang') || 'en'; }
 
+  const stageEl = document.getElementById('mamAiStage');
   const entityHost = document.getElementById('mamAiEntityHost');
-  const dockAnchor = document.getElementById('mamAiDockAnchor');
   const statusLabel = document.getElementById('mamAiStatusLabel');
-  const micBtn = document.getElementById('mamAiMicBtn');
+  const taskNodesHost = document.getElementById('mamAiTaskNodes');
+  const resultsHost = document.getElementById('mamAiSpatialResults');
 
   const entity = createMamEntity3D({ mountTarget: entityHost, getLanguage: currentLang, interactive: true });
+  const spatial = createSpatialUI({ stageEl, nodesHost: taskNodesHost, resultsHost });
+
+  // QA-only renderer badge (?debug=1) -- never shown by default, so it
+  // never ships as visible production chrome; exists purely so a visual
+  // review can tell at a glance whether Three.js/WebGL or the Canvas2D
+  // fallback is what's actually on screen (Part "RENDERER").
+  if (new URLSearchParams(window.location.search).get('debug') === '1') {
+    const badge = document.createElement('div');
+    badge.className = 'mam-entity3d-debug-badge';
+    const update = () => {
+      badge.textContent = entity.isWebGL
+        ? tr('mamai.rendererWebgl', 'Renderer: WebGL')
+        : tr('mamai.rendererCanvas2d', 'Renderer: Canvas2D');
+    };
+    update();
+    stageEl.appendChild(badge);
+    setInterval(update, 600);
+  }
 
   const panel = mountMamChatPanel({
     orbEl: entity.element,
-    dockEl: dockAnchor,
-    micEls: [micBtn],
     companion: entity,
     getLanguage: currentLang,
-    pageContext: { page: 'home' }
+    pageContext: { page: 'home' },
+    onSpatialEvent: (type, payload) => spatial.onEvent(type, payload),
+    spatialChoiceHost: document.getElementById('mamAiSpatialChoice')
   });
 
   if (panel) {
@@ -125,10 +323,11 @@ convention); nothing here widens the policy. -->
       if (e.key === 'Escape' && presence.hasAwakened) presence.minimize();
     });
 
-    // This IS the dedicated conversation page -- the panel (transcript,
-    // composer, its own internal mic) is open by default rather than
-    // waiting for a second click, unlike the compact companion elsewhere.
-    panel.open();
+    // The floating composer (js/mam-chat-panel.js) is always visible on
+    // its own -- the history sheet it also mounts is no longer opened by
+    // default here. A visitor lands on the Entity and the composer, and
+    // opens history only by choice (the composer's own history toggle,
+    // or the entity itself).
 
     // A short, compact status line under the entity (Part 9's "short
     // spoken progress, not long paragraphs" carried over into the on-
@@ -142,7 +341,16 @@ convention); nothing here widens the policy. -->
     };
     panel.onVoiceState((next) => {
       const pair = LABEL_KEYS[next];
-      statusLabel.textContent = pair ? tr(pair[0], pair[1]) : '';
+      const text = pair ? tr(pair[0], pair[1]) : '';
+      if (text === statusLabel.textContent) return;
+      statusLabel.textContent = text;
+      // Large contextual language materializes rather than snapping in --
+      // a genuine class-toggle restart (not an animation left running),
+      // skipped entirely under prefers-reduced-motion via the stylesheet's
+      // own media query.
+      statusLabel.classList.remove('is-entering');
+      void statusLabel.offsetWidth;
+      if (text) statusLabel.classList.add('is-entering');
     });
 
     window.DarweshMamPresence = presence;

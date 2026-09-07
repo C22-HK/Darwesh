@@ -1,6 +1,11 @@
-// MAM AI Command Center -- the living 3D particle entity.
+// MAM AI Command Center -- the living 3D particle entity. V2: a
+// continuous, curl-noise-driven point cloud that can gather into a
+// head/neck/shoulders SUGGESTION while speaking and dissolve back to a
+// formless cloud, with its own slow cinematic camera drift and a sparse
+// background field for depth -- see js/mam-entity-shaders.js's header for
+// the two concrete things this does for real rather than approximates.
 //
-// This is a DROP-IN stand-in for js/mam-companion.js's MamCompanion: same
+// Still a DROP-IN stand-in for js/mam-companion.js's MamCompanion: same
 // public shape (.root, .element, .setState(state), .setEnergy(level),
 // .setFocus(on), .getState(), .destroy()), same VALID_STATES. That is
 // deliberate, not incidental -- js/mam-presence.js's createPresence() and
@@ -16,21 +21,20 @@
 //
 // Two renderers live in here for the SAME reason js/mam-voice-energy.js
 // keeps its two audio paths distinct rather than faking one from the
-// other: Three.js needs a real WebGL2 context and a successful load from
-// the CDN, neither of which is guaranteed (a blocked network, an old
-// GPU/driver, prefers-reduced-motion asking for less). When either is
+// other: Three.js needs a real WebGL2 context, which is not guaranteed
+// (an old GPU/driver, prefers-reduced-motion asking for less). When
 // unavailable this falls back to a plain Canvas2D particle field driven
-// by the EXACT SAME state targets and smoothing -- fewer points, no
-// shader, but the same living, state-driven behaviour, never a static
-// placeholder image standing in for "AI is here".
-import { ENTITY_VERTEX_SHADER, ENTITY_FRAGMENT_SHADER } from './mam-entity-shaders.js';
+// by the SAME state targets and a simplified coherence blend -- fewer
+// points, no shader, no camera, but still living and state-driven, never
+// a static placeholder standing in for "AI is here".
+import { ENTITY_VERTEX_SHADER, ENTITY_FRAGMENT_SHADER, BG_VERTEX_SHADER, BG_FRAGMENT_SHADER } from './mam-entity-shaders.js';
 
-// Pinned, exact version -- same convention as every other CDN import this
-// repo already makes (see INFRA-03's Tailwind pin). Loaded as a real ES
-// module from the CDN this site's own CSP already allowlists in
-// script-src (https://unpkg.com, present on every page's <meta> tag) --
-// no CSP change, no vendoring, no second package manager.
-const THREE_MODULE_URL = 'https://unpkg.com/three@0.160.0/build/three.module.js';
+// Vendored, not CDN-loaded -- see vendor/three/README.md. The primary
+// experience must not depend on unpkg.com being reachable/fast; this is
+// the exact r160 (three@0.160.0) build already used, now local and
+// pinned the same way every other exact-version dependency in this repo
+// already is.
+const THREE_MODULE_URL = new URL('../vendor/three/three.module.min.js', import.meta.url).href;
 
 export const VALID_STATES = new Set([
   'idle', 'awakening', 'listening', 'thinking', 'speaking',
@@ -73,36 +77,56 @@ const PARTICLE_COLORS = [
   { hex: [0x8e, 0x74, 0x48], weight: 0.03 }, // Bronze depth
   { hex: [0x5d, 0x48, 0x2b], weight: 0.02 }  // Deep bronze
 ];
-// ERROR blends toward this instead of swapping palettes outright -- calm
-// amber-red, never a hard color-scheme change, so it still reads as the
-// same entity, just uneasy.
-const ERROR_TINT = [0.85, 0.42, 0.28];
 
-// Target shader "mood" per state: gather (0 diffuse..1 drawn tightly in),
-// jitter (turbulence), speed (time multiplier), brightness, particle
-// size, and a one-shot pulse flag. Chosen from Part 5 of the spec without
-// inventing a second, competing state vocabulary -- IDLE breathes gently,
-// AWAKENING gathers and flashes brighter, LISTENING/SPEAKING are driven
-// live by uEnergy (mic or MAM's own voice) rather than their own targets
-// doing the work, THINKING churns inward with no external cue at all
-// (this is the "NO spinner -- the body itself indicates thinking" rule),
-// GUIDING flows outward toward the edge, MINIMIZED contracts small and
-// quiet, ERROR contracts and dims toward the amber tint above.
+// Target "mood" per state: gather (0 spread..1 drawn in), coherence (0
+// formless cloud..1 humanoid suggestion), jitter (curl-flow amplitude),
+// speed (time multiplier), brightness, particle size, a one-shot pulse
+// flag, and guideBias (0..1, the directional arc-flow GUIDING adds).
+// Chosen from the spec's own per-state description, not invented:
+// IDLE breathes as a loose, mostly-formless presence; AWAKENING gathers
+// and flashes brighter; LISTENING orients toward the visitor, driven live
+// by uEnergy; THINKING partially dissolves with accelerated internal
+// churn (coherence DOWN, jitter UP -- the opposite of "gathering");
+// SPEAKING becomes more coherent/humanoid and answers MAM's own voice
+// energy; GUIDING streams toward the action; MINIMIZED contracts small
+// and quiet; ERROR contracts without dissolving (present, but uneasy);
+// wake-listening is a slow ambient pulse; result-ready is the momentary
+// bloom.
 const STATE_TARGETS = {
-  idle: { gather: 0.12, jitter: 0.45, speed: 0.45, brightness: 0.88, size: 2.2, pulse: 0, errorMix: 0 },
-  awakening: { gather: 0.55, jitter: 0.85, speed: 1.35, brightness: 1.25, size: 2.4, pulse: 1, errorMix: 0 },
-  listening: { gather: 0.30, jitter: 0.55, speed: 0.70, brightness: 1.05, size: 2.3, pulse: 0, errorMix: 0 },
-  thinking: { gather: 0.62, jitter: 1.35, speed: 1.15, brightness: 1.00, size: 2.1, pulse: 0, errorMix: 0 },
-  speaking: { gather: 0.34, jitter: 0.65, speed: 0.85, brightness: 1.15, size: 2.35, pulse: 0, errorMix: 0 },
-  guiding: { gather: 0.20, jitter: 0.50, speed: 0.95, brightness: 1.05, size: 2.2, pulse: 0, errorMix: 0 },
-  minimized: { gather: 0.78, jitter: 0.20, speed: 0.30, brightness: 0.55, size: 1.3, pulse: 0, errorMix: 0 },
-  error: { gather: 0.70, jitter: 0.15, speed: 0.25, brightness: 0.80, size: 1.9, pulse: 0, errorMix: 1 },
-  'wake-listening': { gather: 0.18, jitter: 0.35, speed: 0.35, brightness: 0.80, size: 2.1, pulse: 0, errorMix: 0 },
-  'result-ready': { gather: 0.10, jitter: 0.60, speed: 1.10, brightness: 1.35, size: 2.4, pulse: 1, errorMix: 0 }
+  idle: { gather: 0.10, coherence: 0.12, jitter: 0.55, speed: 0.45, brightness: 0.88, size: 2.1, pulse: 0, errorMix: 0, guideBias: 0 },
+  awakening: { gather: 0.50, coherence: 0.40, jitter: 0.85, speed: 1.35, brightness: 1.25, size: 2.4, pulse: 1, errorMix: 0, guideBias: 0 },
+  listening: { gather: 0.28, coherence: 0.42, jitter: 0.50, speed: 0.65, brightness: 1.05, size: 2.25, pulse: 0, errorMix: 0, guideBias: 0 },
+  thinking: { gather: 0.55, coherence: 0.18, jitter: 1.55, speed: 1.25, brightness: 1.00, size: 2.0, pulse: 0, errorMix: 0, guideBias: 0 },
+  speaking: { gather: 0.32, coherence: 0.88, jitter: 0.45, speed: 0.75, brightness: 1.18, size: 2.3, pulse: 0, errorMix: 0, guideBias: 0 },
+  guiding: { gather: 0.20, coherence: 0.35, jitter: 0.60, speed: 0.95, brightness: 1.05, size: 2.15, pulse: 0, errorMix: 0, guideBias: 0.85 },
+  minimized: { gather: 0.80, coherence: 0.55, jitter: 0.18, speed: 0.28, brightness: 0.52, size: 1.2, pulse: 0, errorMix: 0, guideBias: 0 },
+  error: { gather: 0.62, coherence: 0.50, jitter: 0.15, speed: 0.22, brightness: 0.78, size: 1.85, pulse: 0, errorMix: 1, guideBias: 0 },
+  'wake-listening': { gather: 0.16, coherence: 0.20, jitter: 0.35, speed: 0.35, brightness: 0.80, size: 2.05, pulse: 0, errorMix: 0, guideBias: 0 },
+  'result-ready': { gather: 0.10, coherence: 0.55, jitter: 0.65, speed: 1.10, brightness: 1.35, size: 2.4, pulse: 1, errorMix: 0, guideBias: 0 }
 };
 
-const UNIFORM_KEYS = ['gather', 'jitter', 'speed', 'brightness', 'size', 'errorMix'];
+// Camera target per state -- radius (distance from the entity), azimuth
+// drift SPEED (radians/sec the camera autonomously orbits at; idle only),
+// and a "settle" flag meaning "stop drifting and ease to dead-frontal"
+// (speaking/error/minimized: calm and centered, never spinning while MAM
+// is trying to be understood). Kept deliberately small -- Part "CAMERA"
+// is explicit that this must never be disorienting.
+const CAMERA_TARGETS = {
+  idle: { radius: 4.3, driftSpeed: 0.028, settle: false },
+  awakening: { radius: 3.9, driftSpeed: 0.02, settle: false },
+  listening: { radius: 3.75, driftSpeed: 0.006, settle: false }, // focus-in: drift nearly stops
+  thinking: { radius: 4.1, driftSpeed: 0.09, settle: false },     // a few degrees of extra orbit
+  speaking: { radius: 3.85, driftSpeed: 0.0, settle: true },      // calm, frontal
+  guiding: { radius: 4.0, driftSpeed: 0.03, settle: false },
+  minimized: { radius: 4.6, driftSpeed: 0.01, settle: true },
+  error: { radius: 4.2, driftSpeed: 0.0, settle: true },
+  'wake-listening': { radius: 4.2, driftSpeed: 0.015, settle: false },
+  'result-ready': { radius: 3.9, driftSpeed: 0.02, settle: false }
+};
+
+const UNIFORM_KEYS = ['gather', 'coherence', 'jitter', 'speed', 'brightness', 'size', 'errorMix', 'guideBias'];
 const SMOOTH_RATE = 4.2;      // per second, exponential approach to target
+const CAMERA_SMOOTH_RATE = 1.1;
 const PULSE_DECAY_MS = 480;
 
 function mulberry32(seed) {
@@ -126,11 +150,51 @@ function prefersReducedMotion() {
 }
 
 function particleBudget() {
-  if (prefersReducedMotion()) return 700;
+  if (prefersReducedMotion()) return 1200;
   const cores = navigator.hardwareConcurrency || 4;
   const narrow = window.innerWidth < 640;
-  if (narrow) return cores >= 6 ? 1800 : 1100;
-  return cores >= 8 ? 5200 : cores >= 4 ? 3600 : 2000;
+  if (narrow) return cores >= 6 ? 3200 : 2200;
+  return cores >= 8 ? 9000 : cores >= 4 ? 6400 : 3600;
+}
+
+// ---- the humanoid-suggestion volume -------------------------------
+// Four weighted layers -- head, neck, shoulders, a tapering partial
+// torso -- and NOTHING else (no arms, no hands, no legs, no face
+// geometry): exactly what Part "HUMAN PRESENCE" asks for, "an
+// intelligence choosing to temporarily take a human-like form", not a
+// figure. Rejection-sampled inside simple volumes so the result is a
+// solid-feeling suggestion of mass, not a hollow shell. Coordinates in
+// the same normalized unit-sphere-ish space the cloud's own base
+// positions live in (roughly [-1,1]), y-up, so `mix(cloud, humanoid,
+// coherence)` in the shader never needs a rescale.
+function sampleHumanoid(rand) {
+  const layer = rand();
+  if (layer < 0.22) {
+    // Head: a slightly flattened sphere near the top.
+    let x, y, z;
+    do {
+      x = (rand() * 2 - 1); y = (rand() * 2 - 1); z = (rand() * 2 - 1);
+    } while (x * x + y * y + z * z > 1);
+    return [x * 0.30, 0.72 + y * 0.26, z * 0.30];
+  }
+  if (layer < 0.32) {
+    // Neck: a thin vertical cylinder joining head to shoulders.
+    const a = rand() * Math.PI * 2, r = Math.sqrt(rand()) * 0.13;
+    return [Math.cos(a) * r, 0.40 + rand() * 0.22, Math.sin(a) * r * 0.8];
+  }
+  if (layer < 0.62) {
+    // Shoulders: a wide, flattened arc -- not a full sphere, so it reads
+    // as shoulder-width mass rather than a second head.
+    const a = rand() * Math.PI * 2, r = Math.sqrt(rand());
+    return [Math.cos(a) * r * 0.78, 0.20 + Math.sin(a) * r * 0.14, Math.sin(a) * r * 0.42];
+  }
+  // Partial upper torso: tapers wider going down, cut off well above the
+  // waist -- "partial torso", per spec, not a full figure.
+  const a = rand() * Math.PI * 2;
+  const depth = rand();
+  const width = 0.55 + depth * 0.30;
+  const r = Math.sqrt(rand()) * width;
+  return [Math.cos(a) * r, -0.05 - depth * 0.55, Math.sin(a) * r * 0.55];
 }
 
 // ---- shared "mood" controller ------------------------------------------
@@ -139,7 +203,7 @@ function particleBudget() {
 // fallback is a rendering detail, never a behavior difference a reviewer
 // could tell apart from the state transitions alone.
 function createMood() {
-  const current = { gather: 0.12, jitter: 0.45, speed: 0.45, brightness: 0.88, size: 2.2, errorMix: 0 };
+  const current = { gather: 0.10, coherence: 0.12, jitter: 0.55, speed: 0.45, brightness: 0.88, size: 2.1, errorMix: 0, guideBias: 0 };
   const target = { ...current };
   let pulse = 0;
   let pulseTarget = 0;
@@ -160,13 +224,8 @@ function createMood() {
       if (!VALID_STATES.has(next)) return false;
       state = next;
       const t = STATE_TARGETS[next] || STATE_TARGETS.idle;
-      UNIFORM_KEYS.forEach((k) => { if (k !== 'errorMix') target[k] = t[k]; });
-      target.errorMix = t.errorMix;
+      UNIFORM_KEYS.forEach((k) => { target[k] = t[k]; });
       if (t.pulse) {
-        // Snap UP immediately (the flash should be instant) but let the
-        // fall-off ride the same exponential smoothing as everything
-        // else in tick() -- a hard reset to 0 here would read as a cut,
-        // not a decay.
         pulse = 1;
         pulseTarget = 1;
         clearTimeout(pulseTimer);
@@ -183,6 +242,54 @@ function createMood() {
     },
     get pulse() { return pulse; },
     destroy() { clearTimeout(pulseTimer); clearTimeout(settleTimer); }
+  };
+}
+
+// ---- camera controller ---------------------------------------------
+// A calm, always-looking-at-origin orbit camera. `radius` and
+// `driftSpeed` ease toward their state target exponentially (same
+// technique as the mood uniforms); azimuth accumulates at the CURRENT
+// (already-smoothed) drift speed, so a state change never snaps the
+// orbit, it just gradually speeds up, slows down, or stops. Pointer
+// proximity nudges radius closer, per "user approaches/interacts: camera
+// subtly moves closer" -- released back to the state's own target on
+// pointer-leave.
+function createCameraRig() {
+  let radius = 4.3, radiusTarget = 4.3;
+  let driftSpeed = 0.028, driftSpeedTarget = 0.028;
+  let azimuth = 0.15;
+  let elevation = 0.06;
+  let settle = false;
+  let hover = 0; // 0..1, pointer proximity
+
+  return {
+    setState(name) {
+      const t = CAMERA_TARGETS[name] || CAMERA_TARGETS.idle;
+      radiusTarget = t.radius;
+      driftSpeedTarget = t.driftSpeed;
+      settle = t.settle;
+    },
+    setHover(v) { hover = Math.max(0, Math.min(1, v)); },
+    tick(dt, reduced) {
+      const a = 1 - Math.exp(-CAMERA_SMOOTH_RATE * dt);
+      radius += (radiusTarget - hover * 0.35 - radius) * a;
+      driftSpeed += (driftSpeedTarget - driftSpeed) * a;
+      const effectiveDrift = reduced ? driftSpeed * 0.15 : driftSpeed;
+      if (settle) {
+        // Ease azimuth/elevation back toward dead-frontal rather than
+        // stopping abruptly wherever the orbit happened to be.
+        azimuth += (0 - azimuth) * (1 - Math.exp(-0.6 * dt));
+        elevation += (0.06 - elevation) * (1 - Math.exp(-0.6 * dt));
+      } else {
+        azimuth += effectiveDrift * dt;
+        elevation = 0.06 + Math.sin(azimuth * 0.7) * 0.02;
+      }
+      return {
+        x: radius * Math.sin(azimuth) * Math.cos(elevation),
+        y: radius * Math.sin(elevation) + 0.15,
+        z: radius * Math.cos(azimuth) * Math.cos(elevation)
+      };
+    }
   };
 }
 
@@ -226,15 +333,27 @@ function updateLabel(el, state, getLanguage) {
 async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
   const { root, el } = ensureRoot(mountTarget, interactive, getLanguage);
   const mood = createMood();
+  const camera_ = createCameraRig();
   updateLabel(el, 'idle', getLanguage);
 
   let destroyed = false;
   let energy = 0;
   let three = null;
   let renderer = null, scene = null, camera = null, points = null, material = null;
+  let bgPoints = null;
   let raf = null;
   let lastT = performance.now();
   let resizeObserver = null;
+  let hoverX = 0, hoverY = 0, hoverActive = false;
+
+  function onPointerMove(e) {
+    const r = el.getBoundingClientRect();
+    hoverX = ((e.clientX - r.left) / Math.max(1, r.width)) * 2 - 1;
+    hoverY = ((e.clientY - r.top) / Math.max(1, r.height)) * 2 - 1;
+    hoverActive = true;
+    camera_.setHover(1);
+  }
+  function onPointerLeave() { hoverActive = false; camera_.setHover(0); }
 
   async function init() {
     three = await import(/* webpackIgnore: true */ THREE_MODULE_URL);
@@ -243,6 +362,7 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
     const count = particleBudget();
     const rand = mulberry32(0xda2 ^ count);
     const positions = new Float32Array(count * 3);
+    const humanoid = new Float32Array(count * 3);
     const seeds = new Float32Array(count);
     const colors = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
@@ -257,6 +377,8 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
       positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
       positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
       positions[i * 3 + 2] = r * Math.cos(phi);
+      const [hx, hy, hz] = sampleHumanoid(rand);
+      humanoid[i * 3] = hx; humanoid[i * 3 + 1] = hy; humanoid[i * 3 + 2] = hz;
       seeds[i] = rand() * 1000;
       const [cr, cg, cb] = pickColor(rand);
       colors[i * 3] = cr / 255; colors[i * 3 + 1] = cg / 255; colors[i * 3 + 2] = cb / 255;
@@ -264,14 +386,16 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
 
     const geometry = new three.BufferGeometry();
     geometry.setAttribute('position', new three.BufferAttribute(positions, 3));
+    geometry.setAttribute('aHumanoid', new three.BufferAttribute(humanoid, 3));
     geometry.setAttribute('aSeed', new three.BufferAttribute(seeds, 1));
     geometry.setAttribute('aColor', new three.BufferAttribute(colors, 3));
 
     material = new three.ShaderMaterial({
       uniforms: {
-        uTime: { value: 0 }, uGather: { value: 0.12 }, uJitter: { value: 0.45 },
-        uSpeed: { value: 0.45 }, uEnergy: { value: 0 }, uPulse: { value: 0 },
-        uSize: { value: 2.2 }, uBrightness: { value: 0.88 }
+        uTime: { value: 0 }, uGather: { value: 0.10 }, uCoherence: { value: 0.12 },
+        uJitter: { value: 0.55 }, uSpeed: { value: 0.45 }, uEnergy: { value: 0 },
+        uPulse: { value: 0 }, uGuideBias: { value: 0 }, uGuideDir: { value: new three.Vector3(1, -0.15, 0.2).normalize() },
+        uSize: { value: 2.1 }, uBrightness: { value: 0.88 }
       },
       vertexShader: ENTITY_VERTEX_SHADER,
       fragmentShader: ENTITY_FRAGMENT_SHADER,
@@ -283,13 +407,48 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
     points = new three.Points(geometry, material);
     scene = new three.Scene();
     scene.add(points);
+
+    // ---- background environment: sparse, distant, parallaxing --------
+    // Narrower on mobile than the desktop count, and cut further still --
+    // the background field is depth-cue only, and Part "MOBILE VISUAL
+    // POLISH"'s own instruction is explicit: thin the ambient field before
+    // ever touching the main entity's own particleBudget() (untouched
+    // here), so the question/card text reads cleanly against it.
+    const bgCount = prefersReducedMotion() ? 60 : (window.innerWidth < 640 ? 85 : 260);
+    const bgPositions = new Float32Array(bgCount * 3);
+    const bgSeeds = new Float32Array(bgCount);
+    const bgRand = mulberry32(0x5eed ^ bgCount);
+    for (let i = 0; i < bgCount; i++) {
+      const a = bgRand() * Math.PI * 2, rad = 3.5 + bgRand() * 8.5;
+      bgPositions[i * 3] = Math.cos(a) * rad;
+      bgPositions[i * 3 + 1] = (bgRand() - 0.5) * 7;
+      bgPositions[i * 3 + 2] = Math.sin(a) * rad - 2; // biased behind the entity
+      bgSeeds[i] = bgRand() * 1000;
+    }
+    const bgGeometry = new three.BufferGeometry();
+    bgGeometry.setAttribute('position', new three.BufferAttribute(bgPositions, 3));
+    bgGeometry.setAttribute('aSeed', new three.BufferAttribute(bgSeeds, 1));
+    const bgMaterial = new three.ShaderMaterial({
+      uniforms: { uTime: { value: 0 }, uParallax: { value: 0 } },
+      vertexShader: BG_VERTEX_SHADER,
+      fragmentShader: BG_FRAGMENT_SHADER,
+      transparent: true,
+      depthWrite: false,
+      blending: three.AdditiveBlending
+    });
+    bgPoints = new three.Points(bgGeometry, bgMaterial);
+    scene.add(bgPoints);
+
     camera = new three.PerspectiveCamera(45, 1, 0.1, 100);
-    camera.position.z = 4.2;
+    camera.position.set(0.6, 0.15, 4.3);
+    camera.lookAt(0, 0.1, 0);
 
     renderer = new three.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
     renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     el.appendChild(renderer.domElement);
     renderer.domElement.className = 'mam-entity3d-canvas';
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerleave', onPointerLeave);
 
     resize();
     resizeObserver = new ResizeObserver(resize);
@@ -310,27 +469,36 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
   function loop() {
     if (destroyed) return;
     // Never spend GPU/CPU on a hidden tab, and rotate slower (or not at
-    // all) when the visitor asked for reduced motion -- Part 20.
+    // all) when the visitor asked for reduced motion -- Part 20/"PERFORMANCE".
     if (document.hidden) { raf = requestAnimationFrame(loop); return; }
     const now = performance.now();
     const dt = Math.min(0.1, (now - lastT) / 1000);
     lastT = now;
+    const reduced = prefersReducedMotion();
     const m = mood.tick(dt);
     const u = material.uniforms;
-    u.uTime.value += dt * (prefersReducedMotion() ? 0.35 : 1);
+    u.uTime.value += dt * (reduced ? 0.35 : 1);
     u.uGather.value = m.gather;
-    u.uJitter.value = prefersReducedMotion() ? m.jitter * 0.4 : m.jitter;
-    u.uSpeed.value = prefersReducedMotion() ? m.speed * 0.5 : m.speed;
+    u.uCoherence.value = m.coherence;
+    u.uJitter.value = reduced ? m.jitter * 0.4 : m.jitter;
+    u.uSpeed.value = reduced ? m.speed * 0.5 : m.speed;
     u.uSize.value = m.size;
     u.uEnergy.value = energy;
     u.uPulse.value = mood.pulse;
-    // Blend brightness/color toward the amber error tint via brightness +
-    // a tinted additive pass would need a second uniform set; kept simple
-    // and honest here: errorMix dims brightness and slows motion, and the
-    // additive blending plus warm palette already reads as "uneasy amber"
-    // without a second shader branch.
+    u.uGuideBias.value = m.guideBias;
+    // errorMix dims brightness and slows motion; combined with additive
+    // blending over the warm palette this reads as "uneasy amber" without
+    // a second shader branch or a color swap.
     u.uBrightness.value = m.brightness * (1 - 0.25 * m.errorMix);
-    points.rotation.y += dt * 0.06 * (prefersReducedMotion() ? 0.3 : 1);
+
+    const camPos = camera_.tick(dt, reduced);
+    camera.position.set(camPos.x, camPos.y, camPos.z);
+    camera.lookAt(0, 0.08, 0);
+
+    bgPoints.material.uniforms.uTime.value += dt;
+    bgPoints.material.uniforms.uParallax.value = hoverActive ? hoverX : 0;
+    bgPoints.rotation.y += dt * 0.004;
+
     renderer.render(scene, camera);
     raf = requestAnimationFrame(loop);
   }
@@ -343,12 +511,10 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
     root.remove();
     // Rethrown deliberately: createMamEntity3D's proxy is waiting on THIS
     // promise to decide whether to keep the Three.js instance or swap in
-    // the Canvas2D fallback. Swallowing the error here (the previous,
-    // buggy shape -- a detached `init().catch()` with no rethrow) let
-    // this function resolve "successfully" with a renderer-less, DOM-less
-    // husk, which meant the fallback never ran and the entity silently
-    // rendered nothing at all whenever the CDN import failed but WebGL2
-    // itself was available -- exactly the case a flaky network hits.
+    // the Canvas2D fallback. Swallowing the error here would let this
+    // function resolve "successfully" with a renderer-less, DOM-less
+    // husk, which would mean the fallback never runs and the entity
+    // silently renders nothing -- exactly the case a flaky network hits.
     throw err;
   }
 
@@ -359,6 +525,7 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
     setState(state) {
       if (!VALID_STATES.has(state)) return;
       mood.setState(state, (settled) => api.setState(settled));
+      camera_.setState(state);
       updateLabel(el, state, getLanguage);
     },
     setEnergy(level) {
@@ -370,6 +537,8 @@ async function createThreeEntity({ mountTarget, getLanguage, interactive }) {
       destroyed = true;
       if (raf != null) cancelAnimationFrame(raf);
       if (resizeObserver) resizeObserver.disconnect();
+      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('pointerleave', onPointerLeave);
       mood.destroy();
       if (renderer) renderer.dispose();
       root.remove();
@@ -407,10 +576,12 @@ function createCanvas2DEntity({ mountTarget, getLanguage, interactive }) {
     const theta = 2 * Math.PI * u;
     const phi = Math.acos(2 * v - 1);
     const r = 1.0 + (rand() - 0.5) * 0.18;
+    const [hx, hy, hz] = sampleHumanoid(rand);
     particles.push({
       x0: r * Math.sin(phi) * Math.cos(theta),
       y0: r * Math.sin(phi) * Math.sin(theta),
       z0: r * Math.cos(phi),
+      hx, hy, hz,
       seed: rand() * 1000,
       color: pickColor(rand)
     });
@@ -426,12 +597,12 @@ function createCanvas2DEntity({ mountTarget, getLanguage, interactive }) {
   resizeObserver.observe(el);
   resize();
 
-  function flow(x, y, z, t) {
-    return [
-      Math.sin(y * 1.7 + t) + Math.sin(z * 1.3 - t * 0.7),
-      Math.sin(z * 1.9 - t * 0.8) + Math.sin(x * 1.4 + t * 0.6),
-      Math.sin(x * 1.5 + t * 0.9) + Math.sin(y * 1.2 - t * 0.5)
-    ];
+  // Same analytic curl construction as the shader (see
+  // mam-entity-shaders.js), evaluated on the CPU -- fewer points here, so
+  // this stays cheap.
+  function curl(x, y, z, t) {
+    const f = 1.6;
+    return [-Math.cos(z * f + t), -Math.cos(x * f + t) , -Math.cos(y * f + t)];
   }
 
   function loop() {
@@ -454,19 +625,20 @@ function createCanvas2DEntity({ mountTarget, getLanguage, interactive }) {
     const scale = Math.min(w, h) * 0.38;
     const cameraZ = 4.2;
 
-    // Depth-sort back-to-front so nearer particles paint over farther
-    // ones -- cheap and sufficient at this point count, unlike a real
-    // z-buffer which Canvas2D does not have.
     const projected = particles.map((p) => {
       const t = time * speed + p.seed * 0.0062831;
       const radiusMod = 1 + 0.12 * Math.sin(t * 0.6 + p.seed * 0.004) + 0.05 * Math.sin(t * 1.7 + p.seed * 0.009);
-      let x = p.x0 * radiusMod * gathered, y = p.y0 * radiusMod * gathered, z = p.z0 * radiusMod * gathered;
-      const [fx, fy, fz] = flow(p.x0 * 1.3, p.y0 * 1.3, p.z0 * 1.3, t);
-      const amp = 0.16 * jitter + 0.22 * energy;
+      const bx = p.x0 * radiusMod, by = p.y0 * radiusMod, bz = p.z0 * radiusMod;
+      let x = bx + (p.hx - bx) * m.coherence;
+      let y = by + (p.hy - by) * m.coherence;
+      let z = bz + (p.hz - bz) * m.coherence;
+      x *= gathered; y *= gathered; z *= gathered;
+      const [fx, fy, fz] = curl(bx * 1.3, by * 1.3, bz * 1.3, t);
+      const amp = (0.16 * jitter + 0.24 * energy) * (1 - 0.45 * m.coherence);
       x += fx * amp; y += fy * amp; z += fz * amp;
       const pulseAmt = mood.pulse * 0.35;
-      const len = Math.hypot(p.x0, p.y0, p.z0) || 1;
-      x += (p.x0 / len) * pulseAmt; y += (p.y0 / len) * pulseAmt; z += (p.z0 / len) * pulseAmt;
+      const len = Math.hypot(bx, by, bz) || 1;
+      x += (bx / len) * pulseAmt; y += (by / len) * pulseAmt; z += (bz / len) * pulseAmt;
       const persp = cameraZ / (cameraZ - z);
       return {
         sx: cx + x * scale * persp,
