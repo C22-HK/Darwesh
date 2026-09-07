@@ -505,12 +505,19 @@ body.world .w-label {
 }
 /* Sorani and Arabic are not English with other words in it: joined script
    sits lower, needs more leading, and is actively damaged by the tight
-   negative tracking that makes the Latin display face architectural. */
-body.world[dir="rtl"] .w-display { letter-spacing: 0; line-height: 1.22; font-size: clamp(2.1rem, 5.4vw, 4.5rem); }
-body.world[dir="rtl"] .w-h2 { letter-spacing: 0; line-height: 1.34; }
-body.world[dir="rtl"] .w-h3 { letter-spacing: 0; line-height: 1.42; }
-body.world[dir="rtl"] .w-body { line-height: 1.9; }
-body.world[dir="rtl"] .w-label { letter-spacing: 0.12em; }
+   negative tracking that makes the Latin display face architectural.
+   js/i18n.js sets `dir` on <html>, never on <body> (see the note near
+   .w-plane below) -- these rules were written as `body.world[dir="rtl"]`,
+   which can never match, so they silently never applied: Kurdish/Arabic
+   rendered at the Latin-tuned size/tracking/leading instead, which is
+   what let the headline balloon past its intended box. Rescoped to
+   `html[dir="rtl"] body.world`, the one selector shape that actually
+   matches. */
+html[dir="rtl"] body.world .w-display { letter-spacing: 0; line-height: 1.22; font-size: clamp(2.1rem, 5.4vw, 4.5rem); }
+html[dir="rtl"] body.world .w-h2 { letter-spacing: 0; line-height: 1.34; }
+html[dir="rtl"] body.world .w-h3 { letter-spacing: 0; line-height: 1.42; }
+html[dir="rtl"] body.world .w-body { line-height: 1.9; }
+html[dir="rtl"] body.world .w-label { letter-spacing: 0.12em; }
 
 /* =========================================================================
  * 5. CONTROLS
@@ -531,8 +538,8 @@ body.world .w-btn {
 }
 body.world .w-btn-arrow { flex: none; transition: transform var(--w-mid) var(--w-ease-out); }
 body.world .w-btn:hover .w-btn-arrow { transform: translateX(3px); }
-body.world[dir="rtl"] .w-btn-arrow { transform: scaleX(-1); }
-body.world[dir="rtl"] .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translateX(3px); }
+html[dir="rtl"] body.world .w-btn-arrow { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translateX(3px); }
 
 /* Primary inverts across the tonal journey so it is always the highest
    contrast object in the frame, on night and on stone alike. */
@@ -565,7 +572,7 @@ body.world .w-action::after {
 body.world .w-action:hover::after { transform: scaleX(1); }
 body.world .w-action svg { flex: none; transition: transform var(--w-mid) var(--w-ease-out); }
 body.world .w-action:hover svg { transform: translateX(3px); }
-body.world[dir="rtl"] .w-action svg { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-action svg { transform: scaleX(-1); }
 
 body.world .w-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -579,7 +586,7 @@ body.world .w-icon-btn {
 body.world .w-icon-btn:hover { border-color: var(--w-gold); }
 body.world .w-icon-btn:active { transform: scale(0.94); }
 body.world .w-icon-btn svg { width: 18px; height: 18px; }
-body.world[dir="rtl"] .w-icon-btn svg { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-icon-btn svg { transform: scaleX(-1); }
 
 body.world .w-btn:focus-visible,
 body.world .w-action:focus-visible,
@@ -688,13 +695,13 @@ body.world .w-hero-plane {
                       linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
           mask-composite: intersect;
 }
-body.world[dir="rtl"] .w-hero-plane {
-  inset: 0 34% 0 0;
-  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
-                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
-          mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
-                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
-}
+/* Deliberately no [dir="rtl"] variant here. An earlier pass had one (mask
+   flipped, inset mirrored to the left) that never actually applied --
+   wrong selector scope, see the .w-display note above -- and the current
+   design direction is to keep it that way on purpose: the hero photograph
+   stays in the same visual zone and the composition doesn't shift
+   horizontally for Kurdish/Arabic. Only the text inside .w-hero-copy
+   reflows for RTL; the image plane doesn't mirror. */
 body.world .w-hero-copy { max-width: 44rem; display: flex; flex-direction: column; gap: 1.3rem; align-items: flex-start; }
 
 body.world .w-search {
@@ -765,7 +772,6 @@ body.world .w-panel {
   border-inline-end: 1px solid rgba(244, 239, 231, 0.1);
   transition: flex-grow var(--w-slow) var(--w-ease-out);
 }
-body.world[dir="rtl"] .w-panel { border-inline-end: 1px solid rgba(244, 239, 231, 0.1); }
 body.world .w-panel:last-child { border-inline-end: 0; }
 body.world .w-panel-media {
   position: absolute; inset: 0; z-index: 0;
@@ -990,7 +996,7 @@ body.world .w-plane[data-focus="1"] {
 }
 body.world .w-plane[data-focus="1"] .w-plane-go { opacity: 1; transform: none; }
 body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.45rem; }
-body.world[dir="rtl"] .w-plane-go svg { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-plane-go svg { transform: scaleX(-1); }
 
 body.world .w-gallery-nav {
   display: flex; align-items: center; justify-content: center; gap: 0.75rem;
@@ -1054,8 +1060,8 @@ body.world .w-row svg:first-child { flex: none; color: var(--w-gold); }
 body.world .w-row-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
 body.world .w-row-cue { margin-inline-start: auto; flex: none; opacity: 0.5; transition: transform var(--w-mid) var(--w-ease-out), opacity var(--w-fast) var(--w-ease); }
 body.world .w-row:hover .w-row-cue { opacity: 1; transform: translateX(4px); }
-body.world[dir="rtl"] .w-row-cue { transform: scaleX(-1); }
-body.world[dir="rtl"] .w-row:hover .w-row-cue { transform: scaleX(-1) translateX(4px); }
+html[dir="rtl"] body.world .w-row-cue { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-row:hover .w-row-cue { transform: scaleX(-1) translateX(4px); }
 
 /* The offer. Sits at the luminous high point of the journey, so its white
    QR belongs to the light rather than punching a hole in the dark. */
