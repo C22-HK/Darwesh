@@ -12,10 +12,11 @@
 // selector's lang-toggle-btn/lang-menu, just not sharing its class names
 // since this is a different menu, not another language surface) -- there
 // is exactly one clickable nav LABEL for the map, with Buy/Rent reachable
-// as its two modes, never a second or third label. MAM is not a
-// standalone nav destination -- it is a compact assistant present on
-// every page (js/mam-companion-launcher.js), see
-// docs/MAM_V2_ARCHITECTURE.md section 21.
+// as its two modes, never a second or third label. The compact MAM
+// assistant (js/mam-companion-launcher.js) is still present on every
+// page, unchanged -- see docs/MAM_V2_ARCHITECTURE.md section 21. "MAM AI"
+// below is its dedicated, separate full-page destination (mam-ai.html,
+// the MAM AI Command Center), added alongside it, not a replacement.
 //
 // LIGHT-LUXURY HEADER REBUILD (visual composition change, approved).
 // White surface (not the previous navy-forward M3 tokens), Darwesh Navy
@@ -69,7 +70,8 @@
 // tag on the page:
 //   <div id="siteHeader" data-active="propertiesMap"></div>
 //   <script src="./js/site-header.js"></script>
-// `data-active` is one of: home, propertiesMap, services, about -- omit/
+// `data-active` is one of: home, propertiesMap, sell, mamai, services,
+// about -- omit/
 // leave blank on a page with no matching nav item (e.g. a detail page,
 // listing.html), which then highlights nothing as current. map.html
 // itself always highlights as propertiesMap regardless of its own
@@ -177,6 +179,7 @@
             '<a class="' + navClass('home') + '" href="index.html" data-i18n="nav.home"' + ariaCurrent('home') + '>Home</a>' +
             propertiesMapItem +
             '<a class="' + navClass('sell') + '" href="sell.html" data-i18n="nav.sell"' + ariaCurrent('sell') + '>Sell</a>' +
+            '<a class="' + navClass('mamai') + '" href="mam-ai.html" data-i18n="mamai.navLabel"' + ariaCurrent('mamai') + '>MAM AI</a>' +
           '</div>' +
           '<div class="flex items-center gap-6">' +
             '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +

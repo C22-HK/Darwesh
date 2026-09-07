@@ -4,8 +4,10 @@ from app.mam.intent_resolver import (
     detect_city,
     detect_deal_type,
     detect_property_type,
+    detect_service_type,
     extract_bedrooms,
     extract_price,
+    is_sell_navigation,
     normalize_text,
     resolve_intent,
 )
@@ -36,6 +38,20 @@ def test_detect_deal_type_rent_vs_sale():
     assert detect_deal_type(normalize_text("apartment for rent")) == "rent"
     assert detect_deal_type(normalize_text("I want to buy a house")) == "sale"
     assert detect_deal_type(normalize_text("just looking")) is None
+
+
+def test_detect_service_type():
+    assert detect_service_type(normalize_text("I need an interior designer")) == "designer"
+    assert detect_service_type(normalize_text("ئەندازیارێکم پێویستە")) == "engineer"
+    assert detect_service_type(normalize_text("nothing relevant here")) is None
+
+
+def test_is_sell_navigation_requires_verb_and_topic_and_no_property_type():
+    assert is_sell_navigation(normalize_text("بڕۆ بۆ فرۆشتن و شارەکە بکە کەرکووک"), None) is True
+    # "بۆ فرۆشتن" alone (no navigation verb) is just the deal-type phrase
+    # a genuine search uses -- must NOT be treated as navigation.
+    assert is_sell_navigation(normalize_text("خانووی بۆ فرۆشتن لە هەولێر"), "house") is False
+    assert is_sell_navigation(normalize_text("show me the map"), None) is False
 
 
 def test_extract_price_million_magnitude():
@@ -83,9 +99,45 @@ def test_resolve_intent_map_keyword():
 
 
 def test_resolve_intent_service_keyword():
+    # Naming a specific discipline goes straight to a real professional
+    # search (MAM AI Command Center Phase 1's search_professionals/
+    # openProfessional demo flow) rather than the old generic "list every
+    # service category" reply -- see intent_resolver.py's
+    # SERVICE_TYPE_KEYWORDS/detect_service_type.
     resolved = resolve_intent("I need an engineer")
     assert resolved is not None
-    assert resolved.tool_name == "search_services"
+    assert resolved.tool_name == "search_professionals"
+    assert resolved.arguments == {"serviceType": "engineer"}
+
+
+def test_resolve_intent_service_keyword_with_city():
+    # Required demo flow 3: "Find me an interior designer in Sulaymaniyah"
+    # -- a real search_professionals call, not a generic category listing.
+    resolved = resolve_intent("Find me an interior designer in Sulaymaniyah")
+    assert resolved is not None
+    assert resolved.tool_name == "search_professionals"
+    assert resolved.arguments == {"serviceType": "designer", "city": "Sulaymaniyah"}
+
+
+def test_resolve_intent_sell_navigation_sorani():
+    # Required demo flow 4: "بڕۆ بۆ فرۆشتن و شارەکە بکە کەرکووک" (go to
+    # Sell and set the city to Kirkuk) must open Sell, never search for
+    # Kirkuk listings for sale.
+    resolved = resolve_intent("بڕۆ بۆ فرۆشتن و شارەکە بکە کەرکووک")
+    assert resolved is not None
+    assert resolved.tool_name == "open_sell"
+    assert resolved.arguments == {"city": "Kirkuk"}
+
+
+def test_resolve_intent_genuine_for_sale_search_is_not_sell_navigation():
+    # A real "house for sale in Kirkuk" search (names a property type)
+    # must still resolve as a search, not be swallowed by the Sell
+    # navigation check above just because it also says "بۆ فرۆشتن".
+    resolved = resolve_intent("دۆزینەوەی خانوو بۆ فرۆشتن لە کەرکووک")
+    assert resolved is not None
+    assert resolved.tool_name == "search_properties"
+    assert resolved.arguments.get("dealType") == "sale"
+    assert resolved.arguments.get("city") == "Kirkuk"
 
 
 def test_resolve_intent_greeting_has_no_tool_and_a_fallback_reply():

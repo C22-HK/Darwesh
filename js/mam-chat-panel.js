@@ -72,7 +72,9 @@ const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
 // action can ever resolve to. This is now the single source of that
 // mapping: the map's own copy went with js/mam-properties-map.js, so
 // there is one place that decides where a serviceType's profile lives.
-const PROFESSIONAL_PAGES = { engineer: 'engineer.html', designer: 'designer.html', lawyer: 'lawyer.html', landscaping: 'landscaping.html', cleaning: 'cleaning.html' };
+// Exported so js/mam-command-registry.js's own openProfessional action
+// can reuse this exact mapping instead of keeping a second, driftable copy.
+export const PROFESSIONAL_PAGES = { engineer: 'engineer.html', designer: 'designer.html', lawyer: 'lawyer.html', landscaping: 'landscaping.html', cleaning: 'cleaning.html' };
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 function trf(key, fallback, vars) {
@@ -1100,7 +1102,24 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   // place, or was a no-op.
   /** @returns {(() => void)|null} */
   function applyMapAction(mapAction) {
-    if (!mapAction || mapAction.target !== 'map.html') return null;
+    if (!mapAction) return null;
+    // MAM AI Command Center's one Sell action (backend/app/mam/tools.py's
+    // open_sell): reuses this SAME MapAction shape rather than a second
+    // one -- 'q' already means "city name" in every MapAction this
+    // backend produces (see filtersToMapUrlParams/_search_filters_action),
+    // so this is a navigation, never a second filter implementation. Only
+    // ever a FORM PREFILL on arrival (sell.html's own prefillCityFromMam()
+    // reads this same query param) -- nothing here submits anything.
+    if (mapAction.target === 'sell.html') {
+      const city = mapAction.filters && mapAction.filters.q;
+      const params = new URLSearchParams();
+      if (city && /^[a-zA-Z]+$/.test(city)) params.set('prefillCity', city.toLowerCase());
+      const href = 'sell.html' + (params.toString() ? '?' + params.toString() : '');
+      const run = () => { mamNavigate(href); };
+      run.href = href;
+      return run;
+    }
+    if (mapAction.target !== 'map.html') return null;
     const onMapPage = window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function';
     if (onMapPage) {
       if (mapAction.filters && Object.keys(mapAction.filters).length) {

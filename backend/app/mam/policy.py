@@ -113,15 +113,19 @@ def wrap_untrusted(label: str, text: str | None) -> str:
 
 
 # ---- Location privacy ---------------------------------------------------
-# Per the repo's own AUTHZ/BUSINESS_LOGIC security review history: a
-# `listings` document's lat/lng ARE already public data today -- the same
-# fields buy.html/map.html/rent.html already render to every visitor
-# (firestore.rules' `listings` read rule is `allow get, list: if
-# isListingPubliclyVisible() || isListingOwnerOrAdmin()`, with no separate
-# exact/approximate location split in the schema). A MAM tool reading a
-# publicly-visible listing therefore exposes nothing beyond what those
-# pages already show -- this is NOT a new bypass, it inherits the
-# existing, already-reviewed public contract.
+# LOC-01: `listings/{id}` carries only `publicLat`/`publicLng` (rounded to
+# 2 decimal places, a ~1.1 km grid) as of the current schema -- the real,
+# precise pin lives in `listings/{id}/private/location`, readable only by
+# the owner/org-member/admin (see firestore.rules' `hasNoPreciseCoordFields()`/
+# `isValidPublicCoordPair()`). Bare `lat`/`lng` are deliberately NOT in this
+# allowlist, and never should be: firestore.rules' own comment notes that
+# documents written before the LOC-01 migration may still carry a raw,
+# unrounded `lat`/`lng` until the backfill script strips them -- if this
+# allowlist ever let those through, a MAM tool would hand a voice/chat
+# caller the exact building-level coordinate for any listing the backfill
+# hasn't reached yet. Excluding them here closes that regardless of the
+# backfill's progress, the same way map.html/listing.html are expected to
+# prefer `publicLat`/`publicLng` and never fall back to raw `lat`/`lng`.
 #
 # What MUST stay out of reach of every MAM tool implemented this phase
 # (see tools.py) regardless of caller: `estates/{id}/protected/*` (owner
@@ -137,8 +141,8 @@ PUBLIC_LISTING_FIELDS = frozenset(
         "title",
         "address",
         "city",
-        "lat",
-        "lng",
+        "publicLat",
+        "publicLng",
         "dealType",
         "propertyType",
         "price",

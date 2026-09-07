@@ -88,3 +88,30 @@ def test_project_public_listing_fields_drops_unlisted_keys():
     assert projected == {"title": "Nice villa", "city": "Erbil", "price": 250000}
     assert "agentId" not in projected
     assert "ownerPhone" not in projected
+
+
+def test_project_public_listing_fields_keeps_rounded_public_coords():
+    # A listing already migrated to the LOC-01 schema (see
+    # firestore.rules' hasNoPreciseCoordFields/isValidPublicCoordPair):
+    # only the rounded publicLat/publicLng ever reach a MAM response.
+    doc = {"title": "Nice villa", "publicLat": 36.19, "publicLng": 44.01}
+    projected = project_public_listing_fields(doc)
+    assert projected == {"title": "Nice villa", "publicLat": 36.19, "publicLng": 44.01}
+
+
+def test_project_public_listing_fields_drops_legacy_precise_coords():
+    # LOC-01 regression guard: a listing written before the migration may
+    # still carry a raw, unrounded lat/lng until the backfill script
+    # strips it (see firestore.rules' own comment on this). A MAM tool
+    # must never pass that exact coordinate through, regardless of the
+    # backfill's progress -- bare lat/lng must never re-enter the
+    # allowlist even if a future edit adds a new field near them.
+    doc = {
+        "title": "Nice villa",
+        "lat": 36.190551234,  # exact, unrounded -- must never survive projection
+        "lng": 44.009821234,
+    }
+    projected = project_public_listing_fields(doc)
+    assert "lat" not in projected
+    assert "lng" not in projected
+    assert projected == {"title": "Nice villa"}

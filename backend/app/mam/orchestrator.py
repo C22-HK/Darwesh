@@ -212,6 +212,20 @@ def _build_response(tool_name: str, arguments: dict, result: dict, language: str
         )
         return ChatResponse(message="", language=language, map_action=action)
 
+    if tool_name == "open_sell":
+        # Reuses MapAction's existing, generic {target, filters} shape --
+        # 'q' already means "city name" in every MapAction this backend
+        # produces (see _search_filters_action/Tools.open_on_map), so no
+        # new field is needed. js/mam-chat-panel.js's applyMapAction()
+        # recognizes target === 'sell.html' and turns filters.q into
+        # sell.html's own ?prefillCity= query param.
+        action = MapAction(
+            target=result["target"],
+            filters={"q": result["city"]} if result.get("city") else {},
+            focus_listing_id=None,
+        )
+        return ChatResponse(message="", language=language, map_action=action)
+
     # Generic fallback for tools without a dedicated card type (get_listing_history,
     # get_professional, get_project, search_services, get_saved_properties,
     # save_property, remove_saved_property) -- still real data, just returned

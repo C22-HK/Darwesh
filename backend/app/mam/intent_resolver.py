@@ -158,6 +158,42 @@ MAP_KEYWORDS = [
     "خریطه",
     "منطقه",
 ]
+# MAM AI Command Center Phase 1's one Sell action: "go/take me to Sell"
+# (optionally naming a city to prefill) is a NAVIGATION request, not a
+# property search -- even though "بۆ فرۆشتن"/"فرۆشتن" ("for sale"/"sale")
+# already feeds DEAL_TYPE_SALE_KEYWORDS below. Without this check running
+# FIRST, "بڕۆ بۆ فرۆشتن و شارەکە بکە کەرکووک" ("go to Sell and set the
+# city to Kirkuk") would match the generic city+dealType search branch and
+# open a search for Kirkuk listings for sale -- the opposite of what was
+# asked. Requiring an explicit navigation verb, and refusing to match when
+# a property-type noun is also present (that combination is a genuine
+# search, e.g. "a house for sale in Kirkuk"), keeps this narrow enough to
+# never shadow a real search.
+SELL_NAV_VERB_KEYWORDS = [
+    "بڕۆ",
+    "بمبە",
+    "بمبەرە",
+    "بیبە",
+    "اذهب",
+    "روح",
+    "افتح",
+    "خذني",
+    "go to",
+    "take me to",
+    "navigate to",
+    "open sell",
+]
+SELL_NAV_TOPIC_KEYWORDS = ["فرۆشتن", "بفرۆشم", "بیع", "sell", "selling"]
+
+
+def is_sell_navigation(text_norm: str, property_type: str | None) -> bool:
+    if property_type:
+        return False  # naming a property type means this is a search, not "list my property"
+    has_topic = any(k in text_norm for k in SELL_NAV_TOPIC_KEYWORDS)
+    has_verb = any(k in text_norm for k in SELL_NAV_VERB_KEYWORDS)
+    return has_topic and has_verb
+
+
 GREETING_KEYWORDS = ["hello", "hi", "hey", "سڵاو", "چۆنیت", "مرحبا", "السلام علیکم"]
 THANKS_KEYWORDS = ["thank", "سوپاس", "شکرا"]
 BYE_KEYWORDS = ["bye", "goodbye", "بەخاترت", "خوات لەگەڵ", "مع السلامه"]
@@ -172,6 +208,28 @@ SERVICE_KEYWORDS = [
     "محامي",
     "دیزاین",
 ]
+
+# One of backend/app/mam/tools.py's _VALID_SERVICE_TYPES per key -- the
+# same 5 canonical slugs js/mam-chat-panel.js's PROFESSIONAL_PAGES already
+# maps to a real profile page. Naming a specific discipline ("an interior
+# designer", "ئەندازیار") is specific enough to go straight to
+# search_professionals with that serviceType (and a city, when named)
+# rather than the generic "list every service category" reply
+# SERVICE_KEYWORDS alone falls through to below.
+SERVICE_TYPE_KEYWORDS = {
+    "engineer": ["engineer", "ئەندازیار", "مهندس"],
+    "designer": ["designer", "دیزاینەر", "دیزاین", "مصمم"],
+    "lawyer": ["lawyer", "attorney", "پارێزەر", "محامي"],
+    "landscaping": ["landscap", "گوڵکاری", "تنسیق حدائق", "منسق حدائق"],
+    "cleaning": ["cleaning", "پاکژکردنەوە", "تنظیف"],
+}
+
+
+def detect_service_type(text_norm: str) -> str | None:
+    for service_type, keywords in SERVICE_TYPE_KEYWORDS.items():
+        if any(k in text_norm for k in keywords):
+            return service_type
+    return None
 
 
 def detect_city(text_norm: str) -> str | None:
@@ -258,6 +316,27 @@ def resolve_intent(message: str) -> ResolvedIntent | None:
     deal_type = detect_deal_type(norm)
     price = extract_price(norm)
     bedrooms = extract_bedrooms(norm)
+    service_type = detect_service_type(norm)
+
+    # Checked BEFORE the generic search branch below -- see
+    # is_sell_navigation's own comment for why "بڕۆ بۆ فرۆشتن و شارەکە بکە
+    # کەرکووک" ("go to Sell and set the city to Kirkuk") must resolve here
+    # first, or DEAL_TYPE_SALE_KEYWORDS's own "بۆ فرۆشتن" match would send
+    # it into a Kirkuk-for-sale property SEARCH instead.
+    if is_sell_navigation(norm, property_type):
+        return ResolvedIntent(tool_name="open_sell", arguments={"city": city} if city else {})
+
+    # A specific discipline ("an interior designer", "ئەندازیار") goes
+    # straight to search_professionals with a real serviceType (and city,
+    # when named) -- checked before the generic property search below so
+    # naming a profession is never mistaken for naming a property type,
+    # and before the old catch-all SERVICE_KEYWORDS branch further down,
+    # which only ever listed categories rather than actually searching.
+    if service_type:
+        args: dict = {"serviceType": service_type}
+        if city:
+            args["city"] = city
+        return ResolvedIntent(tool_name="search_professionals", arguments=args)
 
     # A specific enough search goes straight to search_properties -- the
     # same "only treat as a real search when specific enough" rule

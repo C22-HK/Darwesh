@@ -212,6 +212,34 @@ async def test_map_intent_produces_map_action_never_a_data_claim():
 
 
 @pytest.mark.asyncio
+async def test_sell_navigation_intent_produces_sell_map_action_with_city():
+    # End-to-end version of MAM AI Command Center Phase 1's required demo
+    # flow 4: a full turn through the real orchestrator, not just the
+    # intent_resolver/tools unit in isolation. Reuses the SAME MapAction
+    # shape open_on_map produces (js/mam-chat-panel.js's applyMapAction()
+    # is the one place that turns this into a real navigation).
+    orch = make_orchestrator(provider=None)
+    response = await orch.handle_turn(
+        caller=PUBLIC_CALLER, request=make_request("بڕۆ بۆ فرۆشتن و شارەکە بکە کەرکووک")
+    )
+    assert response.map_action is not None
+    assert response.map_action.target == "sell.html"
+    # Lowercased by Tools.open_sell to match sell.html's own city option
+    # keys (data-i18n="cities.kirkuk") -- see test_mam_tools.py's
+    # test_open_sell_is_pure_action_and_lowercases_city.
+    assert response.map_action.filters.get("q") == "kirkuk"
+
+
+@pytest.mark.asyncio
+async def test_sell_navigation_intent_without_city_has_no_filters():
+    orch = make_orchestrator(provider=None)
+    response = await orch.handle_turn(caller=PUBLIC_CALLER, request=make_request("go to sell"))
+    assert response.map_action is not None
+    assert response.map_action.target == "sell.html"
+    assert response.map_action.filters == {}
+
+
+@pytest.mark.asyncio
 async def test_unauthenticated_caller_gets_sign_in_message_for_authenticated_only_tool():
     orch = make_orchestrator(provider=None)
     # resolve_intent never routes to save_property directly, so drive the

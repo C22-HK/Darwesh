@@ -976,6 +976,23 @@ function updateSelectedLocationCard() {
 document.getElementById('addressInput').addEventListener('input', updateSelectedLocationCard);
 document.getElementById('citySelect').addEventListener('change', updateSelectedLocationCard);
 
+// ---------------------------------------------------------------------
+// MAM AI Command Center: optional city prefill (the setSellField('city', ...)
+// action -- see js/mam-command-registry.js). Selects the matching option
+// by its data-i18n key rather than by text, so this works correctly no
+// matter which language the <option> happens to be rendered in right now.
+// This only ever PREFILLS the Location step's own city field -- it never
+// places a pin, never advances a step and never submits anything, so
+// there is no side effect here that would ever need confirmation.
+(function prefillCityFromMam() {
+  const key = new URLSearchParams(location.search).get('prefillCity');
+  if (!key || !/^[a-z]+$/.test(key)) return;
+  const option = document.querySelector('#citySelect option[data-i18n="cities.' + key + '"]');
+  if (!option) return;
+  option.selected = true;
+  document.getElementById('citySelect').dispatchEvent(new Event('change', { bubbles: true }));
+})();
+
 function applyReverseGeocode(addressObj, shortAddress) {
   const matchedCity = matchKnownCity(addressObj);
   if (matchedCity) document.getElementById('citySelect').value = matchedCity;

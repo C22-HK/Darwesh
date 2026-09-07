@@ -197,6 +197,31 @@ async def test_open_on_map_is_pure_action_never_a_data_claim():
 
 
 @pytest.mark.asyncio
+async def test_open_sell_is_pure_action_and_lowercases_city():
+    tools, _ = make_tools()
+    result = await tools.open_sell(PUBLIC_CALLER, city="Kirkuk")
+    # Lowercased to match sell.html's own city option keys
+    # (data-i18n="cities.kirkuk") -- see js/mam-chat-panel.js's
+    # applyMapAction() and sell.html's prefillCityFromMam().
+    assert result == {"target": "sell.html", "city": "kirkuk"}
+
+
+@pytest.mark.asyncio
+async def test_open_sell_with_no_city_is_a_plain_navigation():
+    tools, _ = make_tools()
+    result = await tools.open_sell(PUBLIC_CALLER)
+    assert result == {"target": "sell.html", "city": None}
+
+
+@pytest.mark.asyncio
+async def test_open_sell_is_public_no_auth_required():
+    tools, _ = make_tools()
+    # Never raises ToolAuthorizationError -- a signed-out visitor can be
+    # guided to Sell exactly like any other navigation.
+    await tools.open_sell(PUBLIC_CALLER, city="Erbil")
+
+
+@pytest.mark.asyncio
 async def test_saved_properties_require_authentication():
     tools, _ = make_tools()
     with pytest.raises(ToolAuthorizationError):

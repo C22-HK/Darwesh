@@ -406,6 +406,19 @@ class Tools:
             filters["q"] = city
         return {"target": "map.html", "filters": filters, "focusListingId": listing_id}
 
+    # ---- open_sell (pure action, no Firestore) --------------------------
+    # MAM AI Command Center Phase 1's only Sell action: navigate to the
+    # Sell wizard and, if a city was named, prefill its Location step's
+    # city field (sell.html's own prefillCityFromMam()) -- a FORM PREFILL,
+    # never a submission, so there is nothing here that touches
+    # firestore.rules or bypasses any authorization boundary. `city` is
+    # intent_resolver.py's own CITY_KEYWORDS canonical name (e.g.
+    # "Kirkuk") -- lowercased here to match sell.html's own city option
+    # keys (js/i18n.js's CITY_KEYS / sell.html's data-i18n="cities.*").
+    async def open_sell(self, caller: MamCaller, *, city: str | None = None) -> dict:
+        require_auth(caller, AuthRequirement.PUBLIC)
+        return {"target": "sell.html", "city": city.lower() if city else None}
+
     # ---- get_saved_properties / save_property / remove_saved_property ---
     async def get_saved_properties(self, caller: MamCaller) -> dict:
         require_auth(caller, AuthRequirement.AUTHENTICATED)
@@ -462,6 +475,7 @@ TOOL_AUTH: dict[str, AuthRequirement] = {
     "search_projects": AuthRequirement.PUBLIC,
     "get_project": AuthRequirement.PUBLIC,
     "open_on_map": AuthRequirement.PUBLIC,
+    "open_sell": AuthRequirement.PUBLIC,
     "get_saved_properties": AuthRequirement.AUTHENTICATED,
     "save_property": AuthRequirement.AUTHENTICATED,
     "remove_saved_property": AuthRequirement.AUTHENTICATED,
@@ -576,6 +590,11 @@ def build_tool_specs() -> list[ToolSpec]:
             },
         ),
         ToolSpec(
+            name="open_sell",
+            description="Produce a navigation action to the Sell page, optionally prefilling the Location step's city. Never submits or publishes anything.",
+            parameters_schema={"type": "object", "properties": {"city": {"type": "string"}}},
+        ),
+        ToolSpec(
             name="get_saved_properties",
             description="List the signed-in caller's own saved/favorited listing ids. Requires the caller to be signed in.",
             parameters_schema={"type": "object", "properties": {}},
@@ -650,6 +669,7 @@ _DISPATCH_TABLE = {
     "search_projects": Tools.search_projects,
     "get_project": Tools.get_project,
     "open_on_map": Tools.open_on_map,
+    "open_sell": Tools.open_sell,
     "get_saved_properties": Tools.get_saved_properties,
     "save_property": Tools.save_property,
     "remove_saved_property": Tools.remove_saved_property,

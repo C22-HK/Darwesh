@@ -1,17 +1,20 @@
 // Darwesh shared public mobile bottom navigation -- the ONE canonical
-// bottom nav bar (Home, Properties Map, Sell, Services, Profile) for every
-// public content page at mobile widths. Just ONE map item, matching
-// js/site-header.js's own consolidation (see that file's header comment)
-// -- a bottom tab bar has no room for Buy/Rent as separate icons too, and
-// doesn't need them: map.html opens straight into Buy mode by default,
-// its own in-page Buy/Rent/All toggle switches modes in one tap, and the
-// MAM AI dock on that page understands "show me rentals" just as well.
+// bottom nav bar (Home, MAM AI, Properties Map, Sell, Services, Profile)
+// for every public content page at mobile widths. Just ONE map item,
+// matching js/site-header.js's own consolidation (see that file's header
+// comment) -- a bottom tab bar has no room for Buy/Rent as separate icons
+// too, and doesn't need them: map.html opens straight into Buy mode by
+// default, its own in-page Buy/Rent/All toggle switches modes in one tap,
+// and the MAM AI dock on that page understands "show me rentals" just as
+// well.
 //
 // Sell IS its own item, though, and deliberately so: it is not a mode of
 // the map, it is a separate funnel (sell.html), and it had no entry point
-// anywhere in global navigation before. Five items still sit comfortably
-// at 390px; Buy/Rent as two more would not, which is why they stay with
-// the map where the in-page toggle already covers them.
+// anywhere in global navigation before. Five items sat comfortably at
+// 390px; MAM AI (mam-ai.html, the Command Center's own dedicated page --
+// distinct from the compact MAM assistant that stays present on every
+// page unchanged) is the sixth, verified at 390/430px alongside this
+// change rather than assumed to still fit.
 // Reuses the exact .home-bottomnav / .home-bottomnav-item classes and
 // cine-scope design tokens already proven on index.html rather than
 // inventing new styling -- see css/cinematic.css's own .home-bottomnav*
@@ -29,7 +32,7 @@
 // other script tag on the page:
 //   <div id="siteMobileNav" data-active="propertiesMap"></div>
 //   <script src="./js/site-mobile-nav.js"></script>
-// `data-active` uses the same keys as js/site-header.js: home,
+// `data-active` uses the same keys as js/site-header.js: home, mamai,
 // propertiesMap, sell, services -- omit/leave blank for a page with no
 // matching destination. There is no separate "profile" key: Profile's
 // real destination is decided dynamically by js/nav-auth.js (which page
@@ -52,6 +55,10 @@
       '<a class="' + itemClass('home') + '" href="index.html"' + ariaCurrent('home') + '>' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></span>' +
         '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.home">Home</span>' +
+      '</a>' +
+      '<a class="' + itemClass('mamai') + '" href="mam-ai.html"' + ariaCurrent('mamai') + '>' +
+        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M12 8a4 4 0 0 0 4 4 4 4 0 0 0-4 4 4 4 0 0 0-4-4 4 4 0 0 0 4-4Z"/></svg></span>' +
+        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="mamai.navLabel">MAM AI</span>' +
       '</a>' +
       '<a class="' + itemClass('propertiesMap') + '" href="map.html"' + ariaCurrent('propertiesMap') + '>' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3Z"/><path d="M9 4v13M15 7v13"/></svg></span>' +
