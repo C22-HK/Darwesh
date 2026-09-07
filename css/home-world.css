@@ -705,13 +705,42 @@ body.world .w-hero-plane {
    (An earlier pass had this exact rule but scoped it as
    `body.world[dir="rtl"]`, which -- see the .w-display note above --
    can never match; that's why it silently never applied.) */
+/* 34% (the LTR dark zone's own width, just mirrored) left too little
+   room, for a reason that only shows up once you check the actual
+   anchor points: .w-hero-copy lives inside .mv-in, which caps at
+   max-width:1340px and centers itself (margin-inline:auto) -- so past
+   a 1340px viewport the copy column's right edge gets pulled inward
+   *faster* than the viewport grows (confirmed empirically: the gap
+   from the true right edge to .mv-in's own edge is 108px at 1440 but
+   362px at 1920), while .w-hero-plane's inset is a plain percentage of
+   the full, uncentered .w-hero width and has no such ceiling. A single
+   inset/max-width pairing tuned to look right at one width silently
+   loses its margin at another. Two changes, checked against both
+   1440 and 1920's real measured anchors rather than assumed to scale
+   uniformly: the image claims 58% (was mirroring LTR's 66%, then 60%
+   in an earlier pass that still wasn't enough room), and the mask's
+   own fade completes sooner (15% of the plane's width instead of 26%)
+   so it's fully transparent well inside the reserved zone rather than
+   still visibly fading at its edge. See the .w-hero-copy rule below
+   for the matching cap, sized off the same two measured anchors so
+   there's a real, positive gap (not just a smaller overlap) at both
+   required widths. */
 html[dir="rtl"] body.world .w-hero-plane {
-  inset: 0 34% 0 0;
-  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
+  inset: 0 42% 0 0;
+  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 15%, #000 100%),
                       linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
-          mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
+          mask-image: linear-gradient(270deg, transparent 0%, #000 15%, #000 100%),
                       linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
 }
+/* Companion to the inset/mask change above: sized off the same two
+   measured anchor points (copy column's right edge sits at 1332px @
+   1440 and 1558px @ 1920) so it clears the image's right edge (835px @
+   1440, 1114px @ 1920 at the new 58% inset) by a genuine, checked
+   margin at both -- roughly 100px+ at 1440, 35px+ at 1920, the tighter
+   of the two because of .mv-in's centering above. Not LTR's flat
+   44rem: that number was sized for a dark zone nearly twice as wide
+   (66%) and would eat straight back into the image at RTL's zone. */
+html[dir="rtl"] body.world .w-hero-copy { max-width: clamp(18rem, 22vw, 20rem); }
 body.world .w-hero-copy { max-width: 44rem; display: flex; flex-direction: column; gap: 1.3rem; align-items: flex-start; }
 
 body.world .w-search {
@@ -1139,6 +1168,14 @@ body.world .home-bottomnav {
     -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
             mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
   body.world .w-hero-copy { padding-inline-end: 3.2rem; gap: 1rem; }
+  /* The desktop-only clamp(18rem, 22vw, 20rem) cap on .w-hero-copy
+     (above the mobile breakpoint) exists purely to keep the RTL text
+     column clear of the image plane in the two-column split -- at
+     mobile widths that split doesn't happen (this section resets the
+     plane back to full-bleed already), so the same cap has nothing to
+     protect against and only serves to needlessly narrow/shift the
+     text column versus English. Reset it back to parity. */
+  html[dir="rtl"] body.world .w-hero-copy { max-width: 44rem; }
   body.world .w-search { border-radius: 16px; padding: 0.4rem 0.4rem 0.4rem 0.9rem; }
   body.world .w-search-input { height: 46px; font-size: 0.975rem; }
   body.world .w-search .w-btn { min-height: 46px; border-radius: 12px; padding-inline: 0.85rem; }
