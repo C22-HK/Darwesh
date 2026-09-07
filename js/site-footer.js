@@ -104,21 +104,19 @@ function headingWithIcon(icon, label) {
 
 function brandBlock() {
   // Same real brand lockup js/site-header.js uses -- "Darwesh" + the
-  // official mark (images/brand/darwesh-mark.png, never redrawn, never
-  // recolored) inside the shared .brand-mark-frame white container (see
-  // css/profile-tokens.css) + "Group", just larger here since the footer
-  // wants a more prominent brand presence. dir="ltr" pinned for the same
-  // reason as the header's own copy: a flex row's visual order follows
-  // container direction, and under RTL that would silently reverse the
-  // lockup to "Group [mark] Darwesh" -- the brand name is a fixed Latin
-  // proper noun, never mirrored.
+  // approved official mark (images/brand/darwesh-approved-new-logo.png,
+  // never redrawn, never recolored, rendered plain -- no frame/badge/
+  // background plate) + "Group", just larger here since the footer wants
+  // a more prominent brand presence. dir="ltr" pinned for the same reason
+  // as the header's own copy: a flex row's visual order follows container
+  // direction, and under RTL that would silently reverse the lockup to
+  // "Group [mark] Darwesh" -- the brand name is a fixed Latin proper
+  // noun, never mirrored.
   return (
     '<div class="sf-brand">' +
       '<a href="index.html" dir="ltr" class="sf-brand-lockup" aria-label="Darwesh Group — Home">' +
         '<span class="sf-brand-word">Darwesh</span>' +
-        '<span class="brand-mark-frame sf-brand-mark">' +
-          '<img src="images/brand/darwesh-mark.png" alt="" decoding="async">' +
-        '</span>' +
+        '<img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async" class="sf-brand-mark object-contain">' +
         '<span class="sf-brand-word">Group</span>' +
       '</a>' +
       '<p class="sf-tagline">' + tr('footer.tagline', 'Darwesh Group connects property seekers, owners, professionals and services across Kurdistan through one trusted platform.') + '</p>' +

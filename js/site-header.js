@@ -143,8 +143,8 @@
   var brandLockup =
     '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home">' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Darwesh</span>' +
-      '<span class="brand-mark-frame hdr-mark">' +
-        '<img src="images/brand/darwesh-mark.png" alt="" decoding="async">' +
+      '<span class="brand-logo-circle">' +
+        '<img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async" class="hdr-mark object-contain">' +
       '</span>' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Group</span>' +
     '</a>';
@@ -204,12 +204,18 @@
       '</div>' +
     '</header>';
 
-  // hdr-mark: the logo mark's pixel size scales with its lockup's own font
-  // size (34px on desktop's 22px lockup, ~26px on mobile's 17px lockup) so
-  // one shared brandLockup() string works at both sizes without a size
+  // brand-logo-circle / hdr-mark: a plain white circle (never a rounded
+  // square -- the logo image itself has its own near-white background
+  // baked into its pixels, so a rectangular container doubled that up as
+  // a visible box) sized off its lockup's own font-size (~43px circle /
+  // ~36px logo on desktop's 22px lockup, ~33px circle / ~28px logo on
+  // mobile's 17px lockup -- the logo fills ~85% of the circle) so one
+  // shared brandLockup() string works at both sizes without a size
   // parameter -- em-based sizing here, set once, no per-call plumbing.
   var style = document.createElement('style');
-  style.textContent = '.hdr-mark{height:1.55em;width:1.55em}';
+  style.textContent =
+    '.brand-logo-circle{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:1.95em;height:1.95em;border-radius:50%;background:#FFFFFF;overflow:hidden;line-height:0}' +
+    '.hdr-mark{height:1.65em;width:1.65em}';
   document.head.appendChild(style);
 
   // Buy/Rent dropdown wiring -- deliberately its own small implementation
