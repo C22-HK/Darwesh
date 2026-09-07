@@ -296,17 +296,19 @@ violation reporting. -->
 </section>
 
 <!-- ================== 4. REAL PROPERTY DISCOVERY ======================
-     Emerges from the midground behind the city wall. Real listings only --
-     the same three queries as before, unchanged. A listing card keeps an
-     edge because a listing IS a discrete object; nothing around it does. -->
+     Emerges from the midground behind the city wall. Real listings only.
+     This section's first rail was previously "newest active listings";
+     it is now a real Quick Sale rail (listings.quickSale == true, set by
+     the owner in sell.html or an admin in admin.html) -- see
+     loadFastSaleListings() below. A listing card keeps an edge because a
+     listing IS a discrete object; nothing around it does. -->
 <section class="mv w-stage" data-cine3d="cards">
 <div class="mv-in">
 <div style="max-width:44rem;display:flex;flex-direction:column;gap:.7rem;margin-bottom:var(--w-air-s)">
-<p class="w-label" data-flow="quiet" data-i18n="index.fastSaleEyebrow">Just Listed</p>
-<h2 class="w-h2" data-flow="lead" data-i18n="index.fastSaleTitle">New on the Market</h2>
-<p class="w-body" data-flow="support" data-i18n="index.fastSaleSubtitle">The newest active listings, added to Darwesh Group first.</p>
+<h2 class="w-h2" data-flow="lead" data-i18n="index.fastSaleTitle">Quick Sale</h2>
+<p class="w-body" data-flow="support" data-i18n="index.fastSaleSubtitle">Properties available for fast sale.</p>
 </div>
-<div class="w-rail" id="fastSaleGrid" tabindex="0" role="group" aria-label="New listings" data-flow="support" style="--fs:.03"></div>
+<div class="w-rail" id="fastSaleGrid" tabindex="0" role="group" aria-label="Quick Sale listings" data-flow="support" style="--fs:.03"></div>
 </div>
 <span class="w-answer" aria-hidden="true"></span>
 </section>
@@ -598,6 +600,73 @@ function featuredCard(l) {
     </a>`;
 }
 
+// Quick Sale card -- same markup/classes as featuredCard (same design,
+// per the request), but its own, stricter image rule. featuredCard's
+// `l.img || FEATURED_IMAGES[l.propertyType] || FEATURED_IMAGES.villa`
+// is exactly how a real production bug happened here: `img` is a plain
+// free-text URL field an agent/admin types by hand (agent-dashboard.html/
+// admin.html, id="fImg") -- nothing ties it to a photo that actually
+// belongs to that specific property, so a mistyped/stale/copy-pasted
+// value renders verbatim (a flat placeholder swatch, even an unrelated
+// screenshot, has shown up this way). `photoUrls` is different: it's
+// the array sell.html's own uploader writes from real files a seller
+// uploaded for THIS submission, never hand-typed. So this card trusts
+// ONLY `photoUrls[0]` as "belongs to this exact property" -- never
+// `img`, never a category stock photo -- and falls back to a plain
+// neutral "no image available" placeholder (not a stock photo either)
+// when it's missing, per the explicit "prefer no photo over a wrong
+// photo" requirement this section was built to.
+function quickSaleCard(l) {
+  const rawImg = Array.isArray(l.photoUrls) ? l.photoUrls[0] : null;
+  const img = isSafeHttpUrl(rawImg) ? escapeHtml(rawImg) : null;
+  const cityLabelText = (window.cityLabel && window.cityLabel(l.city)) || l.city || '';
+  const verifiedBadge = l.verified ? `
+    <div class="home-property-badge absolute top-4 end-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
+      <span aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 2.1 3.2-.3.6 3.1 2.7 1.7-1.4 2.9 1.4 2.9-2.7 1.7-.6 3.1-3.2-.3L12 21l-2.4-2.1-3.2.3-.6-3.1L3.1 14l1.4-2.9L3.1 8.2l2.7-1.7.6-3.1 3.2.3z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <span class="font-label-caps text-label-caps text-[11px]">${(window.t && window.t('common.verified')) || 'Verified'}</span>
+    </div>` : '';
+  const quickSaleBadge = `
+    <div class="home-property-badge absolute top-4 start-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
+      <span class="font-label-caps text-label-caps text-[11px]">${(window.t && window.t('index.quickSaleBadge')) || 'Quick Sale'}</span>
+    </div>`;
+  const media = img
+    ? `<img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title || l.address || '')}" decoding="async"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+       <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">
+         <span aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg></span>
+         <span class="font-body-md text-[11px] text-on-surface-variant px-3 text-center">${(window.t && window.t('index.noImageAvailable')) || 'No property image available'}</span>
+       </div>`
+    : `<div class="home-property-media-fallback absolute inset-0 flex flex-col items-center justify-center gap-1">
+         <span aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg></span>
+         <span class="font-body-md text-[11px] text-on-surface-variant px-3 text-center">${(window.t && window.t('index.noImageAvailable')) || 'No property image available'}</span>
+       </div>`;
+  return `
+    <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card cine-card-reveal flex-none w-[320px] md:w-[380px] snap-start relative overflow-hidden group block">
+      <div class="home-property-media relative h-48 w-full overflow-hidden">
+        ${media}
+        ${quickSaleBadge}
+        ${verifiedBadge}
+      </div>
+      <div class="p-5">
+        <h3 class="home-property-title font-headline-md text-[18px] leading-tight mb-1.5">${escapeHtml(l.title || l.address)}</h3>
+        <p class="home-property-meta font-body-md text-body-md mb-4 flex items-center gap-1.5">
+          <span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a7 7 0 1 1 14 0c0 5.5-7 10-7 10Z"/><circle cx="12" cy="11" r="2.5"/></svg></span> ${l.address ? escapeHtml(l.address) + ', ' : ''}${escapeHtml(cityLabelText)}
+        </p>
+        <div class="home-property-divider flex justify-between items-center mb-4 pb-4 border-b">
+          <div class="home-property-meta flex gap-4">
+            <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v-6h20v6"/><path d="M2 12V7M22 18v2M2 18v2"/><path d="M6 12V9h5v3"/></svg></span> ${l.beds ?? 0}</span>
+            <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M5 12V5a2 2 0 0 1 4 0"/><path d="M6 19l-1 2M18 19l1 2"/></svg></span> ${l.baths ?? 0}</span>
+            <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="M4 14h6v6"/><path d="m4 4 16 16"/></svg></span> ${l.sqft ?? 0}m²</span>
+          </div>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="home-property-price font-headline-md text-headline-md">${fmtFeaturedPrice(l)}</span>
+          <span class="home-property-cta font-label-caps text-label-caps">${(window.t && window.t('common.details')) || 'Details'}</span>
+        </div>
+      </div>
+    </a>`;
+}
+
 // One render routine, parametrized per rail (grid id, current listings/
 // state, empty/error copy keys, retry callback, carousel buttons). Both
 // rails share identical loading/error/ready/empty handling so neither one
@@ -648,11 +717,14 @@ function renderPropertyRail(opts) {
   // scene's visual mass, states the truth plainly, and offers only
   // destinations that genuinely exist (the live map, and the real sell
   // flow). It fabricates no listing and shows no placeholder card.
+  const cardRenderer = opts.cardRenderer || featuredCard;
+  const emptyKey = opts.emptyKey || 'index.noFeaturedYet';
+  const emptyDefault = opts.emptyDefault || 'No listings yet — check back soon.';
   grid.innerHTML = (opts.listings && opts.listings.length)
-    ? opts.listings.map(featuredCard).join('')
+    ? opts.listings.map(cardRenderer).join('')
     : `<div class="w-empty">
          <span class="w-label" aria-hidden="true" style="color:var(--w-gold)"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15 9-2.3 4.7L8 16l2.3-4.7Z"/></svg></span>
-         <p class="w-h2">${(window.t && window.t('index.noFeaturedYet')) || 'No listings yet — check back soon.'}</p>
+         <p class="w-h2">${(window.t && window.t(emptyKey)) || emptyDefault}</p>
          <div class="w-empty-actions">
            <a class="w-btn w-btn--primary" href="map.html">${(window.t && window.t('nav.exploreMap')) || 'Explore the map'}<svg class="w-btn-arrow" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></a>
            <a class="w-btn w-btn--ghost" href="sell.html">${(window.t && window.t('index.ctaSecondary')) || 'List Your Property'}</a>
@@ -687,6 +759,9 @@ function renderFastSaleGrid() {
   renderPropertyRail({
     gridId: 'fastSaleGrid', state: fastSaleState, listings: fastSaleListings,
     prevBtn: 'fastSalePrevBtn', nextBtn: 'fastSaleNextBtn',
+    cardRenderer: quickSaleCard,
+    emptyKey: 'index.noQuickSaleYet',
+    emptyDefault: 'No Quick Sale properties available right now.',
     retry: () => { fastSaleState = 'loading'; renderFastSaleGrid(); loadFastSaleListings(); },
   });
 }
@@ -739,14 +814,21 @@ async function loadActiveListings() {
   renderActiveGrid();
 }
 
-// "Fast Sale / Just Listed": a single bounded equality query (no
-// `verified` requirement), then a CLIENT-SIDE sort by `createdAt` among
-// the already-fetched, already-safe set only -- never `orderBy`, for the
-// same reason as above: `createdAt` is an allowlisted-optional field, not
-// a required one, so older listings can lack it. Sorting after the fetch
-// (with missing-`createdAt` docs pushed to the end, never dropped) can
-// only reorder what was already fetched -- it can never make a listing
+// "Quick Sale": listings the owner (sell.html) or an admin (admin.html)
+// has explicitly flagged `quickSale == true` -- never "whatever's
+// newest". A single bounded equality query (no `verified` requirement),
+// then a CLIENT-SIDE sort by `createdAt` among the already-fetched,
+// already-safe set only -- never `orderBy`, for the same reason as
+// above: `createdAt` is an allowlisted-optional field, not a required
+// one, so older listings can lack it. Sorting after the fetch (with
+// missing-`createdAt` docs pushed to the end, never dropped) can only
+// reorder what was already fetched -- it can never make a listing
 // silently disappear the way a server-side orderBy would.
+// `dealType == 'sale'` excludes rentals -- Quick Sale is a for-sale
+// concept only. No separate propertyType filter is needed: `listings`
+// is already exclusively real, for-sale/for-rent property records
+// (never professional profiles/services/other content), so this query
+// can never surface anything but a real sale property.
 const FAST_SALE_COUNT = 8;
 async function loadFastSaleListings() {
   try {
@@ -758,6 +840,7 @@ async function loadFastSaleListings() {
     const snap = await getDocs(query(
       collection(db, 'listings'),
       where('private', '==', false), where('status', '==', 'active'),
+      where('dealType', '==', 'sale'), where('quickSale', '==', true),
       limit(FAST_SALE_COUNT)
     ));
     const docs = [];

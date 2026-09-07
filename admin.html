@@ -815,9 +815,10 @@ change is not meant to make. -->
             <input id="fAmenities" class="admin-input" placeholder="Parking, Balcony, Central AC, Elevator"/>
           </div>
 
-          <div class="flex items-center gap-5 mb-5">
+          <div class="flex items-center gap-5 mb-5 flex-wrap">
             <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fVerified" type="checkbox" class="rounded"/><span data-i18n="common.verified">Verified</span></label>
             <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fPrivate" type="checkbox" class="rounded"/><span data-i18n="agentDash.privateHideLocation">Private (hide exact location)</span></label>
+            <label class="flex items-center gap-2 font-body-md text-[13px] text-on-surface"><input id="fQuickSale" type="checkbox" class="rounded"/><span data-i18n="sell.quickSaleLabel">Quick Sale</span></label>
           </div>
 
           <p id="formError" class="text-error text-[13px] mb-3 hidden">Please pin a location on the map and fill in the required fields.</p>
@@ -2179,6 +2180,7 @@ async function onListingFormSubmit(e) {
     img: document.getElementById('fImg').value.trim(),
     amenities: document.getElementById('fAmenities').value.split(',').map(s => s.trim()).filter(Boolean),
     verified: document.getElementById('fVerified').checked,
+    quickSale: document.getElementById('fQuickSale').checked,
     private: document.getElementById('fPrivate').checked,
     updatedAt: serverTimestamp()
   };
@@ -2258,6 +2260,7 @@ window.editListing = function (id) {
   updateImgPreview();
   document.getElementById('fAmenities').value = (l.amenities || []).join(', ');
   document.getElementById('fVerified').checked = !!l.verified;
+  document.getElementById('fQuickSale').checked = !!l.quickSale;
   document.getElementById('fPrivate').checked = !!l.private;
   // LOC-01: seed the edit pin from the REAL stored location (one extra
   // read, for one listing, by an authorized admin) so re-saving an
@@ -2817,6 +2820,7 @@ function createListingFromSubmission(id) {
   if (Array.isArray(s.photoUrls) && s.photoUrls.length) {
     document.getElementById('fImg').value = s.photoUrls[0];
   }
+  document.getElementById('fQuickSale').checked = !!s.quickSale;
   updateImgPreview();
 
   setTimeout(() => {

@@ -303,6 +303,15 @@ own initLocationPicker()). -->
 </div>
 <input id="negotiableInput" type="hidden" value=""/>
 </div>
+<div>
+<label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.quickSaleLabel">Quick Sale</label>
+<div class="flex gap-3">
+<button class="pill-toggle" id="quickSaleYesBtn" type="button" data-i18n="common.yes">Yes</button>
+<button class="pill-toggle" id="quickSaleNoBtn" type="button" data-i18n="common.no">No</button>
+</div>
+<input id="quickSaleInput" type="hidden" value="false"/>
+<p class="font-body-md text-[12px] text-on-surface-variant mt-1.5" data-i18n="sell.quickSaleHint">Mark this property if you want it featured in the Quick Sale section.</p>
+</div>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 <div>
 <label class="font-label-caps text-label-caps text-on-surface-variant block mb-2" data-i18n="sell.size">Property Size (m²)</label>
@@ -790,6 +799,11 @@ const setNegotiable = wirePillPair(document.getElementById('negYesBtn'), documen
 setNegotiable('true');
 const setDealType = wirePillPair(document.getElementById('dealSaleBtn'), document.getElementById('dealRentBtn'), document.getElementById('listingTypeSelect'), 'sale', 'rent');
 setDealType('sale');
+// Quick Sale: optional, defaults OFF -- a listing must never become
+// Quick Sale automatically, only when the owner explicitly opts in here
+// (or an admin sets it later in admin.html).
+const setQuickSale = wirePillPair(document.getElementById('quickSaleYesBtn'), document.getElementById('quickSaleNoBtn'), document.getElementById('quickSaleInput'), 'true', 'false');
+setQuickSale('false');
 
 /* ==========================================================================
    Amenity chips
@@ -1567,7 +1581,7 @@ function renderReview() {
 const DRAFT_KEY = 'darwesh_sell_draft';
 const draftFieldIds = ['typeSelect', 'listingTypeSelect', 'citySelect', 'addressInput', 'priceInput', 'currencySelect',
   'sizeInput', 'landSizeInput', 'bedsInput', 'bathsInput', 'hallsInput', 'floorsInput', 'kitchensInput', 'parkingInput',
-  'conditionSelect', 'yearBuiltInput', 'fullNameInput', 'phoneInput', 'negotiableInput'];
+  'conditionSelect', 'yearBuiltInput', 'fullNameInput', 'phoneInput', 'negotiableInput', 'quickSaleInput'];
 
 function collectDraft() {
   const data = {};
@@ -1594,6 +1608,7 @@ function applyDraft(data) {
   document.getElementById('parkingInputValue').textContent = document.getElementById('parkingInput').value || 0;
   setNegotiable(data.negotiableInput === 'false' ? 'false' : 'true');
   setDealType(data.listingTypeSelect === 'rent' ? 'rent' : 'sale');
+  setQuickSale(data.quickSaleInput === 'true' ? 'true' : 'false');
   if (Array.isArray(data.amenities)) {
     data.amenities.forEach(a => {
       amenitiesSet.add(a);
@@ -1844,6 +1859,7 @@ document.getElementById('sellForm').addEventListener('submit', async function (e
     // "300,000,000 IQD" -- rather than only a converted USD estimate.
     price: priceInUSD(), currency: draft.currencySelect, originalPrice: rawPriceNumber(),
     negotiable: draft.negotiableInput === 'true',
+    quickSale: draft.quickSaleInput === 'true',
     size: draft.sizeInput, landSize: draft.landSizeInput,
     beds: draft.bedsInput, baths: draft.bathsInput, halls: draft.hallsInput,
     floors: draft.floorsInput, kitchens: draft.kitchensInput, parking: draft.parkingInput,
