@@ -204,17 +204,16 @@
       '</div>' +
     '</header>';
 
-  // brand-logo-circle / hdr-mark: a plain white circle (never a rounded
-  // square -- the logo image itself has its own near-white background
-  // baked into its pixels, so a rectangular container doubled that up as
-  // a visible box) sized off its lockup's own font-size (~43px circle /
-  // ~36px logo on desktop's 22px lockup, ~33px circle / ~28px logo on
-  // mobile's 17px lockup -- the logo fills ~85% of the circle) so one
-  // shared brandLockup() string works at both sizes without a size
-  // parameter -- em-based sizing here, set once, no per-call plumbing.
+  // hdr-mark: the logo image's own size inside the shared .brand-logo-
+  // circle (css/profile-tokens.css) -- sized off its lockup's own font-
+  // size (~43px circle / ~36px logo on desktop's 22px lockup, ~33px
+  // circle / ~28px logo on mobile's 17px lockup, the logo filling ~85%
+  // of the circle) so one shared brandLockup() string works at both
+  // sizes without a size parameter -- em-based sizing here, set once, no
+  // per-call plumbing.
   var style = document.createElement('style');
   style.textContent =
-    '.brand-logo-circle{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:1.95em;height:1.95em;border-radius:50%;background:#FFFFFF;overflow:hidden;line-height:0}' +
+    '#siteHeader .brand-logo-circle{width:1.95em;height:1.95em}' +
     '.hdr-mark{height:1.65em;width:1.65em}';
   document.head.appendChild(style);
 
