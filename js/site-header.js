@@ -143,7 +143,9 @@
   var brandLockup =
     '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home">' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Darwesh</span>' +
-      '<img src="images/brand/darwesh-mark.png" alt="" width="34" height="34" decoding="async" class="hdr-mark object-contain">' +
+      '<span class="brand-mark-frame hdr-mark">' +
+        '<img src="images/brand/darwesh-mark.png" alt="" decoding="async">' +
+      '</span>' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Group</span>' +
     '</a>';
 

@@ -103,18 +103,23 @@ function headingWithIcon(icon, label) {
 }
 
 function brandBlock() {
-  // The real, official lockup asset (images/brand/darwesh-logo-full.png --
-  // the same file used nowhere else yet, but pixel-identical to
-  // images/brand/darwesh-mark.png's mark, just with the wordmark baked
-  // in) rendered at real size, never redrawn, never recolored, never a
-  // second logo asset. No dir="ltr" text lockup needed anymore -- the
-  // wordmark is part of the image itself, so there is nothing left for
-  // bidi reordering to get wrong.
+  // Same real brand lockup js/site-header.js uses -- "Darwesh" + the
+  // official mark (images/brand/darwesh-mark.png, never redrawn, never
+  // recolored) inside the shared .brand-mark-frame white container (see
+  // css/profile-tokens.css) + "Group", just larger here since the footer
+  // wants a more prominent brand presence. dir="ltr" pinned for the same
+  // reason as the header's own copy: a flex row's visual order follows
+  // container direction, and under RTL that would silently reverse the
+  // lockup to "Group [mark] Darwesh" -- the brand name is a fixed Latin
+  // proper noun, never mirrored.
   return (
     '<div class="sf-brand">' +
-      '<a href="index.html" class="sf-brand-lockup" aria-label="Darwesh Group — Home">' +
-        '<span class="sf-brand-glow" aria-hidden="true"></span>' +
-        '<img src="images/brand/darwesh-logo-full.png" alt="Darwesh Group" decoding="async" class="sf-brand-logo">' +
+      '<a href="index.html" dir="ltr" class="sf-brand-lockup" aria-label="Darwesh Group — Home">' +
+        '<span class="sf-brand-word">Darwesh</span>' +
+        '<span class="brand-mark-frame sf-brand-mark">' +
+          '<img src="images/brand/darwesh-mark.png" alt="" decoding="async">' +
+        '</span>' +
+        '<span class="sf-brand-word">Group</span>' +
       '</a>' +
       '<p class="sf-tagline">' + tr('footer.tagline', 'Darwesh Group connects property seekers, owners, professionals and services across Kurdistan through one trusted platform.') + '</p>' +
       mamAiRow() +
