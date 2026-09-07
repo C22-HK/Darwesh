@@ -18,6 +18,13 @@ violation reporting. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <script src="./js/icon-fallback.js"></script>
+<!-- escape-html.js + listing-image.js define plain globals (escapeHtml,
+     isSafeHttpUrl, listingImageUrl) that inline page scripts call from
+     async Firestore callbacks. Those callbacks can run at a microtask
+     checkpoint before a script tag further down the body has executed,
+     so these two load in <head>, ahead of every inline script. -->
+<script src="./js/escape-html.js"></script>
+<script src="./js/listing-image.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
@@ -443,7 +450,6 @@ violation reporting. -->
 <script src="./js/site-mobile-nav.js"></script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
-<script src="./js/escape-html.js"></script>
 <script src="./js/i18n.js"></script>
 <script src="./js/carousel.js"></script>
 <script src="./js/cine-scroll-3d.js"></script>
@@ -550,20 +556,34 @@ function publishCityCounts() {
 // did nothing at all (not even a link) — real data and a working link to
 // listing.html now.
 // ---------------------------------------------------------------------
-const FEATURED_IMAGES = {
-  villa: "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
-  office: "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z",
-  apartment: "https://lh3.googleusercontent.com/aida-public/AB6AXuDii6xTkNXKTsc2msOvTgk_GQRcMSy050_Dub19-3hbsr_7hP2rG706xznOp3AeUptsrkRFQRdDAyRVv34ZC0SUkPNGIL-UJT7JD0cy09YlNtODFbsnXaEF8zJd8aCvsZTCEWBKPj1XViF2xaNk4S5ik9wCMk8rl0kk9lg4Fo1HxPTg6ko3xaad2_K6da2mIldQlUkjAAy1sB7EUWp2DDwZ3zv679mzelRkHr4tPHRSXmBA6Aq8Vhjs",
-  land: "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz"
-};
+// The card's image area. Renders the listing's OWN photograph when it has
+// one, and an honest "no property image available" placeholder when it does
+// not -- never a stock building. The four category stock photos that used to
+// live here (FEATURED_IMAGES) were substituted whenever `img` was empty, so
+// a listing with no photograph still showed a photograph, of a building that
+// is not the property. Both Home rails render through this one function so
+// they cannot drift apart again.
+function homePropertyMedia(img, alt) {
+  const placeholder = `
+    <span aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg></span>
+    <span class="font-body-md text-[11px] text-on-surface-variant px-3 text-center">${listingNoImageLabel()}</span>`;
+  if (!img) {
+    return `<div class="home-property-media-fallback absolute inset-0 flex flex-col items-center justify-center gap-1">${placeholder}</div>`;
+  }
+  // A URL that 404s or is blocked falls through to the same placeholder
+  // rather than leaving a broken-image glyph in the card.
+  return `<img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(alt || '')}" decoding="async"
+      onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
+    <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">${placeholder}</div>`;
+}
 function fmtFeaturedPrice(l) {
   const p = Number(l.price) || 0;
   return l.dealType === 'rent' ? ('$' + p.toLocaleString() + '/mo') : ('$' + p.toLocaleString());
 }
 
 function featuredCard(l) {
-  const rawImg = l.img || FEATURED_IMAGES[l.propertyType] || FEATURED_IMAGES.villa;
-  const img = isSafeHttpUrl(rawImg) ? escapeHtml(rawImg) : FEATURED_IMAGES.villa;
+  const rawImg = listingImageUrl(l);
+  const img = rawImg ? escapeHtml(rawImg) : null;
   const cityLabelText = (window.cityLabel && window.cityLabel(l.city)) || l.city || '';
   const badge = l.verified ? `
     <div class="home-property-badge absolute top-4 end-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
@@ -573,11 +593,7 @@ function featuredCard(l) {
   return `
     <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card cine-card-reveal flex-none w-[320px] md:w-[380px] snap-start relative overflow-hidden group block">
       <div class="home-property-media relative h-48 w-full overflow-hidden">
-        <img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title || l.address || '')}" loading="lazy" decoding="async"
-          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
-        <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">
-          <span aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg></span>
-        </div>
+        ${homePropertyMedia(img, l.title || l.address)}
         ${badge}
       </div>
       <div class="p-5">
@@ -601,24 +617,26 @@ function featuredCard(l) {
 }
 
 // Quick Sale card -- same markup/classes as featuredCard (same design,
-// per the request), but its own, stricter image rule. featuredCard's
-// `l.img || FEATURED_IMAGES[l.propertyType] || FEATURED_IMAGES.villa`
-// is exactly how a real production bug happened here: `img` is a plain
-// free-text URL field an agent/admin types by hand (agent-dashboard.html/
-// admin.html, id="fImg") -- nothing ties it to a photo that actually
-// belongs to that specific property, so a mistyped/stale/copy-pasted
-// value renders verbatim (a flat placeholder swatch, even an unrelated
-// screenshot, has shown up this way). `photoUrls` is different: it's
-// the array sell.html's own uploader writes from real files a seller
-// uploaded for THIS submission, never hand-typed. So this card trusts
-// ONLY `photoUrls[0]` as "belongs to this exact property" -- never
-// `img`, never a category stock photo -- and falls back to a plain
-// neutral "no image available" placeholder (not a stock photo either)
-// when it's missing, per the explicit "prefer no photo over a wrong
-// photo" requirement this section was built to.
+// per the request), plus the Quick Sale badge. Image handling is now the
+// shared, honest one: listingImageUrl() returns the listing's own photo or
+// null, and homePropertyMedia() draws a neutral "no property image
+// available" placeholder rather than any stock photo, so this card can
+// never show a building that isn't the property.
+//
+// An earlier version of this card read ONLY `l.photoUrls[0]`, on the theory
+// that `photoUrls` (written by sell.html's uploader from a seller's real
+// files) is trustworthy in a way the hand-typed `img` field is not. That
+// reasoning was right about the fields but wrong about the data: `photoUrls`
+// lives on `submissions` documents only. When an admin converts a submission
+// into a listing, admin.html copies `s.photoUrls[0]` into the listing's
+// `img` and the array does not come with it, so no `listings` document has a
+// `photoUrls` field at all -- and the section rendered a placeholder for
+// every property. `img` IS this listing's own image field; the defect was
+// never that the code read it, but that the code replaced it with a stock
+// photo when it was empty.
 function quickSaleCard(l) {
-  const rawImg = Array.isArray(l.photoUrls) ? l.photoUrls[0] : null;
-  const img = isSafeHttpUrl(rawImg) ? escapeHtml(rawImg) : null;
+  const rawImg = listingImageUrl(l);
+  const img = rawImg ? escapeHtml(rawImg) : null;
   const cityLabelText = (window.cityLabel && window.cityLabel(l.city)) || l.city || '';
   const verifiedBadge = l.verified ? `
     <div class="home-property-badge absolute top-4 end-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
@@ -629,17 +647,7 @@ function quickSaleCard(l) {
     <div class="home-property-badge absolute top-4 start-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
       <span class="font-label-caps text-label-caps text-[11px]">${(window.t && window.t('index.quickSaleBadge')) || 'Quick Sale'}</span>
     </div>`;
-  const media = img
-    ? `<img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title || l.address || '')}" decoding="async"
-        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
-       <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">
-         <span aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg></span>
-         <span class="font-body-md text-[11px] text-on-surface-variant px-3 text-center">${(window.t && window.t('index.noImageAvailable')) || 'No property image available'}</span>
-       </div>`
-    : `<div class="home-property-media-fallback absolute inset-0 flex flex-col items-center justify-center gap-1">
-         <span aria-hidden="true"><svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg></span>
-         <span class="font-body-md text-[11px] text-on-surface-variant px-3 text-center">${(window.t && window.t('index.noImageAvailable')) || 'No property image available'}</span>
-       </div>`;
+  const media = homePropertyMedia(img, l.title || l.address);
   return `
     <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card cine-card-reveal flex-none w-[320px] md:w-[380px] snap-start relative overflow-hidden group block">
       <div class="home-property-media relative h-48 w-full overflow-hidden">

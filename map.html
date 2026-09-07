@@ -18,6 +18,13 @@ violation reporting. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://server.arcgisonline.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <script src="./js/icon-fallback.js"></script>
+<!-- escape-html.js + listing-image.js define plain globals (escapeHtml,
+     isSafeHttpUrl, listingImageUrl) that inline page scripts call from
+     async Firestore callbacks. Those callbacks can run at a microtask
+     checkpoint before a script tag further down the body has executed,
+     so these two load in <head>, ahead of every inline script. -->
+<script src="./js/escape-html.js"></script>
+<script src="./js/listing-image.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
@@ -487,7 +494,6 @@ violation reporting. -->
 <script src="./js/site-header.js"></script>
 <div id="siteMobileNav" data-active="propertiesMap"></div>
 <script src="./js/site-mobile-nav.js"></script>
-<script src="./js/escape-html.js"></script>
 <script src="./js/currency.js"></script>
 
 <!-- Filter Bar -->
@@ -816,14 +822,9 @@ window.addEventListener('resize', layoutMain);
 window.addEventListener('load', layoutMain);
 layoutMain();
 
-const IMAGES = [
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDii6xTkNXKTsc2msOvTgk_GQRcMSy050_Dub19-3hbsr_7hP2rG706xznOp3AeUptsrkRFQRdDAyRVv34ZC0SUkPNGIL-UJT7JD0cy09YlNtODFbsnXaEF8zJd8aCvsZTCEWBKPj1XViF2xaNk4S5ik9wCMk8rl0kk9lg4Fo1HxPTg6ko3xaad2_K6da2mIldQlUkjAAy1sB7EUWp2DDwZ3zv679mzelRkHr4tPHRSXmBA6Aq8Vhjs",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuB9cucEo8wpqjJxzhEtls0zTrBUxNpyAlnIoBZDK9mZSYvoVeNEyqIAthGslbja0XOn_2Z2LCc0po-qlZJzHZvHdGCad9x-INBOBT7i9AjYAKzjG7asbXSxRdsimPiEzRE_jwb-GHj_6OiY1FjWBsruEwHLEDtHiKW81r4zuyV1VGwBmvZbXJ68537lf9ufKsd5NyXXgnYbtwUazS-Uz_VyxnQK2udlP2WPabFfuDQ9N0dZr9-tFX9K",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz",
-  "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
-];
+// The stock photo array that used to live here is gone -- see the note in
+// js/listing-image.js. A listing with no photo of its own now renders a
+// placeholder instead of a generic building.
 
 let LISTINGS = [];
 let listingsLoaded = false;
@@ -854,22 +855,13 @@ function numOrNull(v) {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
-// The listing's OWN photograph, preferred over stock in every case where
-// one exists. Fields are tried in the order the data actually carries
-// them; `strict` returns null instead of the stock fallback so callers
-// can tell "this is the property" from "this is a placeholder".
-// Everything here is a public listing field -- no gallery subcollection
-// read, no extra Firestore query, nothing per-card.
-function realListingImage(d, strict) {
-  const candidates = [
-    d.img, d.coverImage, d.coverImageUrl, d.imageUrl, d.photoURL,
-    Array.isArray(d.images) ? d.images[0] : null,
-    Array.isArray(d.photos) ? d.photos[0] : null
-  ];
-  for (const c of candidates) {
-    if (typeof c === 'string' && c.trim() && isSafeHttpUrl(c.trim())) return c.trim();
-  }
-  return strict ? null : (IMAGES[0] || '');
+// Superseded by listingImageUrl() in js/listing-image.js, which every
+// public listing surface now shares. This wrapper keeps the two existing
+// call sites readable: `strict` used to mean "return null instead of the
+// stock fallback" -- there is no stock fallback any more, so both modes
+// return the same thing and the flag is gone.
+function realListingImage(d) {
+  return listingImageUrl(d);
 }
 
 let listingsLoadError = false;
@@ -992,13 +984,13 @@ async function loadListings() {
         baths: numOrNull(d.baths),
         sqft: numOrNull(d.sqft),
         propertyType: d.propertyType || '',
-        // Real listing imagery, in the order the data actually offers it:
-        // an explicit cover, then the first gallery image, and only then a
-        // neutral stock fallback. The old `d.img || IMAGES[0]` never
-        // looked at d.images at all, so a listing whose photos lived in
-        // the gallery array showed a generic stock building instead.
+        // The listing's own photograph, in the order the data offers it
+        // (explicit cover, then the first gallery image), or null when it
+        // has none -- never a stock building. The separate hasRealImg flag
+        // that used to sit here existed only to tell a real photo apart
+        // from the stock fallback; with the fallback gone it is exactly
+        // `!!img`, and nothing read it.
         img: realListingImage(d),
-        hasRealImg: !!realListingImage(d, true),
         verified: !!d.verified,
         private: !!d.private,
         // Real Firestore server timestamp when present (Timestamp
@@ -1646,10 +1638,17 @@ function card(l) {
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
 
-  const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
+  const safeImg = l.img ? escapeHtml(l.img) : null;
+  // No photo of its own -> a plain surface, never a stock building. In the
+  // hidden/private variant the lock overlay covers the area anyway, so the
+  // empty state there is just the bare surface.
+  const noImageBlock = `<div class="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-surface-variant text-on-surface-variant">
+        <span class="material-symbols-outlined text-[28px]">home_work</span>
+        <span class="font-body-md text-[11px] px-3 text-center">${listingNoImageLabel()}</span>
+      </div>`;
   const imageBlock = hidden ? `
-    <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" decoding="async"/>
+    <div class="relative h-40 w-full overflow-hidden bg-surface-variant">
+      ${safeImg ? `<img class="w-full h-full object-cover blur-md scale-110" src="${safeImg}" alt="" decoding="async"/>` : ''}
       ${favBtn}
       <div class="absolute inset-0 bg-primary/55 flex flex-col items-center justify-center gap-1 text-on-primary">
         <span class="material-symbols-outlined text-[26px]">lock</span>
@@ -1657,8 +1656,8 @@ function card(l) {
       </div>
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
     </div>` : `
-    <div class="relative h-40 w-full overflow-hidden">
-      <img class="w-full h-full object-cover" src="${safeImg}" decoding="async"/>
+    <div class="relative h-40 w-full overflow-hidden bg-surface-variant">
+      ${safeImg ? `<img class="w-full h-full object-cover" src="${safeImg}" alt="${escapeHtml(l.title || '')}" decoding="async"/>` : noImageBlock}
       ${favBtn}
       ${badge}
       <div class="absolute bottom-3 left-3 bg-primary/80 text-on-primary px-2 py-1 rounded-full font-label-caps text-label-caps text-[10px]">${l.type === 'sale' ? tr('common.forSale','For Sale') : tr('common.forRent','For Rent')}</div>
@@ -1808,7 +1807,7 @@ function wheelCard(l) {
   const favBtn = `<button type="button" onclick="event.stopPropagation(); toggleFavorite('${l.id}');" class="lc-fav${favActive ? ' is-on' : ''}" aria-label="${tr('map.saveToFavorites', 'Save to favorites')}" aria-pressed="${favActive}">
       <svg viewBox="0 0 24 24" fill="${favActive ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.8 5.6a5 5 0 0 0-7.1 0L12 7.3l-1.7-1.7a5 5 0 0 0-7.1 7.1l8.8 8.8 8.8-8.8a5 5 0 0 0 0-7.1Z"/></svg>
     </button>`;
-  const safeImg = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : (IMAGES[0] || '');
+  const safeImg = l.img ? escapeHtml(l.img) : null;
   const dealLabel = l.type === 'sale' ? tr('common.forSale', 'For Sale') : tr('common.forRent', 'For Rent');
   const verifiedBadge = l.verified
     ? `<svg class="lc-verified" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="${tr('common.verified', 'Verified')}"><path d="m9 12 2 2 4-4"/><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5Z"/></svg>`
@@ -1820,7 +1819,9 @@ function wheelCard(l) {
   // cannot shift the row beneath it.
   const media = `
     <div class="lc-media${hidden ? ' is-hidden-loc' : ''}">
-      <img loading="lazy" decoding="async" src="${safeImg}" alt=""/>
+      ${safeImg
+        ? `<img loading="lazy" decoding="async" src="${safeImg}" alt=""/>`
+        : `<span class="lc-noimg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21V9l6-4 6 4"/><path d="M3 21h18V11l-6-4"/><path d="M7 21v-5h4v5"/></svg><span class="sr-only">${listingNoImageLabel()}</span></span>`}
       ${hidden ? `<span class="lc-lock" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></span>` : ''}
       ${favBtn}
       <span class="lc-deal">${dealLabel}</span>

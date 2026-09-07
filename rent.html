@@ -18,6 +18,13 @@ violation reporting. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <script src="./js/icon-fallback.js"></script>
+<!-- escape-html.js + listing-image.js define plain globals (escapeHtml,
+     isSafeHttpUrl, listingImageUrl) that inline page scripts call from
+     async Firestore callbacks. Those callbacks can run at a microtask
+     checkpoint before a script tag further down the body has executed,
+     so these two load in <head>, ahead of every inline script. -->
+<script src="./js/escape-html.js"></script>
+<script src="./js/listing-image.js"></script>
 
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
@@ -264,17 +271,12 @@ const PROPERTY_TYPES = ['house', 'villa', 'apartment', 'land', 'building', 'offi
 const CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
 const SORTS = ['newest', 'price-asc', 'price-desc'];
 
-const IMAGES = {
-  villa: "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
-  office: "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z",
-  apartment: "https://lh3.googleusercontent.com/aida-public/AB6AXuDii6xTkNXKTsc2msOvTgk_GQRcMSy050_Dub19-3hbsr_7hP2rG706xznOp3AeUptsrkRFQRdDAyRVv34ZC0SUkPNGIL-UJT7JD0cy09YlNtODFbsnXaEF8zJd8aCvsZTCEWBKPj1XViF2xaNk4S5ik9wCMk8rl0kk9lg4Fo1HxPTg6ko3xaad2_K6da2mIldQlUkjAAy1sB7EUWp2DDwZ3zv679mzelRkHr4tPHRSXmBA6Aq8Vhjs",
-  land: "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz",
-  renovated: "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV"
-};
-IMAGES.house = IMAGES.villa;
-IMAGES.building = IMAGES.office;
-IMAGES.shop = IMAGES.office;
-IMAGES.commercialProperty = IMAGES.office;
+// The per-category stock photo table that used to live here is gone.
+// It existed only to substitute a generic building whenever a listing
+// had no photo of its own, which is exactly the bug being fixed: a
+// listing with no photograph must show a placeholder, not a photo of
+// some other property. Image selection now goes through
+// listingImageUrl() in js/listing-image.js.
 
 function tsMillis(t) {
   if (!t) return 0;
@@ -329,7 +331,11 @@ function mapListingDoc(d) {
     beds: Number(d.beds) || 0,
     baths: Number(d.baths) || 0,
     sqft: Number(d.sqft) || 0,
-    img: d.img || IMAGES[d.propertyType] || IMAGES.villa,
+    // The listing's OWN photo, or null when it has none -- never a
+    // stock building. `d.img || IMAGES[d.propertyType] || IMAGES.villa`
+    // substituted a category stock photo here, which then rendered as
+    // if it were a photograph of this property.
+    img: listingImageUrl(d),
     verified: !!d.verified,
     furnished: Array.isArray(d.amenities) && d.amenities.includes('furnished'),
     createdAtMs: tsMillis(d.createdAt),
@@ -626,15 +632,18 @@ function card(l) {
       <span class="material-symbols-outlined text-[18px] ${favActive ? 'text-secondary' : 'text-white'}" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};">favorite</span>
     </button>`;
   const project = l.projectName ? `<p class="home-property-meta font-data-mono text-data-mono text-[12px] mb-1 flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">domain</span>${escapeHtml(l.projectName)}</p>` : '';
-  const img = isSafeHttpUrl(l.img) ? escapeHtml(l.img) : IMAGES.villa;
+  const img = l.img ? escapeHtml(l.img) : null;
+  const noImage = `
+        <span class="material-symbols-outlined text-[32px]">home_work</span>
+        <span class="font-body-md text-[11px] text-on-surface-variant px-3 text-center">${listingNoImageLabel()}</span>`;
   return `
   <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card relative overflow-hidden group block">
     <div class="home-property-media relative h-48 w-full overflow-hidden">
-      <img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title)}" loading="lazy" decoding="async"
+      ${img ? `<img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${img}" alt="${escapeHtml(l.title)}" decoding="async"
         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"/>
-      <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">
-        <span class="material-symbols-outlined text-[32px]">home_work</span>
-      </div>
+      <div class="home-property-media-fallback absolute inset-0 flex-col items-center justify-center gap-1" style="display:none;">${noImage}
+      </div>` : `<div class="home-property-media-fallback absolute inset-0 flex flex-col items-center justify-center gap-1">${noImage}
+      </div>`}
       ${favBtn}
       ${badge}
     </div>
@@ -849,7 +858,6 @@ document.addEventListener('darwesh:langchange', renderVisible);
 </script>
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
-<script src="./js/escape-html.js"></script>
 <script src="./js/i18n.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
 </body></html>
