@@ -85,8 +85,8 @@
   var active = mount.getAttribute('data-active') || '';
 
   var LINK_BASE = 'font-label-caps text-label-caps tracking-wide transition-colors border-b-2 pt-1 pb-[7px] whitespace-nowrap';
-  var LINK_ACTIVE = ' text-[#F5F0E7] font-bold border-[#C69A4B]';
-  var LINK_INACTIVE = ' text-[#AFA89D] hover:text-[#F5F0E7] border-transparent hover:border-[rgba(198,154,75,0.18)]';
+  var LINK_ACTIVE = ' text-[#F4EFE7] font-bold border-[#C69A4B]';
+  var LINK_INACTIVE = ' text-[#B8B0A5] hover:text-[#F4EFE7] border-transparent hover:border-[#2B2C2A]';
 
   function navClass(key) {
     return LINK_BASE + (key === active ? LINK_ACTIVE : LINK_INACTIVE);
@@ -100,21 +100,21 @@
     var pad = size === 'sm' ? 'px-2.5 py-1.5' : 'px-3 py-2';
     return (
       '<div class="relative">' +
-        '<button aria-label="Language" class="lang-toggle-btn inline-flex items-center gap-1.5 ' + pad + ' rounded-md border border-[rgba(198,154,75,0.18)] bg-[#0D263B] text-[#F5F0E7] hover:border-[#C69A4B] transition-colors" type="button">' +
+        '<button aria-label="Language" class="lang-toggle-btn inline-flex items-center gap-1.5 ' + pad + ' rounded-md border border-[#2B2C2A] bg-[#17191B] text-[#F4EFE7] hover:border-[#C69A4B] transition-colors" type="button">' +
           '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">EN</span>' +
           '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">KU</span>' +
           '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">AR</span>' +
         '</button>' +
-        '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50 bg-[#172B3C] border border-[rgba(198,154,75,0.18)] rounded-xl shadow-lg">' +
-          '<button class="lang-option rounded-lg text-[#F5F0E7] hover:bg-[#132E45]" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
+        '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50 bg-[#17191B] border border-[#2B2C2A] rounded-xl shadow-lg">' +
+          '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
             '<img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>' +
             '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
           '</button>' +
-          '<button class="lang-option rounded-lg text-[#F5F0E7] hover:bg-[#132E45]" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
+          '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
             '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>' +
             '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
           '</button>' +
-          '<button class="lang-option rounded-lg text-[#F5F0E7] hover:bg-[#132E45]" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
+          '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
             '<img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>' +
             '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
           '</button>' +
@@ -125,7 +125,7 @@
 
   function notifBell(extraClass) {
     return (
-      '<button aria-label="Notifications" class="' + (extraClass || '') + ' relative p-2.5 rounded-full hover:bg-[#132E45] transition-all duration-200 active:scale-95 text-[#F5F0E7]" type="button" style="--notif-dot-ring:#071D33">' +
+      '<button aria-label="Notifications" class="' + (extraClass || '') + ' relative p-2.5 rounded-full hover:bg-[#1C1F21] transition-all duration-200 active:scale-95 text-[#F4EFE7]" type="button" style="--notif-dot-ring:#0B0E12">' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>' +
       '</button>'
     );
@@ -140,34 +140,34 @@
   // same as a logo image would.
   var brandLockup =
     '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home">' +
-      '<span class="font-headline-md font-bold tracking-tight text-[#F5F0E7]">Darwesh</span>' +
+      '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Darwesh</span>' +
       '<img src="images/brand/darwesh-mark.png" alt="" width="34" height="34" decoding="async" class="hdr-mark object-contain">' +
-      '<span class="font-headline-md font-bold tracking-tight text-[#F5F0E7]">Group</span>' +
+      '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Group</span>' +
     '</a>';
 
   var propertiesMapItem =
     '<div class="relative flex items-center gap-0.5">' +
       '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
-      '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-[#F5F0E7]' : 'text-[#AFA89D] hover:text-[#F5F0E7]') + ' transition-colors" type="button" aria-label="Buy or rent">' +
+      '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-[#F4EFE7]' : 'text-[#B8B0A5] hover:text-[#F4EFE7]') + ' transition-colors" type="button" aria-label="Buy or rent">' +
         '<span class="text-[18px]" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>' +
       '</button>' +
-      '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-[#172B3C] border border-[rgba(198,154,75,0.18)] rounded-xl shadow-lg py-1">' +
-        '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-[#F5F0E7] hover:bg-[#132E45] transition-colors" href="map.html?type=sale" data-i18n="nav.buy">Buy</a>' +
-        '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-[#F5F0E7] hover:bg-[#132E45] transition-colors" href="map.html?type=rent" data-i18n="nav.rent">Rent</a>' +
+      '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-[#17191B] border border-[#2B2C2A] rounded-xl shadow-lg py-1">' +
+        '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-[#F4EFE7] hover:bg-[#1C1F21] transition-colors" href="map.html?type=sale" data-i18n="nav.buy">Buy</a>' +
+        '<a class="nav-map-option block px-4 py-2 font-label-caps text-label-caps text-[#F4EFE7] hover:bg-[#1C1F21] transition-colors" href="map.html?type=rent" data-i18n="nav.rent">Rent</a>' +
       '</div>' +
     '</div>';
 
   var authGuest =
     '<span id="navAuthGuest" class="flex items-center gap-3">' +
-      '<a href="login.html" class="inline-flex items-center h-9 px-4 rounded-md border border-[rgba(198,154,75,0.18)] text-[#F5F0E7] text-sm font-semibold hover:border-[#C69A4B] transition-colors" data-i18n="nav.login">Login</a>' +
-      '<a href="signup.html" class="inline-flex items-center h-9 px-4 rounded-md bg-[#C69A4B] text-[#071D33] text-sm font-bold hover:bg-[#D8B667] transition-colors" data-i18n="nav.signUp">Sign Up</a>' +
+      '<a href="login.html" class="inline-flex items-center h-9 px-4 rounded-md border border-[#2B2C2A] text-[#F4EFE7] text-sm font-semibold hover:border-[#C69A4B] transition-colors" data-i18n="nav.login">Login</a>' +
+      '<a href="signup.html" class="inline-flex items-center h-9 px-4 rounded-md bg-[#C69A4B] text-[#0B0E12] text-sm font-bold hover:bg-[#D4AF60] transition-colors" data-i18n="nav.signUp">Sign Up</a>' +
     '</span>';
 
   var profileChip =
-    '<a id="navProfileLink" class="hidden items-center h-9 px-4 rounded-full border border-[rgba(198,154,75,0.18)] hover:border-[#C69A4B] text-[#F5F0E7] text-sm font-semibold transition-colors" href="login.html" data-i18n="nav.profile">Profile</a>';
+    '<a id="navProfileLink" class="hidden items-center h-9 px-4 rounded-full border border-[#2B2C2A] hover:border-[#C69A4B] text-[#F4EFE7] text-sm font-semibold transition-colors" href="login.html" data-i18n="nav.profile">Profile</a>';
 
   mount.innerHTML =
-    '<header class="fixed top-0 left-0 w-full z-50 h-[76px] bg-[#071D33] border-b border-[rgba(198,154,75,0.18)]">' +
+    '<header class="fixed top-0 left-0 w-full z-50 h-[76px] bg-[#0B0E12] border-b border-[#2B2C2A]">' +
 
       // ---- Desktop / wide-tablet split layout (lg+) ----
       '<div class="hidden lg:block relative h-full">' +

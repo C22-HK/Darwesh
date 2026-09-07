@@ -38,71 +38,76 @@ module.exports = {
         // error/error-container and tertiary*/on-tertiary* (the
         // success-green family) are UNCHANGED -- semantic status colors,
         // out of scope for this migration.
-        // ---- DARK LUXURY REFINEMENT (color-only restyle, current pass) --
-        // Main Background #0B1117 / Deep Darwesh Navy #071D33 / Luxury
-        // Navy Surface #0D263B / Elevated Navy #132E45 / Soft Dark Card
-        // #172B3C / Warm Ivory #F5F0E7 / Darwesh Gold #C69A4B / Gold
-        // Light #D8B667 / body copy #C9C2B8 / muted metadata #9E9A93.
-        // Every M3 role below is re-pointed at one of these values only --
-        // no new colors introduced, keeping this file in lockstep with
-        // css/cinematic.css's .cine-scope block (the same palette, same
-        // roles) so admin.html/agent-dashboard.html -- the only two pages
-        // that read these raw values directly instead of through
-        // cine-scope -- match the rest of the site. tertiary* (success
-        // green) is UNCHANGED; error*/on-error* are re-tuned only for
-        // legible contrast on a dark surface, still red. obsidian is
-        // MAM's identity color and is UNCHANGED.
-        "surface-bright": "#0b1117",
-        "on-secondary-fixed-variant": "#afa89d",
+        // ---- DARK LUXURY CORRECTION (obsidian, not navy) ----------------
+        // The prior pass (Deep Navy #071D33/#0D263B/#132E45) read as
+        // corporate blue at the scale of a full page background -- flagged
+        // and corrected. This palette instead extends `obsidian` below
+        // (#0B0E12, MAM's pre-existing identity color, unchanged) into a
+        // full neutral ramp, recovered from this repo's OWN pre-light-
+        // migration dark theme (git history at commit e6b23a6, "Darwesh
+        // signature luxury palette": Obsidian #090A0A / Carbon Black
+        // #101111 / Bronzed Black #17150F) and refined per the approved
+        // brief to a slightly cooler, less warm-brown neutral: Main
+        // Obsidian #0B0E12 / Deep Charcoal #111315 / Elevated Dark
+        // #17191B / Card Surface Dark #1C1F21 / Soft Dark Border #2B2C2A /
+        // Warm Ivory #F4EFE7 / Soft Cream #DDD4C7 / secondary text #B8B0A5
+        // / Darwesh Gold #C69A4B (unchanged) / Soft Gold #D4AF60. Gold
+        // stays an accent only (CTAs, active/selected states, focus
+        // rings) -- borders and every surface tier are neutral, never
+        // navy and never gold-tinted. tertiary*/on-tertiary* (success
+        // green) UNCHANGED; error*/on-error* re-tuned only for legible
+        // contrast on a dark surface, still red.
+        "surface-bright": "#0b0e12",
+        "on-secondary-fixed-variant": "#b8b0a5",
         secondary: "#c69a4b",
-        "on-secondary-fixed": "#f5f0e7",
-        "on-primary-fixed": "#f5f0e7",
-        primary: "#071d33",
+        "on-secondary-fixed": "#f4efe7",
+        "on-primary-fixed": "#f4efe7",
+        primary: "#0b0e12",
         error: "#ff8a80",
-        "inverse-primary": "#d8b667",
-        "surface-container-low": "#071d33",
-        "on-primary-fixed-variant": "#afa89d",
+        "inverse-primary": "#d4af60",
+        "surface-container-low": "#111315",
+        "on-primary-fixed-variant": "#b8b0a5",
         "tertiary-fixed": "#6bfe9c",
-        "surface-variant": "#172b3c",
+        "surface-variant": "#141619",
         "on-tertiary-fixed": "#00210c",
-        "primary-fixed": "#132e45",
-        "on-primary": "#f5f0e7",
-        surface: "#0b1117",
-        "surface-container-high": "#132e45",
-        "inverse-surface": "#e8e0d4",
+        "primary-fixed": "#17191b",
+        "on-primary": "#f4efe7",
+        surface: "#0b0e12",
+        "surface-container-high": "#1c1f21",
+        "inverse-surface": "#ddd4c7",
         "on-error-container": "#ffb4ab",
-        "on-secondary": "#071d33",
+        "on-secondary": "#0b0e12",
         "error-container": "#5c1a1a",
-        "inverse-on-surface": "#071d33",
-        "on-error": "#071d33",
-        "outline-variant": "rgba(198,154,75,0.18)",
-        outline: "#9e9a93",
-        "primary-container": "#132e45",
+        "inverse-on-surface": "#0b0e12",
+        "on-error": "#0b0e12",
+        "outline-variant": "#2b2c2a",
+        outline: "#8f887c",
+        "primary-container": "#17191b",
         "tertiary-container": "#0f2e1c",
         "tertiary-fixed-dim": "#4ae183",
-        "primary-fixed-dim": "#f5f0e7",
-        "secondary-container": "#d8b667",
+        "primary-fixed-dim": "#f4efe7",
+        "secondary-container": "#d4af60",
         "secondary-fixed-dim": "#c69a4b",
-        "secondary-fixed": "#d8b667",
-        "surface-dim": "#071d33",
+        "secondary-fixed": "#d4af60",
+        "surface-dim": "#111315",
         tertiary: "#001a08",
-        "surface-container-lowest": "#172b3c",
-        "on-background": "#f5f0e7",
-        "surface-container-highest": "#132e45",
+        "surface-container-lowest": "#17191b",
+        "on-background": "#f4efe7",
+        "surface-container-highest": "#22262a",
         "on-tertiary-container": "#6bd99a",
-        "on-primary-container": "#f5f0e7",
+        "on-primary-container": "#f4efe7",
         "on-tertiary": "#ffffff",
         "on-tertiary-fixed-variant": "#005228",
-        "on-surface-variant": "#c9c2b8",
-        "surface-tint": "#071d33",
-        "on-secondary-container": "#071d33",
-        "surface-container": "#0d263b",
-        background: "#0b1117",
-        "on-surface": "#f5f0e7",
+        "on-surface-variant": "#b8b0a5",
+        "surface-tint": "#0b0e12",
+        "on-secondary-container": "#0b0e12",
+        "surface-container": "#141619",
+        background: "#0b0e12",
+        "on-surface": "#f4efe7",
         // Gold accent family (not part of the original M3 token set --
         // used directly, e.g. bg-gold / text-gold / border-gold).
         gold: "#c69a4b",
-        "gold-hi": "#d9b76a",
+        "gold-hi": "#d4af60",
         obsidian: "#0b0e12",
         // Soft Stone -- alternating section backgrounds / secondary
         // cards / subtle separation (approved palette, direct utility).
