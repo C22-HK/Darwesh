@@ -695,13 +695,23 @@ body.world .w-hero-plane {
                       linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
           mask-composite: intersect;
 }
-/* Deliberately no [dir="rtl"] variant here. An earlier pass had one (mask
-   flipped, inset mirrored to the left) that never actually applied --
-   wrong selector scope, see the .w-display note above -- and the current
-   design direction is to keep it that way on purpose: the hero photograph
-   stays in the same visual zone and the composition doesn't shift
-   horizontally for Kurdish/Arabic. Only the text inside .w-hero-copy
-   reflows for RTL; the image plane doesn't mirror. */
+/* RTL composition: the image PLANE moves to the left and the text
+   column reflows to the right -- a deliberate mirrored layout, not a
+   mirrored IMAGE. Only position/inset and the mask's fade direction
+   change here; background-image, background-size, background-position,
+   border-radius (already the logical border-start-start-radius, so it
+   auto-follows to the top-right corner) and the vertical mask are
+   untouched, so the photograph itself is never flipped or distorted.
+   (An earlier pass had this exact rule but scoped it as
+   `body.world[dir="rtl"]`, which -- see the .w-display note above --
+   can never match; that's why it silently never applied.) */
+html[dir="rtl"] body.world .w-hero-plane {
+  inset: 0 34% 0 0;
+  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+          mask-image: linear-gradient(270deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+}
 body.world .w-hero-copy { max-width: 44rem; display: flex; flex-direction: column; gap: 1.3rem; align-items: flex-start; }
 
 body.world .w-search {
@@ -1116,6 +1126,16 @@ body.world .home-bottomnav {
   body.world .mv { padding-block: var(--w-air-m); margin-block-start: calc(var(--w-air-s) * -1); }
   body.world .w-hero { min-height: 86svh; padding-block: 5rem var(--w-air-s); }
   body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+            mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
+  /* The desktop left/right split (html[dir="rtl"] body.world .w-hero-plane,
+     above) has no width guard of its own and would otherwise outrank this
+     mobile full-bleed reset on specificity alone regardless of viewport --
+     same selector shape, just declared later here so source order breaks
+     the tie back in this rule's favor at mobile widths. Kurdish/Arabic
+     stays the same single stacked mobile composition as English, just with
+     RTL text alignment; the desktop image/text swap never applies here. */
+  html[dir="rtl"] body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
     -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
             mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
   body.world .w-hero-copy { padding-inline-end: 3.2rem; gap: 1rem; }
