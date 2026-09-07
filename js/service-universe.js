@@ -460,29 +460,36 @@ function build(mount) {
   }
 
   function renderFocusedInfo(svc) {
-    const c = counts.get(svc.key);
     let statsHtml;
     // The default copy talks about professionals, because for every
     // provider-backed service the supply IS professionals. A service
     // counting something else (Installments counts developer projects)
     // supplies its own wording rather than being described as a pool of
-    // people who have not signed up.
-    if (c === 'error' || c === undefined) {
-      statsHtml = `<p class="su-info-fallback">${esc(tr(svc.unknownCountKey || 'svc.exploreProfessionals', svc.unknownCountFallback || 'Explore available professionals'))}</p>`;
-    } else if (c.total === 0) {
-      statsHtml = `<p class="su-info-fallback">${esc(tr(svc.zeroCountKey || 'svc.noneYetShort', svc.zeroCountFallback || 'Providers will appear here as they join Darwesh'))}</p>`;
+    // people who have not signed up. A service with no count concept at
+    // all (MAM AI -- there is no "supply" to tally) skips the fetched-
+    // count branches entirely rather than showing a fabricated or
+    // meaningless zero.
+    if (svc.noCount) {
+      statsHtml = `<p class="su-info-fallback">${esc(tr(svc.staticInfoKey || 'svc.alwaysAvailable', svc.staticInfoFallback || 'Available any time'))}</p>`;
     } else {
-      statsHtml = `
-        <div class="su-info-stats">
-          <div>
-            <span class="su-info-stat-num">${c.total}</span>
-            <span class="su-info-stat-label">${esc(tr('svc.statAvailable', 'Available'))}</span>
-          </div>
-          <div>
-            <span class="su-info-stat-num">${c.verified}</span>
-            <span class="su-info-stat-label">${esc(tr('svc.statVerified', 'Verified'))}</span>
-          </div>
-        </div>`;
+      const c = counts.get(svc.key);
+      if (c === 'error' || c === undefined) {
+        statsHtml = `<p class="su-info-fallback">${esc(tr(svc.unknownCountKey || 'svc.exploreProfessionals', svc.unknownCountFallback || 'Explore available professionals'))}</p>`;
+      } else if (c.total === 0) {
+        statsHtml = `<p class="su-info-fallback">${esc(tr(svc.zeroCountKey || 'svc.noneYetShort', svc.zeroCountFallback || 'Providers will appear here as they join Darwesh'))}</p>`;
+      } else {
+        statsHtml = `
+          <div class="su-info-stats">
+            <div>
+              <span class="su-info-stat-num">${c.total}</span>
+              <span class="su-info-stat-label">${esc(tr('svc.statAvailable', 'Available'))}</span>
+            </div>
+            <div>
+              <span class="su-info-stat-num">${c.verified}</span>
+              <span class="su-info-stat-label">${esc(tr('svc.statVerified', 'Verified'))}</span>
+            </div>
+          </div>`;
+      }
     }
     infoEl.innerHTML = `
       <p class="su-info-eyebrow">${esc(tr('svc.directoryEyebrow', 'Darwesh Service Providers'))}</p>
@@ -522,7 +529,7 @@ function build(mount) {
       if (focusedIndex !== null) renderFocusedInfo(SERVICE_CATALOG[focusedIndex]);
       return;
     }
-    await Promise.all(SERVICE_CATALOG.map(async (svc) => {
+    await Promise.all(SERVICE_CATALOG.filter((svc) => !svc.noCount).map(async (svc) => {
       try {
         // Which collection actually holds this service's supply is the
         // catalog's decision, not this loop's -- provider services count

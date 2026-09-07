@@ -134,6 +134,26 @@ export const SERVICE_CATALOG = [
     // published developer projects -- so it carries its own wording.
     zeroCountKey: 'svc.installment.noneYet', zeroCountFallback: 'No installment offers are published yet',
     unknownCountKey: 'svc.installment.explore', unknownCountFallback: 'Explore published installment offers'
+  },
+  {
+    // MAM AI is not a pool of professionals someone signs up to join --
+    // it is Darwesh's own voice-first AI assistant, with its own
+    // dedicated full-page destination (mam-ai.html). `noCount` tells
+    // service-universe.js to skip the provider-count fetch entirely
+    // rather than querying serviceProviders for a role that doesn't
+    // exist, which would either error or (worse) silently return zero
+    // and read as "no professionals have joined yet".
+    key: 'mamai',
+    serviceType: null,
+    icon: 'scatter_plot',
+    fallbackIcon: 'scatter_plot',
+    titleKey: 'svc.mamai.title', title: 'MAM AI',
+    taglineKey: 'svc.mamai.tagline', tagline: "Your voice-first AI assistant for finding properties, exploring services, navigating Darwesh, and completing supported tasks.",
+    profileHref: null,
+    directoryHref: 'mam-ai.html',
+    ctaKey: 'svc.cta.openMamAi', ctaFallback: 'Open MAM AI',
+    noCount: true,
+    staticInfoKey: 'svc.mamai.alwaysAvailable', staticInfoFallback: 'Available any time -- open MAM AI to search, ask, and act.'
   }
 ];
 

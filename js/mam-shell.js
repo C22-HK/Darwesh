@@ -135,9 +135,8 @@ function applyDocument(doc, u) {
   if (doc.title) document.title = doc.title;
 
   // The swapped view is a new page as far as anything reading the URL is
-  // concerned, so tell the page what it now is. MAM listens for this to
-  // refresh its structured page context (js/mam-companion-launcher.js);
-  // anything else that needs to re-read location can listen too.
+  // concerned, so tell the page what it now is -- anything that needs to
+  // re-read location on an in-place navigation can listen for this.
   runIncomingScripts(doc);
   window.dispatchEvent(new CustomEvent('darwesh:viewchange', {
     detail: { path: u.pathname, search: u.search, page: doc.body ? doc.body.getAttribute('data-page') : null }

@@ -1,23 +1,18 @@
-// MAM site-wide chat panel -- the ONE local, non-navigating conversation
-// surface, mounted by js/mam-companion-launcher.js next to the shared
-// compact dock (js/mam-dock.js, which carries the orb from
-// js/mam-companion.js) on EVERY public page, map.html included. This
-// panel and the compact dock are two states of ONE surface: opening it
-// MORPHS the dock into the conversation, anchored to wherever the dock
-// currently is (see computeAnchoredPosition() below), and closing it
-// shrinks back to exactly that spot -- never a detached panel that pops
-// up somewhere unrelated to where the visitor tapped.
+// MAM's chat panel -- the ONE conversation surface (transcript, composer,
+// voice, suggested actions), driving on/anchored to whatever "dock"
+// element its mount point passes in. Originally mounted on every public
+// page next to a shared compact orb (js/mam-companion-launcher.js and
+// friends); that site-wide floating companion has since been removed in
+// favor of one dedicated destination, mam-ai.html, which is this panel's
+// only mount point today (see its own header comment). Nothing here
+// re-implements the conversation or voice pipeline a second time -- this
+// IS that one implementation. Opening the panel MORPHS its dock anchor
+// into the conversation (see computeAnchoredPosition() below), and
+// closing it shrinks back to exactly that spot -- never a detached panel
+// that pops up somewhere unrelated to its anchor.
 //
-// map.html used to be the exception: it ran its own parallel
-// implementation (the removed js/mam-properties-map.js) with its own
-// session id, its own bubbles, its own voice handling and its own orb.
-// That meant a conversation started on the home page did not exist on the
-// map and vice versa, two different voice implementations behaved
-// differently, and the map showed two MAM identities at once. There is
-// now one module, one session, one transcript and one voice state machine
-// for the whole site; a page contributes structured context and nothing
-// else. This module never implements
-// a second AI backend: every reply comes from the exact same endpoint
+// This module never implements a second AI backend: every reply comes
+// from the exact same endpoint
 // js/mam-api.js already calls (POST /api/v1/mam/chat), and every action
 // this panel performs is dispatched through a small, explicit allowlist
 // (see `dispatchSuggestedAction`) that only ever navigates to a real,
@@ -174,14 +169,14 @@ export function isMamMounted() { return mounted; }
  * @param {Element} opts.orbEl The orb itself -- this module wires its
  *   click/keyboard activation to open/toggle the panel; the caller
  *   never has to do that itself.
- * @param {Element} [opts.dockEl] The compact dock's OWN root element
- *   (js/mam-dock.js's `root`). Its live position is what the panel
- *   anchors to and morphs from/to on every open and close -- without it
- *   the panel falls back to a fixed centred position, which is only ever
- *   used defensively (every real caller passes this).
+ * @param {Element} [opts.dockEl] The panel's anchor element -- its live
+ *   position is what the panel anchors to and morphs from/to on every
+ *   open and close -- without it the panel falls back to a fixed centred
+ *   position, which is only ever used defensively (every real caller
+ *   passes this).
  * @param {Element[]} [opts.micEls] Extra mic buttons outside the panel
- *   (the dock's) to drive from the SAME voice state as the panel's own.
- * @param {import('./mam-companion.js').MamCompanion} opts.companion
+ *   to drive from the SAME voice state as the panel's own.
+ * @param {{root: Element, element: Element, setState: Function, setEnergy: Function, setFocus: Function, getState: Function, destroy: Function}} opts.companion
  * @param {() => string} [opts.getLanguage]
  * @param {(state: {handsFree: boolean, listening: boolean, wakeEnabled: boolean, wakeListening: boolean}) => void} [opts.onVoiceUi]
  * @param {(text: string|null) => void} [opts.onResumeHint]
@@ -482,14 +477,12 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   form.appendChild(sendBtn);
   panel.appendChild(form);
 
-  // Appended to <body>, deliberately NOT inside orbRoot: `.mamco-root`
-  // carries a CSS `transform` (see css/mam-companion.css), which would
-  // make it the containing block for any `position: fixed` descendant
-  // and silently break this panel's viewport-relative positioning/
-  // stacking. Positioning it independently, the same way map.html's own
-  // #drmAiWrap used to be a direct child of <body>, keeps it reliably on
-  // top of page content regardless of where the orb's own root happens to
-  // sit in the DOM.
+  // Appended to <body>, deliberately NOT inside orbRoot: an orb root that
+  // carries its own CSS `transform` would become the containing block for
+  // any `position: fixed` descendant and silently break this panel's
+  // viewport-relative positioning/stacking. Positioning it independently
+  // keeps it reliably on top of page content regardless of where the
+  // orb's own root happens to sit in the DOM.
   document.body.appendChild(panel);
 
   // ---- anchoring the panel to the dock's CURRENT position --------------
@@ -642,11 +635,9 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   grabHandle.addEventListener('pointercancel', endHandleDrag);
 
   // A resize/rotation while the panel is OPEN must keep it correctly
-  // anchored and clamped. The dock is collapsed (invisible) at this point
-  // but stays in normal layout, so re-measuring it still gives a usable
-  // rect -- and js/mam-dock.js re-places the dock itself on the same kind
-  // of debounce, so by the time this settles the dock's own position has
-  // already caught up with the new viewport too.
+  // anchored and clamped -- the anchor element stays in normal layout
+  // throughout, so re-measuring it on a debounce still gives a usable,
+  // up-to-date rect.
   let resizeTimer = null;
   window.addEventListener('resize', () => {
     if (!isOpen) return;
@@ -1994,10 +1985,9 @@ export function mountMamChatPanel({ orbEl, dockEl, micEls = [], companion, getLa
   renderChips();
 
   // ---- entry points from elsewhere on the site --------------------------
-  // index.html's hero search, about.html/services.html CTAs and the footer
-  // all link to `map.html?ai=1[&q=...]`. That contract used to be handled
-  // by the map's own dock; it lives here now so those links keep working
-  // and behave the same way on every page.
+  // `?ai=1`/`?mam=1` force the panel open on load, and `?q=...` sends an
+  // initial message once it is -- a deep-link contract any page can use to
+  // land a visitor straight into a conversation instead of an idle one.
   // Back/forward across same-document swaps. Bound once, here, because this
   // panel is the only thing that ever creates one (js/mam-shell.js).
   bindPopstate();

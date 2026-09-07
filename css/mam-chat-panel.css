@@ -1,21 +1,16 @@
-/* MAM site-wide chat panel -- the ONE local, non-navigating conversation
- * surface, the SAME surface as the compact dock (js/mam-dock.js) just
- * expanded, opened by js/mam-companion-launcher.js on every public page.
- * Self-contained like css/mam-companion.css: reuses the same --mamco-*
- * custom properties (falls back to the same literal values when they
- * aren't defined) so this file never requires cinematic.css or any other
- * page-level stylesheet to be present.
+/* MAM's chat panel -- the ONE conversation surface (transcript, composer,
+ * voice, suggested actions), mounted today by mam-ai.html. Self-
+ * contained: uses its own --mamco-* custom properties with literal
+ * fallback values (no other page-level stylesheet has to define them),
+ * so this file never requires cinematic.css or any other stylesheet to
+ * be present.
  *
- * Position is NOT fixed in this file. It used to be hardcoded here
- * (`right: 104px; top: 50%`), which is what made the panel look like a
- * second, detached surface: wherever the compact dock actually was --
- * dragged to the left, sitting at the map's bottom edge -- the
- * conversation always popped up in that one fixed spot instead. Now
- * left/right/top/bottom/max-height/transform-origin are all set inline by
- * js/mam-chat-panel.js's computeAnchoredPosition(), measured from the
- * dock's OWN current position each time it opens, so the panel always
- * grows from wherever the dock is and shrinks back to exactly that spot
- * on close -- this file owns only the chrome and the open/close motion.
+ * Position is NOT fixed in this file. left/right/top/bottom/max-height/
+ * transform-origin are all set inline by js/mam-chat-panel.js's
+ * computeAnchoredPosition(), measured from its anchor element's current
+ * position each time it opens, so the panel always grows from wherever
+ * its anchor is and shrinks back to exactly that spot on close -- this
+ * file owns only the chrome and the open/close motion.
  */
 .mamcp-panel {
   position: fixed;
@@ -32,8 +27,8 @@
      the backdrop blur. That is what made the composer look like a pale
      translucent sheet with unreadable near-white text on top of it:
      the surface the palette was designed against had silently vanished.
-     color-mix is the same technique css/mam-dock.css already uses for
-     exactly this; the plain declaration above it is the fallback for
+     color-mix is used here for exactly this reason; the plain
+     declaration above it is the fallback for
      engines without color-mix, which get a fully opaque panel rather
      than a transparent one. */
   background: var(--mamco-surface, #17150F);
@@ -185,9 +180,9 @@
 .mamcp-send:disabled { opacity: .5; cursor: not-allowed; }
 .mamcp-mic { background: transparent; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); }
 .mamcp-mic.mic-listening { background: var(--mamco-error, #E5787A); border-color: var(--mamco-error, #E5787A); color: #090A0A; }
-/* Passively listening for "MAM AI" -- the same calmer treatment as the
-   dock's own mic (css/mam-dock.css), kept visually consistent since both
-   drive the exact same voice state. */
+/* Passively listening for "MAM AI" -- a calmer treatment than the
+   actively-listening state above, since both drive the exact same voice
+   state and need to read as clearly different. */
 .mamcp-mic.is-wake:not(.mic-listening) {
   border-color: rgba(184, 154, 99, 0.55);
   color: var(--mamco-accent, #B89A63);

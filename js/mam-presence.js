@@ -71,9 +71,9 @@ function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
 /**
  * @param {Object} opts
- * @param {import('./mam-companion.js').MamCompanion} opts.companion
+ * @param {{root: Element, element: Element, setState: Function, setEnergy: Function, setFocus: Function, getState: Function, destroy: Function}} opts.companion
  * @param {{speak:Function, open:Function, close:Function, toggleHandsFree:Function, isVoiceSupported:boolean}} opts.panel
- * @param {Element} [opts.dockEl] the compact dock, hidden while MAM is in focus
+ * @param {Element} [opts.dockEl] an element to hide while MAM is in focus, if any
  */
 export function createPresence({ companion, panel, dockEl }) {
   let state = 'IDLE';

@@ -43,14 +43,15 @@ convention); nothing here widens the policy. -->
 <div id="siteMobileNav" data-active="mamai"></div>
 <script src="./js/site-mobile-nav.js"></script>
 
-<!-- MAM AI Command Center -- Phase 1.
+<!-- MAM AI Command Center.
      The entity is the page: a living, state-driven particle body
-     (js/mam-entity-3d.js) standing in for the compact orb, wired into the
-     EXACT SAME conversation, voice and action machinery every other
-     page's floating companion already uses (js/mam-presence.js,
-     js/mam-chat-panel.js) -- nothing here is a second implementation. The
-     compact companion keeps working, unchanged, on every other page: this
-     is the expanded, full-page experience, not a replacement for it. -->
+     (js/mam-entity-3d.js) standing in for the old compact orb, wired into
+     the SAME conversation, voice and action machinery MAM has always used
+     (js/mam-presence.js, js/mam-chat-panel.js) -- nothing here is a second
+     implementation. This is now the ONE MAM AI surface site-wide: every
+     other page's old floating companion (orb, dock, "Ask MAM" bar) has
+     been removed in favor of this single dedicated destination, reachable
+     from the header/mobile-nav "MAM AI" entry on every page. -->
 <main class="w-full max-w-7xl mx-auto px-4 md:px-8 py-6 md:py-10">
 <div class="grid grid-cols-1 lg:grid-cols-[1.15fr_380px] gap-6 lg:gap-8 items-stretch">
 
@@ -78,9 +79,9 @@ convention); nothing here widens the policy. -->
 <script type="module">
   // One state machine, two renderers -- see js/mam-entity-3d.js's own
   // header comment. Nothing below re-implements the conversation, the
-  // voice pipeline or the action registry: it composes the exact same
-  // modules js/mam-companion-launcher.js already wires up on every other
-  // page, with the particle entity standing in for the compact orb.
+  // voice pipeline or the action registry: it composes the same
+  // js/mam-chat-panel.js / js/mam-presence.js modules MAM has always used,
+  // with the particle entity standing in for the old compact orb.
   import { createMamEntity3D } from './js/mam-entity-3d.js';
   import { mountMamChatPanel } from './js/mam-chat-panel.js';
   import { createPresence } from './js/mam-presence.js';
@@ -108,11 +109,10 @@ convention); nothing here widens the policy. -->
     const presence = createPresence({ companion: entity, panel, dockEl: null });
     panel.onVoiceState((next) => presence.adopt(next));
 
-    // First interaction with the entity itself starts the voice greeting,
-    // exactly like every other page's compact orb (js/mam-companion-
-    // launcher.js) -- never on page load without a gesture, since both
-    // speechSynthesis and an <audio> element for Kurdish TTS need one to
-    // play reliably in every browser this has to work in.
+    // First interaction with the entity itself starts the voice greeting --
+    // never on page load without a gesture, since both speechSynthesis and
+    // an <audio> element for Kurdish TTS need one to play reliably in
+    // every browser this has to work in.
     entity.element.addEventListener('click', (e) => {
       if (presence.hasAwakened) return;
       if (!window.speechSynthesis) return;

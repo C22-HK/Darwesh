@@ -12,11 +12,11 @@
 // selector's lang-toggle-btn/lang-menu, just not sharing its class names
 // since this is a different menu, not another language surface) -- there
 // is exactly one clickable nav LABEL for the map, with Buy/Rent reachable
-// as its two modes, never a second or third label. The compact MAM
-// assistant (js/mam-companion-launcher.js) is still present on every
-// page, unchanged -- see docs/MAM_V2_ARCHITECTURE.md section 21. "MAM AI"
-// below is its dedicated, separate full-page destination (mam-ai.html,
-// the MAM AI Command Center), added alongside it, not a replacement.
+// as its two modes, never a second or third label. "MAM AI" below is the
+// single, site-wide entry point for MAM: every page's old floating
+// companion (orb, dock, "Ask MAM" bar) has been removed in favor of this
+// one dedicated full-page destination (mam-ai.html, the MAM AI Command
+// Center) -- see docs/MAM_V2_ARCHITECTURE.md section 21.
 //
 // LIGHT-LUXURY HEADER REBUILD (visual composition change, approved).
 // White surface (not the previous navy-forward M3 tokens), Darwesh Navy

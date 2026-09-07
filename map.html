@@ -34,7 +34,6 @@ violation reporting. -->
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
-<link href="css/mam-companion.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
@@ -472,27 +471,14 @@ violation reporting. -->
     @media (min-width: 768px) { .map-toast { bottom: 1.5rem; } }
 
     /* ---- MAM -------------------------------------------------------------
-     * Nothing page-scoped is needed here any more.
-     *
-     * This block used to hold ~130 lines: placement overrides pushing the
-     * standalone .mamco-root orb clear of the edge handle it collided
-     * with, plus a complete second assistant dock (#drmAiWrap and the
-     * .drm-ai-* bar/panel/bubbles/cards) that only this page had. Both are
-     * gone with js/mam-properties-map.js. The one shared surface --
-     * js/mam-dock.js + js/mam-chat-panel.js, mounted by
-     * js/mam-companion-launcher.js at the bottom of this file -- brings
-     * its own stylesheets, defaults to a bottom-safe dock centred over
-     * THIS page's own #mapPanel (never the listing panel beside it),
-     * remembers where the visitor put it if they moved it, and keeps
-     * clear of the controls below (plus Leaflet's own zoom/attribution,
-     * marked right where they're created) via data-mam-avoid. Opening the
-     * conversation morphs it upward from that same dock -- never a
-     * separate panel appearing somewhere else on the page.
-     *
-     * The list panel still reserves room at its foot so the last card can
-     * be scrolled clear of the dock resting over it. */
-    #listPanel { padding-bottom: 180px; }
-    @media (min-width: 768px) { #listPanel { padding-bottom: 96px; } }
+     * There is no floating MAM surface on this page any more -- the
+     * compact companion (js/mam-companion-launcher.js, js/mam-dock.js,
+     * js/mam-companion.js) was removed site-wide in favor of the single
+     * dedicated MAM AI Command Center (mam-ai.html), which can still open
+     * and filter this same map via window.DarweshPropertiesMap. Nothing
+     * page-scoped is needed here for that any more; the extra bottom
+     * padding this rule used to reserve was solely to keep the last list
+     * card clear of the now-gone dock. */
   </style>
 </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-[76px] pb-24 md:pb-0">
@@ -568,12 +554,7 @@ violation reporting. -->
      there is exactly one place to look. The only controls left outside
      are Leaflet's own zoom buttons.
      =================================================================== -->
-<!-- data-mam-avoid: the shared MAM dock keeps clear of anything carrying
-     this attribute when it docks (js/mam-dock.js). It is the whole
-     contract between a page and the dock -- the dock knows nothing about
-     map tools, and this page knows nothing about how the dock positions
-     itself. -->
-<button id="mapEdgeHandle" type="button" class="map-edge-handle" data-mam-avoid=""
+<button id="mapEdgeHandle" type="button" class="map-edge-handle"
         aria-label="Map tools" title="Map tools" aria-expanded="false" aria-controls="mapDrawer"
         data-i18n-aria="map.mapTools" data-i18n-title="map.mapTools">
 <span class="meh-grip" aria-hidden="true"></span>
@@ -824,16 +805,6 @@ violation reporting. -->
 </form>
 </div>
 </div>
-
-<!-- MAM -- the site-wide compact assistant (js/mam-companion-launcher.js).
-     Identical module, session and conversation as every other page: this
-     page used to run its own parallel implementation
-     (js/mam-properties-map.js, now removed) with a separate session id and
-     a second orb of its own. `data-page` is the only thing this page
-     contributes; MAM's replies still drive the real search here through
-     window.DarweshPropertiesMap below, exactly as before. -->
-<div id="mamCompanionLauncher" data-page="properties_map"></div>
-<script type="module" src="./js/mam-companion-launcher.js"></script>
 
 <script>
 function layoutMain() {
@@ -1268,13 +1239,6 @@ let priceCurrency = 'USD';
 const MAX_MAP_ZOOM = 15;
 const map = L.map('map', { zoomControl: false, maxZoom: MAX_MAP_ZOOM }).setView([36.35, 44.3], 8);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
-// data-mam-avoid: the shared MAM dock (js/mam-dock.js) keeps clear of
-// anything carrying this attribute, so the zoom buttons and Leaflet's own
-// attribution never end up hidden under the dock or the conversation it
-// morphs into. Marked here, right after Leaflet creates each control's
-// DOM node, rather than as static markup -- Leaflet builds these itself.
-document.querySelectorAll('.leaflet-control-zoom, .leaflet-control-attribution')
-  .forEach(el => el.setAttribute('data-mam-avoid', ''));
 
 // ---------------------------------------------------------------------
 // Map type (Roadmap/Satellite/Hybrid) -- Roadmap is the existing OSM
@@ -2827,12 +2791,6 @@ function setDrawMode(on) {
   drawSearchBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
   redrawSearchAreaBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
   mapEdgeHandle.dataset.drawing = drawMode ? '1' : '0';
-  // The circle gesture needs every pixel of the map, and the MAM dock
-  // floats over it. This hides the dock for the duration -- it is not
-  // unmounted, so the conversation, its position and any voice state are
-  // all still there when the circle is finished. js/mam-dock.js listens
-  // for this; nothing here reaches into that module.
-  document.dispatchEvent(new CustomEvent('darwesh:mam-suppress', { detail: { suppressed: drawMode } }));
 
   if (drawMode) {
     // The gesture needs the whole map, and there is nothing to keep on
