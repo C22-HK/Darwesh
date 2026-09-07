@@ -1069,10 +1069,45 @@ body.world .w-gallery-dots { gap: 0; }
 body.world .w-rail {
   display: flex; gap: clamp(1rem, 1.6vw, 1.5rem);
   overflow-x: auto; scroll-snap-type: x mandatory;
+  /* Programmatic scrolls (the prev/next buttons, keyboard) glide instead of
+     teleporting. Does not affect wheel/trackpad/touch input, which the
+     browser drives natively. */
+  scroll-behavior: smooth;
+  /* A swipe that runs past the last card stays in the rail: it must not
+     chain to the page (sideways page rubber-banding on iOS, back/forward
+     navigation on some trackpads). */
+  overscroll-behavior-x: contain;
   padding-block: 0.25rem 1rem; scrollbar-width: none;
 }
 body.world .w-rail::-webkit-scrollbar { display: none; }
 body.world .w-rail > * { scroll-snap-align: start; }
+/* The buttons already pass behavior:'auto' under reduced motion; this keeps
+   the CSS layer agreeing, since 'auto' defers to scroll-behavior. */
+@media (prefers-reduced-motion: reduce) {
+  body.world .w-rail { scroll-behavior: auto; }
+}
+
+/* Desktop prev/next rail controls. Absolutely positioned against .mv-in
+   (already position:relative) so they sit beside the section heading
+   without taking part in its box model -- the heading's own layout and
+   spacing are exactly what they were before these exist. Two PHYSICAL
+   buttons (chevron always points the way it sits on screen); which scroll
+   direction each performs is resolved live from text direction in
+   js/carousel.js, so RTL is a behavior swap, never a mirrored icon.
+   Mobile relies on swipe alone, per spec -- hidden below the same
+   min-width:1024px cutoff already used elsewhere in this file (see the
+   max-width:1023px rules above) for the tablet/desktop split. */
+body.world .w-rail-nav { display: none; }
+@media (min-width: 1024px) {
+  body.world .w-rail-nav {
+    display: flex; gap: 0.5rem;
+    position: absolute; top: 0.2rem; inset-inline-end: 0;
+  }
+}
+body.world .w-rail-nav .w-icon-btn:disabled {
+  opacity: 0.35; cursor: default;
+}
+body.world .w-rail-nav .w-icon-btn:disabled:hover { border-color: inherit; }
 
 /* Empty state: no panel, no fill. Type and one action, standing in the
    world -- so zero listings looks composed rather than broken. */

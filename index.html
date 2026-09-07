@@ -315,6 +315,10 @@ violation reporting. -->
 <h2 class="w-h2" data-flow="lead" data-i18n="index.fastSaleTitle">Quick Sale</h2>
 <p class="w-body" data-flow="support" data-i18n="index.fastSaleSubtitle">Properties available for fast sale.</p>
 </div>
+<div class="w-rail-nav">
+<button type="button" class="w-icon-btn" id="fastSaleLeftBtn" aria-label="Scroll left" data-i18n-aria="common.scrollLeft"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+<button type="button" class="w-icon-btn" id="fastSaleRightBtn" aria-label="Scroll right" data-i18n-aria="common.scrollRight"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+</div>
 <div class="w-rail" id="fastSaleGrid" tabindex="0" role="group" aria-label="Quick Sale listings" data-flow="support" style="--fs:.03"></div>
 </div>
 <span class="w-answer" aria-hidden="true"></span>
@@ -326,6 +330,10 @@ violation reporting. -->
 <p class="w-label" data-flow="quiet" data-i18n="index.activeEyebrow">Trusted Choices</p>
 <h2 class="w-h2" data-flow="lead" data-i18n="index.activeTitle">Verified &amp; Recommended</h2>
 <p class="w-body" data-flow="support" data-i18n="index.activeSubtitle">Independently verified by the Darwesh Group team.</p>
+</div>
+<div class="w-rail-nav">
+<button type="button" class="w-icon-btn" id="activeLeftBtn" aria-label="Scroll left" data-i18n-aria="common.scrollLeft"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+<button type="button" class="w-icon-btn" id="activeRightBtn" aria-label="Scroll right" data-i18n-aria="common.scrollRight"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
 </div>
 <div class="w-rail" id="activeGrid" tabindex="0" role="group" aria-label="Verified listings" data-flow="support" style="--fs:.03"></div>
 </div>
@@ -740,13 +748,18 @@ function renderPropertyRail(opts) {
        </div>`;
   window.DarweshReveal && window.DarweshReveal.observeAll(grid.children);
 
-  if (!grid.dataset.carouselInit) {
-    window.DarweshCarousel.init({
-      track: grid,
-      prevBtn: opts.prevBtn ? document.getElementById(opts.prevBtn) : null,
-      nextBtn: opts.nextBtn ? document.getElementById(opts.nextBtn) : null,
-    });
-  }
+  // init() no-ops (returns null) on a track it has already wired, since
+  // grid is a fixed DOM node re-rendered many times (loading -> ready,
+  // language switch, retry) but never recreated. The handle is cached on
+  // the element itself on the ONE call that actually wires it, so every
+  // render -- including that first one -- can refresh the buttons'
+  // disabled state for the content that now exists.
+  grid._carousel = grid._carousel || window.DarweshCarousel.init({
+    track: grid,
+    leftBtn: opts.leftBtn ? document.getElementById(opts.leftBtn) : null,
+    rightBtn: opts.rightBtn ? document.getElementById(opts.rightBtn) : null,
+  });
+  grid._carousel && grid._carousel.update();
 }
 
 const RAIL_COUNT = 6;
@@ -758,7 +771,7 @@ let fastSaleState = 'loading'; // 'loading' | 'ready' | 'error'
 function renderActiveGrid() {
   renderPropertyRail({
     gridId: 'activeGrid', state: activeState, listings: activeListings,
-    prevBtn: 'activePrevBtn', nextBtn: 'activeNextBtn',
+    leftBtn: 'activeLeftBtn', rightBtn: 'activeRightBtn',
     retry: () => { activeState = 'loading'; renderActiveGrid(); loadActiveListings(); },
   });
 }
@@ -766,7 +779,7 @@ function renderActiveGrid() {
 function renderFastSaleGrid() {
   renderPropertyRail({
     gridId: 'fastSaleGrid', state: fastSaleState, listings: fastSaleListings,
-    prevBtn: 'fastSalePrevBtn', nextBtn: 'fastSaleNextBtn',
+    leftBtn: 'fastSaleLeftBtn', rightBtn: 'fastSaleRightBtn',
     cardRenderer: quickSaleCard,
     emptyKey: 'index.noQuickSaleYet',
     emptyDefault: 'No Quick Sale properties available right now.',
