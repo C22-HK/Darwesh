@@ -37,9 +37,8 @@
 // everywhere, so Phase 2's side-effect actions (contact request, publish,
 // final Sell submit, delete) have a real place to opt into a confirmation
 // dialog rather than that mechanism being invented under deadline later.
-import { auth } from './firebase-init.js';
-import { doc, setDoc, deleteDoc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { db } from './firebase-init.js';
+import { auth, db, getDoc, setDoc, deleteDoc } from './firebase-init.js';
+import { doc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { PAGE_MAP, resolvePage, filtersToMapUrlParams, HOME_TYPES, SORT_VALUES } from './mam-actions.js';
 import { PROFESSIONAL_PAGES } from './mam-chat-panel.js';
 

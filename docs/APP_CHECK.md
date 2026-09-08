@@ -255,3 +255,95 @@ investigate.
 I did not enable enforcement on any service — that's a Console action
 only you take, per Phase 4 above, once Phase 2/3's metrics say it's
 safe.
+
+## Update — two real gated-call bypasses found and fixed
+
+A newer Console reading (screenshot, this update) showed Storage at
+14% verified / 86% unverified, Firestore at 36%/64%, Authentication at
+40%/60% — all worse than the readings logged above. Auditing every
+file that imports Firestore functions directly from the
+`firebase-firestore.js` CDN module (rather than through
+`js/firebase-init.js`'s gated wrappers) found two real bypasses that
+had crept in since this doc was written, both from code shipped after
+the original App Check work:
+
+1. **`js/mam-command-registry.js`** (MAM AI Command Center's save/
+   unsave-listing action) imported `getDoc`, `setDoc`, `deleteDoc`
+   straight from the CDN. Every "save this listing" / "unsave this
+   listing" voice/chat action sent its Firestore request with no
+   App Check token at all, unconditionally — not racing the token like
+   the original page-load problem this doc describes, just never
+   attaching one.
+2. **`admin.html`**'s listing-creation `runTransaction` call (the
+   Estate ID allocator transaction) imported `runTransaction` directly
+   from the CDN instead of `js/firebase-init.js`'s gated version, for
+   the same reason.
+
+**Fixed**: both now import from `js/firebase-init.js` like every other
+call site. Re-scanned the full codebase (every file importing anything
+from the Firestore CDN module) for the same pattern — `getDocs`,
+`getDoc`, `addDoc`, `setDoc`, `updateDoc`, `deleteDoc`,
+`runTransaction`, `getCountFromServer` imported directly from the CDN
+anywhere else — and found none. `collection`/`doc`/`query`/`where`/
+`orderBy`/`limit`/`serverTimestamp`/`startAfter`/`deleteField` are
+still imported directly everywhere, correctly — those are synchronous
+and local, never touch the network, per the original design note
+above. `admin.html`'s secondary-app instance (Add Agent flow) is
+unaffected: its `setDoc(doc(secondaryDb, ...), ...)` call already
+waits on `secondaryAppCheckReady` before firing, and the secondary
+Firestore instance carries its own App Check token automatically via
+`initializeAppCheck(secondaryApp, ...)` regardless of which gate the
+imported `setDoc` wrapper itself awaits.
+
+These two gaps explain some of Firestore's regression from the earlier
+5% reading, but not Storage's — see below.
+
+## Critical: Storage enforcement will break every publicly displayed photo — do not enable it under the current architecture
+
+This is a structural finding, not a "wait for more metrics" one, and
+it means Storage should **not** move to Phase 4 the way Firestore/Auth
+eventually can.
+
+Every listing photo, professional-work photo, and agent/customer photo
+on this site is displayed with a plain `<img src="https://
+firebasestorage.googleapis.com/...">` tag — `js/listing-image.js` and
+the per-page card renderers (`index.html`, `buy.html`, `rent.html`,
+`map.html`, `listing.html`, `work.html`, `designer.html`, etc.) all
+render the download URL directly, not through the Storage SDK's
+`getDownloadURL()` at render time. `storage.rules` deliberately allows
+`read: if true` on these paths (`listing-photos`, `agent-photos`,
+`customer-photos`, `professional-work`, etc.) specifically so a plain
+image tag can load them with no auth round trip.
+
+**A browser `<img>` tag cannot attach a custom HTTP header.** App
+Check's enforcement mechanism *requires* an `X-Firebase-AppCheck`
+header on every Storage REST request — including plain GET downloads —
+and rejects any request without a valid one, independent of what
+`storage.rules` allows. It is not possible to exempt specific paths;
+enforcement applies to the whole bucket's API surface. If Storage
+enforcement is switched on in Console, every one of these plain `<img>`
+requests site-wide gets rejected (403) the moment the token-carrying
+SDK calls (the deliberate upload/`getDownloadURL()` actions behind a
+button) are the only Storage traffic that could ever pass — and those
+are a small minority of all Storage requests, which is almost
+certainly the real explanation for the 14%/86% split, not client
+regressions or bot traffic.
+
+**Before Storage enforcement is ever considered**: the image-delivery
+architecture would need to change — e.g. a Cloud Function or Cloud
+Run proxy that serves these images and performs its own authorization,
+or accepting that Storage simply stays unenforced indefinitely while
+Firestore/Auth (which the site *does* reach exclusively through the
+gated SDK) can still be enforced once their own metrics justify it.
+This is a real product decision, not something to flip from this
+audit — flagging it here so it isn't discovered by every photo on the
+site going blank.
+
+## What I can and cannot do here
+
+Enforcement itself is switched on per-API in Firebase Console → App
+Check → APIs — a Console action, not a code change. I have no Firebase
+Console credentials in this environment and cannot flip that toggle.
+What's above is the code-side audit and fix; the toggle decision
+(and, for Storage, the architecture decision that has to precede it)
+stays with whoever has Console access.
