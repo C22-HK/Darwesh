@@ -18,6 +18,14 @@ from firebase_admin import firestore as fb_firestore
 
 from app.auth.firebase_credentials import build_firebase_credentials, unique_app_name
 
+# U1: where a user's private contact/finance fields live. Mirrors
+# firestore.rules' users/{uid}/privateProfile/{docId} match block and the
+# migration tool (backend/scripts/migrate_private_profile.py) -- change
+# all three together.
+PRIVATE_PROFILE_COLLECTION = "privateProfile"
+PRIVATE_PROFILE_DOC = "main"
+PRIVATE_PROFILE_FIELDS = ("email", "phone", "phoneVerified", "phoneVerifiedAt", "emailVerified", "commissionRate")
+
 
 class UidResolver(Protocol):
     """Resolves an identifier (email or phone, depending on which
@@ -206,23 +214,37 @@ class FirebaseAccountOps:
         anything from its mere presence)."""
 
         def _write() -> None:
-            data = {
+            # U1 (launch-readiness audit): users/{uid} is world-readable
+            # once an admin promotes the account to role 'agent' (public
+            # agent profiles), and a Firestore read is document-level --
+            # so the verified email/phone and the verification flags are
+            # written to users/{uid}/privateProfile/main (owner/admin-only
+            # per firestore.rules) instead of onto the public document.
+            # One batch so both documents exist together or not at all.
+            public_data = {
                 "displayName": display_name,
-                "email": email,
-                "phone": phone_e164,
                 "role": "customer",
                 "requestedRole": requested_role,
                 "companyId": company_id,
                 "requestedCompanyId": requested_company_id,
                 "requestedCompanyName": requested_company_name,
+                "createdAt": fb_firestore.SERVER_TIMESTAMP,
+            }
+            if account_type:
+                public_data["accountType"] = account_type
+            private_data = {
+                "email": email,
+                "phone": phone_e164,
                 "phoneVerified": True,
                 "phoneVerifiedAt": fb_firestore.SERVER_TIMESTAMP,
                 "emailVerified": True,
                 "createdAt": fb_firestore.SERVER_TIMESTAMP,
             }
-            if account_type:
-                data["accountType"] = account_type
-            self._db.collection("users").document(uid).set(data)
+            user_ref = self._db.collection("users").document(uid)
+            batch = self._db.batch()
+            batch.set(user_ref, public_data)
+            batch.set(user_ref.collection(PRIVATE_PROFILE_COLLECTION).document(PRIVATE_PROFILE_DOC), private_data)
+            batch.commit()
 
         await asyncio.to_thread(_write)
 

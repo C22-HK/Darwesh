@@ -16,6 +16,7 @@
 <link rel="manifest" href="/manifest.json"/>
 <link rel="canonical" href="https://www.darweshgroup.com/signup-professional.html"/>
 <title>Darwesh Group - Professional Sign Up</title>
+<meta name="description" content="Register a professional, real-estate office or organization account with Darwesh Group."/>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
@@ -109,7 +110,7 @@
       </header>
 
     <div class="text-center mb-6">
-      <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.pro.pageTitle">Professional &amp; Business Sign Up</p>
+      <h1 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.pro.pageTitle">Professional &amp; Business Sign Up</h1>
       <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.pro.pageSubtitle">Set up your professional or business profile on Darwesh Group.</p>
     </div>
 
@@ -355,6 +356,9 @@
     org_owner_finance_provider: { category: 'business', labelKey: 'auth.pro.typeFinanceProvider', fallback: 'Installment / Finance Provider', descKey: 'auth.pro.typeFinanceProviderDesc', descFallback: 'Offer installment or financing plans to buyers.', icon: 'account_balance', kind: 'organization', orgType: 'finance_provider' },
     org_owner_furniture_store: { category: 'business', labelKey: 'auth.pro.typeFurnitureStore', fallback: 'Home Goods / Furniture Seller', descKey: 'auth.pro.typeFurnitureStoreDesc', descFallback: 'Sell furniture or home goods to customers.', icon: 'chair', kind: 'organization', orgType: 'furniture_store' }
   };
+  // Organization types whose owner manages projects/units on
+  // org-projects.html (mirrors ORG_TYPES in js/org-projects.js).
+  const PROJECT_ORG_TYPES = ['developer_project', 'residential_community'];
   const CATEGORY_ORDER = [
     { key: 'professional', labelKey: 'auth.pro.categoryProfessional', fallback: 'Professional / Service' },
     { key: 'realestate', labelKey: 'auth.pro.categoryRealEstate', fallback: 'Real Estate' },
@@ -1353,10 +1357,19 @@
           el('successSubtitle').textContent = tr('auth.pro.successSubtitle', 'Your professional account has been created successfully.');
           if (t.kind === 'company') goBtn.href = `office.html?id=${encodeURIComponent(state.createdEntityId)}`;
           else if (t.kind === 'serviceProvider' && PROFESSIONAL_ROLES[t.serviceType]) goBtn.href = PROFESSIONAL_ROLES[t.serviceType].page;
+          else if (t.kind === 'organization' && PROJECT_ORG_TYPES.includes(t.orgType)) goBtn.href = `org-projects.html?org=${encodeURIComponent(state.createdEntityId)}`;
         }
       }));
     } else if (t && t.kind === 'company' && state.createdEntityId) {
       goBtn.href = `office.html?id=${encodeURIComponent(state.createdEntityId)}`;
+    } else if (t && t.kind === 'organization' && PROJECT_ORG_TYPES.includes(t.orgType) && state.createdEntityId) {
+      // Launch-readiness fix B3: a developer / residential community goes
+      // straight to its own project-management page (deep-linked to the
+      // organization just created) instead of the generic customer page,
+      // which had no link to org-projects.html at all. Finance providers
+      // and furniture stores still land on account.html -- no management
+      // page exists for them yet, and account.html now says so.
+      goBtn.href = `org-projects.html?org=${encodeURIComponent(state.createdEntityId)}`;
     } else if (t && t.kind === 'serviceProvider' && PROFESSIONAL_ROLES[t.serviceType] && state.createdEntityId) {
       // PHASE 3B: every role in the capability map has a real profile
       // page now, so all six route to their own profile instead of only

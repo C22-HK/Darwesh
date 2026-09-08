@@ -169,6 +169,65 @@ async def test_reject_membership_deletes_pending_record(db, ops):
     assert not record.exists
 
 
+# ---- U1: agent lookup by email ------------------------------------------
+
+
+def _ops_with_directory(db, directory: dict[str, str]) -> CompanyOps:
+    async def resolve(email: str) -> str | None:
+        return directory.get(email)
+
+    return CompanyOps(db, resolve_email_uid=resolve)
+
+
+async def test_lookup_agent_by_email_returns_uid_for_a_real_agent_to_the_owner(db):
+    owner = _uid("owner")
+    agent = _uid("agent")
+    db.collection("users").document(agent).set({"role": "agent", "displayName": "Agent A", "createdAt": time.time()})
+    ops = _ops_with_directory(db, {"agent@example.com": agent})
+    company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
+
+    found = await ops.lookup_agent_by_email(
+        company_id=company_id, email=" Agent@Example.com ", caller_uid=owner, caller_is_admin=False
+    )
+    assert found == {"uid": agent, "displayName": "Agent A"}
+
+
+async def test_lookup_agent_by_email_is_forbidden_for_a_non_owner(db):
+    owner = _uid("owner")
+    stranger = _uid("stranger")
+    agent = _uid("agent")
+    db.collection("users").document(agent).set({"role": "agent", "createdAt": time.time()})
+    ops = _ops_with_directory(db, {"agent@example.com": agent})
+    company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
+    with pytest.raises(ForbiddenError):
+        await ops.lookup_agent_by_email(
+            company_id=company_id, email="agent@example.com", caller_uid=stranger, caller_is_admin=False
+        )
+    # ...but an admin who owns nothing may.
+    found = await ops.lookup_agent_by_email(
+        company_id=company_id, email="agent@example.com", caller_uid=stranger, caller_is_admin=True
+    )
+    assert found["uid"] == agent
+
+
+async def test_lookup_agent_by_email_never_reveals_non_agent_accounts(db):
+    owner = _uid("owner")
+    customer = _uid("customer")
+    await _seed_user(db, customer)  # role customer
+    ops = _ops_with_directory(db, {"customer@example.com": customer})
+    company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
+    with pytest.raises(NotFoundError):
+        await ops.lookup_agent_by_email(
+            company_id=company_id, email="customer@example.com", caller_uid=owner, caller_is_admin=False
+        )
+    with pytest.raises(NotFoundError):
+        await ops.lookup_agent_by_email(
+            company_id=company_id, email="nobody@example.com", caller_uid=owner, caller_is_admin=False
+        )
+    with pytest.raises(ValidationError):
+        await ops.lookup_agent_by_email(company_id=company_id, email="not-an-email", caller_uid=owner, caller_is_admin=False)
+
+
 async def test_invite_employee_by_owner_creates_invited_record(db, ops):
     owner = _uid("owner")
     employee = _uid("employee")

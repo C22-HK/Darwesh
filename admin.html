@@ -66,6 +66,7 @@ unavailable" panel gracefully (see ensureEstateIntelEngine() below). -->
 <link rel="manifest" href="/manifest.json"/>
 <link rel="canonical" href="https://www.darweshgroup.com/admin.html"/>
 <title>Darwesh Group - Admin</title>
+<meta name="robots" content="noindex, nofollow"/>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <!-- css/cinematic.css: only for its unscoped .lang-select/.lang-toggle-btn/
 .lang-flag/.lang-menu/.lang-option structural (layout-only, zero color)
@@ -152,6 +153,13 @@ change is not meant to make. -->
       cursor: pointer;
     }
     .filter-chip.active { background: #031d39; color: #ffffff; border-color: #031d39; }
+    /* U5: identical look to .filter-chip under its own class -- the
+       existing document.querySelectorAll('.filter-chip') handler binds
+       directly to every matching element present at page load, so reusing
+       that class here would silently attach it (and its wrong servicesFilter/
+       renderServicesRows() side effect) to these buttons too. */
+    .pr-filter-chip { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; padding: 6px 14px; border-radius: 999px; border: 1px solid #e5e8ee; background: #ffffff; cursor: pointer; }
+    .pr-filter-chip.active { background: #031d39; color: #ffffff; border-color: #031d39; }
 
     .local-notice {
       background: #fef6e6;
@@ -380,6 +388,7 @@ change is not meant to make. -->
   </style>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
+<h1 class="sr-only" data-i18n="admin.pageH1">Darwesh Group admin dashboard</h1>
 
 <!-- Loading -->
 <div id="loadingGate" class="fixed inset-0 z-50 flex items-center justify-center bg-background">
@@ -613,6 +622,32 @@ change is not meant to make. -->
         <p id="usersEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noUsersYet">No users yet.</p>
       </div>
       <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
+
+      <!-- Role permission defaults (launch-readiness fix C2). What every
+           account of a given accountType may do by default -- the
+           rolePermissionDefaults/{accountType} documents firestore.rules'
+           hasPermission()/hasOrgPermission() consult. Readable here,
+           written only through the backend (see the module script). -->
+      <div id="roleDefaultsPanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mt-6">
+        <p class="font-headline-md text-[16px] text-on-surface font-bold" data-i18n="admin.rd.title">Role permission defaults</p>
+        <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1 mb-4" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
+        <div class="flex flex-wrap items-end gap-3 mb-4">
+          <label class="block">
+            <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
+            <select id="rdAccountType" class="admin-input" style="width:auto;min-width:260px;"></select>
+          </label>
+          <button type="button" id="rdApplyRecommended" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
+          <button type="button" id="rdClearAll" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.clearAll">Clear all</button>
+          <button type="button" id="rdSave" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.rd.save">Save defaults</button>
+          <p id="rdStatus" class="font-body-md text-[12.5px] w-full" role="status" aria-live="polite"></p>
+        </div>
+        <div id="rdDiffPanel" class="hidden bg-surface-container border border-outline-variant rounded-lg p-3 mb-4">
+          <p class="font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
+          <ul id="rdDiffList" class="font-body-md text-[12.5px] text-on-surface list-disc pl-5 space-y-0.5"></ul>
+        </div>
+        <div id="rdGroups" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <p class="font-body-md text-[12px] text-on-surface-variant mt-4" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+      </div>
     </section>
 
     <!-- TAB: Scan Log -->
@@ -934,6 +969,32 @@ change is not meant to make. -->
         </div>
         <p id="servicesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
       </div>
+
+      <!-- U5 (launch-readiness): every serviceProviders/{id}/requests/{id}
+           document across every provider, in one place -- previously only
+           visible one provider profile at a time (js/profile-role.js's own
+           Requests tab). Read-only here: a provider still owns updating
+           their own request's status; this is oversight, not a second
+           write surface. -->
+      <p class="font-headline-md text-[16px] text-on-surface font-bold mt-8 mb-1" data-i18n="admin.providerRequestsTitle">Provider Requests</p>
+      <p class="font-body-md text-[13px] text-on-surface-variant mb-4" data-i18n="admin.providerRequestsNote">Every request sent to an engineer, designer, lawyer, cleaner, landscaper or maintenance provider, across every provider profile. Status is set by the provider -- this list is for oversight only.</p>
+      <div class="flex gap-2 mb-4 flex-wrap" id="providerRequestsFilterBar">
+        <button class="pr-filter-chip active" data-filter="all" type="button" data-i18n="admin.filterAll">All</button>
+        <button class="pr-filter-chip" data-filter="pending" type="button" data-i18n="rp.requestStatusPending">Pending</button>
+        <button class="pr-filter-chip" data-filter="accepted" type="button" data-i18n="rp.requestStatusAccepted">Accepted</button>
+        <button class="pr-filter-chip" data-filter="declined" type="button" data-i18n="rp.requestStatusDeclined">Declined</button>
+        <button class="pr-filter-chip" data-filter="completed" type="button" data-i18n="rp.requestStatusCompleted">Completed</button>
+      </div>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th data-i18n="admin.thProvider">Provider</th><th data-i18n="admin.thServiceType">Service</th><th data-i18n="admin.thFrom">From</th><th data-i18n="admin.thDetails">Details</th><th data-i18n="admin.thSubmitted">Submitted</th><th data-i18n="admin.thStatus">Status</th></tr></thead>
+            <tbody id="providerRequestsBody"></tbody>
+          </table>
+        </div>
+        <p id="providerRequestsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
+        <p id="providerRequestsError" class="hidden p-6 text-center font-body-md text-[13px]" style="color:#E5787A;"></p>
+      </div>
     </section>
 
     <!-- TAB: Branches -->
@@ -1131,7 +1192,7 @@ import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/12.
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app-check.js";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, createUserWithEmailAndPassword, updateProfile, getAuth, deleteUser } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
-  doc, collection, serverTimestamp, getFirestore, query, where, limit
+  doc, collection, collectionGroup, serverTimestamp, getFirestore, query, where, limit
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, getBytes } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
 import { compressImage, LISTING_IMAGE, createUploadGate } from './js/image-compress.js';
@@ -1141,6 +1202,12 @@ import { compressImage, LISTING_IMAGE, createUploadGate } from './js/image-compr
 const adminListingImgGate = createUploadGate();
 import { isConfigured as mapsConfigured, initMap as initGoogleMap, createMarker as createGoogleMarker } from './js/maps-core.js';
 import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
+// Role permission defaults panel (launch-readiness fix C2): reads
+// rolePermissionDefaults with the client SDK (admin-readable per rules),
+// writes ONLY through the backend endpoint (the collection is never
+// client-writable, admin sessions included).
+import { setRoleDefaults, listServiceRequests, BackendResponseError } from './js/backend-api.js';
+import { SELF_ACCOUNT_TYPES, PERMISSION_GROUPS, RECOMMENDED_ROLE_DEFAULTS } from './js/permission-catalog.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
 // Bulk views (intelligence map, requests map — hundreds of listings at a
@@ -1694,7 +1761,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     }
     if (tab.dataset.tab === 'users') renderUsers();
     if (tab.dataset.tab === 'projects') renderProjectsTab();
-    if (tab.dataset.tab === 'services') renderServicesTab();
+    if (tab.dataset.tab === 'services') { renderServicesTab(); renderProviderRequestsTab(); }
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
     if (tab.dataset.tab === 'requestsmap') {
       setTimeout(() => { if (dashRequestsMap) dashRequestsMap.invalidateSize(); }, 50);
@@ -1720,7 +1787,7 @@ document.querySelectorAll('.filter-chip').forEach(chip => {
 
 function initDashboard() {
   if (dashboardInited) {
-    renderUsers(); renderListingsTable(); renderServicesTab(); renderProjectsTab();
+    renderUsers(); renderListingsTable(); renderServicesTab(); renderProviderRequestsTab(); renderProjectsTab();
     renderDashboardTab(); renderRequestsMapTab(); renderBranchesTab(); renderAgentsTab(); renderNetworkTab(); renderLeaderboardTab();
     return;
   }
@@ -1730,6 +1797,7 @@ function initDashboard() {
   renderUsers();
   initListingsTab();
   renderServicesTab();
+  renderProviderRequestsTab();
   renderDashboardTab();
   renderRequestsMapTab();
   renderBranchesTab();
@@ -1758,11 +1826,13 @@ const ROLE_BADGE_CLASS = { customer: 'badge-private', agent: 'badge-sale', admin
 async function renderUsers() {
   const body = document.getElementById('usersBody');
   const empty = document.getElementById('usersEmpty');
+  renderRoleDefaultsPanel();   // idempotent -- builds the panel once
 
-  const [usersSnap, companiesSnap, listingsSnap] = await Promise.all([
+  const [usersSnap, companiesSnap, listingsSnap, privateByUid] = await Promise.all([
     getDocs(collection(db, 'users')),
     getDocs(collection(db, 'companies')),
-    getDocs(collection(db, 'listings'))
+    getDocs(collection(db, 'listings')),
+    fetchPrivateProfiles()
   ]);
 
   const companyNames = {};
@@ -1775,7 +1845,7 @@ async function renderUsers() {
   });
 
   const users = [];
-  usersSnap.forEach(d => users.push({ uid: d.id, ...d.data() }));
+  usersSnap.forEach(d => users.push({ uid: d.id, ...withPrivateFields(d.id, d.data(), privateByUid) }));
 
   document.getElementById('statTotalUsers').textContent = users.length;
   document.getElementById('statTotalAgents').textContent = users.filter(u => u.role === 'agent').length;
@@ -1864,6 +1934,163 @@ async function onRoleChange(u, selectEl) {
   } catch (err) {
     alert('Could not update role: ' + err.message);
     renderUsers();
+  }
+}
+
+// ---------------------------------------------------------------------
+// Role permission defaults (launch-readiness fix C2)
+//
+// rolePermissionDefaults/{accountType} is what firestore.rules'
+// hasPermission()/hasOrgPermission() consult. It is readable by an admin
+// session (rules) but writable ONLY through the backend's Admin SDK, so
+// this panel reads with the client SDK and writes through
+// POST /api/v1/access/role-defaults (js/backend-api.js setRoleDefaults),
+// which independently re-verifies the caller is an admin, rejects any
+// protected or unknown key, and records the change in accessAuditLog.
+// Nothing here is applied until the admin presses Save.
+// ---------------------------------------------------------------------
+const RD_TYPE_LABELS = {
+  individual_customer: () => trAdmin('admin.roleCustomer', 'Customer'),
+  real_estate_agent: () => trAdmin('admin.roleAgent', 'Agent'),
+  office_owner: () => trAdmin('auth.pro.typeOfficeOwner', 'Real Estate Office'),
+  office_employee: () => trAdmin('admin.rd.typeOfficeEmployee', 'Office employee'),
+  professional_engineer: () => trAdmin('auth.pro.typeEngineer', 'Engineer'),
+  professional_designer: () => trAdmin('auth.pro.typeDesigner', 'Designer'),
+  professional_lawyer: () => trAdmin('auth.pro.typeLawyer', 'Lawyer'),
+  professional_landscaping: () => trAdmin('auth.pro.typeLandscaping', 'Landscaping'),
+  professional_maintenance: () => trAdmin('auth.pro.typeMaintenance', 'Maintenance'),
+  cleaning_individual: () => trAdmin('auth.pro.typeCleaningIndividual', 'Cleaning (Individual)'),
+  cleaning_team_or_company_owner: () => trAdmin('auth.pro.typeCleaningTeam', 'Cleaning (Team / Company)'),
+  org_owner_residential_community: () => trAdmin('auth.pro.typeResidentialCommunity', 'Residential Community'),
+  org_owner_developer: () => trAdmin('auth.pro.typeDeveloper', 'Developer / Apartment Project'),
+  org_owner_finance_provider: () => trAdmin('auth.pro.typeFinanceProvider', 'Installment / Finance Provider'),
+  org_owner_furniture_store: () => trAdmin('auth.pro.typeFurnitureStore', 'Home Goods / Furniture Seller')
+};
+let rdInitialized = false;
+
+function rdSetStatus(text, tone) {
+  const node = document.getElementById('rdStatus');
+  node.textContent = text || '';
+  node.style.color = tone === 'error' ? '#ba1a1a' : (tone === 'ok' ? '#1b5e20' : '#44474c');
+}
+function rdCheckedKeys() {
+  return [...document.querySelectorAll('#rdGroups input[data-perm]:checked')].map(i => i.dataset.perm);
+}
+function rdSetChecks(keys) {
+  const set = new Set(keys);
+  document.querySelectorAll('#rdGroups input[data-perm]').forEach(i => { i.checked = set.has(i.dataset.perm); });
+}
+// Renders the exact set of keys "Apply recommended" is about to turn on,
+// before anything is written -- least-privilege review, not a silent
+// checkbox swap. Empty list hides the panel (nothing left to add).
+function rdShowDiff(addedKeys) {
+  const panel = document.getElementById('rdDiffPanel');
+  const list = document.getElementById('rdDiffList');
+  list.innerHTML = '';
+  if (!addedKeys.length) { panel.classList.add('hidden'); return; }
+  addedKeys.forEach(k => {
+    const li = document.createElement('li');
+    li.textContent = k;
+    list.appendChild(li);
+  });
+  panel.classList.remove('hidden');
+}
+
+function renderRoleDefaultsPanel() {
+  if (rdInitialized) return;
+  const sel = document.getElementById('rdAccountType');
+  const groups = document.getElementById('rdGroups');
+  if (!sel || !groups) return;
+  rdInitialized = true;
+
+  sel.innerHTML = '';
+  SELF_ACCOUNT_TYPES.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = `${RD_TYPE_LABELS[t] ? RD_TYPE_LABELS[t]() : t} (${t})`;
+    sel.appendChild(opt);
+  });
+  // Pre-select the type whose core flow (org-projects.html) is blocked
+  // outright until defaults exist.
+  sel.value = 'org_owner_developer';
+
+  groups.innerHTML = '';
+  PERMISSION_GROUPS.forEach(g => {
+    const fieldset = document.createElement('fieldset');
+    fieldset.className = 'border border-outline-variant rounded-lg p-3';
+    const legend = document.createElement('legend');
+    legend.className = 'admin-label px-1';
+    legend.textContent = trAdmin(g.labelKey, g.fallback);
+    fieldset.appendChild(legend);
+    g.permissions.forEach(p => {
+      const label = document.createElement('label');
+      label.className = 'flex items-center gap-2 font-body-md text-[13px] text-on-surface py-1 cursor-pointer';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.dataset.perm = p.key;
+      const span = document.createElement('span');
+      span.textContent = (p.rules ? '● ' : '') + p.key;
+      label.append(input, span);
+      fieldset.appendChild(label);
+    });
+    groups.appendChild(fieldset);
+  });
+
+  sel.addEventListener('change', () => { rdShowDiff([]); loadRoleDefaults(sel.value); });
+  document.getElementById('rdApplyRecommended').addEventListener('click', () => {
+    // Merge, never overwrite: an admin's own additions (or anything already
+    // saved for this accountType beyond the recommended set) stay checked.
+    // "Apply recommended" only ever turns keys ON, and only the ones the
+    // recommended list adds that aren't already checked -- least-privilege
+    // per accountType, and never a blanket reset of the panel.
+    const recommended = RECOMMENDED_ROLE_DEFAULTS[sel.value] || [];
+    const current = new Set(rdCheckedKeys());
+    const added = recommended.filter((k) => !current.has(k));
+    rdShowDiff(added);
+    if (!added.length) {
+      rdSetStatus(trAdmin('admin.rd.recommendedNoChange', 'Recommended defaults are already fully applied — nothing to add.'), '');
+      return;
+    }
+    rdSetChecks([...current, ...added]);
+    rdSetStatus(trAdmin('admin.rd.recommendedApplied', 'Recommended defaults merged in — review the proposed additions below, then Save. Nothing already enabled was removed.'), '');
+  });
+  document.getElementById('rdClearAll').addEventListener('click', () => { rdSetChecks([]); rdShowDiff([]); rdSetStatus('', ''); });
+  document.getElementById('rdSave').addEventListener('click', saveRoleDefaults);
+  loadRoleDefaults(sel.value);
+}
+
+async function loadRoleDefaults(accountType) {
+  rdSetStatus(trAdmin('admin.rd.loading', 'Loading current defaults…'), '');
+  try {
+    const snap = await getDoc(doc(db, 'rolePermissionDefaults', accountType));
+    const perms = snap.exists() ? (snap.data().permissions || {}) : null;
+    rdSetChecks(perms ? Object.keys(perms).filter(k => perms[k] === true) : []);
+    if (perms) rdSetStatus(trAdmin('admin.rd.loaded', 'Current defaults loaded.'), 'ok');
+    else rdSetStatus(trAdmin('admin.rd.none', 'No defaults saved yet for this account type — accounts of this type currently have no permissions.'), '');
+  } catch (err) {
+    rdSetChecks([]);
+    rdSetStatus(trAdmin('admin.rd.loadError', 'Could not read the current defaults.'), 'error');
+  }
+}
+
+async function saveRoleDefaults() {
+  const btn = document.getElementById('rdSave');
+  const accountType = document.getElementById('rdAccountType').value;
+  const permissions = {};
+  rdCheckedKeys().forEach(k => { permissions[k] = true; });
+  btn.disabled = true;
+  rdSetStatus(trAdmin('admin.rd.saving', 'Saving…'), '');
+  try {
+    await setRoleDefaults(auth.currentUser, { accountType, permissions });
+    rdShowDiff([]);
+    rdSetStatus(trAdmin('admin.rd.saved', 'Saved. Accounts of this type use these defaults from their next write.'), 'ok');
+  } catch (err) {
+    // The backend's own rejection text (unknown/protected key, not an
+    // admin) is admin-facing and safe to show; anything else stays generic.
+    const detail = err instanceof BackendResponseError && err.message ? ` (${err.message})` : '';
+    rdSetStatus(trAdmin('admin.rd.saveError', 'Could not save the defaults.') + detail, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -2778,6 +3005,88 @@ function renderServicesRows() {
 }
 
 // ---------------------------------------------------------------------
+// U5 (launch-readiness): the central "Provider Requests" list below the
+// existing submissions table -- every serviceProviders/{id}/requests/{id}
+// document across every provider, in one place. This has to go through
+// the backend's GET /api/v1/access/admin/service-requests (js/backend-
+// api.js listServiceRequests) rather than a client-side collectionGroup
+// query: firestore.rules' own read rule (isAdmin() || own customerUid ||
+// owning provider) cannot service an unfiltered cross-provider list --
+// Cloud Firestore rejects the query outright whenever ANY OR branch
+// depends on resource.data without a matching `where`, even the branch
+// that's unconditionally true for an admin (proved empirically; see
+// PermissionOps.list_service_requests' own docstring). Read-only here:
+// a provider still owns updating their own request's status via
+// js/profile-role.js -- this list is oversight, not a second write path.
+// ---------------------------------------------------------------------
+let providerRequestsFilter = 'all';
+let providerRequestsCache = [];
+const SERVICE_TYPE_LABELS = {
+  engineer: () => trAdmin('auth.pro.typeEngineer', 'Engineer'),
+  designer: () => trAdmin('auth.pro.typeDesigner', 'Designer'),
+  lawyer: () => trAdmin('auth.pro.typeLawyer', 'Lawyer'),
+  landscaping: () => trAdmin('auth.pro.typeLandscaping', 'Landscaping'),
+  cleaning: () => trAdmin('auth.pro.typeCleaningIndividual', 'Cleaning'),
+  maintenance: () => trAdmin('auth.pro.typeMaintenance', 'Maintenance')
+};
+const PROVIDER_REQUEST_STATUS_LABEL_FN = () => ({
+  pending: trAdmin('rp.requestStatusPending', 'Pending'),
+  accepted: trAdmin('rp.requestStatusAccepted', 'Accepted'),
+  declined: trAdmin('rp.requestStatusDeclined', 'Declined'),
+  completed: trAdmin('rp.requestStatusCompleted', 'Completed')
+});
+
+async function renderProviderRequestsTab() {
+  const body = document.getElementById('providerRequestsBody');
+  const empty = document.getElementById('providerRequestsEmpty');
+  const errorEl = document.getElementById('providerRequestsError');
+  errorEl.classList.add('hidden');
+  try {
+    const status = providerRequestsFilter === 'all' ? undefined : providerRequestsFilter;
+    const result = await listServiceRequests(auth.currentUser, status);
+    providerRequestsCache = result.requests || [];
+  } catch (err) {
+    body.innerHTML = '';
+    empty.classList.add('hidden');
+    errorEl.textContent = err instanceof BackendResponseError ? err.message : trAdmin('admin.errorGeneric', 'Something went wrong. Please try again.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderProviderRequestsRows();
+}
+
+function renderProviderRequestsRows() {
+  const body = document.getElementById('providerRequestsBody');
+  const empty = document.getElementById('providerRequestsEmpty');
+  const statusLabel = PROVIDER_REQUEST_STATUS_LABEL_FN();
+  if (providerRequestsCache.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  body.innerHTML = providerRequestsCache.map((r) => {
+    const serviceLabel = SERVICE_TYPE_LABELS[r.serviceType] ? SERVICE_TYPE_LABELS[r.serviceType]() : escapeAdmin(r.serviceType || '');
+    const submitted = r.createdAt?.seconds ? new Date(r.createdAt.seconds * 1000).toLocaleDateString()
+      : (r.createdAt?._seconds ? new Date(r.createdAt._seconds * 1000).toLocaleDateString() : '—');
+    const label = statusLabel[r.status] || r.status || '';
+    return `<tr>
+      <td>${escapeAdmin(r.providerName || r.providerId || '—')}</td>
+      <td>${serviceLabel}</td>
+      <td>${escapeAdmin(r.customerName || r.customerUid || '—')}</td>
+      <td>${escapeAdmin(r.message || '—')}</td>
+      <td>${submitted}</td>
+      <td><span class="badge badge-private">${escapeAdmin(label)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('providerRequestsFilterBar').addEventListener('click', (e) => {
+  const btn = e.target.closest('.pr-filter-chip');
+  if (!btn) return;
+  document.querySelectorAll('#providerRequestsFilterBar .pr-filter-chip').forEach((c) => c.classList.remove('active'));
+  btn.classList.add('active');
+  providerRequestsFilter = btn.dataset.filter;
+  renderProviderRequestsTab();
+});
+
+// ---------------------------------------------------------------------
 // Customer Services: full request detail modal — every field the
 // submission carries, not just the table's condensed summary.
 // ---------------------------------------------------------------------
@@ -3194,7 +3503,13 @@ async function renderDashboardTab() {
   pendingSubEl.textContent = newRequests ? trAdmin('admin.receivedThisWeek', '{n} received this week').replace('{n}', newRequests) : '';
   pendingSubEl.className = 'kpi-sub neutral';
 
-  const saleListings = listings.filter(l => l.dealType === 'sale');
+  // Portfolio value = OPEN for-sale inventory, i.e. exactly what the public
+  // site lists (buy.html/map.html/index.html all query status == 'active').
+  // A listing an agent closed ('closed' via agent-dashboard's toggle) or that
+  // admin.html converted to 'sold'/'rented' is no longer stock for sale and
+  // must not keep inflating this figure (launch-readiness audit: "sold
+  // status & agency totals accurate").
+  const saleListings = listings.filter(l => l.dealType === 'sale' && l.status === 'active');
   const portfolioValue = saleListings.reduce((sum, l) => sum + (Number(l.price) || 0), 0);
   document.getElementById('kpiPortfolioValue').textContent = '$' + portfolioValue.toLocaleString();
   const avgValueEl = document.getElementById('kpiPortfolioValueSub');
@@ -3629,11 +3944,42 @@ document.getElementById('reqLayerBoundaries').addEventListener('change', (e) => 
   reqMapSetBoundariesVisible(e.target.checked);
 });
 
+// U1: every user's private email/phone/commissionRate lives in
+// users/{uid}/privateProfile/main (owner/admin-only), not on the public
+// users document any more. One collection-group query (admin-only per
+// firestore.rules) gives this dashboard all of them at once; a user
+// created before the migration ran still has the fields on the public
+// document, which the callers below fall back to, so nothing goes blank
+// during the rollout.
+async function fetchPrivateProfiles() {
+  const byUid = {};
+  try {
+    const snap = await getDocs(collectionGroup(db, 'privateProfile'));
+    snap.forEach(d => {
+      const parent = d.ref.parent && d.ref.parent.parent;
+      if (parent && parent.id) byUid[parent.id] = d.data();
+    });
+  } catch (err) {
+    console.error('[admin] privateProfile collection-group read failed', err.code || err.name, err.message);
+  }
+  return byUid;
+}
+function withPrivateFields(uid, publicData, privateByUid) {
+  const priv = privateByUid[uid] || {};
+  return {
+    ...publicData,
+    email: priv.email !== undefined ? priv.email : publicData.email,
+    phone: priv.phone !== undefined ? priv.phone : publicData.phone,
+    commissionRate: priv.commissionRate !== undefined ? priv.commissionRate : publicData.commissionRate
+  };
+}
+
 async function fetchAgentStats() {
-  const [usersSnap, companiesSnap, listingsSnap] = await Promise.all([
+  const [usersSnap, companiesSnap, listingsSnap, privateByUid] = await Promise.all([
     getDocs(collection(db, 'users')),
     getDocs(collection(db, 'companies')),
-    getDocs(collection(db, 'listings'))
+    getDocs(collection(db, 'listings')),
+    fetchPrivateProfiles()
   ]);
   const companyNames = {};
   companiesSnap.forEach(d => { companyNames[d.id] = d.data().name || d.id; });
@@ -3651,7 +3997,7 @@ async function fetchAgentStats() {
     const u = d.data();
     if (u.role !== 'agent') return;
     agents.push({
-      uid: d.id, ...u,
+      uid: d.id, ...withPrivateFields(d.id, u, privateByUid),
       companyName: companyNames[u.companyId] || u.companyId || '—',
       listingCount: listingCounts[d.id] || 0,
       verifiedCount: verifiedCounts[d.id] || 0
@@ -3672,7 +4018,9 @@ async function renderBranchesTab() {
     const l = d.data();
     if (!l.companyId) return;
     listingCounts[l.companyId] = (listingCounts[l.companyId] || 0) + 1;
-    if (l.dealType === 'sale') portfolioValues[l.companyId] = (portfolioValues[l.companyId] || 0) + (Number(l.price) || 0);
+    // Same open-inventory rule as the dashboard KPI: closed listings stay
+    // in the listing count but drop out of the branch's portfolio value.
+    if (l.dealType === 'sale' && l.status === 'active') portfolioValues[l.companyId] = (portfolioValues[l.companyId] || 0) + (Number(l.price) || 0);
   });
 
   const branches = [];
@@ -4145,11 +4493,18 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     // already-existing company's id directly. companyId is set instead
     // by the very next line, from the admin's own already-authorized
     // session, which is unaffected by that restriction.
+    // U1: email/phone are NOT written onto the public users document
+    // (world-readable once this account becomes an agent one line below).
+    // They go to users/{uid}/privateProfile/main from the admin's own
+    // session, which firestore.rules allows for isAdmin().
     await setDoc(doc(secondaryDb, 'users', cred.user.uid), {
-      email, displayName, firstName, lastName, phone,
+      displayName, firstName, lastName,
       role: 'customer', createdAt: serverTimestamp()
     });
     secondaryUserDocCreated = true;
+    await setDoc(doc(db, 'users', cred.user.uid, 'privateProfile', 'main'), {
+      email, phone, createdAt: serverTimestamp()
+    });
     await updateDoc(doc(db, 'users', cred.user.uid), { role: 'agent', companyId });
 
     await signOut(secondaryAuth);
@@ -4174,7 +4529,9 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
           // Deleted via the ADMIN session (db), not secondaryDb -- rules
           // only grant delete on users/{uid} to isAdmin(); the
           // newly-created account itself (role:'customer') has no
-          // delete right on its own doc.
+          // delete right on its own doc. The private profile (U1) is a
+          // separate document, so it is removed explicitly too.
+          try { await deleteDoc(doc(db, 'users', cred.user.uid, 'privateProfile', 'main')); } catch (_) {}
           await deleteDoc(doc(db, 'users', cred.user.uid));
         } catch (cleanupErr) {
           console.error('[admin] rollback: could not delete partially-created users/ doc -- may need manual cleanup', cred.user.uid, cleanupErr.code || cleanupErr.name, cleanupErr.message);

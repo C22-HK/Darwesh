@@ -16,6 +16,7 @@
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <script src="./js/icon-fallback.js"></script>
 <title>Darwesh Group - Real Estate Office</title>
+<meta name="description" content="Real-estate office profile on Darwesh Group: team, listings and contact."/>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
@@ -236,7 +237,7 @@
     withBusyButton, withUploadTimeout
   } from './js/profile-shell.js';
   import {
-    listMyCompanies, createCompany, inviteCompanyEmployee, approveCompanyMembership,
+    listMyCompanies, createCompany, inviteCompanyEmployee, lookupCompanyAgent, approveCompanyMembership,
     rejectCompanyMembership, removeCompanyEmployee, revokeCompanyInvitation,
     acceptCompanyInvitation, declineCompanyInvitation,
     BackendResponseError, BackendUnavailableError
@@ -694,15 +695,29 @@
         msg.classList.add('hidden');
         const email = el('inviteEmail').value.trim();
         try {
-          const q = query(collection(db, 'users'), where('email', '==', email), where('role', '==', 'agent'), limit(1));
-          const snap = await getDocs(q);
-          if (snap.empty) {
+          // U1: the invitee's email is no longer on the world-readable
+          // users document, so the lookup runs on the backend (owner/admin
+          // of THIS office only, agents only) instead of a client-side
+          // users.where('email') query.
+          let targetUid = null;
+          try {
+            const found = await lookupCompanyAgent(currentUser, companyId, email);
+            targetUid = found && found.uid;
+          } catch (lookupErr) {
+            if (lookupErr instanceof BackendResponseError && lookupErr.status === 404) {
+              msg.textContent = tr('office.agentNotFound', 'No agent account found with that email.');
+              msg.style.color = '#E5787A';
+              msg.classList.remove('hidden');
+              return;
+            }
+            throw lookupErr;
+          }
+          if (!targetUid) {
             msg.textContent = tr('office.agentNotFound', 'No agent account found with that email.');
             msg.style.color = '#E5787A';
             msg.classList.remove('hidden');
             return;
           }
-          const targetUid = snap.docs[0].id;
           await inviteCompanyEmployee(currentUser, companyId, targetUid);
           msg.textContent = tr('office.inviteSent', 'Invitation sent.');
           msg.style.color = '#7FB89A';

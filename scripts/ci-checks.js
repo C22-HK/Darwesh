@@ -442,6 +442,67 @@ cssSources.forEach(([name, src]) => {
 });
 if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.length} stylesheets and inline blocks`);
 
+// --- 9. Account-type / permission vocabulary parity ----------------------
+// backend/app/access/constants.py is the canonical source for accountType
+// and permission keys; firestore.rules' isValidSelfAccountType(),
+// js/permission-catalog.js (admin.html's Role permission defaults panel),
+// js/professional-roles.js and signup-professional.html's TYPE_CATALOG
+// must all agree with it. This is the drift that let the wizard offer
+// `professional_maintenance` while the backend and rules rejected it
+// (launch-readiness audit, fix B1) -- a signup type nobody could complete.
+{
+  const { pathToFileURL } = require('url');
+  const pySrc = fs.readFileSync(path.join(ROOT, 'backend/app/access/constants.py'), 'utf8');
+  const pySet = (name) => {
+    const m = pySrc.match(new RegExp('^' + name + ':\\s*frozenset\\[str\\]\\s*=\\s*frozenset\\(\\s*\\{([\\s\\S]*?)\\}\\s*\\)', 'm'));
+    return m ? new Set([...m[1].matchAll(/"([a-z_]+)"/g)].map(x => x[1])) : null;
+  };
+  const pyTypes = pySet('SELF_ACCOUNT_TYPES');
+  const pyKnown = pySet('KNOWN_PERMISSIONS');
+  const pyProtected = pySet('PROTECTED_PERMISSIONS');
+  const rulesSrc = fs.readFileSync(path.join(ROOT, 'firestore.rules'), 'utf8');
+  const rulesMatch = rulesSrc.match(/function isValidSelfAccountType\(v\)\s*\{\s*return v in \[([\s\S]*?)\]/);
+  const rulesTypes = rulesMatch ? new Set([...rulesMatch[1].matchAll(/'([a-z_]+)'/g)].map(x => x[1])) : null;
+  let catalog = null;
+  try {
+    const catalogUrl = pathToFileURL(path.join(ROOT, 'js/permission-catalog.js')).href;
+    catalog = JSON.parse(execFileSync(process.execPath, [
+      '--input-type=module', '-e',
+      `import(${JSON.stringify(catalogUrl)}).then(m => console.log(JSON.stringify({ types: m.SELF_ACCOUNT_TYPES, known: m.KNOWN_PERMISSIONS, protectedKeys: m.PROTECTED_PERMISSIONS, recommended: m.RECOMMENDED_ROLE_DEFAULTS })))`
+    ], { stdio: 'pipe' }).toString());
+  } catch (e) {
+    fail('js/permission-catalog.js could not be loaded: ' + (e.stderr ? e.stderr.toString() : e.message));
+  }
+  const rolesSrc = fs.readFileSync(path.join(ROOT, 'js/professional-roles.js'), 'utf8');
+  const roleTypes = [...rolesSrc.matchAll(/accountType:\s*'([a-z_]+)'/g)].map(x => x[1]);
+  const wizardSrc = fs.readFileSync(path.join(ROOT, 'signup-professional.html'), 'utf8');
+  const wizardMatch = wizardSrc.match(/const TYPE_CATALOG = \{([\s\S]*?)\n {2}\};/);
+  const wizardTypes = wizardMatch ? [...wizardMatch[1].matchAll(/^\s{4}([a-z_]+):\s*\{/gm)].map(x => x[1]) : [];
+
+  const sameSet = (a, b) => a && b && a.size === b.size && [...a].every(x => b.has(x));
+  const diff = (a, b) => `only in first: [${[...a].filter(x => !b.has(x)).join(', ')}] only in second: [${[...b].filter(x => !a.has(x)).join(', ')}]`;
+  let parityFailures = 0;
+  if (!pyTypes || !pyKnown || !pyProtected) { fail('could not parse SELF_ACCOUNT_TYPES / KNOWN_PERMISSIONS / PROTECTED_PERMISSIONS from backend/app/access/constants.py'); parityFailures++; }
+  if (!rulesTypes) { fail('could not parse isValidSelfAccountType() from firestore.rules'); parityFailures++; }
+  if (pyTypes && rulesTypes && !sameSet(pyTypes, rulesTypes)) { fail(`firestore.rules isValidSelfAccountType() drifted from constants.py SELF_ACCOUNT_TYPES -- ${diff(pyTypes, rulesTypes)}`); parityFailures++; }
+  if (catalog && pyTypes && !sameSet(pyTypes, new Set(catalog.types))) { fail(`js/permission-catalog.js SELF_ACCOUNT_TYPES drifted from constants.py -- ${diff(pyTypes, new Set(catalog.types))}`); parityFailures++; }
+  if (catalog && pyKnown && !sameSet(pyKnown, new Set(catalog.known))) { fail(`js/permission-catalog.js KNOWN_PERMISSIONS drifted from constants.py -- ${diff(pyKnown, new Set(catalog.known))}`); parityFailures++; }
+  if (catalog && pyProtected && !sameSet(pyProtected, new Set(catalog.protectedKeys))) { fail(`js/permission-catalog.js PROTECTED_PERMISSIONS drifted from constants.py -- ${diff(pyProtected, new Set(catalog.protectedKeys))}`); parityFailures++; }
+  if (catalog && pyKnown) {
+    Object.entries(catalog.recommended).forEach(([type, keys]) => {
+      if (!pyTypes.has(type)) { fail(`js/permission-catalog.js RECOMMENDED_ROLE_DEFAULTS names unknown accountType '${type}'`); parityFailures++; }
+      keys.forEach(k => { if (!pyKnown.has(k)) { fail(`js/permission-catalog.js RECOMMENDED_ROLE_DEFAULTS[${type}] grants unknown/protected key '${k}'`); parityFailures++; } });
+    });
+    [...pyTypes].forEach(t => { if (!(t in catalog.recommended)) { fail(`js/permission-catalog.js RECOMMENDED_ROLE_DEFAULTS has no entry for '${t}'`); parityFailures++; } });
+  }
+  if (pyTypes) {
+    roleTypes.forEach(t => { if (!pyTypes.has(t)) { fail(`js/professional-roles.js accountType '${t}' is not in constants.py SELF_ACCOUNT_TYPES (signup would be rejected)`); parityFailures++; } });
+    if (!wizardMatch) { fail('could not parse TYPE_CATALOG from signup-professional.html'); parityFailures++; }
+    wizardTypes.forEach(t => { if (!pyTypes.has(t)) { fail(`signup-professional.html TYPE_CATALOG offers '${t}', which constants.py SELF_ACCOUNT_TYPES rejects`); parityFailures++; } });
+  }
+  if (parityFailures === 0) ok(`accountType/permission vocabulary in parity: constants.py, firestore.rules, js/permission-catalog.js, js/professional-roles.js (${roleTypes.length} roles), signup-professional.html (${wizardTypes.length} wizard types)`);
+}
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log('');

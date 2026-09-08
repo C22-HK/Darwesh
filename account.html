@@ -28,6 +28,7 @@ violation reporting. -->
 <link rel="manifest" href="/manifest.json"/>
 <link rel="canonical" href="https://www.darweshgroup.com/account.html"/>
 <title>Darwesh Group - My Account</title>
+<meta name="robots" content="noindex, nofollow"/>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
@@ -42,6 +43,8 @@ violation reporting. -->
   .fav-card { background: #17150F; border: 1px solid #5D482B; border-radius: 12px; overflow: hidden; }
   .status-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
   .status-pending { background: #8E7448; color: #090A0A; }
+  .status-active { background: #7FB89A; color: #090A0A; }
+  .status-declined { background: #E5787A; color: #090A0A; }
   .settings-input { border: 1px solid #5D482B; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #F2EEE5; background: #17150F; }
   .settings-input:focus { outline: 2px solid #B89A63; outline-offset: 1px; }
 </style>
@@ -117,9 +120,28 @@ violation reporting. -->
       </div>
     </section>
 
+    <!-- Management card (launch-readiness fix B3): shown ONLY for account
+         types whose own management page exists elsewhere (real-estate
+         office -> office.html, developer / residential community ->
+         org-projects.html) or that are registered but have no management
+         page yet (finance provider, furniture store -- stated honestly, no
+         dead link). Customers and professionals never see it; the header's
+         Profile chip already takes professionals to their own page. -->
+    <section id="roleCard" class="hidden bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 md:p-6 mb-8 flex flex-col md:flex-row md:items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-primary-container text-on-primary flex items-center justify-center flex-shrink-0" aria-hidden="true">
+        <span class="material-symbols-outlined" id="roleCardIcon">apartment</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-headline-md text-[18px] text-primary font-bold" id="roleCardTitle"></p>
+        <p class="font-body-md text-[13.5px] text-on-surface-variant mt-1" id="roleCardDesc"></p>
+      </div>
+      <a id="roleCardLink" class="hidden bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors text-center" href="account.html"></a>
+    </section>
+
     <div class="flex border-b border-outline-variant mb-6">
       <button class="acct-tab active" data-tab="favorites" type="button" data-i18n="acct.tabFavorites">Favorites</button>
       <button class="acct-tab" data-tab="submissions" type="button" data-i18n="acct.tabSubmissions">My Submissions</button>
+      <button class="acct-tab" data-tab="requests" type="button" data-i18n="acct.tabRequests">My Requests</button>
       <button class="acct-tab" data-tab="searches" type="button" data-i18n="acct.tabSearches">Saved Searches</button>
       <button class="acct-tab" data-tab="agent" type="button" data-i18n="acct.tabAgent">My Agent</button>
       <button class="acct-tab" data-tab="settings" type="button" data-i18n="acct.tabSettings">Settings</button>
@@ -159,6 +181,14 @@ violation reporting. -->
       <div id="submissionsList" class="space-y-3"></div>
       <p id="submissionsEmpty" class="hidden font-body-md text-[14px] text-on-surface-variant py-8 text-center">
         No submissions yet. Once you list a property via <a href="sell.html" class="text-secondary hover:underline">Sell</a> while logged in, it'll show up here.
+      </p>
+    </section>
+
+    <!-- Requests (launch-readiness: customer-facing inquiry-status view) -->
+    <section id="tab-requests" class="acct-panel">
+      <div id="requestsList" class="space-y-3"></div>
+      <p id="requestsEmpty" class="hidden font-body-md text-[14px] text-on-surface-variant py-8 text-center" data-i18n="acct.requestsEmpty">
+        No requests yet. When you contact a service provider (engineer, designer, lawyer, cleaner, landscaper or maintenance), the status shows up here.
       </p>
     </section>
 
@@ -202,9 +232,71 @@ violation reporting. -->
 <script type="module">
   import { auth, db, storage, getDoc, updateDoc, getDocs, deleteDoc } from './js/firebase-init.js';
   import { onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { doc, collection, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { doc, collection, orderBy, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
   import { compressImage, PROFILE_IMAGE, createUploadGate } from './js/image-compress.js';
+  import { describeManagementSurface } from './js/profile-destination.js';
+  import { listServiceRequests, BackendResponseError } from './js/backend-api.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  // Launch-readiness fix B3: an office owner/employee or an organization
+  // owner used to land here with nothing pointing at office.html or
+  // org-projects.html. The card below links to the real management page
+  // for the account types that have one, and says plainly when none exists
+  // yet. Ownership is never decided here -- office.html and
+  // org-projects.html each resolve it against the backend / firestore.rules.
+  const ROLE_CARD_COPY = {
+    office: {
+      title: ['acct.roleCard.officeTitle', 'Your real-estate office'],
+      desc: ['acct.roleCard.officeDesc', 'Manage your office profile, your team and your listings.'],
+      link: ['acct.roleCard.openOffice', 'Open office']
+    },
+    orgProjects: {
+      title: ['acct.roleCard.projectsTitle', 'Your projects'],
+      desc: ['acct.roleCard.projectsDesc', 'Create and manage your projects and units. Nothing becomes public until Darwesh Group approves it.'],
+      link: ['acct.roleCard.openProjects', 'Manage projects']
+    },
+    orgGeneric: {
+      title: ['acct.roleCard.orgTitle', 'Your organization'],
+      desc: ['acct.roleCard.orgDesc', 'Manage your organization profile and business details.'],
+      link: ['acct.roleCard.openOrganization', 'Manage organization']
+    }
+  };
+
+  async function renderRoleCard(user, profile) {
+    const surface = describeManagementSurface(profile);
+    if (!surface) return;
+    const copy = ROLE_CARD_COPY[surface.kind];
+    document.getElementById('roleCardIcon').textContent = surface.icon;
+    let title = tr(copy.title[0], copy.title[1]);
+    document.getElementById('roleCardDesc').textContent = tr(copy.desc[0], copy.desc[1]);
+    const link = document.getElementById('roleCardLink');
+    if (surface.href && copy.link) {
+      link.href = surface.href;
+      link.textContent = tr(copy.link[0], copy.link[1]);
+      link.classList.remove('hidden');
+    }
+    document.getElementById('roleCardTitle').textContent = title;
+    document.getElementById('roleCard').classList.remove('hidden');
+
+    // Organization owners: show the organization's real name next to the
+    // title. organizations/{id} is public-read, ownerId is a single-field
+    // equality query (no composite index), and a failure just leaves the
+    // generic title -- the card is never blocked on this read.
+    if (surface.kind === 'orgProjects' || surface.kind === 'orgGeneric') {
+      try {
+        const snap = await getDocs(query(collection(db, 'organizations'), where('ownerId', '==', user.uid), limit(1)));
+        let org = null;
+        snap.forEach((d) => { if (!org) org = d.data(); });
+        if (org && org.name) {
+          document.getElementById('roleCardTitle').textContent = `${title} · ${org.name}`;
+          if (surface.kind === 'orgProjects') link.href = `org-projects.html?org=${encodeURIComponent(snap.docs[0].id)}`;
+          if (surface.kind === 'orgGeneric') link.href = `organization.html?id=${encodeURIComponent(snap.docs[0].id)}`;
+        }
+      } catch (e) { /* keep the generic title */ }
+    }
+  }
 
   // Blocks a second pick while the first upload is still running -- each
   // attempt mints its own Storage path, so overlapping runs would orphan
@@ -225,7 +317,7 @@ violation reporting. -->
   // visitors straight to a specific tab this way -- same switch the click
   // handler above runs, just triggered programmatically. An unknown or
   // missing value leaves the markup's own default (Favorites) untouched.
-  const ACCT_TABS = ['favorites', 'submissions', 'searches', 'agent', 'settings'];
+  const ACCT_TABS = ['favorites', 'submissions', 'requests', 'searches', 'agent', 'settings'];
   const requestedTab = new URLSearchParams(window.location.search).get('tab');
   if (requestedTab && ACCT_TABS.includes(requestedTab)) activateTab(requestedTab);
 
@@ -355,6 +447,69 @@ violation reporting. -->
     });
   }
 
+  // Launch-readiness: the customer-facing half of B2's provider Requests
+  // tab (js/profile-role.js) -- until now a customer who messaged an
+  // engineer/designer/lawyer/cleaner/landscaper/maintenance provider had
+  // no way to see whether that request was ever looked at.
+  //
+  // Goes through the backend (js/backend-api.js listServiceRequests),
+  // not a client-side collectionGroup('requests') query: that query
+  // shape was observed to fail Cloud Firestore's list-safety check
+  // intermittently even for a caller reading only their OWN requests
+  // (customerUid == self) once run alongside the rest of this codebase's
+  // rules test suite -- not conclusively a rules defect, but not
+  // something to build a real "can I see my own data" feature on either.
+  // See PermissionOps.list_service_requests' docstring for the full
+  // reasoning; the backend scopes this from the caller's verified uid,
+  // never from anything this page sends.
+  //
+  // Reuses profile-role.js's own rp.requestStatus* labels (already
+  // translated ku/ar) rather than a second, duplicate set of strings for
+  // the exact same four values a provider can set.
+  const REQUEST_STATUS_LABELS = {
+    pending: () => (window.t && window.t('rp.requestStatusPending')) || 'Pending',
+    accepted: () => (window.t && window.t('rp.requestStatusAccepted')) || 'Accepted',
+    declined: () => (window.t && window.t('rp.requestStatusDeclined')) || 'Declined',
+    completed: () => (window.t && window.t('rp.requestStatusCompleted')) || 'Completed'
+  };
+  const REQUEST_STATUS_CLASS = { pending: 'status-pending', accepted: 'status-active', declined: 'status-declined', completed: 'status-active' };
+
+  async function loadMyRequests(uid) {
+    const list = document.getElementById('requestsList');
+    const empty = document.getElementById('requestsEmpty');
+    list.innerHTML = '';
+    try {
+      const result = await listServiceRequests(auth.currentUser);
+      const rows = result.requests || [];
+      if (!rows.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      rows.forEach((r) => {
+        const row = document.createElement('div');
+        row.className = 'fav-card p-4 flex items-center justify-between gap-3';
+        const left = document.createElement('div');
+        left.className = 'min-w-0';
+        const title = document.createElement('p');
+        title.className = 'font-body-md text-[14px] text-on-surface font-medium truncate';
+        title.textContent = r.providerName || '—';
+        const sub = document.createElement('p');
+        sub.className = 'font-body-md text-[12.5px] text-on-surface-variant truncate';
+        sub.textContent = r.message || '';
+        left.append(title, sub);
+        const badge = document.createElement('span');
+        badge.className = 'status-badge ' + (REQUEST_STATUS_CLASS[r.status] || 'status-pending');
+        const labelFn = REQUEST_STATUS_LABELS[r.status];
+        badge.textContent = labelFn ? labelFn() : (r.status || 'pending');
+        row.append(left, badge);
+        list.appendChild(row);
+      });
+    } catch (err) {
+      console.error('[account] loadMyRequests failed', err);
+      empty.textContent = err instanceof BackendResponseError ? err.message
+        : (window.t && window.t('acct.requestsErrorGeneric')) || 'Could not load your requests right now.';
+      empty.classList.remove('hidden');
+    }
+  }
+
   async function loadSearches(uid) {
     const list = document.getElementById('searchesList');
     const empty = document.getElementById('searchesEmpty');
@@ -406,7 +561,18 @@ violation reporting. -->
     }
     const agent = agentSnap.data();
     document.getElementById('agentName').textContent = agent.displayName || 'Darwesh Group Agent';
-    document.getElementById('agentEmail').textContent = agent.email || '';
+    // U1: an agent's email is private now (users/{uid}/privateProfile,
+    // owner/admin only) and the customer never contacts an agent directly
+    // anyway -- every property inquiry goes through Darwesh Group's own
+    // Request Viewing flow. The second line shows the agent's office.
+    const officeLine = document.getElementById('agentEmail');
+    officeLine.textContent = 'Darwesh Group';
+    if (agent.companyId) {
+      try {
+        const companySnap = await getDoc(doc(db, 'companies', agent.companyId));
+        if (companySnap.exists() && companySnap.data().name) officeLine.textContent = companySnap.data().name;
+      } catch (e) { /* keep the group name */ }
+    }
     assigned.classList.remove('hidden');
 
     const grid = document.getElementById('agentListingsGrid');
@@ -488,8 +654,10 @@ violation reporting. -->
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('accountContent').classList.remove('hidden');
 
+    renderRoleCard(user, profile);
     loadFavorites(user.uid);
     loadSubmissions(user.uid);
+    loadMyRequests(user.uid);
     loadSearches(user.uid);
     loadMyAgent(profile);
     wireSettings(user, profile);

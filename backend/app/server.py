@@ -163,6 +163,11 @@ def create_app(
             methods=["POST"],
         )
         app.add_api_route(
+            "/api/v1/access/companies/{company_id}/agents/lookup",
+            company_handler.lookup_agent,
+            methods=["POST"],
+        )
+        app.add_api_route(
             "/api/v1/access/companies/{company_id}/employees/{target_uid}/invite",
             company_handler.invite_employee,
             methods=["POST"],
@@ -209,6 +214,11 @@ def create_app(
         )
         app.add_api_route(
             "/api/v1/access/me/permissions", permission_admin_handler.get_my_permissions, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/access/service-requests",
+            permission_admin_handler.list_service_requests,
+            methods=["GET"],
         )
     if mam_handler is not None:
         app.add_api_route("/api/v1/mam/chat", mam_handler.chat, methods=["POST"])

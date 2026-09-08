@@ -154,6 +154,16 @@ export function requestCompanyMembership(user, companyId) {
   });
 }
 
+// U1: resolves an invitee's email to {uid, displayName}. Owner/admin of
+// that office only (the backend checks), and only for real agent
+// accounts -- replaces the client-side users.where('email') query that
+// only worked while every agent's email sat on the public users doc.
+export function lookupCompanyAgent(user, companyId, email) {
+  return authedRequest(user, 'POST', `/api/v1/access/companies/${encodeURIComponent(companyId)}/agents/lookup`, {
+    body: { email }
+  });
+}
+
 export function inviteCompanyEmployee(user, companyId, targetUid) {
   return authedRequest(
     user,
@@ -220,6 +230,47 @@ export function declineCompanyInvitation(user, companyId) {
 // rest of OrganizationHandler's surface (membership/invite/ownership
 // transfer) is unrelated to signup and stays unwrapped until a page
 // actually needs it.
+// Admin-only (the backend re-checks caller.is_admin; a non-admin gets 403).
+// Replaces the whole permissions map for one accountType -- every key sent
+// must be a KNOWN (non-protected) permission or the backend rejects the
+// write outright (app.access.permission_ops.validate_permission_write).
+export function setRoleDefaults(user, { accountType, permissions }) {
+  return authedRequest(user, 'POST', '/api/v1/access/role-defaults', { body: { accountType, permissions } });
+}
+
+// U5 (launch-readiness): backs BOTH admin.html's central Customer
+// Services inbox (every serviceProviders/{id}/requests/{id} document
+// across every provider) and account.html's "My Requests" tab (a
+// signed-in caller's own requests across every provider they've
+// contacted) -- the backend decides which of those two a given caller
+// gets from their own token, never from anything passed in here.
+// firestore.rules' own read rule cannot service either shape as a
+// client-side collectionGroup('requests') query (see tests/firestore/
+// customer_and_admin_requests_view.test.mjs and
+// PermissionOps.list_service_requests' own docstring for what was
+// actually observed against the emulator), so this is the one place
+// that reaches it, through the trusted Admin SDK.
+export function listServiceRequests(user, status) {
+  return authedRequest(user, 'GET', '/api/v1/access/service-requests', {
+    query: status ? { status } : undefined
+  });
+}
+
+// U3 (launch-readiness): organization.html needs to know whether the
+// SIGNED-IN caller actually holds 'manage_organization_profile' for a
+// specific org before showing the edit form -- an active member's own
+// org-scoped grant isn't visible from a client-side read alone (their own
+// member doc is readable, but not their GLOBAL accountType-level default,
+// which firestore.rules' hasOrgPermission() unions in too). This is the
+// one call that resolves the same union server-side, so the page's "can I
+// edit?" check matches what the write rule will actually allow instead of
+// guessing and letting a write attempt fail.
+export function getMyPermissions(user, organizationId) {
+  return authedRequest(user, 'GET', '/api/v1/access/me/permissions', {
+    query: organizationId ? { organizationId } : undefined
+  });
+}
+
 export function listMyOrganizations(user) {
   return authedRequest(user, 'GET', '/api/v1/access/me/organizations');
 }
@@ -227,5 +278,66 @@ export function listMyOrganizations(user) {
 export function createOrganization(user, { type, name, description, city, district }) {
   return authedRequest(user, 'POST', '/api/v1/access/organizations', {
     body: { type, name, description, city, district }
+  });
+}
+
+// U3 (launch-readiness): the organization.html Team tab. Organization
+// membership has no email-lookup endpoint the way companies do (U1's
+// lookupCompanyAgent) -- inviting a specific person therefore still
+// needs their uid, which this page does not collect from a form. Only
+// the actions requestMembership/approve/reject/remove -- every one
+// operating on a uid the caller already has (their own, or one already
+// listed in the members subcollection they can read) -- are wired here.
+export function requestOrganizationMembership(user, orgId) {
+  return authedRequest(user, 'POST', `/api/v1/access/organizations/${encodeURIComponent(orgId)}/membership-requests`, {
+    body: {}
+  });
+}
+
+export function approveOrganizationMembership(user, orgId, targetUid) {
+  return authedRequest(
+    user,
+    'POST',
+    `/api/v1/access/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(targetUid)}/approve`,
+    { body: {} }
+  );
+}
+
+export function rejectOrganizationMembership(user, orgId, targetUid) {
+  return authedRequest(
+    user,
+    'POST',
+    `/api/v1/access/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(targetUid)}/reject`,
+    { body: {} }
+  );
+}
+
+export function removeOrganizationMember(user, orgId, targetUid) {
+  return authedRequest(
+    user,
+    'POST',
+    `/api/v1/access/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(targetUid)}/remove`,
+    { body: {} }
+  );
+}
+
+export function revokeOrganizationInvitation(user, orgId, targetUid) {
+  return authedRequest(
+    user,
+    'POST',
+    `/api/v1/access/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(targetUid)}/revoke-invitation`,
+    { body: {} }
+  );
+}
+
+export function acceptOrganizationInvitation(user, orgId) {
+  return authedRequest(user, 'POST', `/api/v1/access/organizations/${encodeURIComponent(orgId)}/invitations/accept`, {
+    body: {}
+  });
+}
+
+export function declineOrganizationInvitation(user, orgId) {
+  return authedRequest(user, 'POST', `/api/v1/access/organizations/${encodeURIComponent(orgId)}/invitations/decline`, {
+    body: {}
   });
 }
