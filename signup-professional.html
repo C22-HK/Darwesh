@@ -1266,7 +1266,23 @@
           orgId = created.organizationId;
           const contactInfo = state.details.contactInfo || {};
           if (Object.keys(contactInfo).length) {
-            await updateDoc(fsDoc(db, 'organizations', orgId), { contactInfo });
+            // organizations/{id}.contactInfo was removed from the public
+            // doc's writable field allowlist (firestore.rules) -- contact
+            // details now live in a separate, access-restricted
+            // organizations/{id}/private/contact subdoc (see
+            // projects.html's Darwesh-Group-is-the-sole-public-intermediary
+            // work). That write needs hasOrgPermission(orgId,
+            // 'manage_organization_profile'), which a brand-new signup's
+            // account type has no role-defaults grant for yet -- so this
+            // is best-effort, matching org-projects.js's identical
+            // private-contact write: never blocks signup completion, an
+            // admin can configure the phone/email/WhatsApp later via the
+            // org's own management page once permissions are granted.
+            try {
+              await setDoc(fsDoc(db, 'organizations', orgId, 'private', 'contact'), contactInfo);
+            } catch (err) {
+              console.error('[signup-pro] private contact write skipped (likely no role-defaults permission yet)', err);
+            }
           }
         }
         state.createdEntityId = orgId;

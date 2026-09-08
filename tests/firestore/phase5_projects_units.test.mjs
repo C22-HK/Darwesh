@@ -120,7 +120,7 @@ function validProject(overrides = {}) {
     organizationId: DEV_ORG, name: 'Zaytoon Hills', governorate: 'Erbil', city: 'Erbil',
     district: 'Italian Village', constructionStatus: 'under_construction', completionPercent: 40,
     currency: 'USD', startingPrice: 120000, location: { lat: 36.19, lng: 44.01 },
-    verified: false, createdAt: 1, updatedAt: 1,
+    verified: false, publicationStatus: 'draft', createdAt: 1, updatedAt: 1,
     ...overrides
   };
 }
@@ -130,7 +130,7 @@ function validUnit(overrides = {}) {
     organizationId: DEV_ORG, projectId: 'proj-1', unitNumber: 'A-101', propertyType: 'apartment',
     listingType: 'sale', status: 'available', priceAmount: 150000, currency: 'USD',
     governorate: 'Erbil', city: 'Erbil', district: 'Italian Village',
-    location: { lat: 36.19, lng: 44.01 }, createdAt: 1, updatedAt: 1,
+    location: { lat: 36.19, lng: 44.01 }, saleReportStatus: 'none', createdAt: 1, updatedAt: 1,
     ...overrides
   };
 }
@@ -531,13 +531,15 @@ describe('UNIT — update', () => {
     await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { status: 'sold', updatedAt: 2 }));
   });
 
-  it('a developer can mark a unit Reserved/Sold with no listing ever existing', async () => {
+  it('a developer can mark a unit Reserved with no listing ever existing, but cannot self-confirm Sold -- only report it (mark-as-sold admin-confirmation workflow)', async () => {
     await seedOrg(DEV_ORG, { ownerId: OWNER, type: 'developer_project', name: 'Darwesh Developments', verified: false });
     await seedOwnerViaRoleDefaults();
     await seedProject('proj-1', validProject());
     await seedUnit('unit-1', validUnit({ status: 'available' }));
     const db = dbFor(testEnv, OWNER);
-    await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { status: 'sold', updatedAt: 2 }));
+    await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { status: 'reserved', updatedAt: 2 }));
+    await assertFails(updateDoc(doc(db, 'units', 'unit-1'), { status: 'sold', updatedAt: 3 }));
+    await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { saleReportStatus: 'pending', updatedAt: 3 }));
   });
 });
 
@@ -811,28 +813,31 @@ describe('LOCK LIFECYCLE — full audit (A-J)', () => {
     }));
   });
 
-  it('B/C. Unit.status can independently change (e.g. to sold/rented) without touching the lock or listing', async () => {
+  it('B/C. mark-as-sold: an owner can REPORT a sale (saleReportStatus -> pending, status untouched) without touching the lock or listing; only admin can actually confirm status -> sold', async () => {
     // Unit.status and listings.status are deliberately independent state
     // machines (per the architecture delta) -- marking inventory sold/
     // rented never requires a listing to exist or be closed first, and
-    // does not itself release or require the lock. This is intentional
-    // ("a developer can mark inventory Reserved/Sold with no listing ever
-    // existing" -- already covered by the UNIT update describe block
-    // above); this test confirms it holds even while an active,
-    // lock-holding listing for the SAME unit still exists, i.e. Unit.status
-    // drifting ahead of Listing.status is possible and does not corrupt
-    // the lock -- a known, accepted product-consistency gap (Section 4 of
-    // the verification report), not a security or uniqueness violation.
+    // does not itself release or require the lock. This test confirms
+    // that holds even while an active, lock-holding listing for the SAME
+    // unit still exists. Updated for the mark-as-sold admin-confirmation
+    // workflow: 'sold'/'rented' is now a final, admin-only outcome (an
+    // owner's own write can never set it directly) -- the owner's part is
+    // reporting the sale (saleReportStatus: none -> pending), which is
+    // what a public/owner UI uses to show "unavailable" pending review.
     await seedFullOwnerContext();
     await seedLock('unit-1_sale', { unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-x', organizationId: DEV_ORG });
     await seedListing('listing-x', {
       title: 'Active', city: 'Erbil', dealType: 'sale', propertyType: 'apartment', price: 150000,
       private: false, status: 'active', unitId: 'unit-1', projectId: 'proj-1', publisherOrgId: DEV_ORG, createdAt: 1
     });
+    await seedUser('admin-1', { role: 'admin', createdAt: 1 });
     const db = dbFor(testEnv, OWNER);
-    await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { status: 'sold', updatedAt: 2 }));
-    // The lock is untouched by this -- still held, still blocking a
-    // second active listing for the same unit+dealType.
+    await assertFails(updateDoc(doc(db, 'units', 'unit-1'), { status: 'sold', updatedAt: 2 }));
+    await assertSucceeds(updateDoc(doc(db, 'units', 'unit-1'), { saleReportStatus: 'pending', updatedAt: 2 }));
+    const adminDb = dbFor(testEnv, 'admin-1');
+    await assertSucceeds(updateDoc(doc(adminDb, 'units', 'unit-1'), { status: 'sold', saleReportStatus: 'confirmed', updatedAt: 3 }));
+    // The lock is untouched by any of this -- still held, still blocking
+    // a second active listing for the same unit+dealType.
     await assertFails(setDoc(doc(db, 'activeListingLocks', 'unit-1_sale'), {
       unitId: 'unit-1', dealType: 'sale', activeListingId: 'listing-y', organizationId: DEV_ORG
     }));

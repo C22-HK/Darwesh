@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/project.html"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Project</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<!-- Scoped to this page + projects.html only -- see css/projects.css's own header comment. -->
+<link href="css/projects.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<style>
+  body { min-height: max(884px, 100dvh); }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-[76px] pb-24 md:pb-16">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <!-- Loading state -->
+  <div id="projLoadingState" class="text-center py-24">
+    <p class="font-body-md text-body-md text-on-surface-variant" data-i18n="listing.loading">Loading…</p>
+  </div>
+
+  <!-- Not found state -->
+  <div id="projNotFoundState" class="hidden text-center py-24">
+    <span class="material-symbols-outlined text-[48px] text-on-surface-variant mb-3 block">search_off</span>
+    <p class="font-headline-md text-headline-md text-primary mb-2" data-i18n="proj.notFoundTitle">Project not found</p>
+    <p class="font-body-md text-body-md text-on-surface-variant mb-stack-md" data-i18n="proj.notFoundBody">This project may have been removed or the link is incorrect.</p>
+    <a href="index.html" class="inline-flex items-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
+      <span data-i18n="proj.backToProjects">Back to Projects</span>
+    </a>
+  </div>
+
+  <!-- Project content -->
+  <div id="projContent" class="hidden">
+    <nav class="proj-breadcrumb mb-5" aria-label="Breadcrumb">
+      <a href="index.html" data-i18n="proj.breadcrumbHome">Home</a>
+      <span aria-hidden="true">&rsaquo;</span>
+      <a id="projBackToCity" href="projects.html" data-i18n="proj.breadcrumbProjects">Projects</a>
+      <span aria-hidden="true">&rsaquo;</span>
+      <span id="projNameCrumb" aria-current="page"></span>
+    </nav>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-stack-lg">
+      <!-- Left: gallery + details -->
+      <div class="lg:col-span-2 space-y-stack-md">
+
+        <!-- Gallery -->
+        <div>
+          <div class="proj-gallery-main" id="projGalleryMain" role="button" tabindex="0" aria-label="Enlarge image">
+            <img id="projGalleryMainImg" alt="" decoding="async" fetchpriority="high"/>
+            <button type="button" class="proj-gallery-arrow proj-gallery-arrow-prev" id="projGalleryPrev" aria-label="Previous photo">
+              <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+            </button>
+            <button type="button" class="proj-gallery-arrow proj-gallery-arrow-next" id="projGalleryNext" aria-label="Next photo">
+              <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+            </button>
+          </div>
+          <div class="proj-gallery-thumbs hide-scrollbar" id="projGalleryThumbs"></div>
+        </div>
+
+        <!-- Overview -->
+        <div class="proj-section">
+          <span class="proj-section-label" data-i18n="proj.overviewTitle">Overview</span>
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <h1 id="projName" class="font-headline-md text-headline-md text-primary"></h1>
+            <span id="projVerifiedBadge" class="hidden proj-badge proj-badge-verified flex-none"><span class="material-symbols-outlined text-[13px]" aria-hidden="true">verified</span><span data-i18n="rp.verified">Verified</span></span>
+          </div>
+          <p id="projPlace" class="font-body-md text-body-md text-on-surface-variant flex items-center gap-1 mb-3"><span class="material-symbols-outlined text-[18px]" aria-hidden="true">location_on</span><span></span></p>
+          <p id="projDescription" class="font-body-md text-[14px] text-on-surface-variant leading-relaxed mb-4"></p>
+          <dl class="proj-fact-grid" id="projFactGrid"></dl>
+        </div>
+
+        <!-- Amenities -->
+        <div class="proj-section">
+          <span class="proj-section-label" data-i18n="listing.amenitiesTitle">Amenities</span>
+          <div id="projAmenities" class="flex flex-wrap gap-2"></div>
+          <p id="projNoAmenities" class="hidden font-body-md text-[13px] text-on-surface-variant" data-i18n="proj.noAmenities">No amenities listed for this project yet.</p>
+        </div>
+
+        <!-- Unit types / floor plans -->
+        <div id="projUnitTypesSection" class="hidden proj-section">
+          <span class="proj-section-label" data-i18n="proj.unitTypesTitle">Unit Types &amp; Floor Plans</span>
+          <div id="projUnitTypeChips" class="proj-unittype-row" role="tablist"></div>
+          <div id="projUnitTypeDetail"></div>
+        </div>
+        <p id="projNoUnitTypes" class="hidden font-body-md text-[13px] text-on-surface-variant" data-i18n="proj.noUnitTypes">No unit types published yet.</p>
+
+        <!-- Payment plan -->
+        <div class="proj-section">
+          <span class="proj-section-label" data-i18n="proj.paymentTitle">Prices &amp; Payment Plan</span>
+          <dl class="proj-terms" id="projPaymentTerms"></dl>
+        </div>
+
+        <!-- Location -->
+        <div class="proj-section">
+          <span class="proj-section-label" data-i18n="listing.locationTitle">Location</span>
+          <div id="projMapWrap" class="rounded-lg overflow-hidden border border-outline-variant mb-3" style="height:280px;">
+            <div id="projMap" class="w-full h-full"></div>
+          </div>
+          <p id="projAddress" class="font-body-md text-[13.5px] text-on-surface-variant mb-2"></p>
+          <a id="projDirectionsLink" class="hidden inline-flex items-center gap-1 font-label-caps text-label-caps text-secondary hover:underline" target="_blank" rel="noopener noreferrer">
+            <span class="material-symbols-outlined text-[16px]" aria-hidden="true">directions</span>
+            <span data-i18n="proj.directions">Get Directions</span>
+          </a>
+          <div id="projNearbyWrap" class="hidden mt-3">
+            <p class="font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="proj.nearbyTitle">Nearby</p>
+            <ul id="projNearbyList" class="font-body-md text-[13px] text-on-surface-variant list-disc ps-5 space-y-0.5"></ul>
+          </div>
+        </div>
+
+        <!-- Available properties within this project -->
+        <div class="proj-section">
+          <span class="proj-section-label" data-i18n="proj.availableUnitsTitle">Available Properties in This Project</span>
+          <div id="projUnitsList"></div>
+          <p id="projNoUnits" class="hidden font-body-md text-[13px] text-on-surface-variant" data-i18n="proj.noAvailableUnits">No individual units are currently listed for this project.</p>
+        </div>
+      </div>
+
+      <!-- Right: developer / contact -->
+      <div class="space-y-stack-md">
+        <div class="proj-section sticky top-20">
+          <span class="proj-section-label" data-i18n="proj.contactTitle">Developer &amp; Contact</span>
+          <div class="flex items-center gap-3 mb-1">
+            <img id="projDevLogo" class="hidden proj-contact-logo" alt="" decoding="async"/>
+            <span id="projDevIcon" class="proj-contact-logo flex items-center justify-center text-on-surface-variant"><span class="material-symbols-outlined" aria-hidden="true">apartment</span></span>
+            <p id="projDevName" class="font-body-lg text-body-lg font-semibold text-on-surface"></p>
+          </div>
+          <p class="font-body-md text-[12px] text-on-surface-variant mb-3" data-i18n="proj.contactNote">All inquiries are handled by Darwesh Group on behalf of the developer.</p>
+          <div class="proj-contact-btn-row">
+            <a id="projCallBtn" class="hidden proj-contact-btn proj-contact-btn-call" href="#">
+              <span class="material-symbols-outlined text-[17px]" aria-hidden="true">call</span>
+              <span data-i18n="proj.call">Call</span>
+            </a>
+            <a id="projWhatsappBtn" class="hidden proj-contact-btn proj-contact-btn-whatsapp" href="#" target="_blank" rel="noopener noreferrer">
+              <span class="material-symbols-outlined text-[17px]" aria-hidden="true">chat</span>
+              <span data-i18n="proj.whatsapp">WhatsApp</span>
+            </a>
+          </div>
+
+          <form id="projInquireForm" class="mt-4 pt-4 border-t border-outline-variant">
+            <div class="mb-2.5">
+              <input id="projInquireName" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3.5 py-2.5 font-body-md text-[13.5px] text-on-surface" required type="text" data-i18n-placeholder="proj.inquireName" placeholder="Full Name"/>
+            </div>
+            <div class="mb-2.5">
+              <input id="projInquirePhone" class="w-full bg-surface-container-low border border-outline-variant rounded-lg px-3.5 py-2.5 font-body-md text-[13.5px] text-on-surface" required type="tel" placeholder="+964 750 000 0000" data-i18n-placeholder="proj.inquirePhone"/>
+            </div>
+            <p id="projInquireError" class="hidden text-error text-[12.5px] mb-2"></p>
+            <p id="projInquireSuccess" class="hidden text-[12.5px] mb-2" style="color:#7FB89A;"></p>
+            <button type="submit" id="projInquireSubmit" class="w-full bg-primary text-on-primary py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-[17px]" aria-hidden="true">send</span>
+              <span data-i18n="proj.inquire">Send Inquiry</span>
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Lightbox -->
+<div id="projLightbox" class="hidden proj-lightbox" role="dialog" aria-modal="true">
+  <button type="button" class="proj-lightbox-close" id="projLightboxClose" aria-label="Close">
+    <span class="material-symbols-outlined" aria-hidden="true">close</span>
+  </button>
+  <img id="projLightboxImg" alt=""/>
+</div>
+
+<script src="./js/escape-html.js"></script>
+<script type="module" src="./js/i18n.js"></script>
+<script type="module" src="./js/project-detail.js"></script>
+</body></html>
