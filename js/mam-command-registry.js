@@ -39,7 +39,7 @@
 // dialog rather than that mechanism being invented under deadline later.
 import { auth, db, getDoc, setDoc, deleteDoc } from './firebase-init.js';
 import { doc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
-import { PAGE_MAP, resolvePage, filtersToMapUrlParams, HOME_TYPES, SORT_VALUES } from './mam-actions.js';
+import { PAGE_MAP, resolvePage, filtersToMapUrlParams, HOME_TYPES, SORT_VALUES, ACCOUNT_FAVORITES_URL, ACCOUNT_PROFILE_URL } from './mam-actions.js';
 import { PROFESSIONAL_PAGES } from './mam-chat-panel.js';
 
 // Every real service-category destination this frontend has -- reuses
@@ -77,7 +77,13 @@ export const ACTION_REGISTRY = Object.freeze({
   changeLanguage: { confirm: false, kind: 'write' },
   openSell: { confirm: false, kind: 'navigate' },
   setSellField: { confirm: false, kind: 'navigate' },
-  goBack: { confirm: false, kind: 'navigate' }
+  goBack: { confirm: false, kind: 'navigate' },
+  // Phase 2 (first two deferred items): both read-only destinations on
+  // account.html, the same page/tabs a signed-in visitor already reaches
+  // by clicking their own account menu -- no confirmation needed here
+  // either, for the same reason nothing in Phase 1 needed it.
+  showSavedProperties: { confirm: false, kind: 'navigate' },
+  openUserProfile: { confirm: false, kind: 'navigate' }
 });
 
 function go(url) { window.location.assign(url); }
@@ -148,6 +154,19 @@ export function setSellField(field, value) {
 }
 
 export function goBack() { window.history.back(); return { ok: true }; }
+
+// ---- showSavedProperties / openUserProfile (Phase 2) -------------------
+// Both real, already-shipped destinations -- account.html's Favorites and
+// Settings tabs (see js/mam-actions.js's ACCOUNT_FAVORITES_URL/
+// ACCOUNT_PROFILE_URL and account.html's own ?tab= reader added alongside
+// this). No new page, no new Firestore access: a listing saved from here
+// via saveListing() already shows up on that same Favorites tab, and
+// Settings already holds the one real editable profile field
+// (display name) plus the password-reset/sign-out controls. A
+// signed-out visitor is redirected to login.html by account.html's own
+// existing auth gate, exactly as clicking the account menu would be.
+export function showSavedProperties() { go(ACCOUNT_FAVORITES_URL); return { ok: true }; }
+export function openUserProfile() { go(ACCOUNT_PROFILE_URL); return { ok: true }; }
 
 export function changeLanguage(lang) {
   if (typeof window.setLanguage !== 'function') return { ok: false, error: 'i18n_unavailable' };

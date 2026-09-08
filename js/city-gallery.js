@@ -31,10 +31,12 @@
   const mount = document.getElementById('cityGallery');
   if (!mount) return;
 
-  // The city set and its destinations are unchanged -- same real ?city=
-  // handoff into buy.html that the previous version used. Kirkuk leads
-  // (and is the default focused/active card) per the approved brief;
-  // the rest keep their previous relative order.
+  // The city set is unchanged. Destination updated: a city plane now opens
+  // projects.html?city=X (that city's Projects listing) instead of
+  // buy.html's raw apartment search -- everything else about this section
+  // (photos, carousel mechanics, arrows/dots/transitions/mobile behavior)
+  // is untouched. Kirkuk leads (and is the default focused/active card)
+  // per the approved brief; the rest keep their previous relative order.
   // Root-relative (`/images/...`), not `images/...`: a url() inside a CSS
   // custom property resolves against wherever the var() consuming it
   // lives (css/home-world.css's `.w-plane-face` rule), not against this
@@ -65,7 +67,7 @@
     '<div class="w-gallery" id="cityWall">' +
       '<div class="w-wall">' +
         CITIES.map((c, i) =>
-          '<a class="w-plane" href="buy.html?type=apartment&city=' + encodeURIComponent(c.key) + '"' +
+          '<a class="w-plane" href="projects.html?city=' + encodeURIComponent(c.key) + '"' +
              ' data-i="' + i + '" style="--h:' + c.h + ';--s:' + c.s + ';--l:' + c.l +
              (c.img ? ';--img:url(' + c.img + ')' : '') + '">' +
             '<span class="w-plane-face" aria-hidden="true"></span>' +
@@ -73,7 +75,7 @@
             '<span class="w-plane-body">' +
               '<span class="w-plane-name">' + esc(c.key) + '</span>' +
               '<span class="w-plane-note" data-city-note></span>' +
-              '<span class="w-plane-go">' + esc(tr('index.cityOpen', 'Apartments here')) + arrow + '</span>' +
+              '<span class="w-plane-go">' + esc(tr('index.cityOpen', 'Explore projects')) + arrow + '</span>' +
             '</span>' +
           '</a>').join('') +
       '</div>' +

@@ -211,14 +211,23 @@ violation reporting. -->
   // an object and race over which URL lands on the user document.
   const acctPhotoGate = createUploadGate();
 
+  function activateTab(name) {
+    document.querySelectorAll('.acct-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.acct-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  }
+
   document.querySelectorAll('.acct-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.acct-tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.acct-panel').forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    });
+    tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
+
+  // Deep-link support: js/mam-command-registry.js's showSavedProperties()/
+  // openUserProfile() (account.html?tab=favorites / ?tab=settings) send
+  // visitors straight to a specific tab this way -- same switch the click
+  // handler above runs, just triggered programmatically. An unknown or
+  // missing value leaves the markup's own default (Favorites) untouched.
+  const ACCT_TABS = ['favorites', 'submissions', 'searches', 'agent', 'settings'];
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  if (requestedTab && ACCT_TABS.includes(requestedTab)) activateTab(requestedTab);
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);

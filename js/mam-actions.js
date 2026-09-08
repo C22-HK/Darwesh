@@ -96,6 +96,16 @@ export function filtersToMapUrlParams(filters) {
   return p;
 }
 
+// The two account.html tabs a direct command or the action registry can
+// jump straight to -- account.html's own tab-switching script reads
+// ?tab= on load (added alongside this) and honors either value, falling
+// back to its own default (Favorites) for anything else. Defined once
+// here so js/mam-command-registry.js's registry entries and
+// js/mam-chat-panel.js's direct-command handler both point at the exact
+// same destination, never two copies of the URL.
+export const ACCOUNT_FAVORITES_URL = 'account.html?tab=favorites';
+export const ACCOUNT_PROFILE_URL = 'account.html?tab=settings';
+
 function normalize(s) {
   return (s || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -120,7 +130,7 @@ const NAV_PREFIX = '(?:open|go to|goto|go back to|take me to|navigate to|show me
  * never a second, competing intent parser for the property-search
  * requests MAM's own NLU already handles well.
  * @param {string} text
- * @returns {{type:'navigate', page:string}|{type:'back'}|{type:'clear_filters'}|{type:'collapse_mam'}|{type:'open_mam'}|null}
+ * @returns {{type:'navigate', page:string}|{type:'back'}|{type:'clear_filters'}|{type:'collapse_mam'}|{type:'open_mam'}|{type:'show_saved_properties'}|{type:'open_profile'}|null}
  */
 export function detectDirectCommand(text) {
   const norm = normalize(text);
@@ -130,6 +140,12 @@ export function detectDirectCommand(text) {
   if (/^(clear|reset)( the| all)? filters?$/.test(norm)) return { type: 'clear_filters' };
   if (/^(collapse|close|minimize) mam$/.test(norm)) return { type: 'collapse_mam' };
   if (/^open mam$/.test(norm)) return { type: 'open_mam' };
+  // Phase 2: saved properties / profile, same reflexive no-NLU tier as the
+  // four commands above (English phrasing only, matching their existing
+  // scope -- anything else falls through to the real backend conversation,
+  // unchanged).
+  if (/^(show |open )?(my )?(saved properties|saved listings|favorites)$/.test(norm)) return { type: 'show_saved_properties' };
+  if (/^(show |open )?(my )?(profile|account( settings)?)$/.test(norm)) return { type: 'open_profile' };
 
   const withPrefix = norm.match(new RegExp('^' + NAV_PREFIX + '\\s+(?:the\\s+)?([a-z]+)(?:\\s+page)?$'));
   const bareWord = norm.match(/^([a-z]+)$/);
