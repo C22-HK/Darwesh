@@ -193,13 +193,17 @@ async function load() {
   hide('instEmpty');
   show('instLoading');
   try {
-    // Single equality filter + limit: served by the single-field index
-    // Firestore maintains automatically, so this needs no composite
-    // index. City/price/duration narrowing happens client-side over this
-    // bounded set rather than as extra indexed queries.
+    // publicationStatus=='published' is required, not optional -- an
+    // anonymous query missing it is denied outright by firestore.rules'
+    // isProjectPubliclyVisible() gate, the same admin-approval-before-
+    // publication invariant projects.html now enforces. City/price/
+    // duration narrowing still happens client-side over this bounded set.
+    // Needs a composite index on (installmentAvailable, publicationStatus)
+    // -- see firestore.indexes.json.
     const snap = await getDocs(query(
       collection(db, 'projects'),
       where('installmentAvailable', '==', true),
+      where('publicationStatus', '==', 'published'),
       limit(PROJECT_LIMIT)
     ));
     allProjects = [];

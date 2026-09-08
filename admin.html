@@ -460,6 +460,7 @@ change is not meant to make. -->
       <button class="admin-tab active" data-tab="dashboard" type="button" data-i18n="admin.dashboardTab">Dashboard</button>
       <button class="admin-tab" data-tab="users" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
+      <button class="admin-tab" data-tab="projects" type="button" data-i18n="admin.projectsTab">Projects</button>
       <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
       <button class="admin-tab" data-tab="requestsmap" type="button" data-i18n="admin.requestsMapTab">Requests Map</button>
       <button class="admin-tab" data-tab="branches" type="button" data-i18n="admin.branchesTab">Branches</button>
@@ -844,7 +845,69 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- TAB: Customer Services -->
+    <!-- TAB: Projects (admin-approval-before-publication + mark-as-sold) -->
+    <section id="tab-projects" class="admin-tab-panel">
+      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.projectsNote">Developer/residential-community projects and revisions awaiting review, and unit sale reports awaiting confirmation. Nothing here becomes public until you approve it.</p>
+
+      <h3 class="font-headline-md text-[15px] font-bold mb-3" data-i18n="admin.pendingProjectsHeading">Pending Projects &amp; Revisions</h3>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden mb-8">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th data-i18n="admin.thProject">Project</th><th data-i18n="admin.thOrganization">Organization</th><th data-i18n="admin.thStatus">Status</th><th></th></tr></thead>
+            <tbody id="pendingProjectsBody"></tbody>
+          </table>
+        </div>
+        <p id="pendingProjectsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noPendingProjects">No projects awaiting review.</p>
+      </div>
+
+      <h3 class="font-headline-md text-[15px] font-bold mb-3" data-i18n="admin.saleReportsHeading">Sale / Rental Reports</h3>
+      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="admin-table">
+            <thead><tr><th data-i18n="admin.thUnit">Unit</th><th data-i18n="admin.thOrganization">Organization</th><th data-i18n="admin.thSaleDate">Sale Date</th><th data-i18n="admin.thNote">Note</th><th></th></tr></thead>
+            <tbody id="saleReportsBody"></tbody>
+          </table>
+        </div>
+        <p id="saleReportsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noSaleReports">No sale reports awaiting confirmation.</p>
+      </div>
+    </section>
+
+    <!-- Project review modal -->
+    <div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="projectReviewOverlay">
+      <div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="projectReviewBackdrop"></div>
+      <div class="relative bg-surface-container-lowest w-full md:max-w-lg md:rounded-2xl rounded-t-2xl p-6 max-h-[85vh] overflow-y-auto">
+        <button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="projectReviewClose" type="button"><span class="material-symbols-outlined">close</span></button>
+        <h2 class="font-headline-md text-headline-md text-primary mb-4" data-i18n="admin.reviewProject">Review Project</h2>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 mb-4" id="projectReviewBody"></dl>
+        <div id="projectReviewMediaWrap" class="hidden grid grid-cols-3 gap-2 mb-4"></div>
+        <label class="font-label-caps text-label-caps text-on-surface-variant text-[11px] block mb-1" data-i18n="admin.feedbackOptional">Feedback (required for changes-requested/rejected)</label>
+        <textarea id="projectReviewFeedback" class="admin-input mb-3" style="height:70px;" maxlength="1000"></textarea>
+        <p id="projectReviewError" class="hidden text-error text-[13px] mb-2"></p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" id="projectReviewApprove" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.approveAndPublish">Approve &amp; Publish</button>
+          <button type="button" id="projectReviewChanges" class="border border-outline-variant px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors" data-i18n="admin.requestChanges">Request Changes</button>
+          <button type="button" id="projectReviewReject" class="border border-outline-variant px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors" data-i18n="admin.reject">Reject</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sale report review modal -->
+    <div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="saleReportOverlay">
+      <div class="absolute inset-0 bg-primary/60 backdrop-blur-sm" id="saleReportBackdrop"></div>
+      <div class="relative bg-surface-container-lowest w-full md:max-w-md md:rounded-2xl rounded-t-2xl p-6 max-h-[85vh] overflow-y-auto">
+        <button aria-label="Close" class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container-high transition-colors" id="saleReportClose" type="button"><span class="material-symbols-outlined">close</span></button>
+        <h2 class="font-headline-md text-headline-md text-primary mb-4" data-i18n="admin.reviewSaleReport">Review Sale Report</h2>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 mb-4" id="saleReportBody"></dl>
+        <label class="font-label-caps text-label-caps text-on-surface-variant text-[11px] block mb-1" data-i18n="admin.adminNoteRequired">Note (required to request clarification)</label>
+        <textarea id="saleReportAdminNote" class="admin-input mb-3" style="height:70px;" maxlength="1000"></textarea>
+        <p id="saleReportError" class="hidden text-error text-[13px] mb-2"></p>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" id="saleReportConfirm" class="bg-primary text-on-primary px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.confirmSale">Confirm Sale</button>
+          <button type="button" id="saleReportClarify" class="border border-outline-variant px-4 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-surface-container-low transition-colors" data-i18n="admin.requestClarification">Request Clarification</button>
+        </div>
+      </div>
+    </div>
+
     <section id="tab-services" class="admin-tab-panel">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.servicesNote">Property submissions from Sell and viewing requests from the Map, all in one place. Update a request's status as your team works through it.</p>
 
@@ -1630,6 +1693,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
       renderListingsTable();
     }
     if (tab.dataset.tab === 'users') renderUsers();
+    if (tab.dataset.tab === 'projects') renderProjectsTab();
     if (tab.dataset.tab === 'services') renderServicesTab();
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
     if (tab.dataset.tab === 'requestsmap') {
@@ -1656,7 +1720,7 @@ document.querySelectorAll('.filter-chip').forEach(chip => {
 
 function initDashboard() {
   if (dashboardInited) {
-    renderUsers(); renderListingsTable(); renderServicesTab();
+    renderUsers(); renderListingsTable(); renderServicesTab(); renderProjectsTab();
     renderDashboardTab(); renderRequestsMapTab(); renderBranchesTab(); renderAgentsTab(); renderNetworkTab(); renderLeaderboardTab();
     return;
   }
@@ -2378,6 +2442,240 @@ const SERVICES_STATUS_LABEL_FN = () => ({
   'in-progress': trAdmin('admin.statusInProgress', 'In Progress'),
   resolved: trAdmin('admin.statusResolved', 'Resolved')
 });
+// ---------------------------------------------------------------------
+// Projects tab: admin-approval-before-publication (draft/pending_review
+// projects AND revisions to already-published ones) + mark-as-sold
+// (unit sale/rent reports). Admin's own reads/writes here are
+// unconstrained by firestore.rules (isAdmin() bypasses every field
+// allowlist), so this fetches the whole collections and filters
+// client-side -- same shape as renderServicesTab() above.
+// ---------------------------------------------------------------------
+let allProjectsCache = [];
+let allSaleReportsCache = [];
+let allOrgsNameCache = {};
+let reviewingProjectId = null;
+let reviewingSaleReportId = null;
+
+async function orgName(orgId) {
+  if (allOrgsNameCache[orgId] !== undefined) return allOrgsNameCache[orgId];
+  try {
+    const s = await getDoc(doc(db, 'organizations', orgId));
+    allOrgsNameCache[orgId] = s.exists() ? (s.data().name || orgId) : orgId;
+  } catch { allOrgsNameCache[orgId] = orgId; }
+  return allOrgsNameCache[orgId];
+}
+
+async function renderProjectsTab() {
+  const [projSnap, srSnap] = await Promise.all([
+    getDocs(collection(db, 'projects')),
+    getDocs(collection(db, 'saleReports'))
+  ]);
+  allProjectsCache = [];
+  projSnap.forEach(d => allProjectsCache.push({ id: d.id, ...d.data() }));
+  allSaleReportsCache = [];
+  srSnap.forEach(d => { const data = d.data(); if (data.status === 'pending') allSaleReportsCache.push({ id: d.id, ...data }); });
+  await renderPendingProjectsRows();
+  await renderSaleReportsRows();
+}
+
+async function renderPendingProjectsRows() {
+  const body = document.getElementById('pendingProjectsBody');
+  const empty = document.getElementById('pendingProjectsEmpty');
+  const pending = allProjectsCache.filter(p => p.publicationStatus === 'pending_review' || p.revisionStatus === 'pending_review');
+  if (!pending.length) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  const rows = await Promise.all(pending.map(async p => {
+    const name = await orgName(p.organizationId);
+    const isRevision = p.publicationStatus === 'published' && p.revisionStatus === 'pending_review';
+    const statusBadge = isRevision
+      ? `<span class="badge badge-pending">${trAdmin('admin.revisionPending', 'Revision pending')}</span>`
+      : `<span class="badge badge-pending">${trAdmin('admin.newSubmission', 'New submission')}</span>`;
+    return `<tr>
+      <td>${escapeAdmin(p.name)}</td>
+      <td>${escapeAdmin(name)}</td>
+      <td>${statusBadge}</td>
+      <td><button type="button" class="icon-btn" data-review-project="${escapeAdmin(p.id)}" title="${trAdmin('admin.reviewProject', 'Review Project')}"><span class="material-symbols-outlined" style="font-size:18px;">visibility</span></button></td>
+    </tr>`;
+  }));
+  body.innerHTML = rows.join('');
+  body.querySelectorAll('[data-review-project]').forEach(btn => btn.addEventListener('click', () => openProjectReview(btn.dataset.reviewProject)));
+}
+
+async function renderSaleReportsRows() {
+  const body = document.getElementById('saleReportsBody');
+  const empty = document.getElementById('saleReportsEmpty');
+  if (!allSaleReportsCache.length) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  empty.classList.add('hidden');
+  const rows = await Promise.all(allSaleReportsCache.map(async r => {
+    const name = await orgName(r.organizationId);
+    return `<tr>
+      <td>#${escapeAdmin(r.unitId)}</td>
+      <td>${escapeAdmin(name)}</td>
+      <td>${escapeAdmin(r.saleDate)}</td>
+      <td>${escapeAdmin(r.note || '—')}</td>
+      <td><button type="button" class="icon-btn" data-review-sale="${escapeAdmin(r.id)}" title="${trAdmin('admin.reviewSaleReport', 'Review Sale Report')}"><span class="material-symbols-outlined" style="font-size:18px;">visibility</span></button></td>
+    </tr>`;
+  }));
+  body.innerHTML = rows.join('');
+  body.querySelectorAll('[data-review-sale]').forEach(btn => btn.addEventListener('click', () => openSaleReportReview(btn.dataset.reviewSale)));
+}
+
+async function openProjectReview(id) {
+  const p = allProjectsCache.find(x => x.id === id);
+  if (!p) return;
+  reviewingProjectId = id;
+  const isRevision = p.publicationStatus === 'published' && p.revisionStatus === 'pending_review';
+  // A revision's actual proposed content lives in private/pendingRevision
+  // (never on the public doc itself, per this session's Darwesh-is-the-
+  // sole-intermediary private-data architecture) -- fetched here so the
+  // admin reviews the REAL proposed change, not stale live content.
+  let reviewData = p;
+  if (isRevision) {
+    try {
+      const rs = await getDoc(doc(db, 'projects', id, 'private', 'pendingRevision'));
+      if (rs.exists()) reviewData = { ...p, ...rs.data() };
+    } catch { /* fall back to live content if unreadable */ }
+  }
+  const orgLabel = await orgName(p.organizationId);
+  const fields = [
+    [trAdmin('admin.projectName', 'Project'), reviewData.name],
+    [trAdmin('admin.thOrganization', 'Organization'), orgLabel],
+    [trAdmin('sell.city', 'City'), reviewData.city],
+    [trAdmin('proj.constructionStatus', 'Construction Status'), reviewData.constructionStatus],
+    [trAdmin('sell.description', 'Description'), reviewData.description],
+    [trAdmin('proj.cashPrice', 'Starting Price'), reviewData.startingPrice ? `${reviewData.currency || ''} ${Number(reviewData.startingPrice).toLocaleString()}` : ''],
+  ];
+  document.getElementById('projectReviewBody').innerHTML = fields.filter(([, v]) => v).map(([k, v]) =>
+    `<dt class="col-span-2 sm:col-span-1 font-label-caps text-label-caps text-on-surface-variant text-[11px]">${escapeAdmin(k)}</dt><dd class="col-span-2 sm:col-span-1 font-body-md text-[13.5px] text-on-surface mb-2">${escapeAdmin(v)}</dd>`
+  ).join('');
+  const mediaWrap = document.getElementById('projectReviewMediaWrap');
+  const media = [reviewData.coverImageUrl, ...(Array.isArray(reviewData.gallery) ? reviewData.gallery : [])].filter(isSafeHttpUrl);
+  if (media.length) {
+    mediaWrap.classList.remove('hidden');
+    mediaWrap.innerHTML = media.map(u => `<img src="${escapeAdmin(u)}" class="w-full aspect-square object-cover rounded-lg border border-outline-variant" decoding="async"/>`).join('');
+  } else {
+    mediaWrap.classList.add('hidden');
+    mediaWrap.innerHTML = '';
+  }
+  document.getElementById('projectReviewFeedback').value = '';
+  document.getElementById('projectReviewError').classList.add('hidden');
+  document.getElementById('projectReviewOverlay').classList.remove('hidden');
+}
+function closeProjectReview() { document.getElementById('projectReviewOverlay').classList.add('hidden'); reviewingProjectId = null; }
+document.getElementById('projectReviewClose').addEventListener('click', closeProjectReview);
+document.getElementById('projectReviewBackdrop').addEventListener('click', closeProjectReview);
+
+async function resolveProjectReview(action) {
+  if (!reviewingProjectId) return;
+  const p = allProjectsCache.find(x => x.id === reviewingProjectId);
+  if (!p) return;
+  const errEl = document.getElementById('projectReviewError');
+  errEl.classList.add('hidden');
+  const feedback = document.getElementById('projectReviewFeedback').value.trim();
+  if (action !== 'approve' && !feedback) {
+    errEl.textContent = trAdmin('admin.feedbackRequired', 'Feedback is required for this action.');
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const isRevision = p.publicationStatus === 'published' && p.revisionStatus === 'pending_review';
+  try {
+    if (action === 'approve') {
+      if (isRevision) {
+        const rs = await getDoc(doc(db, 'projects', reviewingProjectId, 'private', 'pendingRevision'));
+        const revisionData = rs.exists() ? rs.data() : {};
+        await updateDoc(doc(db, 'projects', reviewingProjectId), { ...revisionData, publicationStatus: 'published', revisionStatus: 'none', updatedAt: serverTimestamp() });
+        await deleteDoc(doc(db, 'projects', reviewingProjectId, 'private', 'pendingRevision'));
+      } else {
+        await updateDoc(doc(db, 'projects', reviewingProjectId), { publicationStatus: 'published', updatedAt: serverTimestamp() });
+      }
+    } else if (action === 'changes') {
+      await updateDoc(doc(db, 'projects', reviewingProjectId), isRevision
+        ? { revisionStatus: 'changes_requested', revisionFeedback: feedback, updatedAt: serverTimestamp() }
+        : { publicationStatus: 'changes_requested', reviewFeedback: feedback, updatedAt: serverTimestamp() });
+    } else if (action === 'reject') {
+      await updateDoc(doc(db, 'projects', reviewingProjectId), isRevision
+        ? { revisionStatus: 'changes_requested', revisionFeedback: feedback, updatedAt: serverTimestamp() }
+        : { publicationStatus: 'rejected', reviewFeedback: feedback, updatedAt: serverTimestamp() });
+    }
+    closeProjectReview();
+    await renderProjectsTab();
+  } catch (err) {
+    errEl.textContent = trAdmin('admin.reviewActionFailed', 'Could not complete this action -- please try again.');
+    errEl.classList.remove('hidden');
+  }
+}
+document.getElementById('projectReviewApprove').addEventListener('click', () => resolveProjectReview('approve'));
+document.getElementById('projectReviewChanges').addEventListener('click', () => resolveProjectReview('changes'));
+document.getElementById('projectReviewReject').addEventListener('click', () => resolveProjectReview('reject'));
+
+async function openSaleReportReview(id) {
+  const r = allSaleReportsCache.find(x => x.id === id);
+  if (!r) return;
+  reviewingSaleReportId = id;
+  const orgLabel = await orgName(r.organizationId);
+  let unitLabel = r.unitId;
+  try {
+    const us = await getDoc(doc(db, 'units', r.unitId));
+    if (us.exists()) unitLabel = `${us.data().unitNumber || r.unitId} (${us.data().status})`;
+  } catch { /* keep raw id */ }
+  const fields = [
+    [trAdmin('admin.thUnit', 'Unit'), unitLabel],
+    [trAdmin('admin.thOrganization', 'Organization'), orgLabel],
+    [trAdmin('admin.thSaleDate', 'Sale Date'), r.saleDate],
+    [trAdmin('admin.thNote', 'Note'), r.note || '—'],
+    [trAdmin('admin.evidenceRequired', 'Evidence Required'), r.evidenceRequired ? trAdmin('common.yes', 'Yes') : trAdmin('common.no', 'No')],
+  ];
+  document.getElementById('saleReportBody').innerHTML = fields.map(([k, v]) =>
+    `<dt class="col-span-2 sm:col-span-1 font-label-caps text-label-caps text-on-surface-variant text-[11px]">${escapeAdmin(k)}</dt><dd class="col-span-2 sm:col-span-1 font-body-md text-[13.5px] text-on-surface mb-2">${escapeAdmin(v)}</dd>`
+  ).join('');
+  document.getElementById('saleReportAdminNote').value = '';
+  document.getElementById('saleReportError').classList.add('hidden');
+  document.getElementById('saleReportOverlay').classList.remove('hidden');
+}
+function closeSaleReportReview() { document.getElementById('saleReportOverlay').classList.add('hidden'); reviewingSaleReportId = null; }
+document.getElementById('saleReportClose').addEventListener('click', closeSaleReportReview);
+document.getElementById('saleReportBackdrop').addEventListener('click', closeSaleReportReview);
+
+async function resolveSaleReport(action) {
+  if (!reviewingSaleReportId) return;
+  const r = allSaleReportsCache.find(x => x.id === reviewingSaleReportId);
+  if (!r) return;
+  const errEl = document.getElementById('saleReportError');
+  errEl.classList.add('hidden');
+  const note = document.getElementById('saleReportAdminNote').value.trim();
+  if (action === 'clarify' && !note) {
+    errEl.textContent = trAdmin('admin.feedbackRequired', 'Feedback is required for this action.');
+    errEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    if (action === 'confirm') {
+      await updateDoc(doc(db, 'saleReports', reviewingSaleReportId), { status: 'confirmed', resolvedAt: serverTimestamp(), updatedAt: serverTimestamp() });
+      // The listingType decides whether "sold" or "rented" is the correct
+      // final status -- read the unit itself rather than guessing.
+      const us = await getDoc(doc(db, 'units', r.unitId));
+      const finalStatus = us.exists() && us.data().listingType === 'rent' ? 'rented' : 'sold';
+      await updateDoc(doc(db, 'units', r.unitId), { status: finalStatus, saleReportStatus: 'confirmed', updatedAt: serverTimestamp() });
+    } else if (action === 'clarify') {
+      // Explicit availability decision required -- never silently
+      // reactivate a unit that may genuinely already be sold. Default to
+      // the safe choice (keep it off the available list) since a
+      // clarification request means the admin isn't yet sure.
+      await updateDoc(doc(db, 'saleReports', reviewingSaleReportId), {
+        status: 'clarification_requested', adminNote: note, availabilityDecision: 'keep_unavailable',
+        resolvedAt: serverTimestamp(), updatedAt: serverTimestamp()
+      });
+    }
+    closeSaleReportReview();
+    await renderProjectsTab();
+  } catch (err) {
+    errEl.textContent = trAdmin('admin.reviewActionFailed', 'Could not complete this action -- please try again.');
+    errEl.classList.remove('hidden');
+  }
+}
+document.getElementById('saleReportConfirm').addEventListener('click', () => resolveSaleReport('confirm'));
+document.getElementById('saleReportClarify').addEventListener('click', () => resolveSaleReport('clarify'));
+
 async function renderServicesTab() {
   const snap = await getDocs(collection(db, 'submissions'));
   allSubmissionsCache = [];
@@ -2406,8 +2704,11 @@ function renderServicesRows() {
   rows.forEach(s => {
     const tr = document.createElement('tr');
     const isSell = s.type === 'sell';
-    const typeLabel = isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
-    const typeIcon = isSell ? 'sell' : 'event_available';
+    const isProjectInquiry = s.type === 'project_inquiry';
+    const typeLabel = isSell ? trAdmin('admin.typeSell', 'Property Submission')
+      : isProjectInquiry ? trAdmin('admin.typeProjectInquiry', 'Project Inquiry')
+      : trAdmin('admin.typeViewing', 'Viewing Request');
+    const typeIcon = isSell ? 'sell' : isProjectInquiry ? 'apartment' : 'event_available';
     const thumbUrlRaw = Array.isArray(s.photoUrls) && s.photoUrls.length ? s.photoUrls[0] : null;
     const thumbUrl = isSafeHttpUrl(thumbUrlRaw) ? thumbUrlRaw : null;
     const thumb = thumbUrl
@@ -2415,6 +2716,8 @@ function renderServicesRows() {
       : `<div class="w-10 h-10 rounded-lg bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">image_not_supported</span></div>`;
     const detailsText = isSell
       ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.title)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.address)}, ${escapeAdmin(s.city)}${s.price ? ' &middot; $' + Math.round(Number(s.price)).toLocaleString() : ''}</p>`
+      : isProjectInquiry
+      ? `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.projectName)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.city)} &middot; ${trAdmin('admin.projectRef', 'Ref')} #${escapeAdmin(s.projectId)}</p>`
       : `<p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(s.address)}, ${escapeAdmin(s.city)}</p><p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(s.priceLabel)}</p>`;
     const details = `<div class="flex items-center gap-2.5">${thumb}<div class="min-w-0">${detailsText}</div></div>`;
     const from = (s.name || s.phone || s.email)
@@ -2556,6 +2859,11 @@ const VIEWING_DETAIL_FIELDS = [
   ['city', 'sell.city', 'City'],
   ['priceLabel', 'agentDash.priceLabel', 'Price']
 ];
+const PROJECT_INQUIRY_DETAIL_FIELDS = [
+  ['projectName', 'admin.projectName', 'Project'],
+  ['projectId', 'admin.projectRef', 'Project Reference'],
+  ['city', 'sell.city', 'City']
+];
 
 // The verification selfie lives at a Storage path that only admins can
 // read (storage.rules requires request.auth + role == 'admin'). A plain
@@ -2618,8 +2926,11 @@ function openRequestDetail(id) {
   const s = allSubmissionsCache.find(x => x.id === id);
   if (!s) return;
   const isSell = s.type === 'sell';
+  const isProjectInquiry = s.type === 'project_inquiry';
   document.getElementById('requestDetailTitle').textContent = isSell
-    ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request');
+    ? trAdmin('admin.typeSell', 'Property Submission')
+    : isProjectInquiry ? trAdmin('admin.typeProjectInquiry', 'Project Inquiry')
+    : trAdmin('admin.typeViewing', 'Viewing Request');
 
   const photosWrap = document.getElementById('requestDetailPhotos');
   const photoUrls = Array.isArray(s.photoUrls) ? s.photoUrls.filter(isSafeHttpUrl) : [];
@@ -2647,10 +2958,10 @@ function openRequestDetail(id) {
     } else {
       rows.push([trAdmin('agentDash.priceLabel', 'Price'), usdLabel]);
     }
-  } else if (!isSell && s.priceLabel) {
+  } else if (!isSell && !isProjectInquiry && s.priceLabel) {
     rows.push([trAdmin('agentDash.priceLabel', 'Price'), escapeAdmin(s.priceLabel)]);
   }
-  const fields = isSell ? SELL_DETAIL_FIELDS : VIEWING_DETAIL_FIELDS;
+  const fields = isSell ? SELL_DETAIL_FIELDS : isProjectInquiry ? PROJECT_INQUIRY_DETAIL_FIELDS : VIEWING_DETAIL_FIELDS;
   fields.forEach(([key, i18nKey, fallback]) => {
     if (s[key] === undefined || s[key] === '' || key === 'priceLabel') return;
     rows.push([trAdmin(i18nKey, fallback), escapeAdmin(s[key])]);

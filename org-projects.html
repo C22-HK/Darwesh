@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/org-projects.html"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Manage Projects</title>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/projects.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+  .op-field { margin-bottom: 14px; }
+  .op-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; color: var(--ps-color-on-surface-variant); text-transform: uppercase; letter-spacing: .03em; display: block; margin-bottom: 6px; }
+  .op-input, .op-select, .op-textarea {
+    width: 100%; background: var(--ps-color-surface-container-low); border: 1px solid var(--ps-color-outline-variant);
+    border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--ps-color-on-surface, #F4EFE7);
+  }
+  .op-textarea { min-height: 90px; resize: vertical; }
+  .op-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .op-check-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .op-check-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--ps-color-outline-variant); font-size: 12.5px; cursor: pointer; }
+  .op-org-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--ps-color-outline-variant); border-radius: 12px; background: var(--ps-color-surface-container-lowest); cursor: pointer; }
+  .op-org-card.is-active { border-color: var(--ps-color-secondary); background: rgba(198,154,75,.08); }
+  .op-proj-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--ps-color-outline-variant); border-radius: 10px; background: var(--ps-color-surface-container); }
+  .op-proj-row + .op-proj-row { margin-top: 8px; }
+  .op-btn { padding: 9px 18px; border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; }
+  .op-btn-primary { background: var(--ps-color-primary); color: var(--ps-color-on-primary); }
+  .op-btn-ghost { background: transparent; border: 1px solid var(--ps-color-outline-variant); color: var(--ps-color-on-surface-variant); }
+  .op-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--ps-color-surface-container-high); flex: none; }
+  .op-fp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--ps-color-outline-variant); border-radius: 8px; }
+  .op-fp-row + .op-fp-row { margin-top: 6px; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-[76px] pb-24 md:pb-16">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <div id="opLoadingGate" class="text-center py-24">
+    <p class="font-body-md text-body-md text-on-surface-variant" data-i18n="listing.loading">Loading…</p>
+  </div>
+
+  <div id="opSignedOut" class="hidden text-center py-24">
+    <p class="font-body-md text-body-md text-on-surface-variant mb-4" data-i18n="op.signInRequired">Sign in to manage your organization's projects.</p>
+    <a href="login.html" class="op-btn op-btn-primary inline-block" data-i18n="auth.signIn">Log In</a>
+  </div>
+
+  <div id="opNoOrgs" class="hidden text-center py-24 max-w-md mx-auto">
+    <span class="material-symbols-outlined text-[40px] text-on-surface-variant mb-3 block">domain_disabled</span>
+    <p class="font-headline-md text-headline-md text-primary mb-2" data-i18n="op.noOrgsTitle">No project-capable organization found</p>
+    <p class="font-body-md text-[13.5px] text-on-surface-variant" data-i18n="op.noOrgsBody">Your account does not own a developer or residential-community organization yet. Contact Darwesh Group to have one set up for your account.</p>
+  </div>
+
+  <div id="opContent" class="hidden">
+    <header class="mb-6">
+      <p class="font-label-caps text-label-caps text-secondary mb-2" data-i18n="op.eyebrow">Organization Console</p>
+      <h1 class="font-headline-md text-[26px] md:text-[32px] font-bold text-on-surface" data-i18n="op.title">Manage Projects</h1>
+    </header>
+
+    <!-- Org picker (shown only when the signed-in user owns more than one) -->
+    <div id="opOrgPicker" class="hidden mb-6 grid gap-2" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr));"></div>
+
+    <p id="opPermissionNotice" class="hidden font-body-md text-[13px] mb-4 px-4 py-3 rounded-lg" style="background:rgba(198,154,75,.1); color:#C69A4B;"></p>
+
+    <!-- Project list -->
+    <div id="opListView">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="font-headline-md text-[18px] font-bold" data-i18n="op.yourProjects">Your Projects</h2>
+        <button type="button" id="opNewProjectBtn" class="op-btn op-btn-primary" data-i18n="op.newProject">+ New Project</button>
+      </div>
+      <div id="opProjectList"></div>
+      <p id="opNoProjects" class="hidden font-body-md text-[13.5px] text-on-surface-variant" data-i18n="op.noProjectsYet">This organization has not published any projects yet.</p>
+    </div>
+
+    <!-- Create/edit form -->
+    <div id="opFormView" class="hidden">
+      <div class="flex items-center gap-2 mb-4">
+        <button type="button" id="opBackToList" class="op-btn op-btn-ghost"><span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_back</span></button>
+        <h2 id="opFormTitle" class="font-headline-md text-[18px] font-bold flex items-center gap-2"></h2>
+      </div>
+      <p id="opReviewFeedback" class="hidden font-body-md text-[13px] mb-4 px-4 py-3 rounded-lg" style="background:rgba(198,154,75,.1); color:#C69A4B;"></p>
+
+      <form id="opProjectForm" class="proj-section">
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fName">Project Name</label>
+            <input id="opfName" class="op-input" type="text" required maxlength="200"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fType">Category</label>
+            <select id="opfType" class="op-select">
+              <option value="apartment" data-i18n="proj.categoryApartment">Apartments</option>
+              <option value="residential_community" data-i18n="proj.categoryResidential">Residential Projects</option>
+            </select>
+          </div>
+        </div>
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fCity">City</label>
+            <select id="opfCity" class="op-select">
+              <option>Kirkuk</option><option>Erbil</option><option>Sulaymaniyah</option><option>Duhok</option>
+              <option>Zakho</option><option>Soran</option><option>Koya</option><option>Halabja</option>
+            </select>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fDistrict">District / Neighborhood</label>
+            <input id="opfDistrict" class="op-input" type="text" maxlength="120"/>
+          </div>
+        </div>
+        <div class="op-field">
+          <label class="op-label" data-i18n="op.fAddress">Address</label>
+          <input id="opfAddress" class="op-input" type="text" maxlength="300"/>
+        </div>
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fLat">Latitude</label>
+            <input id="opfLat" class="op-input" type="number" step="any"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fLng">Longitude</label>
+            <input id="opfLng" class="op-input" type="number" step="any"/>
+          </div>
+        </div>
+        <div class="op-field">
+          <label class="op-label" data-i18n="op.fDescription">Description</label>
+          <textarea id="opfDescription" class="op-textarea" maxlength="4000"></textarea>
+        </div>
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fStatus">Construction Status</label>
+            <select id="opfStatus" class="op-select">
+              <option value="planning" data-i18n="proj.statusPlanning">Planning</option>
+              <option value="under_construction" data-i18n="proj.statusUnderConstruction">Under Construction</option>
+              <option value="nearing_completion" data-i18n="proj.statusNearingCompletion">Nearing Completion</option>
+              <option value="completed" data-i18n="proj.statusCompleted">Completed</option>
+            </select>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fHandoverDate">Expected Completion</label>
+            <input id="opfHandoverDate" class="op-input" type="date"/>
+          </div>
+        </div>
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="proj.buildingsTitle">Buildings</label>
+            <input id="opfBuildings" class="op-input" type="number" min="0"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="proj.unitsTitle">Units</label>
+            <input id="opfUnits" class="op-input" type="number" min="0"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="proj.landAreaTitle">Land Area (m²)</label>
+            <input id="opfLandArea" class="op-input" type="number" min="0"/>
+          </div>
+        </div>
+
+        <div class="op-field">
+          <label class="op-label" data-i18n="listing.amenitiesTitle">Amenities</label>
+          <div id="opfAmenities" class="op-check-row"></div>
+        </div>
+
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="proj.cashPrice">Starting Price</label>
+            <input id="opfStartingPrice" class="op-input" type="number" min="0"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fPriceMax">Price Range Max</label>
+            <input id="opfPriceMax" class="op-input" type="number" min="0"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="op.fCurrency">Currency</label>
+            <select id="opfCurrency" class="op-select"><option>USD</option><option>IQD</option></select>
+          </div>
+        </div>
+        <div class="op-field">
+          <label class="op-check-chip"><input id="opfInstallmentAvailable" type="checkbox"/> <span data-i18n="proj.installmentAvailable">Installment Available</span></label>
+        </div>
+        <div class="op-row">
+          <div class="op-field">
+            <label class="op-label" data-i18n="inst.downPayment">Down Payment %</label>
+            <input id="opfDownPct" class="op-input" type="number" min="0" max="100"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="inst.monthlyFrom">Monthly From</label>
+            <input id="opfMonthly" class="op-input" type="number" min="0"/>
+          </div>
+          <div class="op-field">
+            <label class="op-label" data-i18n="inst.duration">Duration (months)</label>
+            <input id="opfMonths" class="op-input" type="number" min="0"/>
+          </div>
+        </div>
+
+        <div class="op-field">
+          <label class="op-label" data-i18n="op.fCoverImage">Cover Image</label>
+          <input id="opfCoverFile" class="op-input" type="file" accept="image/*"/>
+          <img id="opfCoverPreview" class="hidden mt-2" style="max-width:200px;border-radius:8px;" alt=""/>
+        </div>
+        <div class="op-field">
+          <label class="op-label" data-i18n="op.fGalleryImages">Gallery Images</label>
+          <input id="opfGalleryFiles" class="op-input" type="file" accept="image/*" multiple/>
+          <div id="opfGalleryPreview" class="flex flex-wrap gap-2 mt-2"></div>
+        </div>
+
+        <div class="op-field">
+          <label class="op-label" data-i18n="op.fPhone">Developer Phone (internal only — never shown publicly)</label>
+          <input id="opfPhone" class="op-input" type="tel" placeholder="+964 750 000 0000"/>
+          <p class="font-body-md text-[11.5px] text-on-surface-variant mt-1" data-i18n="op.fPhoneNote">Visible only to your organization and Darwesh Group staff. Public visitors always contact Darwesh Group, never this number.</p>
+        </div>
+
+        <p id="opFormError" class="hidden text-error text-[13px] mb-3"></p>
+        <p id="opFormSuccess" class="hidden text-[13px] mb-3" style="color:#7FB89A;"></p>
+        <div class="flex items-center gap-2">
+          <button type="submit" id="opFormSubmit" class="op-btn op-btn-primary" data-i18n="common.save">Save</button>
+          <button type="button" id="opSubmitForReviewBtn" class="hidden op-btn op-btn-ghost" data-i18n="op.submitForReview">Submit for Review</button>
+        </div>
+      </form>
+
+      <!-- Unit types / floor plans (only once a project exists) -->
+      <div id="opFloorPlansSection" class="hidden proj-section mt-6">
+        <span class="proj-section-label" data-i18n="proj.unitTypesTitle">Unit Types &amp; Floor Plans</span>
+        <div id="opFloorPlanList"></div>
+        <form id="opFloorPlanForm" class="mt-4 pt-4 border-t border-outline-variant">
+          <div class="op-row">
+            <div class="op-field"><label class="op-label" data-i18n="op.fName">Name</label><input id="opfpName" class="op-input" type="text" required maxlength="200"/></div>
+            <div class="op-field"><label class="op-label" data-i18n="op.fBedrooms">Bedrooms</label><input id="opfpBedrooms" class="op-input" type="number" min="0"/></div>
+            <div class="op-field"><label class="op-label" data-i18n="op.fBathrooms">Bathrooms</label><input id="opfpBathrooms" class="op-input" type="number" min="0"/></div>
+          </div>
+          <div class="op-row">
+            <div class="op-field"><label class="op-label" data-i18n="op.fArea">Area (m²)</label><input id="opfpArea" class="op-input" type="number" min="0"/></div>
+            <div class="op-field"><label class="op-label" data-i18n="proj.cashPrice">Starting Price</label><input id="opfpPrice" class="op-input" type="number" min="0"/></div>
+          </div>
+          <div class="op-field"><label class="op-label" data-i18n="op.fDescription">Description</label><textarea id="opfpDescription" class="op-textarea" maxlength="2000"></textarea></div>
+          <div class="op-field"><label class="op-label" data-i18n="op.fFloorPlanImage">Floor Plan Image</label><input id="opfpImageFile" class="op-input" type="file" accept="image/*"/></div>
+          <p id="opFpError" class="hidden text-error text-[13px] mb-2"></p>
+          <button type="submit" class="op-btn op-btn-primary" data-i18n="op.addUnitType">+ Add Unit Type</button>
+        </form>
+      </div>
+
+      <!-- Individual inventory units -- each can be independently marked
+           sold/rented (mark-as-sold always requires admin confirmation
+           before it actually shows Sold; see js/org-projects.js). -->
+      <div id="opUnitsSection" class="hidden proj-section mt-6">
+        <span class="proj-section-label" data-i18n="op.unitsTitle">Units</span>
+        <div id="opUnitList"></div>
+        <form id="opUnitForm" class="mt-4 pt-4 border-t border-outline-variant">
+          <div class="op-row">
+            <div class="op-field"><label class="op-label" data-i18n="op.fUnitNumber">Unit Number</label><input id="opuNumber" class="op-input" type="text" required maxlength="60"/></div>
+            <div class="op-field"><label class="op-label" data-i18n="op.fPropertyType">Property Type</label>
+              <select id="opuPropertyType" class="op-select">
+                <option value="apartment">Apartment</option><option value="villa">Villa</option><option value="townhouse">Townhouse</option><option value="office">Office</option><option value="retail">Retail</option><option value="land">Land</option>
+              </select>
+            </div>
+          </div>
+          <div class="op-row">
+            <div class="op-field"><label class="op-label" data-i18n="op.fListingType">Listing Type</label>
+              <select id="opuListingType" class="op-select"><option value="sale">For Sale</option><option value="rent">For Rent</option></select>
+            </div>
+            <div class="op-field"><label class="op-label" data-i18n="proj.cashPrice">Price</label><input id="opuPrice" class="op-input" type="number" min="1" required/></div>
+          </div>
+          <p id="opUnitError" class="hidden text-error text-[13px] mb-2"></p>
+          <button type="submit" class="op-btn op-btn-primary" data-i18n="op.addUnit">+ Add Unit</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Mark as Sold confirmation dialog -->
+<div id="opSoldModal" class="hidden fixed inset-0 z-[80] flex items-center justify-center p-4" style="background:rgba(0,0,0,.6);">
+  <div class="rounded-2xl p-6 w-full max-w-sm" style="background:var(--ps-color-surface-container-lowest);">
+    <h3 class="font-headline-md text-[16px] font-bold mb-1" data-i18n="op.markSoldTitle">Report as Sold</h3>
+    <p id="opSoldUnitRef" class="font-body-md text-[13px] text-on-surface-variant mb-4"></p>
+    <div class="op-field">
+      <label class="op-label" data-i18n="op.fSaleDate">Sale Date</label>
+      <input id="opSoldDate" class="op-input" type="date" required/>
+    </div>
+    <div class="op-field">
+      <label class="op-label" data-i18n="op.fSaleNote">Note (optional)</label>
+      <textarea id="opSoldNote" class="op-textarea" maxlength="1000"></textarea>
+    </div>
+    <p id="opSoldEvidenceNote" class="font-body-md text-[12px] text-on-surface-variant mb-3"></p>
+    <p id="opSoldError" class="hidden text-error text-[13px] mb-2"></p>
+    <div class="flex items-center gap-2">
+      <button type="button" id="opSoldCancel" class="op-btn op-btn-ghost" data-i18n="common.cancel">Cancel</button>
+      <button type="button" id="opSoldConfirm" class="op-btn op-btn-primary" data-i18n="op.submitReport">Submit Report</button>
+    </div>
+  </div>
+</div>
+
+<script src="./js/escape-html.js"></script>
+<script type="module" src="./js/i18n.js"></script>
+<script type="module" src="./js/org-projects.js"></script>
+</body></html>

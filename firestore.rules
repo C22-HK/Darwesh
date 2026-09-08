@@ -827,14 +827,22 @@ service cloud.firestore {
       // address/price actually match that listing?) is NOT implemented
       // here -- documented as a remaining risk, not a silent gap; see
       // BUSINESS_LOGIC_REMEDIATION.md.
+      // 'project_inquiry' (project.html's contact card) follows the exact
+      // same shape/existence-check pattern as 'viewing' above -- same
+      // BL-06 reasoning, just against projects/{id} instead of
+      // listings/{id}.
       allow create: if request.resource.data.status == 'pending'
-                    && request.resource.data.type in ['sell', 'viewing']
+                    && request.resource.data.type in ['sell', 'viewing', 'project_inquiry']
                     && (request.resource.data.uid == null
                         || (isSignedIn() && request.resource.data.uid == request.auth.uid))
                     && (request.resource.data.type != 'viewing'
                         || !('listingId' in request.resource.data)
                         || request.resource.data.listingId == null
-                        || exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId)));
+                        || exists(/databases/$(database)/documents/listings/$(request.resource.data.listingId)))
+                    && (request.resource.data.type != 'project_inquiry'
+                        || !('projectId' in request.resource.data)
+                        || request.resource.data.projectId == null
+                        || exists(/databases/$(database)/documents/projects/$(request.resource.data.projectId)));
       allow read: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       // sell.html starts uploading photos the moment they're added, not
       // when Submit is finally clicked -- whatever hasn't finished by
@@ -997,10 +1005,19 @@ service cloud.firestore {
                     && request.resource.data.name.size() > 0
                     && request.resource.data.get('verified', false) == false
                     && (!('details' in request.resource.data) || request.resource.data.details is map)
+                    // 'contactInfo' deliberately NOT in this allowlist --
+                    // this whole document is `allow read: if true` (public
+                    // storefront), and a phone/WhatsApp number is not
+                    // public-storefront content. It lives in the
+                    // `private/contact` subdoc below instead, which is
+                    // NOT publicly readable. See that subdoc's own comment
+                    // for why "just don't render the field" (a client-side
+                    // choice) isn't a real fix for a value any direct
+                    // Firestore read already returns in full.
                     && request.resource.data.keys().hasOnly([
                          'type', 'ownerId', 'name', 'description', 'logoUrl',
                          'coverImageUrl', 'city', 'district', 'location',
-                         'contactInfo', 'details', 'verified', 'createdAt', 'updatedAt'
+                         'details', 'verified', 'createdAt', 'updatedAt'
                        ]);
       // ownerId is locked for EVERY client-SDK update, including
       // isAdmin() -- ownership transfer is one of the explicitly
@@ -1020,11 +1037,39 @@ service cloud.firestore {
                              && request.resource.data.diff(resource.data).affectedKeys()
                                   .hasOnly([
                                     'name', 'description', 'logoUrl', 'coverImageUrl',
-                                    'city', 'district', 'location', 'contactInfo',
+                                    'city', 'district', 'location',
                                     'details', 'updatedAt'
                                   ]))
                        );
       allow delete: if isAdmin();
+
+      // The org's own private contact channel (phone/WhatsApp/email) --
+      // split out of the public organizations/{orgId} doc above rather
+      // than merely left off what a page renders. Firestore has no
+      // field-level read rule: as long as a phone number lived on a
+      // document with `allow read: if true`, ANY direct client/REST read
+      // of that document returned it in full regardless of what any
+      // particular page chose to display -- "don't show it in the UI" is
+      // not the same claim as "the backend doesn't return it". A single
+      // fixed doc id ('details') under a real subcollection so the
+      // existing per-collection read/write rule shape applies unchanged.
+      // Never surfaced on the public project pages -- see
+      // js/project-detail.js's own comment: every public Call/WhatsApp/
+      // Inquire action there reaches Darwesh Group, never the org
+      // directly, so this is read only by the org's own authoring UI and
+      // by admins, not by any public page.
+      match /private/{docId} {
+        function isValidContactContent(data) {
+          return (!('phone' in data) || (data.phone is string && data.phone.size() <= 40))
+              && (!('whatsapp' in data) || (data.whatsapp is string && data.whatsapp.size() <= 40))
+              && (!('email' in data) || (data.email is string && data.email.size() <= 200));
+        }
+        allow read: if isAdmin() || isOrgMember(orgId);
+        allow write: if docId == 'contact'
+                     && isValidContactContent(request.resource.data)
+                     && request.resource.data.keys().hasOnly(['phone', 'whatsapp', 'email', 'updatedAt'])
+                     && (isAdmin() || (isOrgMember(orgId) && hasOrgPermission(orgId, 'manage_organization_profile')));
+      }
 
       // Explicit, queryable membership record for non-owner staff. An
       // employee's presence here IS the approval record (plan §2.2/§3):
@@ -1349,7 +1394,34 @@ service cloud.firestore {
             && (!('monthlyInstallmentFrom' in data) || isValidMoney(data, 'monthlyInstallmentFrom'))
             && (!('paymentPeriodMonths' in data) || (data.paymentPeriodMonths is int && data.paymentPeriodMonths >= 0));
       }
-      allow read: if true;
+      // Admin-approval-before-publication (reuses the same "reviewer
+      // decides, owner never self-certifies" shape as listings.verified
+      // and submissions -> admin.html's createListingFromSubmission,
+      // rather than inventing a new model). A project created directly by
+      // an org member is NEVER publicly visible until an admin flips
+      // publicationStatus to 'published' -- see isProjectPubliclyVisible()
+      // below, which is the ONLY thing projects.html/project.html's public
+      // queries are allowed to rely on. Draft <-> Submitted (pending_review)
+      // is the owner's own call; Published / Changes Requested / Rejected
+      // can only ever be set by isAdmin() (excluded from every non-admin
+      // branch's writable-diff allowlist below, not merely hidden by a UI
+      // button).
+      function isValidPublicationStatus(v) {
+        return v in ['draft', 'pending_review', 'published', 'changes_requested', 'rejected'];
+      }
+      function isProjectPubliclyVisible() {
+        return resource.data.get('publicationStatus', null) == 'published';
+      }
+      // Exact same shape as isListingOwnerOrAdmin() above: the org's own
+      // draft/pending/rejected project is visible to the org member who
+      // could also edit it, or to an admin -- never to a bare public
+      // get()/list(). A draft's document id leaking (e.g. a guessed
+      // project.html?id=) grants nothing on its own.
+      function isProjectOwnerOrAdmin() {
+        return isAdmin()
+            || (isOrgMember(resource.data.organizationId) && hasOrgPermission(resource.data.organizationId, 'edit_own_project'));
+      }
+      allow get, list: if isProjectPubliclyVisible() || isProjectOwnerOrAdmin();
       allow create: if isSignedIn()
                     && request.resource.data.organizationId is string
                     && orgTypeIsProjectCapable(request.resource.data.organizationId)
@@ -1357,7 +1429,17 @@ service cloud.firestore {
                     && hasOrgPermission(request.resource.data.organizationId, 'create_project')
                     && request.resource.data.get('verified', false) == false
                     && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    && request.resource.data.publicationStatus in ['draft', 'pending_review']
                     && isValidProjectContent(request.resource.data)
+                    // 'salesOfficePhone' deliberately NOT in this allowlist
+                    // -- same reasoning as organizations/{orgId}'s own
+                    // 'contactInfo' removal above: this whole document is
+                    // `allow read: if true`, and Darwesh Group is the sole
+                    // public contact point for a project (public
+                    // Call/WhatsApp/Inquire actions reach Darwesh, never
+                    // the developer directly -- see js/project-detail.js).
+                    // A developer's own sales-office number lives in the
+                    // private/contact subdoc below instead.
                     && request.resource.data.keys().hasOnly([
                          'organizationId', 'createdByUid', 'name', 'slug', 'projectType',
                          'governorate', 'city', 'district', 'neighborhood', 'address', 'location',
@@ -1366,9 +1448,9 @@ service cloud.firestore {
                          'numberOfBuildings', 'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm',
                          'amenities', 'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
                          'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
-                         'financeProviderOrgId', 'serviceFee', 'otherFees', 'salesOfficePhone',
+                         'financeProviderOrgId', 'serviceFee', 'otherFees',
                          'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
-                         'videos', 'virtualTourUrl', 'verified', 'createdAt', 'updatedAt'
+                         'videos', 'virtualTourUrl', 'verified', 'publicationStatus', 'createdAt', 'updatedAt'
                        ]);
       // organizationId/createdByUid/createdAt locked two ways (equality
       // re-check + exclusion from the allowlist), same belt-and-suspenders
@@ -1381,22 +1463,82 @@ service cloud.firestore {
                          || (isOrgMember(resource.data.organizationId)
                              && hasOrgPermission(resource.data.organizationId, 'edit_own_project')
                              && request.resource.data.get('verified', false) == resource.data.get('verified', false)
-                             && isValidProjectContent(request.resource.data)
-                             && request.resource.data.diff(resource.data).affectedKeys()
-                                  .hasOnly([
-                                    'name', 'slug', 'projectType', 'governorate', 'city', 'district',
-                                    'neighborhood', 'address', 'location', 'nearbyLandmarks', 'description',
-                                    'masterPlanImageUrl', 'constructionStatus', 'completionPercent',
-                                    'launchDate', 'expectedCompletionDate', 'handoverDate', 'numberOfBuildings',
-                                    'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm', 'amenities',
-                                    'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
-                                    'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
-                                    'financeProviderOrgId', 'serviceFee', 'otherFees', 'salesOfficePhone',
-                                    'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
-                                    'videos', 'virtualTourUrl', 'updatedAt'
-                                  ]))
+                             && (
+                                  // Not yet published (draft/pending_review/
+                                  // changes_requested/rejected): the owner
+                                  // edits the live doc directly -- it isn't
+                                  // publicly visible yet regardless, so
+                                  // there's no "approved version" to protect.
+                                  // They may move only between draft and
+                                  // pending_review (submit/un-submit);
+                                  // published/rejected/changes_requested can
+                                  // only ever be SET by isAdmin() above.
+                                  (resource.data.get('publicationStatus', 'draft') != 'published'
+                                    && request.resource.data.publicationStatus in ['draft', 'pending_review']
+                                    && isValidProjectContent(request.resource.data)
+                                    && request.resource.data.diff(resource.data).affectedKeys()
+                                         .hasOnly([
+                                           'name', 'slug', 'projectType', 'governorate', 'city', 'district',
+                                           'neighborhood', 'address', 'location', 'nearbyLandmarks', 'description',
+                                           'masterPlanImageUrl', 'constructionStatus', 'completionPercent',
+                                           'launchDate', 'expectedCompletionDate', 'handoverDate', 'numberOfBuildings',
+                                           'numberOfUnits', 'numberOfPhases', 'totalLandAreaSqm', 'amenities',
+                                           'startingPrice', 'priceRangeMax', 'currency', 'installmentAvailable',
+                                           'minDownPaymentPercent', 'monthlyInstallmentFrom', 'paymentPeriodMonths',
+                                           'financeProviderOrgId', 'serviceFee', 'otherFees',
+                                           'websiteUrl', 'socialLinks', 'officeHours', 'coverImageUrl', 'gallery',
+                                           'videos', 'virtualTourUrl', 'publicationStatus', 'updatedAt'
+                                         ]))
+                                  ||
+                                  // Already published: the live public
+                                  // content is never touched directly by a
+                                  // non-admin write again -- the owner can
+                                  // only flag that a revision is ready for
+                                  // review (the actual proposed content
+                                  // goes to private/pendingRevision below,
+                                  // which is NOT publicly readable). This is
+                                  // what keeps the previously-approved
+                                  // version live while a new revision is
+                                  // under review, instead of the page going
+                                  // blank/stale the moment an edit starts.
+                                  (resource.data.publicationStatus == 'published'
+                                    && request.resource.data.publicationStatus == 'published'
+                                    && request.resource.data.get('revisionStatus', null) == 'pending_review'
+                                    && request.resource.data.diff(resource.data).affectedKeys()
+                                         .hasOnly(['revisionStatus', 'updatedAt']))
+                                )
+                            )
                        );
       allow delete: if isAdmin();
+
+      // The developer's own sales-office phone for THIS project -- kept
+      // for the org's internal use / Darwesh admin coordination only,
+      // never read by the public project.html page. Same reasoning and
+      // shape as organizations/{orgId}/private/contact above.
+      match /private/{docId} {
+        function parentOrgId() {
+          return get(/databases/$(database)/documents/projects/$(projectId)).data.organizationId;
+        }
+        allow read: if isAdmin() || isOrgMember(parentOrgId());
+        // pendingRevision: the owner's proposed next public content for an
+        // ALREADY-published project (see the parent doc's update rule
+        // above) -- a full content snapshot, not a partial patch, so an
+        // admin's approval can copy it onto the live doc wholesale. Kept
+        // off the publicly-readable projects/{id} document itself for the
+        // same reason contact info was: Firestore reads are document-
+        // level, so an unapproved revision sitting on the public doc
+        // would be readable the instant it's written, review or no
+        // review.
+        allow write: if (docId == 'contact'
+                          && (!('phone' in request.resource.data) || (request.resource.data.phone is string && request.resource.data.phone.size() <= 40))
+                          && request.resource.data.keys().hasOnly(['phone', 'updatedAt'])
+                          && (isAdmin() || (isOrgMember(parentOrgId()) && hasOrgPermission(parentOrgId(), 'edit_own_project'))))
+                     || (docId == 'pendingRevision'
+                          && isValidProjectContent(request.resource.data)
+                          && (isAdmin() || (isOrgMember(parentOrgId()) && hasOrgPermission(parentOrgId(), 'edit_own_project'))));
+        allow delete: if docId == 'pendingRevision'
+                      && (isAdmin() || (isOrgMember(parentOrgId()) && hasOrgPermission(parentOrgId(), 'edit_own_project')));
+      }
 
       match /buildings/{buildingId} {
         function parentProjectOrgId() {
@@ -1515,6 +1657,20 @@ service cloud.firestore {
       function isValidMoveInReadiness(v) {
         return v in ['ready', 'under_construction'];
       }
+      // Mark-as-sold / mark-as-rented state machine: Available -> Sale
+      // reported/awaiting confirmation -> Sold. 'sold'/'rented' is a
+      // FINAL, admin-confirmed outcome -- a non-admin write can move
+      // status to any of the other four values freely (or leave it
+      // unchanged), but can never itself be the write that sets status to
+      // 'sold'/'rented' (see the update rule below, isAdmin() is fully
+      // unconstrained and is the only path that can). saleReportStatus is
+      // the interim "reported, not yet confirmed" signal a public/owner
+      // UI uses to show "Currently unavailable" the instant a sale is
+      // reported, well before admin gets to it -- see saleReports/{id}
+      // below for the actual report record (evidence, date, note).
+      function isValidSaleReportStatus(v) {
+        return v in ['none', 'pending', 'confirmed'];
+      }
       function buildingBelongsToProject(data) {
         return !('buildingId' in data) || data.buildingId == null
             || get(/databases/$(database)/documents/projects/$(data.projectId)/buildings/$(data.buildingId)).data.projectId == data.projectId;
@@ -1571,6 +1727,14 @@ service cloud.firestore {
                     && isOrgMember(request.resource.data.organizationId)
                     && hasOrgPermission(request.resource.data.organizationId, 'create_unit')
                     && request.resource.data.get('createdByUid', request.auth.uid) == request.auth.uid
+                    // Required (not merely optional-and-defaulted) so every
+                    // unit that will ever exist is guaranteed queryable by
+                    // it -- a Firestore `==` filter never matches a
+                    // document where the field is simply absent, so
+                    // project-detail.js's public "Available Units" query
+                    // (saleReportStatus == 'none') would otherwise silently
+                    // exclude every unit created without it.
+                    && request.resource.data.saleReportStatus == 'none'
                     && isValidUnitContent(request.resource.data)
                     && request.resource.data.keys().hasOnly([
                          'organizationId', 'projectId', 'buildingId', 'floorPlanId', 'createdByUid',
@@ -1581,7 +1745,7 @@ service cloud.firestore {
                          'parkingSpaces', 'hasStorageRoom', 'furnishing', 'condition', 'heating',
                          'cooling', 'electricity', 'water', 'internet', 'coverImageUrl', 'gallery',
                          'floorPlanImageUrl', 'videoUrl', 'virtualTourUrl', 'expectedHandoverDate',
-                         'governorate', 'city', 'district', 'location', 'createdAt', 'updatedAt'
+                         'governorate', 'city', 'district', 'location', 'saleReportStatus', 'createdAt', 'updatedAt'
                        ]);
       // organizationId/projectId/createdByUid/createdAt are all immutable
       // -- an org can never "move" a unit into a different project or a
@@ -1595,6 +1759,26 @@ service cloud.firestore {
                          || (isOrgMember(resource.data.organizationId)
                              && hasOrgPermission(resource.data.organizationId, 'edit_own_unit')
                              && isValidUnitContent(request.resource.data)
+                             // 'sold'/'rented' is a FINAL, admin-confirmed
+                             // outcome -- an org member's own write can move
+                             // status to any of the other 4 values, or leave
+                             // it exactly as it already was (so an owner
+                             // editing an unrelated field on an
+                             // admin-already-confirmed sold unit doesn't
+                             // accidentally get rejected), but can never be
+                             // the write that newly sets it to sold/rented.
+                             && (request.resource.data.status == resource.data.status
+                                  || request.resource.data.status in ['coming_soon', 'available', 'reserved', 'off_market'])
+                             // saleReportStatus: the owner may only ever
+                             // move none -> pending (report a sale) --
+                             // 'confirmed' and any reversal back to 'none'
+                             // is admin-only, via the unconstrained isAdmin()
+                             // branch above (paired with a matching write to
+                             // the actual saleReports/{id} record).
+                             && isValidSaleReportStatus(request.resource.data.get('saleReportStatus', 'none'))
+                             && (request.resource.data.get('saleReportStatus', 'none') == resource.data.get('saleReportStatus', 'none')
+                                  || (resource.data.get('saleReportStatus', 'none') == 'none'
+                                       && request.resource.data.get('saleReportStatus', 'none') == 'pending'))
                              && request.resource.data.diff(resource.data).affectedKeys()
                                   .hasOnly([
                                     'buildingId', 'floorPlanId', 'unitNumber', 'floorNumber', 'propertyType',
@@ -1605,10 +1789,66 @@ service cloud.firestore {
                                     'furnishing', 'condition', 'heating', 'cooling', 'electricity', 'water',
                                     'internet', 'coverImageUrl', 'gallery', 'floorPlanImageUrl', 'videoUrl',
                                     'virtualTourUrl', 'expectedHandoverDate', 'governorate', 'city',
-                                    'district', 'location', 'updatedAt'
+                                    'district', 'location', 'saleReportStatus', 'updatedAt'
                                   ]))
                        );
       allow delete: if isAdmin();
+    }
+
+    // ---- Sale reports: owner reports a unit sold/rented, admin confirms
+    // (see units/{id}.saleReportStatus above for the public-facing
+    // "currently unavailable" signal this pairs with). Evidence, if any,
+    // is a Storage path only -- never a public download URL field on this
+    // doc, and this whole collection is never publicly readable (unlike
+    // units/projects/listings), since it can carry a customer/owner's
+    // private sale documentation.
+    match /saleReports/{reportId} {
+      function isValidSaleReportStatus2(v) {
+        return v in ['pending', 'confirmed', 'clarification_requested'];
+      }
+      function parentUnitOrgId() {
+        return get(/databases/$(database)/documents/units/$(request.resource.data.unitId)).data.organizationId;
+      }
+      allow read: if isAdmin() || (isSignedIn() && isOrgMember(resource.data.organizationId));
+      allow create: if isSignedIn()
+                    && request.resource.data.organizationId is string
+                    && isOrgMember(request.resource.data.organizationId)
+                    && hasOrgPermission(request.resource.data.organizationId, 'edit_own_unit')
+                    && request.resource.data.unitId is string
+                    // The unit really belongs to this org -- an org can
+                    // never report a sale against a unit it doesn't own.
+                    && parentUnitOrgId() == request.resource.data.organizationId
+                    && request.resource.data.reportedByUid == request.auth.uid
+                    && request.resource.data.status == 'pending'
+                    && request.resource.data.saleDate is string
+                    && (!('note' in request.resource.data) || (request.resource.data.note is string && request.resource.data.note.size() <= 1000))
+                    && (!('evidenceRequired' in request.resource.data) || request.resource.data.evidenceRequired is bool)
+                    && (!('evidenceStoragePaths' in request.resource.data) || (request.resource.data.evidenceStoragePaths is list && request.resource.data.evidenceStoragePaths.size() <= 10))
+                    && request.resource.data.keys().hasOnly([
+                         'organizationId', 'unitId', 'projectId', 'reportedByUid', 'saleDate', 'note',
+                         'evidenceRequired', 'evidenceStoragePaths', 'status', 'createdAt', 'updatedAt'
+                       ]);
+      // Immutable audit trail once resolved: admin may only move a
+      // PENDING report to confirmed/clarification_requested (with an
+      // explicit availabilityDecision on the non-confirm path, so a
+      // clarification request can never silently look like "back to
+      // available" -- the admin UI always sets this). Nothing about a
+      // report can ever be edited once it has been resolved, by anyone
+      // including admin -- "preserve its record and audit history".
+      allow update: if isAdmin()
+                    && resource.data.status == 'pending'
+                    && request.resource.data.organizationId == resource.data.organizationId
+                    && request.resource.data.unitId == resource.data.unitId
+                    && request.resource.data.reportedByUid == resource.data.reportedByUid
+                    && isValidSaleReportStatus2(request.resource.data.status)
+                    && request.resource.data.status != 'pending'
+                    && (request.resource.data.status == 'confirmed'
+                         || (request.resource.data.status == 'clarification_requested'
+                              && request.resource.data.adminNote is string
+                              && request.resource.data.availabilityDecision in ['reinstate_available', 'keep_unavailable']))
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status', 'adminNote', 'availabilityDecision', 'resolvedAt', 'updatedAt']);
+      allow delete: if false;
     }
 
     // ---- Active-listing uniqueness lock (Unit -> Listing publication) --
