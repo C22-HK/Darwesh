@@ -24,7 +24,7 @@
 // textContent/element properties.
 import { auth } from './firebase-init.js';
 import { sendMamChat, BackendUnavailableError, BackendResponseError, fetchMamVoiceConfig, mamVoiceStt, mamVoiceTts } from './mam-api.js';
-import { detectDirectCommand, resolvePage, filtersToMapUrlParams } from './mam-actions.js';
+import { detectDirectCommand, resolvePage, filtersToMapUrlParams, ACCOUNT_FAVORITES_URL, ACCOUNT_PROFILE_URL } from './mam-actions.js';
 import { mamNavigate, canNavigateInPlace, bindPopstate } from './mam-shell.js';
 import { VoiceEnergy } from './mam-voice-energy.js';
 import * as spatialFlows from './mam-spatial-flows.js';
@@ -1183,6 +1183,27 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
     }
     if (command.type === 'open_mam') {
       return { confirm: null, run: () => { open(); } };
+    }
+    // Phase 2: same account.html destinations js/mam-command-registry.js's
+    // showSavedProperties()/openUserProfile() point at -- built the same
+    // way the 'navigate' case above does (fixed href, mamNavigate), not by
+    // calling into that module, since neither destination needs its
+    // validation (it's a literal, not a visitor-supplied page name).
+    if (command.type === 'show_saved_properties') {
+      return {
+        confirm: tr('mam.actionOpenedSaved', 'Opening your saved properties…'),
+        navigates: true,
+        href: ACCOUNT_FAVORITES_URL,
+        run: () => { mamNavigate(ACCOUNT_FAVORITES_URL); }
+      };
+    }
+    if (command.type === 'open_profile') {
+      return {
+        confirm: tr('mam.actionOpenedProfile', 'Opening your profile…'),
+        navigates: true,
+        href: ACCOUNT_PROFILE_URL,
+        run: () => { mamNavigate(ACCOUNT_PROFILE_URL); }
+      };
     }
     return null;
   }
