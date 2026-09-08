@@ -311,7 +311,15 @@ export async function geocodeAddress(address) {
 }
 
 /**
- * Reverse-geocodes {lat, lng} into a formatted address string, or `null`.
+ * Reverse-geocodes {lat, lng} into `{formattedAddress, addressComponents}`,
+ * or `null`. `addressComponents` (Google's typed address_components array,
+ * e.g. `{long_name, types:['locality',...]}`) lets a caller build a
+ * locality-only address string (excluding city/governorate/country) the
+ * same way sell.html's Nominatim path already does with its own `address`
+ * object -- needed so a caller combining this text with its own separate
+ * city field never ends up duplicating the city (sell.html was doing
+ * exactly that with the plain formatted_address string before this
+ * shape change).
  */
 export async function reverseGeocode(lat, lng) {
   const google = await loadGoogleMaps();
@@ -319,7 +327,9 @@ export async function reverseGeocode(lat, lng) {
   const geocoder = new google.maps.Geocoder();
   try {
     const { results } = await geocoder.geocode({ location: { lat, lng } });
-    return results?.[0]?.formatted_address || null;
+    const first = results?.[0];
+    if (!first) return null;
+    return { formattedAddress: first.formatted_address || null, addressComponents: first.address_components || [] };
   } catch {
     return null;
   }
@@ -327,8 +337,8 @@ export async function reverseGeocode(lat, lng) {
 
 /**
  * Wires the Places Autocomplete widget onto a text `<input>` element,
- * invoking `onPlaceSelected({lat, lng, formattedAddress})` when the
- * visitor picks a suggestion. No-op (returns `null`) if maps are not
+ * invoking `onPlaceSelected({lat, lng, formattedAddress, addressComponents})`
+ * when the visitor picks a suggestion. No-op (returns `null`) if maps are not
  * configured -- the input remains a plain text field, which is still
  * fully usable (matches this codebase's existing "manual address entry
  * always works, autocomplete is an enhancement" pattern already used by
@@ -354,12 +364,12 @@ export async function attachAddressAutocomplete(inputEl, onPlaceSelected) {
   const google = await loadGoogleMaps();
   if (!google || !inputEl) return null;
   if (google.maps.places?.Autocomplete) {
-    const autocomplete = new google.maps.places.Autocomplete(inputEl, { fields: ['geometry', 'formatted_address'] });
+    const autocomplete = new google.maps.places.Autocomplete(inputEl, { fields: ['geometry', 'formatted_address', 'address_components'] });
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
       const loc = place?.geometry?.location;
       if (!loc) return;
-      onPlaceSelected?.({ lat: loc.lat(), lng: loc.lng(), formattedAddress: place.formatted_address });
+      onPlaceSelected?.({ lat: loc.lat(), lng: loc.lng(), formattedAddress: place.formatted_address, addressComponents: place.address_components || [] });
     });
     return autocomplete;
   }

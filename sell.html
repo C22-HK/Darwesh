@@ -74,6 +74,72 @@ own initLocationPicker()). -->
     body { min-height: max(884px, 100dvh); }
     input:focus, select:focus, textarea:focus { outline: none; box-shadow: 0 0 0 2px #B89A63; border-color: transparent; }
     #pinMap { background: #101111; }
+    #lpMap { background: #101111; }
+
+    /* Embedded (small, read-only preview) map: expand control + empty state.
+       This build's Tailwind CSS is pre-purged to only the classes already
+       used elsewhere on the site (confirmed by grepping css/tailwind.css),
+       so arbitrary utilities invented for this feature (opacity-modified
+       colors, non-standard z-index/spacing values) would silently not
+       exist -- hand-written rules below instead of guessing at utility
+       names that may not have been compiled. */
+    .dh-expand-map-btn {
+      position: absolute; top: 10px; inset-inline-end: 10px; z-index: 10;
+      padding: 8px 12px; background: rgba(23,21,15,.95);
+      box-shadow: 0 2px 10px rgba(0,0,0,.35);
+    }
+    .dh-pinmap-empty { position: absolute; inset: 0; background: rgba(23,21,15,.85); }
+    .dh-mismatch-banner {
+      background: rgba(196,90,90,.12); border: 1px solid rgba(196,90,90,.4);
+      padding: 14px;
+    }
+    .dh-mismatch-btn { padding: 6px 12px; }
+
+    /* Full-screen location picker modal. */
+    .dh-lp-modal { position: fixed; inset: 0; z-index: 50; }
+    .dh-lp-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.7); }
+    .dh-lp-dialog {
+      position: absolute; inset: 0;
+      padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    }
+    .dh-lp-header { padding: 14px 16px; }
+    .dh-lp-close-btn { width: 36px; height: 36px; }
+    .dh-lp-search-row { padding: 12px 16px 8px; }
+    .dh-lp-search-row-bottom { margin-top: 10px; }
+    .dh-lp-current-loc-btn { padding: 8px 14px; }
+    .dh-lp-map-wrap { margin: 0 16px; }
+    .dh-lp-map-unavailable { position: absolute; inset: 0; z-index: 15; }
+    .dh-lp-instruction { padding: 8px 16px 0; }
+    .dh-lp-readout { padding: 8px 16px 12px; }
+    .dh-lp-footer { padding: 0 16px 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+    .dh-lp-footer-btn { padding: 12px; }
+    .dh-lp-confirm-btn { flex: 2; border-radius: .5rem; }
+    @media (min-width: 640px) {
+      .dh-lp-header, .dh-lp-search-row, .dh-lp-map-wrap, .dh-lp-readout, .dh-lp-footer { padding-inline: 24px; }
+    }
+
+    /* The Darwesh dark/gold "selected property" pin -- an inline-CSS
+       droplet shape, never an external image (see js/maps-core.js CSP
+       root-cause notes: Leaflet's own default marker icon resolves to
+       https://unpkg.com/.../images/marker-icon.png, which this site's own
+       CSP img-src never allowlisted, hence the broken-image marker). */
+    .dh-pin {
+      width: 30px; height: 30px; position: relative; transform: rotate(45deg);
+      background: #B89A63; border: 2px solid #17150F; border-radius: 50% 50% 50% 0;
+      box-shadow: 0 3px 10px rgba(0,0,0,.5);
+    }
+    .dh-pin::after {
+      content: ""; position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+      background: #17150F; border-radius: 50%; transform: translate(-50%, -50%) rotate(-45deg);
+    }
+    .dh-pin.dh-pin-compact { width: 18px; height: 18px; }
+    .dh-pin.dh-pin-compact::after { width: 6px; height: 6px; }
+    html.dh-scroll-locked, html.dh-scroll-locked body { overflow: hidden; }
+    /* RTL: the picker's search-result buttons reuse the main step's
+       text-left utility (already compiled/present); mirror it only here
+       so the untouched main-step dropdown keeps its exact existing
+       behavior. */
+    html[dir="rtl"] .dh-lp-result-item { text-align: right; }
     /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
        well-documented conflict with Google Maps' own internally-rendered
        <img> tiles/UI assets under .gm-style, once a key is configured and
@@ -241,8 +307,26 @@ own initLocationPicker()). -->
 <span data-i18n="sell.loc.dropPin">Drop Pin on Map</span>
 </button>
 </div>
-<div class="rounded-lg overflow-hidden border border-outline-variant h-56" id="pinMap"></div>
-<p class="hidden font-body-md text-[12.5px] text-secondary text-center" id="dropPinHint" data-i18n="sell.loc.tapMapHint">Click anywhere on the map to place your pin</p>
+<div class="relative">
+<div class="rounded-lg overflow-hidden border border-outline-variant h-56 pointer-events-none" id="pinMap" aria-hidden="true"></div>
+<button class="dh-expand-map-btn flex items-center gap-1.5 border border-outline-variant rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container-low transition-colors" id="expandMapBtn" type="button">
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">open_in_full</span>
+<span data-i18n="sell.loc.expandMap">Expand Map</span>
+</button>
+<div class="hidden dh-pinmap-empty flex items-center justify-center rounded-lg pointer-events-none" id="pinMapEmptyState">
+<p class="font-body-md text-[12.5px] text-on-surface-variant text-center px-4" data-i18n="sell.loc.noPinPreview">No location selected yet</p>
+</div>
+</div>
+<div class="hidden dh-mismatch-banner rounded-xl flex items-start gap-3" id="locCityMismatchBanner">
+<span class="material-symbols-outlined text-error flex-none text-[20px]" aria-hidden="true">error</span>
+<div class="min-w-0 flex-1">
+<p class="font-body-md text-[13px] text-on-surface" id="locCityMismatchText"></p>
+<div class="flex flex-wrap gap-2 mt-2">
+<button class="font-label-caps text-label-caps dh-mismatch-btn rounded-lg border border-outline-variant hover:bg-surface-container-low transition-colors" id="locCityMismatchUseDetected" type="button"></button>
+<button class="font-label-caps text-label-caps dh-mismatch-btn rounded-lg border border-outline-variant hover:bg-surface-container-low transition-colors" id="locCityMismatchKeepCurrent" type="button"></button>
+</div>
+</div>
+</div>
 <input id="pinLat" type="hidden"/>
 <input id="pinLng" type="hidden"/>
 
@@ -651,6 +735,61 @@ own initLocationPicker()). -->
 </div>
 </main>
 
+<!-- Full-screen location picker. Opened by "Drop Pin on Map" / "Edit
+     Location" / the embedded map's expand control. A plain fixed
+     viewport-filling overlay (not the browser Fullscreen API) so it works
+     identically on desktop and mobile regardless of Fullscreen support. -->
+<div class="hidden dh-lp-modal" id="locationPickerModal" role="dialog" aria-modal="true" aria-labelledby="locationPickerTitle">
+<div class="dh-lp-backdrop" id="locationPickerBackdrop"></div>
+<div class="dh-lp-dialog flex flex-col bg-surface-container-lowest" id="locationPickerDialog">
+<!-- Header -->
+<div class="flex-none flex items-center justify-between gap-3 dh-lp-header border-b border-outline-variant">
+<h2 class="font-headline-md text-headline-md font-bold text-primary" id="locationPickerTitle" data-i18n="sell.loc.pickerTitle">Set property location</h2>
+<button class="flex-none dh-lp-close-btn rounded-full flex items-center justify-center hover:bg-surface-container-low transition-colors" id="locationPickerCloseBtn" type="button" aria-label="Close">
+<span class="material-symbols-outlined" aria-hidden="true">close</span>
+</button>
+</div>
+
+<!-- Search + current location -->
+<div class="flex-none dh-lp-search-row">
+<div class="relative">
+<span class="material-symbols-outlined absolute start-3 top-1/2 -translate-y-1/2 text-outline text-[20px]" aria-hidden="true">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg ps-9 pe-4 py-2.5 font-body-md text-body-md text-on-surface" id="lpSearchInput" type="text" autocomplete="off" data-i18n-placeholder="sell.loc.searchPlaceholder" placeholder="Search for area, street or landmark" aria-label="Search for area, street or landmark"/>
+<div class="hidden absolute start-0 end-0 top-full mt-1 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto" id="lpSearchResults"></div>
+</div>
+<div class="flex items-center justify-between gap-3 flex-wrap dh-lp-search-row-bottom">
+<button class="border border-outline-variant rounded-lg font-label-caps text-label-caps text-on-surface flex items-center gap-2 hover:bg-surface-container-low transition-colors dh-lp-current-loc-btn" id="lpUseCurrentLocationBtn" type="button">
+<span class="material-symbols-outlined text-[18px]" aria-hidden="true">my_location</span>
+<span data-i18n="sell.loc.useCurrentLocation">Use My Current Location</span>
+</button>
+<p class="hidden font-body-md text-[12.5px]" id="lpStatus" role="status" aria-live="polite"></p>
+</div>
+</div>
+
+<!-- Map -->
+<div class="flex-1 relative min-h-0 rounded-xl overflow-hidden border border-outline-variant dh-lp-map-wrap" id="lpMapWrap">
+<div class="w-full h-full" id="lpMap"></div>
+<div class="hidden dh-lp-map-unavailable flex items-center justify-center bg-surface-container-lowest" id="lpMapUnavailable">
+<div class="text-center px-6">
+<p class="font-body-md text-[13px] text-on-surface-variant mb-2" data-i18n="sell.loc.tilesUnavailable">The map couldn't load.</p>
+<button class="font-label-caps text-label-caps text-primary hover:text-secondary transition-colors" id="lpMapRetryBtn" type="button" data-i18n="common.retry">Retry</button>
+</div>
+</div>
+</div>
+<p class="flex-none font-body-md text-[12.5px] text-secondary text-center dh-lp-instruction" data-i18n="sell.loc.pickerInstruction">Tap the map or drag the pin to your property.</p>
+
+<!-- Selected address/coords + footer -->
+<div class="flex-none dh-lp-readout">
+<p class="font-body-md text-[13.5px] text-on-surface font-medium truncate" id="lpAddressReadout"></p>
+<p class="font-body-md text-[12px] text-on-surface-variant" id="lpCoordsReadout"></p>
+</div>
+<div class="flex-none flex items-center gap-3 dh-lp-footer">
+<button class="flex-1 border border-outline-variant rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container-low transition-colors dh-lp-footer-btn" id="lpCancelBtn" type="button" data-i18n="common.cancel">Cancel</button>
+<button class="flex-1 bg-primary text-on-primary font-label-caps text-label-caps hover:bg-primary-container transition-colors disabled:opacity-50 dh-lp-footer-btn dh-lp-confirm-btn" id="lpConfirmBtn" type="button" disabled="" data-i18n="sell.loc.confirmLocation">Confirm Location</button>
+</div>
+</div>
+</div>
+
 <!-- BottomNavBar (Mobile Only) -->
 <script>
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -936,26 +1075,39 @@ document.getElementById('getValuationBtn').addEventListener('click', async () =>
 });
 
 /* ==========================================================================
-   Location: search, current location, pin map.
+   Location: search, current location, embedded preview map, full-screen
+   picker.
 
-   Dual-engine (Production Rebuild Phase 1 of 3, Part E): when
-   js/maps-core.js reports a configured Google Maps key,
-   initGoogleLocationPicker() below drives this same UI (#pinMap,
-   #locSearchInput, #useCurrentLocationBtn, #dropPinBtn) via the shared
-   Google Maps integration boundary (Places Autocomplete + a draggable
-   marker + click-to-place). Until then -- which is this sandbox's actual
-   state today, and every environment's state until an operator
-   provisions a key (see docs/GOOGLE_MAPS_CONFIGURATION.md) -- the
-   ORIGINAL, already-hardened Leaflet + Nominatim implementation below
-   runs completely unchanged, byte-for-byte the same behavior this page
-   has shipped with. This is a deliberate, conservative migration
-   strategy: the currently-working path is never modified or removed,
-   only wrapped, so there is zero regression risk to this form's
-   submission workflow from a Google Maps code path that cannot be
-   end-to-end verified in this environment. setPin()/
-   updateSelectedLocationCard()/applyReverseGeocode()/matchKnownCity()
-   are shared, engine-agnostic helpers used by both paths -- they only
-   ever touch the output form fields, never a map-library-specific API.
+   ROOT-CAUSE FIXES this pass (see the end-of-session report for the full
+   writeup):
+   1) Broken marker image -- Leaflet's default L.marker() icon resolves to
+      https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png (derived
+      from the <link> that loads leaflet.css), which this page's own CSP
+      img-src has never allowlisted (unpkg.com is script/style-src only --
+      see the meta tag above). Every marker below uses .dh-pin, a plain
+      inline-CSS/HTML divIcon instead, matching the pattern map.html/
+      admin.html already use for every one of their own markers.
+   2) "Kirkuk, Kirkuk" duplicate address -- applyReverseGeocode() used to
+      bake the city into the address text it wrote into #addressInput
+      (`[neighbourhood, city].join(', ')`), and updateSelectedLocationCard()
+      then appended the SAME city a second time when building the summary.
+      Fixed at the source: buildLocalityAddress()/
+      buildLocalityAddressFromGoogleComponents() below never include the
+      city -- only the neighbourhood/street -- so city appears exactly once,
+      wherever it's actually rendered (summary card, review step, full-
+      screen picker).
+
+   Dual-engine (unchanged architecture from Production Rebuild Phase 1 of
+   3, Part E): when js/maps-core.js reports a configured Google Maps key,
+   the Google branches below drive the SAME UI via the shared Google Maps
+   integration boundary; otherwise the Leaflet + Nominatim branches run,
+   which is this sandbox's actual state today (see
+   docs/GOOGLE_MAPS_CONFIGURATION.md). setConfirmedLocation() is the ONE
+   place that ever writes #pinLat/#pinLng/#addressInput/#citySelect --
+   every entry point (embedded map, full-screen picker Confirm, draft
+   restore, MAM prefill) goes through it, so the form fields stay the
+   single source of truth for the summary card, the Review step and the
+   final submission payload, exactly as before this pass.
    ========================================================================== */
 const KNOWN_CITIES = ['Erbil', 'Sulaymaniyah', 'Duhok', 'Zakho', 'Soran', 'Koya', 'Halabja', 'Kirkuk'];
 const CITY_ALIASES = {
@@ -965,6 +1117,16 @@ const CITY_ALIASES = {
   zakho: 'Zakho', soran: 'Soran', koya: 'Koya', koysinjaq: 'Koya',
   halabja: 'Halabja', kirkuk: 'Kirkuk'
 };
+// Approximate city centers -- ONLY used as the full-screen picker's
+// starting map view when no location has been confirmed yet (never
+// written into #pinLat/#pinLng -- a city center is never treated as a
+// confirmed property location).
+const CITY_CENTERS = {
+  Erbil: [36.191, 44.009], Sulaymaniyah: [35.5558, 45.4351], Duhok: [36.8617, 42.9891],
+  Zakho: [37.144, 42.6768], Soran: [36.6544, 44.539], Koya: [36.0781, 44.6178],
+  Halabja: [35.1799, 45.9865], Kirkuk: [35.4681, 44.3922]
+};
+function isFiniteCoord(n) { return typeof n === 'number' && Number.isFinite(n); }
 function matchKnownCity(addressObj) {
   if (!addressObj) return null;
   const candidates = [addressObj.city, addressObj.town, addressObj.county, addressObj.state, addressObj.state_district].filter(Boolean);
@@ -974,26 +1136,89 @@ function matchKnownCity(addressObj) {
   }
   return null;
 }
+function matchKnownCityFromGoogleComponents(components) {
+  if (!Array.isArray(components)) return null;
+  for (const type of ['locality', 'administrative_area_level_2', 'administrative_area_level_1']) {
+    const comp = components.find(c => Array.isArray(c.types) && c.types.includes(type));
+    if (comp) {
+      const norm = String(comp.long_name).toLowerCase().trim();
+      if (CITY_ALIASES[norm]) return CITY_ALIASES[norm];
+    }
+  }
+  return null;
+}
+// i18n-safe city selection: matches by the <option>'s data-i18n KEY, never
+// by .value/.textContent -- these <option>s carry no explicit value
+// attribute, so .value silently falls back to whatever text is CURRENTLY
+// rendered there, which is the active UI language's translation once
+// js/i18n.js has run. The previous `citySelect.value = 'Kirkuk'` approach
+// only ever worked while the page happened to be in English; in Kurdish/
+// Arabic it silently matched nothing. Reuses the same key-matching
+// technique prefillCityFromMam() below already relies on.
+function selectCityOption(canonicalName) {
+  const select = document.getElementById('citySelect');
+  const option = select.querySelector('option[data-i18n="cities.' + canonicalName.toLowerCase() + '"]');
+  if (!option) return false;
+  option.selected = true;
+  return true;
+}
+function getSelectedCanonicalCity() {
+  const option = document.getElementById('citySelect').selectedOptions[0];
+  const key = option && option.dataset.i18n ? option.dataset.i18n.replace('cities.', '') : '';
+  return KNOWN_CITIES.find(c => c.toLowerCase() === key) || null;
+}
+// Reads the ALREADY-translated text straight off the #citySelect <option>
+// js/i18n.js populated on load, instead of building a lookup key at
+// runtime and translating it again -- ci-checks.js's static i18n-key scan
+// can't resolve a key built by string concatenation (every "cities" key
+// genuinely exists; this just sidesteps a static-analysis false positive)
+// and this avoids a second, redundant translation lookup for text that's
+// already right here in the DOM.
+function cityLabelFor(canonicalName) {
+  const option = document.querySelector('#citySelect option[data-i18n="cities.' + canonicalName.toLowerCase() + '"]');
+  return option ? option.textContent : canonicalName;
+}
+// Neighbourhood/street text ONLY -- deliberately excludes city/town/
+// county/state (see header comment, root-cause fix 2).
+function buildLocalityAddress(addressObj) {
+  if (!addressObj) return '';
+  return [addressObj.neighbourhood, addressObj.suburb, addressObj.quarter, addressObj.road].filter(Boolean)[0] || '';
+}
+function buildLocalityAddressFromGoogleComponents(components, fallbackFormatted) {
+  if (!Array.isArray(components) || !components.length) return fallbackFormatted || '';
+  const EXCLUDE = new Set(['locality', 'administrative_area_level_1', 'administrative_area_level_2', 'country', 'postal_code']);
+  const parts = components.filter(c => !(c.types || []).some(t => EXCLUDE.has(t))).map(c => c.long_name);
+  return parts.length ? parts.join(', ') : (fallbackFormatted || '');
+}
 
-// Set by whichever engine actually initializes below -- gives showStep()
+// Set by whichever preview-map engine initializes below -- gives showStep()
 // a single, engine-agnostic way to nudge the map after its container was
-// previously display:none (both Leaflet and Google Maps need this; a
-// stale/empty container before either engine is ready is a harmless no-op).
+// previously display:none.
 let invalidatePinMapSize = () => {};
+// Set by the same preview-map init -- updates/creates the read-only
+// preview marker. A no-op until the engine has actually initialized.
+let syncPreviewMarker = () => {};
+let activeEngine = 'leaflet'; // reassigned to 'google' below if configured
 
 function updateSelectedLocationCard() {
   const lat = document.getElementById('pinLat').value;
   const lng = document.getElementById('pinLng').value;
   const card = document.getElementById('selectedLocationCard');
-  if (!lat || !lng) { card.classList.add('hidden'); return; }
+  const empty = document.getElementById('pinMapEmptyState');
+  if (!lat || !lng) { card.classList.add('hidden'); empty.classList.remove('hidden'); return; }
   card.classList.remove('hidden');
+  empty.classList.add('hidden');
   const address = document.getElementById('addressInput').value;
   const city = document.getElementById('citySelect').selectedOptions[0] ? document.getElementById('citySelect').selectedOptions[0].textContent : '';
   document.getElementById('locAddressReadout').textContent = [address, city].filter(Boolean).join(', ') || (lat + ', ' + lng);
   document.getElementById('locCoordsReadout').textContent = lat + ', ' + lng;
 }
-document.getElementById('addressInput').addEventListener('input', updateSelectedLocationCard);
-document.getElementById('citySelect').addEventListener('change', updateSelectedLocationCard);
+// Bumped on every genuine keystroke so an in-flight reverse-geocode
+// response can detect it arrived AFTER a manual correction and skip
+// applying itself, instead of clobbering what the visitor just typed.
+let addressEditGen = 0;
+document.getElementById('addressInput').addEventListener('input', () => { addressEditGen++; updateSelectedLocationCard(); });
+document.getElementById('citySelect').addEventListener('change', () => { hideCityMismatch(); updateSelectedLocationCard(); });
 
 // ---------------------------------------------------------------------
 // MAM AI Command Center: optional city prefill (the setSellField('city', ...)
@@ -1012,10 +1237,57 @@ document.getElementById('citySelect').addEventListener('change', updateSelectedL
   document.getElementById('citySelect').dispatchEvent(new Event('change', { bubbles: true }));
 })();
 
-function applyReverseGeocode(addressObj, shortAddress) {
-  const matchedCity = matchKnownCity(addressObj);
-  if (matchedCity) document.getElementById('citySelect').value = matchedCity;
-  if (shortAddress) document.getElementById('addressInput').value = shortAddress;
+// ---- City/pin mismatch: never silently overwrite a city the visitor
+// already chose -- surface the conflict and let them resolve it. ---------
+let cityMismatchDetected = null;
+function applyDetectedCity(canonicalCity) {
+  const citySelect = document.getElementById('citySelect');
+  if (!citySelect.value) { selectCityOption(canonicalCity); hideCityMismatch(); return; }
+  const currentCanonical = getSelectedCanonicalCity();
+  if (currentCanonical && currentCanonical.toLowerCase() === canonicalCity.toLowerCase()) { hideCityMismatch(); return; }
+  showCityMismatch(canonicalCity, citySelect.selectedOptions[0] ? citySelect.selectedOptions[0].textContent : citySelect.value);
+}
+function showCityMismatch(detectedCanonical, currentLabel) {
+  cityMismatchDetected = detectedCanonical;
+  const detectedLabel = cityLabelFor(detectedCanonical);
+  document.getElementById('locCityMismatchText').textContent = tr('sell.loc.cityMismatch', 'This pin appears to be in {detected}, but City is set to {current}.').replace('{detected}', detectedLabel).replace('{current}', currentLabel);
+  document.getElementById('locCityMismatchUseDetected').textContent = tr('sell.loc.useDetectedCity', 'Use {city}').replace('{city}', detectedLabel);
+  document.getElementById('locCityMismatchKeepCurrent').textContent = tr('sell.loc.keepCurrentCity', 'Keep {city}').replace('{city}', currentLabel);
+  document.getElementById('locCityMismatchBanner').classList.remove('hidden');
+}
+function hideCityMismatch() {
+  cityMismatchDetected = null;
+  document.getElementById('locCityMismatchBanner').classList.add('hidden');
+}
+document.getElementById('locCityMismatchUseDetected').addEventListener('click', () => {
+  if (cityMismatchDetected) selectCityOption(cityMismatchDetected);
+  hideCityMismatch();
+  updateSelectedLocationCard();
+});
+document.getElementById('locCityMismatchKeepCurrent').addEventListener('click', hideCityMismatch);
+
+// `gen`, when supplied, is the addressEditGen captured right before the
+// async reverse-geocode call that produced this result -- if it no longer
+// matches, the visitor has since typed a manual correction and this (now
+// stale) response is dropped rather than overwriting their edit.
+function applyReverseGeocode(address, city, gen) {
+  if (gen !== undefined && gen !== addressEditGen) return;
+  if (address) document.getElementById('addressInput').value = address;
+  if (city) applyDetectedCity(city);
+  updateSelectedLocationCard();
+}
+
+// The one place #pinLat/#pinLng/#addressInput/#citySelect are ever
+// written -- called by the embedded map's search/current-location, the
+// full-screen picker's Confirm button, and draft restore.
+function setConfirmedLocation({ lat, lng, address, city, pan }) {
+  if (!isFiniteCoord(lat) || !isFiniteCoord(lng)) return;
+  document.getElementById('pinLat').value = lat.toFixed(5);
+  document.getElementById('pinLng').value = lng.toFixed(5);
+  document.getElementById('locValidationMsg').classList.add('hidden');
+  if (address !== undefined) document.getElementById('addressInput').value = address;
+  if (city) applyDetectedCity(city);
+  syncPreviewMarker(lat, lng, pan !== false);
   updateSelectedLocationCard();
 }
 
@@ -1025,183 +1297,407 @@ function geolocationErrorMessage(err) {
   if (err.code === 2) return tr('sell.loc.locationErrorUnavailable', 'Your device could not determine your location. Please check that location services are enabled, or place your pin manually on the map.');
   return tr('sell.loc.locationErrorTimeout', 'Getting your location took too long. Please try again, or place your pin manually on the map.');
 }
-
-document.getElementById('dropPinBtn').addEventListener('click', () => {
-  const hint = document.getElementById('dropPinHint');
-  hint.classList.remove('hidden');
-  document.getElementById('pinMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
-  setTimeout(() => hint.classList.add('hidden'), 4000);
-});
-
-document.getElementById('editLocationBtn').addEventListener('click', () => {
-  document.getElementById('locSearchInput').focus();
-  document.getElementById('locSearchInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
-});
-
-// ---- Google Maps engine (used only once a key is configured) ----------
-async function initGoogleLocationPicker() {
-  const { initMap, createMarker, attachAddressAutocomplete, reverseGeocode: gReverseGeocode } = await import('./js/maps-core.js');
-  const map = await initMap(document.getElementById('pinMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
-  if (!map) return false; // isConfigured() was true but the script itself failed to load -- caller falls back to Leaflet
-  const google = window.google;
-  let marker = null;
-
-  function setPin(lat, lng, pan) {
-    if (marker) { marker.position ? (marker.position = { lat, lng }) : marker.setPosition({ lat, lng }); }
-    else marker = createMarker(google, map, { lat, lng }, { forceAdvanced: false });
-    if (pan) map.panTo({ lat, lng });
-    document.getElementById('pinLat').value = lat.toFixed(5);
-    document.getElementById('pinLng').value = lng.toFixed(5);
-    document.getElementById('locValidationMsg').classList.add('hidden');
-    updateSelectedLocationCard();
+// Permission is requested only once this actually runs, i.e. only after a
+// visitor clicks a "use my location" button -- never on page load.
+function runGeolocation({ onStart, onSuccess, onError, onSettled }) {
+  if (!navigator.geolocation) {
+    onError(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
+    if (onSettled) onSettled();
+    return;
   }
-
-  map.addListener('click', (e) => setPin(e.latLng.lat(), e.latLng.lng(), false));
-  invalidatePinMapSize = () => google.maps.event.trigger(map, 'resize');
-
-  document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
-    if (!navigator.geolocation) {
-      alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
-      return;
-    }
-    const original = this.innerHTML;
-    this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      setPin(pos.coords.latitude, pos.coords.longitude, true);
-      map.setZoom(15);
-      try {
-        const formatted = await gReverseGeocode(pos.coords.latitude, pos.coords.longitude);
-        if (formatted) applyReverseGeocode(null, formatted);
-      } catch (err) { console.error('[sell] reverse geocode failed', err); }
-      this.innerHTML = original;
-    }, (err) => {
-      console.error('[sell] geolocation failed', err.code, err.message);
-      alert(geolocationErrorMessage(err));
-      this.innerHTML = original;
-    }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
-  });
-
-  await attachAddressAutocomplete(document.getElementById('locSearchInput'), (place) => {
-    setPin(place.lat, place.lng, true);
-    map.setZoom(15);
-    if (place.formattedAddress) document.getElementById('addressInput').value = place.formattedAddress;
-    updateSelectedLocationCard();
-  });
-
-  return true;
+  if (onStart) onStart();
+  navigator.geolocation.getCurrentPosition((pos) => {
+    onSuccess(pos.coords.latitude, pos.coords.longitude);
+    if (onSettled) onSettled();
+  }, (err) => {
+    console.error('[sell] geolocation failed', err.code, err.message);
+    onError(geolocationErrorMessage(err));
+    if (onSettled) onSettled();
+  }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
 }
 
-// ---- Leaflet + Nominatim engine (the existing, proven implementation --
-// unchanged from before this migration, used whenever Google Maps is not
-// configured) -------------------------------------------------------------
-function initLeafletLocationPicker() {
-  const pinMap = L.map('pinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-  L.control.zoom({ position: 'bottomright' }).addTo(pinMap);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 18
-  }).addTo(pinMap);
-  let pinMarker = null;
-
-  function setPin(lat, lng, pan) {
-    if (pinMarker) pinMarker.setLatLng([lat, lng]);
-    else pinMarker = L.marker([lat, lng]).addTo(pinMap);
-    if (pan) pinMap.panTo([lat, lng]);
-    document.getElementById('pinLat').value = lat.toFixed(5);
-    document.getElementById('pinLng').value = lng.toFixed(5);
-    document.getElementById('locValidationMsg').classList.add('hidden');
-    updateSelectedLocationCard();
-  }
-
-  pinMap.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng, false));
-  invalidatePinMapSize = () => pinMap.invalidateSize();
-  setTimeout(() => pinMap.invalidateSize(), 100);
-
-  document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
-    if (!navigator.geolocation) {
-      alert(tr('sell.loc.geolocationUnsupported', 'Your browser does not support automatic location detection. Please place your pin manually on the map.'));
-      return;
-    }
-    const original = this.innerHTML;
-    this.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>';
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      setPin(pos.coords.latitude, pos.coords.longitude, true);
-      pinMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
-      try {
-        const data = await reverseGeocodeNominatim(pos.coords.latitude, pos.coords.longitude);
-        if (data) applyReverseGeocode(data.address, [data.address?.neighbourhood || data.address?.suburb || data.address?.road, data.address?.city || data.address?.town].filter(Boolean).join(', ') || data.display_name);
-      } catch (err) { console.error('[sell] reverse geocode failed', err); }
-      this.innerHTML = original;
-    }, (err) => {
-      console.error('[sell] geolocation failed', err.code, err.message);
-      alert(geolocationErrorMessage(err));
-      this.innerHTML = original;
-    }, { timeout: 20000, maximumAge: 60000, enableHighAccuracy: true });
-  });
-
-  async function searchLocationNominatim(q) {
-    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
-    if (!res.ok) throw new Error('Search failed');
-    return res.json();
-  }
-  async function reverseGeocodeNominatim(lat, lng) {
-    const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
-    if (!res.ok) throw new Error('Reverse geocode failed');
-    return res.json();
-  }
-
-  let locSearchTimer = null;
-  const locSearchInput = document.getElementById('locSearchInput');
-  const locSearchResults = document.getElementById('locSearchResults');
-  locSearchInput.addEventListener('input', () => {
-    clearTimeout(locSearchTimer);
-    const q = locSearchInput.value.trim();
-    if (q.length < 3) { locSearchResults.classList.add('hidden'); return; }
-    locSearchTimer = setTimeout(async () => {
-      locSearchResults.classList.remove('hidden');
-      locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
+// ---- Shared Nominatim helpers (hoisted out of the old Leaflet-only
+// closure so both the embedded map's search and the full-screen picker's
+// search can use them). ---------------------------------------------------
+async function searchLocationNominatim(q) {
+  const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=iq&q=' + encodeURIComponent(q));
+  if (!res.ok) throw new Error('Search failed');
+  return res.json();
+}
+async function reverseGeocodeNominatim(lat, lng) {
+  const res = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&addressdetails=1&lat=' + lat + '&lon=' + lng);
+  if (!res.ok) throw new Error('Reverse geocode failed');
+  return res.json();
+}
+// Wires a debounced Nominatim search box + results dropdown onto any
+// input/results pair (the embedded map's own, and the full-screen
+// picker's). `onPick(result)` fires when a result is chosen; a monotonic
+// generation counter drops any search response superseded by a newer
+// keystroke before it can ever render.
+function wireNominatimSearch(inputEl, resultsEl, onPick, itemClass) {
+  let timer = null;
+  let gen = 0;
+  inputEl.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = inputEl.value.trim();
+    if (q.length < 3) { resultsEl.classList.add('hidden'); return; }
+    const myGen = ++gen;
+    timer = setTimeout(async () => {
+      resultsEl.classList.remove('hidden');
+      resultsEl.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.searching', 'Searching...') + '</div>';
       try {
         const results = await searchLocationNominatim(q);
+        if (myGen !== gen) return;
         if (!results.length) {
-          locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+          resultsEl.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-on-surface-variant">' + tr('sell.loc.noResults', 'No results found') + '</div>';
           return;
         }
-        locSearchResults.innerHTML = '';
+        resultsEl.innerHTML = '';
         results.forEach(r => {
           const item = document.createElement('button');
           item.type = 'button';
-          item.className = 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0';
+          item.className = (itemClass || 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0');
           item.textContent = r.display_name;
           item.addEventListener('click', () => {
-            const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
-            setPin(lat, lng, true);
-            pinMap.setView([lat, lng], 15);
-            applyReverseGeocode(r.address, [r.address?.neighbourhood || r.address?.suburb || r.address?.road, r.address?.city || r.address?.town].filter(Boolean).join(', ') || r.display_name);
-            locSearchResults.classList.add('hidden');
-            locSearchInput.value = r.display_name;
+            resultsEl.classList.add('hidden');
+            inputEl.value = r.display_name;
+            onPick(r);
           });
-          locSearchResults.appendChild(item);
+          resultsEl.appendChild(item);
         });
       } catch (err) {
+        if (myGen !== gen) return;
         console.error('[sell] location search failed', err);
-        locSearchResults.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.noResults', 'No results found') + '</div>';
+        resultsEl.innerHTML = '<div class="px-4 py-2.5 text-[13px] text-error">' + tr('sell.loc.searchFailed', 'Search failed -- check your connection and try again.') + '</div>';
       }
     }, 400);
   });
   document.addEventListener('click', (e) => {
-    if (!locSearchInput.contains(e.target) && !locSearchResults.contains(e.target)) locSearchResults.classList.add('hidden');
+    if (!inputEl.contains(e.target) && !resultsEl.contains(e.target)) resultsEl.classList.add('hidden');
   });
 }
+
+document.getElementById('dropPinBtn').addEventListener('click', openLocationPicker);
+document.getElementById('editLocationBtn').addEventListener('click', openLocationPicker);
+document.getElementById('expandMapBtn').addEventListener('click', openLocationPicker);
+
+document.getElementById('useCurrentLocationBtn').addEventListener('click', function () {
+  const btn = this;
+  const original = btn.innerHTML;
+  runGeolocation({
+    onStart: () => { btn.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>'; },
+    onSuccess: async (lat, lng) => {
+      setConfirmedLocation({ lat, lng, pan: true });
+      const gen = addressEditGen;
+      try {
+        if (activeEngine === 'google') {
+          const { reverseGeocode: gReverseGeocode } = await import('./js/maps-core.js');
+          const result = await gReverseGeocode(lat, lng);
+          if (result) applyReverseGeocode(buildLocalityAddressFromGoogleComponents(result.addressComponents, result.formattedAddress), matchKnownCityFromGoogleComponents(result.addressComponents), gen);
+        } else {
+          const data = await reverseGeocodeNominatim(lat, lng);
+          if (data) applyReverseGeocode(buildLocalityAddress(data.address), matchKnownCity(data.address), gen);
+        }
+      } catch (err) { console.error('[sell] reverse geocode failed', err); }
+    },
+    onError: (msg) => alert(msg),
+    onSettled: () => { btn.innerHTML = original; }
+  });
+});
+
+// ---- Embedded (small, read-only) preview map ----------------------------
+async function initGooglePreviewMap() {
+  const { initMap, createMarker, attachAddressAutocomplete } = await import('./js/maps-core.js');
+  const map = await initMap(document.getElementById('pinMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8, disableDefaultUI: true, gestureHandling: 'none', zoomControl: false, keyboardShortcuts: false });
+  if (!map) return false; // isConfigured() was true but the script itself failed to load -- caller falls back to Leaflet
+  const google = window.google;
+  let marker = null;
+  syncPreviewMarker = (lat, lng, pan) => {
+    if (marker) { marker.position ? (marker.position = { lat, lng }) : marker.setPosition({ lat, lng }); }
+    else marker = createMarker(google, map, { lat, lng }, { forceAdvanced: false });
+    if (pan) map.panTo({ lat, lng });
+  };
+  invalidatePinMapSize = () => google.maps.event.trigger(map, 'resize');
+
+  await attachAddressAutocomplete(document.getElementById('locSearchInput'), (place) => {
+    setConfirmedLocation({ lat: place.lat, lng: place.lng, address: place.formattedAddress || '', pan: true });
+  });
+  return true;
+}
+
+function initLeafletPreviewMap() {
+  const pinMap = L.map('pinMap', {
+    zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+    boxZoom: false, keyboard: false, tap: false, attributionControl: true
+  }).setView([36.35, 44.3], 8);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
+  }).addTo(pinMap);
+  let marker = null;
+  syncPreviewMarker = (lat, lng, pan) => {
+    if (marker) marker.setLatLng([lat, lng]);
+    else marker = L.marker([lat, lng], { icon: L.divIcon({ className: '', html: '<div class="dh-pin dh-pin-compact"></div>', iconSize: [18, 18], iconAnchor: [9, 18] }), interactive: false }).addTo(pinMap);
+    if (pan) pinMap.panTo([lat, lng]);
+  };
+  invalidatePinMapSize = () => pinMap.invalidateSize();
+  setTimeout(() => pinMap.invalidateSize(), 100);
+
+  wireNominatimSearch(document.getElementById('locSearchInput'), document.getElementById('locSearchResults'), (r) => {
+    const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+    setConfirmedLocation({ lat, lng, address: buildLocalityAddress(r.address) || r.display_name, city: matchKnownCity(r.address), pan: true });
+  });
+}
+
+/* ==========================================================================
+   Full-screen location picker (viewport-filling modal, not the browser
+   Fullscreen API -- works identically on desktop/mobile regardless of
+   Fullscreen support). Everything here operates on a TEMPORARY selection
+   (lpTempState) that is only ever committed to the real form fields via
+   setConfirmedLocation() when Confirm is pressed; Cancel/close/Escape
+   simply discard it. The underlying map instance is created ONCE (see
+   ensureLpMapReady()'s lpMapReadyPromise guard) and reused across repeated
+   opens, so re-opening never creates duplicate map instances, markers or
+   listeners.
+   ========================================================================== */
+let lpTempState = { lat: null, lng: null, address: '', city: null };
+let lpMapReadyPromise = null;
+let lpLeafletMap = null, lpLeafletMarker = null, lpLeafletTileLayer = null;
+let lpGoogleMap = null, lpGoogleMarker = null;
+let lpGeocodeGen = 0;
+let lpLastFocused = null;
+
+function setLpConfirmEnabled(enabled) { document.getElementById('lpConfirmBtn').disabled = !enabled; }
+function showLpStatus(msg, kind) {
+  const el = document.getElementById('lpStatus');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  el.classList.toggle('text-error', kind === 'error');
+  el.classList.toggle('text-on-surface-variant', kind !== 'error');
+}
+function hideLpStatus() { document.getElementById('lpStatus').classList.add('hidden'); }
+function updateLpReadout() {
+  if (lpTempState.lat == null) {
+    document.getElementById('lpAddressReadout').textContent = '';
+    document.getElementById('lpCoordsReadout').textContent = '';
+    return;
+  }
+  const cityLabel = lpTempState.city ? cityLabelFor(lpTempState.city) : '';
+  document.getElementById('lpAddressReadout').textContent = [lpTempState.address, cityLabel].filter(Boolean).join(', ') || (lpTempState.lat.toFixed(5) + ', ' + lpTempState.lng.toFixed(5));
+  document.getElementById('lpCoordsReadout').textContent = lpTempState.lat.toFixed(5) + ', ' + lpTempState.lng.toFixed(5);
+}
+function lpInvalidateSize() {
+  if (activeEngine === 'google') { if (lpGoogleMap) window.google.maps.event.trigger(lpGoogleMap, 'resize'); }
+  else if (lpLeafletMap) lpLeafletMap.invalidateSize();
+}
+function lpPanZoom(lat, lng, zoom) {
+  if (activeEngine === 'google') { if (lpGoogleMap) { lpGoogleMap.setCenter({ lat, lng }); lpGoogleMap.setZoom(zoom); } }
+  else if (lpLeafletMap) lpLeafletMap.setView([lat, lng], zoom);
+}
+function removeLpMarker() {
+  if (activeEngine === 'google') { if (lpGoogleMarker) { lpGoogleMarker.setMap(null); lpGoogleMarker = null; } }
+  else if (lpLeafletMarker) { lpLeafletMap.removeLayer(lpLeafletMarker); lpLeafletMarker = null; }
+}
+// Moves/creates the picker's own draggable pin and updates lpTempState's
+// coordinates ONLY -- panning or zooming the map on its own never calls
+// this, so passive map exploration never changes the selected coordinates.
+function lpSetMarkerPosition(lat, lng, opts) {
+  opts = opts || {};
+  if (!isFiniteCoord(lat) || !isFiniteCoord(lng)) return;
+  lpTempState.lat = lat; lpTempState.lng = lng;
+  setLpConfirmEnabled(true);
+  if (activeEngine === 'google' && lpGoogleMap) {
+    if (lpGoogleMarker) lpGoogleMarker.setPosition({ lat, lng });
+    else {
+      lpGoogleMarker = new window.google.maps.Marker({ map: lpGoogleMap, position: { lat, lng }, draggable: true });
+      lpGoogleMarker.addListener('dragend', () => { const p = lpGoogleMarker.getPosition(); lpPlacePinInteractive(p.lat(), p.lng(), { pan: false }); });
+    }
+    if (opts.pan) lpGoogleMap.panTo({ lat, lng });
+    if (opts.zoom) lpGoogleMap.setZoom(opts.zoom);
+  } else if (lpLeafletMap) {
+    if (lpLeafletMarker) lpLeafletMarker.setLatLng([lat, lng]);
+    else {
+      lpLeafletMarker = L.marker([lat, lng], {
+        icon: L.divIcon({ className: '', html: '<div class="dh-pin"></div>', iconSize: [30, 30], iconAnchor: [15, 30] }),
+        draggable: true
+      }).addTo(lpLeafletMap);
+      lpLeafletMarker.on('dragend', (e) => { const p = e.target.getLatLng(); lpPlacePinInteractive(p.lat, p.lng, { pan: false }); });
+    }
+    if (opts.pan) lpLeafletMap.panTo([lat, lng]);
+    if (opts.zoom) lpLeafletMap.setZoom(opts.zoom);
+  }
+  updateLpReadout();
+}
+// A NEW placement (click/drag/current-location) -- also kicks off a fresh
+// reverse-geocode to fill in the address/city. Search results skip this
+// (they already carry an address) and call lpSetMarkerPosition directly.
+function lpPlacePinInteractive(lat, lng, opts) {
+  lpSetMarkerPosition(lat, lng, opts);
+  lpReverseGeocodeAndFill(lat, lng);
+}
+async function lpReverseGeocodeAndFill(lat, lng) {
+  const gen = ++lpGeocodeGen;
+  try {
+    if (activeEngine === 'google') {
+      const { reverseGeocode: gReverseGeocode } = await import('./js/maps-core.js');
+      const result = await gReverseGeocode(lat, lng);
+      if (gen !== lpGeocodeGen) return; // superseded by a newer placement
+      if (result) {
+        lpTempState.address = buildLocalityAddressFromGoogleComponents(result.addressComponents, result.formattedAddress);
+        lpTempState.city = matchKnownCityFromGoogleComponents(result.addressComponents);
+      }
+    } else {
+      const data = await reverseGeocodeNominatim(lat, lng);
+      if (gen !== lpGeocodeGen) return;
+      if (data) {
+        lpTempState.address = buildLocalityAddress(data.address);
+        lpTempState.city = matchKnownCity(data.address);
+      }
+    }
+  } catch (err) {
+    // Coordinates are already set (the whole point of this rule) --
+    // leave whatever address text is already shown rather than invent
+    // one; manual correction stays fully available since this modal's
+    // Confirm just carries lpTempState.address through untouched.
+    console.error('[sell] picker reverse geocode failed', err);
+  }
+  if (gen === lpGeocodeGen) updateLpReadout();
+}
+
+function lpMapUnavailableShow() { document.getElementById('lpMapUnavailable').classList.remove('hidden'); }
+function lpMapUnavailableHide() { document.getElementById('lpMapUnavailable').classList.add('hidden'); }
+
+function ensureLpMapReady() {
+  if (lpMapReadyPromise) return lpMapReadyPromise;
+  lpMapReadyPromise = (async () => {
+    if (activeEngine === 'google') {
+      const { initMap, attachAddressAutocomplete } = await import('./js/maps-core.js');
+      lpGoogleMap = await initMap(document.getElementById('lpMap'), { center: { lat: 36.35, lng: 44.3 }, zoom: 8 });
+      if (!lpGoogleMap) { lpMapUnavailableShow(); return; }
+      lpGoogleMap.addListener('click', (e) => lpPlacePinInteractive(e.latLng.lat(), e.latLng.lng(), { pan: false }));
+      await attachAddressAutocomplete(document.getElementById('lpSearchInput'), (place) => {
+        lpSetMarkerPosition(place.lat, place.lng, { pan: true, zoom: 15 });
+        lpTempState.address = buildLocalityAddressFromGoogleComponents(place.addressComponents, place.formattedAddress) || '';
+        lpTempState.city = matchKnownCityFromGoogleComponents(place.addressComponents);
+        updateLpReadout();
+      });
+    } else {
+      lpLeafletMap = L.map('lpMap', { zoomControl: false }).setView([36.35, 44.3], 8);
+      L.control.zoom({ position: 'bottomright' }).addTo(lpLeafletMap);
+      lpLeafletTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors', maxZoom: 18
+      }).addTo(lpLeafletMap);
+      lpLeafletTileLayer.on('tileerror', lpMapUnavailableShow);
+      lpLeafletMap.on('click', (e) => lpPlacePinInteractive(e.latlng.lat, e.latlng.lng, { pan: false }));
+      wireNominatimSearch(document.getElementById('lpSearchInput'), document.getElementById('lpSearchResults'), (r) => {
+        const lat = parseFloat(r.lat), lng = parseFloat(r.lon);
+        lpSetMarkerPosition(lat, lng, { pan: true, zoom: 15 });
+        lpTempState.address = buildLocalityAddress(r.address) || r.display_name;
+        lpTempState.city = matchKnownCity(r.address);
+        updateLpReadout();
+      }, 'w-full text-left px-4 py-2.5 text-[13px] hover:bg-surface-container-low transition-colors border-b border-outline-variant last:border-b-0 dh-lp-result-item');
+    }
+  })();
+  return lpMapReadyPromise;
+}
+
+document.getElementById('lpUseCurrentLocationBtn').addEventListener('click', function () {
+  const btn = this;
+  const original = btn.innerHTML;
+  hideLpStatus();
+  runGeolocation({
+    onStart: () => { btn.innerHTML = '<span>' + tr('sell.loc.locating', 'Locating...') + '</span>'; },
+    onSuccess: (lat, lng) => { lpPlacePinInteractive(lat, lng, { pan: true, zoom: 15 }); },
+    onError: (msg) => showLpStatus(msg, 'error'),
+    onSettled: () => { btn.innerHTML = original; }
+  });
+});
+
+document.getElementById('lpMapRetryBtn').addEventListener('click', () => {
+  lpMapUnavailableHide();
+  if (activeEngine === 'google') { lpMapReadyPromise = null; ensureLpMapReady(); }
+  else if (lpLeafletMap && lpLeafletTileLayer) { lpLeafletMap.invalidateSize(); lpLeafletTileLayer.redraw(); }
+});
+
+// Shows the previously confirmed location (if any) at a close zoom; if
+// none exists yet, shows the currently selected city as a starting view
+// WITHOUT creating a pin or enabling Confirm -- a city center is never a
+// confirmed property location.
+function seedPickerFromConfirmedOrCity() {
+  const lat = parseFloat(document.getElementById('pinLat').value);
+  const lng = parseFloat(document.getElementById('pinLng').value);
+  if (isFiniteCoord(lat) && isFiniteCoord(lng)) {
+    lpTempState = { lat: null, lng: null, address: document.getElementById('addressInput').value, city: getSelectedCanonicalCity() };
+    lpSetMarkerPosition(lat, lng, { pan: true, zoom: 15 });
+    return;
+  }
+  lpTempState = { lat: null, lng: null, address: '', city: null };
+  removeLpMarker();
+  setLpConfirmEnabled(false);
+  const center = CITY_CENTERS[getSelectedCanonicalCity() || 'Kirkuk'];
+  lpPanZoom(center[0], center[1], 8);
+  updateLpReadout();
+}
+
+function lpFocusableEls() {
+  return Array.from(document.getElementById('locationPickerDialog').querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+}
+function lpKeydownHandler(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closeLocationPicker(); return; }
+  if (e.key !== 'Tab') return;
+  const focusables = lpFocusableEls();
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+async function openLocationPicker() {
+  lpLastFocused = document.activeElement;
+  hideLpStatus();
+  document.getElementById('lpSearchInput').value = '';
+  document.getElementById('lpSearchResults').classList.add('hidden');
+  document.getElementById('locationPickerModal').classList.remove('hidden');
+  document.documentElement.classList.add('dh-scroll-locked');
+  document.addEventListener('keydown', lpKeydownHandler, true);
+  await ensureLpMapReady();
+  seedPickerFromConfirmedOrCity();
+  requestAnimationFrame(() => { lpInvalidateSize(); });
+  document.getElementById('locationPickerCloseBtn').focus();
+}
+function closeLocationPicker() {
+  document.getElementById('locationPickerModal').classList.add('hidden');
+  document.documentElement.classList.remove('dh-scroll-locked');
+  document.removeEventListener('keydown', lpKeydownHandler, true);
+  document.getElementById('lpSearchResults').classList.add('hidden');
+  if (lpLastFocused && typeof lpLastFocused.focus === 'function') lpLastFocused.focus();
+}
+document.getElementById('locationPickerCloseBtn').addEventListener('click', closeLocationPicker);
+document.getElementById('locationPickerBackdrop').addEventListener('click', closeLocationPicker);
+document.getElementById('lpCancelBtn').addEventListener('click', closeLocationPicker);
+document.getElementById('lpConfirmBtn').addEventListener('click', () => {
+  if (lpTempState.lat == null) return; // defensive -- the button is disabled in this state
+  setConfirmedLocation({ lat: lpTempState.lat, lng: lpTempState.lng, address: lpTempState.address, city: lpTempState.city, pan: true });
+  closeLocationPicker();
+});
 
 (async function initLocationPicker() {
   try {
     const { isConfigured } = await import('./js/maps-core.js');
-    if (isConfigured() && await initGoogleLocationPicker()) return;
+    if (isConfigured() && await initGooglePreviewMap()) { activeEngine = 'google'; return; }
   } catch (err) {
     console.error('[sell] Google Maps location picker failed to initialize, falling back to the built-in map', err);
   }
-  initLeafletLocationPicker();
+  activeEngine = 'leaflet';
+  initLeafletPreviewMap();
 })();
+// Sets the initial empty-state/summary-card visibility to match whatever
+// #pinLat/#pinLng already hold on load (nothing, on a fresh visit; a
+// restored value if the browser autofilled the form) -- without this call
+// the empty-state overlay stayed permanently hidden until the visitor's
+// first interaction, even though no location had actually been confirmed
+// yet.
+updateSelectedLocationCard();
 
 /* ==========================================================================
    Photo upload: click + drag-and-drop, with thumbnail previews and
@@ -1604,7 +2100,17 @@ function applyDraft(data) {
   // Re-apply thousands separators in case this draft was saved before
   // formatting was added, or was saved as plain digits.
   priceInput.value = formatWithCommas(digitsOnly(priceInput.value));
-  if (data.pinLat && data.pinLng) setPin(parseFloat(data.pinLat), parseFloat(data.pinLng), true);
+  // Pre-existing bug fixed here: this used to call a bare `setPin(...)`,
+  // which only ever existed as a name-collision-prone local closure inside
+  // whichever map engine happened to initialize (initGoogleLocationPicker/
+  // initLeafletLocationPicker) -- calling it from here, outside either
+  // closure, threw a ReferenceError and silently aborted the rest of this
+  // function (negotiable/deal-type/quick-sale/amenities never restored
+  // either). setConfirmedLocation() is the real, global, single writer now.
+  // address/city are intentionally omitted -- draftFieldIds already
+  // restored #addressInput/#citySelect directly above; this only needs to
+  // place the pin and sync the preview map to match.
+  if (data.pinLat && data.pinLng) setConfirmedLocation({ lat: parseFloat(data.pinLat), lng: parseFloat(data.pinLng), pan: true });
   document.getElementById('bedsInputValue').textContent = document.getElementById('bedsInput').value || 0;
   document.getElementById('bathsInputValue').textContent = document.getElementById('bathsInput').value || 0;
   document.getElementById('hallsInputValue').textContent = document.getElementById('hallsInput').value || 0;
