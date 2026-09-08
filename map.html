@@ -209,6 +209,7 @@ violation reporting. -->
     }
     .private-city-badge:hover { transform: scale(1.06); }
     .filter-dropdown-btn.active { border-color: #8E7448; color: #B89A63; background: #221E15; }
+    .filter-dropdown-btn:focus-visible, #saveSearchBtn:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
     .filter-dropdown-menu { position: fixed; z-index: 1200; }
     .filter-dropdown-btn svg, #saveSearchBtn svg { flex: none; }
 
@@ -230,12 +231,25 @@ violation reporting. -->
       position: absolute; top: 2px; bottom: 2px; inset-inline-start: 2px;
       width: calc(33.333% - 2.667px);   /* fallback for the instant before JS measures the real button */
       border-radius: 999px;
-      background: #B89A63;
-      transition: inset-inline-start 260ms cubic-bezier(.22,.61,.36,1), width 260ms cubic-bezier(.22,.61,.36,1);
+      background: linear-gradient(180deg, #CDAD72, #B89A63);
+      box-shadow: 0 2px 8px -2px rgba(184,154,99,.6), inset 0 1px 0 rgba(255,255,255,.28);
+      /* Position/width are now driven entirely by moveTypeSegIndicator()'s
+         own Web Animations API glide (stretch-toward-target, then settle),
+         not a CSS transition -- a leftover transition here would fight the
+         JS-driven animation and would also un-mute the "instant" reduced-
+         motion path below. */
       z-index: 0;
+      will-change: inset-inline-start, width;
     }
-    @media (prefers-reduced-motion: reduce) { #typeSegIndicator { transition: none; } }
     #typeSeg .type-toggle, #typeSeg a { position: relative; z-index: 1; }
+    #typeSeg .type-toggle {
+      transition: color 220ms cubic-bezier(.22,.61,.36,1), transform 160ms cubic-bezier(.22,.61,.36,1);
+    }
+    #typeSeg .type-toggle:active { transform: scale(0.96, 0.9); }
+    @media (prefers-reduced-motion: reduce) {
+      #typeSeg .type-toggle:active { transform: scale(0.99); }
+      #typeSeg .type-toggle { transition: color 1ms linear; }
+    }
 
     /* ---- chip rows (Beds / Baths) -------------------------------------
      * Replaces the two <select> elements with real, touch-friendly
@@ -250,6 +264,7 @@ violation reporting. -->
       transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
     }
     .chip-opt:hover { border-color: #B89A63; }
+    .chip-opt:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
     .chip-opt[aria-pressed="true"] { background: #B89A63; border-color: #B89A63; color: #090A0A; }
 
     /* ---- Home Type cards ------------------------------------------------
@@ -283,7 +298,10 @@ violation reporting. -->
       border: none; background: none; border-radius: 999px; padding: 3px 10px;
       font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: .03em;
       color: #A79F91; cursor: pointer;
+      transition: background 150ms ease, color 150ms ease;
     }
+    .currency-opt:hover:not([aria-pressed="true"]) { background: rgba(184,154,99,0.14); color: #F2EEE5; }
+    .currency-opt:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
     .currency-opt[aria-pressed="true"] { background: #B89A63; color: #090A0A; }
 
     /* ---- verified-only toggle switch (More panel) -----------------------
@@ -327,9 +345,11 @@ violation reporting. -->
        inflating row height and making the whole menu read as narrow/tall.
        Fixed by sizing the menu to its content (width:max-content above,
        clamped to the viewport) and forcing the label onto one line. */
-    .sort-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; box-sizing: border-box; }
+    .sort-option { display: flex; align-items: center; justify-content: space-between; gap: 10px; box-sizing: border-box; transition: color 150ms ease; }
     .sort-option span { white-space: nowrap; }
     .sort-option svg { opacity: 0; flex: none; width: 18px; height: 18px; }
+    .sort-option:hover { color: #B89A63; }
+    .sort-option:focus-visible { outline: 2px solid #B89A63; outline-offset: -2px; }
     .sort-option[aria-pressed="true"] { color: #B89A63; }
     .sort-option[aria-pressed="true"] svg { opacity: 1; }
 
@@ -2401,12 +2421,55 @@ function moveTypeSegIndicator() {
   // would drift off the actual button edge. `offsetLeft` is a PHYSICAL
   // measurement that already reflects wherever RTL's mirrored flex order
   // rendered the button; direction converts that into the logical inset
-  // (inset-inline-start) the CSS above transitions on, so the pill glides
+  // (inset-inline-start) the pill's position is expressed in, so it glides
   // the correct way in both directions without touching DOM order.
   const rtl = getComputedStyle(seg).direction === 'rtl';
-  const inlineStart = rtl ? (seg.clientWidth - (btn.offsetLeft + btn.offsetWidth)) : btn.offsetLeft;
-  indicator.style.width = btn.offsetWidth + 'px';
-  indicator.style.insetInlineStart = inlineStart + 'px';
+  const targetLeft = rtl ? (seg.clientWidth - (btn.offsetLeft + btn.offsetWidth)) : btn.offsetLeft;
+  const targetWidth = btn.offsetWidth;
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const hasPlaced = indicator.style.width !== '';
+
+  // Cancel any in-flight glide before reading position, so a second click
+  // fired mid-animation retargets from wherever the pill actually is on
+  // screen right now -- never a jump back to the previous click's start,
+  // never a queued second animation.
+  indicator.getAnimations().forEach(function (a) { a.cancel(); });
+
+  if (reduced || !hasPlaced) {
+    indicator.style.insetInlineStart = targetLeft + 'px';
+    indicator.style.width = targetWidth + 'px';
+    return;
+  }
+
+  // True current on-screen position (correct even mid-flight), converted
+  // back into the same inset-inline-start space the target above was
+  // computed in -- physical bounding-rect math, mirroring the RTL
+  // conversion already used for the target, deliberately not
+  // getComputedStyle() of a logical property (inconsistent cross-browser).
+  const segRect = seg.getBoundingClientRect();
+  const indRect = indicator.getBoundingClientRect();
+  const curPhysicalLeft = indRect.left - segRect.left;
+  const curLeft = rtl ? (seg.clientWidth - (curPhysicalLeft + indRect.width)) : curPhysicalLeft;
+  const curWidth = indRect.width;
+
+  // Union of current + target = the "bridge" the surface stretches across
+  // mid-transit before its trailing edge catches up, like a droplet
+  // reaching toward the new position -- then it settles to the exact
+  // target box.
+  const unionLeft = Math.min(curLeft, targetLeft);
+  const unionRight = Math.max(curLeft + curWidth, targetLeft + targetWidth);
+
+  const anim = indicator.animate([
+    { insetInlineStart: curLeft + 'px', width: curWidth + 'px', offset: 0 },
+    { insetInlineStart: unionLeft + 'px', width: (unionRight - unionLeft) + 'px', offset: 0.5 },
+    { insetInlineStart: targetLeft + 'px', width: targetWidth + 'px', offset: 1 }
+  ], { duration: 300, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'forwards' });
+
+  anim.onfinish = function () {
+    indicator.style.insetInlineStart = targetLeft + 'px';
+    indicator.style.width = targetWidth + 'px';
+  };
 }
 document.querySelectorAll('.type-toggle').forEach(btn => {
   btn.addEventListener('click', () => {
