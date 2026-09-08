@@ -83,6 +83,29 @@ own initLocationPicker()). -->
        colors, non-standard z-index/spacing values) would silently not
        exist -- hand-written rules below instead of guessing at utility
        names that may not have been compiled. */
+    /* ROOT CAUSE of the map-overlap-through-the-modal bug: leaflet.css
+       gives its OWN internal panes/controls z-index values from 200
+       (tile pane) up to 800 (.leaflet-control, which the attribution
+       lives in) -- see node_modules/leaflet/dist/leaflet.css. Neither
+       #pinMap nor any ancestor up to <body> ever set an explicit z-index,
+       and `position:relative` alone (without a z-index) does NOT create a
+       new CSS stacking context. So those 200-800 values were being
+       compared directly against the full-screen picker's own z-index:50
+       in the SAME (root) stacking context -- and since 200-800 > 50, the
+       embedded map's tiles/marker/attribution/zoom-control painted RIGHT
+       THROUGH the picker modal, exactly the "smaller map patch + a second
+       attribution" symptom. `position:relative` + an explicit z-index
+       (any value) DOES establish a new stacking context, which fully
+       contains a Leaflet map's internal 200-800 values inside it -- so
+       the whole #pinMap now only ever competes at z-index:0 against the
+       rest of the page, and the modal's z-index:50 correctly occludes it
+       every time, regardless of what Leaflet renders inside. (The
+       embedded map is ALSO hidden outright while the picker is open --
+       see #locationPickerModal open/close in the script below -- as the
+       correct "one map visible at a time" lifecycle; this stacking fix
+       stands on its own regardless, since nothing else on this page may
+       assume Leaflet's default z-index scale is safely containable. */
+    .dh-pinmap-wrap { position: relative; z-index: 0; }
     .dh-expand-map-btn {
       position: absolute; top: 10px; inset-inline-end: 10px; z-index: 10;
       padding: 8px 12px; background: rgba(23,21,15,.95);
@@ -307,7 +330,7 @@ own initLocationPicker()). -->
 <span data-i18n="sell.loc.dropPin">Drop Pin on Map</span>
 </button>
 </div>
-<div class="relative">
+<div class="relative dh-pinmap-wrap" id="pinMapWrap">
 <div class="rounded-lg overflow-hidden border border-outline-variant h-56 pointer-events-none" id="pinMap" aria-hidden="true"></div>
 <button class="dh-expand-map-btn flex items-center gap-1.5 border border-outline-variant rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container-low transition-colors" id="expandMapBtn" type="button">
 <span class="material-symbols-outlined text-[18px]" aria-hidden="true">open_in_full</span>
@@ -1657,6 +1680,13 @@ async function openLocationPicker() {
   hideLpStatus();
   document.getElementById('lpSearchInput').value = '';
   document.getElementById('lpSearchResults').classList.add('hidden');
+  // Only one map is ever supposed to be on screen at a time -- the
+  // embedded preview is a genuinely separate, still-live Leaflet
+  // instance, so it's hidden outright (not just visually covered by the
+  // modal) for the duration the picker is open. See the .dh-pinmap-wrap
+  // stacking-context comment above for why leaving it merely "underneath"
+  // the modal isn't sufficient on its own.
+  document.getElementById('pinMapWrap').classList.add('hidden');
   document.getElementById('locationPickerModal').classList.remove('hidden');
   document.documentElement.classList.add('dh-scroll-locked');
   document.addEventListener('keydown', lpKeydownHandler, true);
@@ -1667,6 +1697,8 @@ async function openLocationPicker() {
 }
 function closeLocationPicker() {
   document.getElementById('locationPickerModal').classList.add('hidden');
+  document.getElementById('pinMapWrap').classList.remove('hidden');
+  invalidatePinMapSize();
   document.documentElement.classList.remove('dh-scroll-locked');
   document.removeEventListener('keydown', lpKeydownHandler, true);
   document.getElementById('lpSearchResults').classList.add('hidden');
