@@ -6,13 +6,11 @@
 // (isAgentOrAdmin()), the same pattern already shipped and tested for
 // company-logos/{companyId}. Run via `npm run test:storage-rules`.
 //
-// See tests/storage/helpers.mjs's own header comment for a known,
-// pre-existing sandbox limitation: a network-restricted environment
-// without outbound access to firebase-public.firebaseio.com makes every
-// firestore.get() cross-check inside storage.rules -- including the
-// already-shipped isAdmin()/company-logos checks -- throw generically,
-// which can make an assertFails() case "pass" for the wrong reason. Not
-// specific to this fix.
+// See tests/storage/helpers.mjs's own header comment: every principal
+// used in a firestore.get() cross-check here (isAgentOrAdmin()) needs a
+// real users/{uid} document seeded, same as any other test in this
+// directory -- omitting it throws, which can make an assertFails() case
+// "pass" for the wrong reason.
 import { before, after, beforeEach, describe, it } from 'node:test';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { ref, uploadBytes } from 'firebase/storage';

@@ -330,6 +330,30 @@ class PermissionOps:
             "effectivePermissions": {},
         }
 
+    async def list_service_requests(
+        self, *, caller_uid: str, caller_is_admin: bool, status: str | None = None, limit: int = 100
+    ) -> list[dict]:
+        """GET /api/v1/access/service-requests[?status=]. Serves TWO
+        different views of the same underlying data from one endpoint,
+        scoped here rather than trusted from the request:
+          - an admin (caller_is_admin) sees every request, across every
+            provider (U5's central Customer Services inbox).
+          - anyone else sees ONLY their own requests (customerUid ==
+            caller_uid, forced -- never taken from the request) across
+            every provider they've contacted (account.html's "My
+            Requests" tab). There is no way for a non-admin caller to
+            widen this to see anyone else's requests; caller_uid is the
+            token-verified uid from AuthGate, not a client-supplied
+            value.
+        See _list_service_requests' own docstring for why BOTH of these
+        have to go through the Admin SDK rather than a client-side
+        collectionGroup query."""
+        if status is not None and status not in _REQUEST_STATUSES:
+            raise ValidationError("'status' must be one of pending, accepted, declined, completed.")
+        safe_limit = max(1, min(int(limit), 200))
+        customer_uid = None if caller_is_admin else caller_uid
+        return await _list_service_requests(self._db, status=status, customer_uid=customer_uid, limit=safe_limit)
+
 
 def _empty_org_block(organization_id: str, membership_status: str) -> dict:
     return {
@@ -339,3 +363,79 @@ def _empty_org_block(organization_id: str, membership_status: str) -> dict:
         "organizationPermissions": {},
         "effectivePermissions": {},
     }
+
+
+_REQUEST_STATUSES = frozenset({"pending", "accepted", "declined", "completed"})
+
+
+async def _list_service_requests(db, *, status: str | None, customer_uid: str | None, limit: int) -> list[dict]:
+    """Backs both admin.html's central service-request inbox (U5) and
+    account.html's "My Requests" tab -- one Admin-SDK read, scoped by the
+    handler layer (list_service_requests below) rather than by a client
+    Firestore query. firestore.rules' serviceProviders/{id}/requests/{id}
+    read rule is isAdmin() || own customerUid || owning provider -- correct
+    for a single document, but an unfiltered (or even status-filtered)
+    collectionGroup('requests') CLIENT query hits Cloud Firestore's
+    query-safety check whenever the rule has any resource-dependent OR
+    branch the query's own `where` clauses don't pin down. The admin path
+    (no customer_uid) reliably fails that check (confirmed empirically:
+    even the unconditionally-true isAdmin() branch doesn't rescue an
+    otherwise-unconstrained OR). The customer's own path (customerUid ==
+    self, exactly the shape Firestore's docs describe as provable) was
+    observed to pass in isolation but fail intermittently once run
+    alongside the rest of this suite -- not reproduced as a rules defect,
+    but not something to build a privacy-relevant read on either. Both
+    reasons land on the same fix: one backend method, scoped in Python,
+    with a query shape (an equality filter Firestore can always index)
+    that behaves identically in an emulator and in production. See B2's
+    Requests tab (js/profile-role.js), which only ever reads ONE
+    provider's own subcollection directly and never hits any of this."""
+
+    def _read() -> list[dict]:
+        query = db.collection_group("requests")
+        if customer_uid is not None:
+            query = query.where(filter=fb_firestore.FieldFilter("customerUid", "==", customer_uid))
+        if status is not None:
+            query = query.where(filter=fb_firestore.FieldFilter("status", "==", status))
+        query = query.order_by("createdAt", direction=fb_firestore.Query.DESCENDING).limit(limit)
+        results: list[dict] = []
+        provider_cache: dict[str, dict] = {}
+        customer_cache: dict[str, str | None] = {}
+        for snap in query.stream():
+            data = snap.to_dict() or {}
+            provider_ref = snap.reference.parent.parent
+            provider_id = provider_ref.id if provider_ref is not None else None
+            provider_info = provider_cache.get(provider_id) if provider_id else None
+            if provider_id and provider_info is None:
+                provider_snap = provider_ref.get()
+                provider_data = provider_snap.to_dict() or {} if provider_snap.exists else {}
+                provider_info = {
+                    "name": provider_data.get("companyName") or provider_data.get("displayName") or provider_id,
+                    "serviceType": provider_data.get("serviceType"),
+                }
+                provider_cache[provider_id] = provider_info
+            request_customer_uid = data.get("customerUid")
+            customer_name = data.get("customerName")
+            if not customer_name and request_customer_uid:
+                if request_customer_uid not in customer_cache:
+                    user_snap = db.collection(USERS_COLLECTION).document(request_customer_uid).get()
+                    user_data = user_snap.to_dict() or {} if user_snap.exists else {}
+                    customer_cache[request_customer_uid] = user_data.get("displayName")
+                customer_name = customer_cache[request_customer_uid]
+            results.append(
+                {
+                    "providerId": provider_id,
+                    "providerName": (provider_info or {}).get("name"),
+                    "serviceType": (provider_info or {}).get("serviceType"),
+                    "requestId": snap.id,
+                    "customerUid": request_customer_uid,
+                    "customerName": customer_name,
+                    "status": data.get("status"),
+                    "message": data.get("message"),
+                    "createdAt": data.get("createdAt"),
+                    "updatedAt": data.get("updatedAt"),
+                }
+            )
+        return results
+
+    return await asyncio.to_thread(_read)

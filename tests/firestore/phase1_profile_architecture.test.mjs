@@ -10,7 +10,7 @@
 // create/update) still behaves correctly for ordinary self-edits.
 import { before, after, beforeEach, describe, it } from 'node:test';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, getDoc, getDocs, collection, query, orderBy, limit } from 'firebase/firestore';
 import { makeTestEnv, seed, dbFor } from './helpers.mjs';
 
 let testEnv;
@@ -353,6 +353,43 @@ describe('serviceProviders/{providerId}/requests', () => {
     // read provR4's requests just because they too are "a provider."
     const db = dbFor(testEnv, OWNER_B);
     await assertFails(getDoc(doc(db, 'serviceProviders', 'provR4', 'requests', 'req4')));
+  });
+
+  // Launch-readiness fix B2: the provider inbox (js/profile-role.js
+  // Requests tab) shows the customer's own display name, carried on the
+  // request itself because users/{customerUid} is not readable by the
+  // provider. Optional and bounded.
+  it('accepts an optional bounded customerName on create, rejects an oversized one', async () => {
+    await seedProvider('provR7', { serviceType: 'cleaning', providerType: 'individual', ownerId: OWNER_A, verified: false });
+    const db = dbFor(testEnv, CUSTOMER);
+    await assertSucceeds(setDoc(doc(db, 'serviceProviders', 'provR7', 'requests', 'req7'), {
+      customerUid: CUSTOMER, status: 'pending', message: 'Need a quote', customerName: 'Ahmed Darwesh', createdAt: 1,
+    }));
+    await assertFails(setDoc(doc(db, 'serviceProviders', 'provR7', 'requests', 'req7b'), {
+      customerUid: CUSTOMER, status: 'pending', message: 'Need a quote', customerName: 'x'.repeat(121), createdAt: 1,
+    }));
+    await assertFails(setDoc(doc(db, 'serviceProviders', 'provR7', 'requests', 'req7c'), {
+      customerUid: CUSTOMER, status: 'pending', message: 'Need a quote', customerName: 42, createdAt: 1,
+    }));
+  });
+
+  it('lets the owning provider (and an admin) LIST their inbox with the exact query the Requests tab issues; blocks another provider and a guest', async () => {
+    await seedAdmin();
+    await seedProvider('provR8', { serviceType: 'engineer', providerType: 'individual', ownerId: OWNER_A, verified: false });
+    await seedProvider('provR8-other', { serviceType: 'engineer', providerType: 'individual', ownerId: OWNER_B, verified: false });
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'serviceProviders', 'provR8', 'requests', 'a'), { customerUid: CUSTOMER, status: 'pending', message: 'one', createdAt: 1 });
+      await setDoc(doc(ctx.firestore(), 'serviceProviders', 'provR8', 'requests', 'b'), { customerUid: RANDO, status: 'pending', message: 'two', createdAt: 2 });
+    });
+    const inbox = (db) => query(collection(db, 'serviceProviders', 'provR8', 'requests'), orderBy('createdAt', 'desc'), limit(50));
+    const ownerSnap = await assertSucceeds(getDocs(inbox(dbFor(testEnv, OWNER_A))));
+    if (ownerSnap.size !== 2) throw new Error(`owner inbox expected 2 requests, got ${ownerSnap.size}`);
+    await assertSucceeds(getDocs(inbox(dbFor(testEnv, ADMIN))));
+    await assertFails(getDocs(inbox(dbFor(testEnv, OWNER_B))));
+    await assertFails(getDocs(inbox(dbFor(testEnv, null))));
+    // A customer may read their own request document, but may never list
+    // the provider's whole inbox (other customers' requests).
+    await assertFails(getDocs(inbox(dbFor(testEnv, CUSTOMER))));
   });
 
   it('lets the owning provider update status without touching customerUid', async () => {

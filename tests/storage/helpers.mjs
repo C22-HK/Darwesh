@@ -5,20 +5,27 @@
 // points these tests at them, and tears them down afterward. Never
 // touches production.
 //
-// KNOWN ENVIRONMENT LIMITATION (documented, not a bug in these tests or
-// in storage.rules): the Storage emulator's own rules-runtime process
-// needs outbound access to firebase-public.firebaseio.com to service a
-// firestore.get() cross-service call. In a network-restricted sandbox
-// that blocks that host, EVERY firestore.get() call inside storage.rules
-// -- including the pre-existing, unmodified isAdmin() helper -- throws a
-// generic "Null value error" regardless of the actual rule logic or
-// seeded data, which makes assertFails() cases look like they pass for
-// the wrong reason (a crash is still "not succeeded") while assertSucceeds()
-// cases correctly and visibly fail. If these tests fail with exactly
-// that symptom, verify network access to firebase-public.firebaseio.com
-// before concluding storage.rules itself is wrong -- compare against the
-// already-shipped company-logos/{companyId} block, which uses the
-// identical firestore.get() cross-check pattern.
+// SEEDING REQUIREMENT (documented, not a bug in these tests or in
+// storage.rules): every uid these tests authenticate as needs a real
+// users/{uid} document -- storage.rules' isAdmin()/isAgentOrAdmin() do
+// firestore.get(.../users/$(uid)).data.role, and a get() against a
+// document that does not exist throws a generic "Null value error"
+// rather than resolving .data to something a safe accessor could
+// default -- regardless of the actual rule logic being exercised. That
+// makes an assertFails() case "pass" for the wrong reason (a crash is
+// still "not succeeded") while an assertSucceeds() case fails outright.
+// If a test fails with exactly that symptom, check first whether every
+// principal it authenticates as has a matching users/{uid} doc seeded
+// (role: 'customer' is enough unless the test needs 'agent'/'admin') --
+// this was misdiagnosed once as a sandbox network limitation (this
+// comment used to say so); it was not one. A prior local sandbox
+// separately had firebase-tools' own HTTP client (lib/apiv2.js) ignore
+// NO_PROXY and route the Storage emulator's local firestore.get() bridge
+// through an outbound proxy that then refused the loopback destination
+// -- that was a real, distinct issue, but it is an environment/tooling
+// interaction, not something to assume by default; verify with a
+// one-authorized-plus-one-unauthorized minimal probe before attributing
+// any future failure here to either cause.
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

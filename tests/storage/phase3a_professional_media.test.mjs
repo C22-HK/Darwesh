@@ -2,25 +2,12 @@
 // (PHASE 3A -- the shared profile-media path for every service-provider
 // role). Run with `npm run test:storage-rules`.
 //
-// READ tests/storage/helpers.mjs FIRST. In a sandbox that cannot reach
-// firebase-public.firebaseio.com, every firestore.get() inside
-// storage.rules throws, so:
-//
-//   * assertSucceeds() cases here (the owner/admin ALLOW paths) fail for
-//     an environment reason, not a rules reason. They are still written
-//     out in full so they pass the moment the suite runs somewhere with
-//     that host reachable -- and so a future regression in the allow path
-//     is actually caught rather than silently untested.
-//   * assertFails() cases that are decided BEFORE ownsProvider() --
-//     unauthenticated, bad {kind}, bad filename, bad MIME, oversized --
-//     are genuinely verified even in the restricted sandbox, because
-//     storage.rules orders those cheap local checks ahead of the
-//     cross-service get() and `&&` short-circuits. That ordering is a
-//     deliberate property of the rule, not an accident.
-//   * the cross-profile assertFails() cases DO pass in the sandbox, but
-//     partly for the wrong reason (the get() throws rather than
-//     returning a non-matching ownerId). They are not evidence on their
-//     own; they become real evidence in a networked run.
+// READ tests/storage/helpers.mjs FIRST: every principal used in a
+// firestore.get() cross-check (ownsProvider(), isAdmin()) needs a real
+// users/{uid} and/or serviceProviders/{uid} document seeded to match
+// production shape -- a get() against a document that does not exist
+// throws, which can make an assertFails() case "pass" for the wrong
+// reason even though the underlying connection and rule logic are fine.
 import { before, after, beforeEach, describe, it } from 'node:test';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { ref, uploadBytes, deleteObject, getBytes } from 'firebase/storage';

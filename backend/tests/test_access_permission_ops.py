@@ -435,3 +435,130 @@ async def test_denied_permission_audit_entries_never_contain_secrets(db, ops):
     blob = repr(entries)
     for forbidden_word in ("Authorization", "Bearer ", "idToken", "password", "otp", "OTP"):
         assert forbidden_word not in blob
+
+
+# ---- list_service_requests (U5, launch-readiness) ---------------------
+# The Admin-SDK-only path BOTH admin.html's central Requests inbox AND
+# account.html's "My Requests" tab use -- firestore.rules' own read rule
+# (isAdmin() || own customerUid || owning provider) genuinely cannot
+# service either an unfiltered/cross-provider client collectionGroup
+# query, or (reliably) even a customerUid-filtered one, from the client
+# (see tests/firestore/customer_and_admin_requests_view.test.mjs); this
+# method is the only way either view can exist. Scoping (admin sees all,
+# anyone else sees only their own) happens HERE, in Python, from
+# caller_uid/caller_is_admin -- never from anything a caller can set.
+
+
+async def test_list_service_requests_admin_sees_every_provider_newest_first(db, ops):
+    p1, p2 = _uid("provider"), _uid("provider")
+    c1 = _uid("customer")
+    admin_uid = _uid("admin")
+    db.collection("serviceProviders").document(p1).set(
+        {
+            "serviceType": "engineer",
+            "providerType": "individual",
+            "ownerId": p1,
+            "displayName": "Eng One",
+            "verified": False,
+        }
+    )
+    db.collection("serviceProviders").document(p2).set(
+        {
+            "serviceType": "cleaning",
+            "providerType": "individual",
+            "ownerId": p2,
+            "displayName": "Clean Two",
+            "verified": False,
+        }
+    )
+    db.collection("users").document(c1).set({"role": "customer", "displayName": "Cust One"})
+    db.collection("serviceProviders").document(p1).collection("requests").document("r1").set(
+        {"customerUid": c1, "status": "pending", "message": "quote please", "createdAt": 1}
+    )
+    db.collection("serviceProviders").document(p2).collection("requests").document("r2").set(
+        {"customerUid": c1, "status": "accepted", "message": "book a slot", "createdAt": 2}
+    )
+    results = await ops.list_service_requests(caller_uid=admin_uid, caller_is_admin=True)
+    ours = [r for r in results if r["providerId"] in (p1, p2)]
+    assert len(ours) == 2
+    assert ours[0]["requestId"] == "r2"  # newest (createdAt=2) first
+    assert ours[0]["providerName"] == "Clean Two"
+    assert ours[0]["customerName"] == "Cust One"
+    assert ours[1]["requestId"] == "r1"
+    assert ours[1]["providerName"] == "Eng One"
+
+
+async def test_list_service_requests_admin_status_filter(db, ops):
+    p1 = _uid("provider")
+    admin_uid = _uid("admin")
+    db.collection("serviceProviders").document(p1).set(
+        {
+            "serviceType": "designer",
+            "providerType": "individual",
+            "ownerId": p1,
+            "displayName": "D",
+            "verified": False,
+        }
+    )
+    db.collection("serviceProviders").document(p1).collection("requests").document("rp").set(
+        {"customerUid": _uid("customer"), "status": "pending", "message": "m", "createdAt": 1}
+    )
+    db.collection("serviceProviders").document(p1).collection("requests").document("rc").set(
+        {"customerUid": _uid("customer"), "status": "completed", "message": "m", "createdAt": 2}
+    )
+    results = await ops.list_service_requests(caller_uid=admin_uid, caller_is_admin=True, status="pending")
+    assert all(r["status"] == "pending" for r in results)
+    assert any(r["requestId"] == "rp" for r in results)
+    assert not any(r["requestId"] == "rc" for r in results)
+
+
+async def test_list_service_requests_rejects_an_invalid_status(ops):
+    with pytest.raises(ValidationError):
+        await ops.list_service_requests(caller_uid=_uid("admin"), caller_is_admin=True, status="not-a-real-status")
+
+
+async def test_list_service_requests_non_admin_sees_only_their_own_requests(db, ops):
+    p1, p2 = _uid("provider"), _uid("provider")
+    customer_a, customer_b = _uid("customer"), _uid("customer")
+    db.collection("serviceProviders").document(p1).set(
+        {
+            "serviceType": "lawyer",
+            "providerType": "individual",
+            "ownerId": p1,
+            "displayName": "L1",
+            "verified": False,
+        }
+    )
+    db.collection("serviceProviders").document(p2).set(
+        {
+            "serviceType": "maintenance",
+            "providerType": "individual",
+            "ownerId": p2,
+            "displayName": "M1",
+            "verified": False,
+        }
+    )
+    db.collection("serviceProviders").document(p1).collection("requests").document("ra1").set(
+        {"customerUid": customer_a, "status": "pending", "message": "mine 1", "createdAt": 1}
+    )
+    db.collection("serviceProviders").document(p2).collection("requests").document("ra2").set(
+        {"customerUid": customer_a, "status": "completed", "message": "mine 2", "createdAt": 2}
+    )
+    db.collection("serviceProviders").document(p1).collection("requests").document("rb1").set(
+        {"customerUid": customer_b, "status": "pending", "message": "not mine", "createdAt": 3}
+    )
+    results = await ops.list_service_requests(caller_uid=customer_a, caller_is_admin=False)
+    ids = {r["requestId"] for r in results}
+    assert ids == {"ra1", "ra2"}
+    assert all(r["customerUid"] == customer_a for r in results)
+
+
+async def test_list_service_requests_non_admin_cannot_widen_scope_via_any_argument(db, ops):
+    """The handler layer never forwards a client-supplied customer_uid at
+    all -- this proves the ops method itself has no parameter a non-admin
+    caller could use to see someone else's requests even if a future
+    handler bug tried to pass one through."""
+    import inspect
+
+    sig = inspect.signature(ops.list_service_requests)
+    assert "customer_uid" not in sig.parameters

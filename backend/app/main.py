@@ -17,7 +17,7 @@ import uvicorn
 from app.access.auth_context import FirebaseIdTokenVerifier
 from app.access.caller_context import AuthGate
 from app.access.company_ops import CompanyOps
-from app.access.firebase_clients import AccessFirebaseClients
+from app.access.firebase_clients import AccessFirebaseClients, make_email_uid_resolver
 from app.access.handlers import CompanyHandler, OrganizationHandler, PermissionAdminHandler
 from app.access.organization_ops import OrganizationOps
 from app.access.permission_ops import PermissionOps
@@ -249,7 +249,7 @@ def build_access_handlers(
     auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
     org_ops = OrganizationOps(db, logger=logger)
     perm_ops = PermissionOps(db, logger=logger)
-    company_ops = CompanyOps(db, logger=logger)
+    company_ops = CompanyOps(db, logger=logger, resolve_email_uid=make_email_uid_resolver(clients.app))
 
     # Firestore-backed in production (multi-instance Cloud Run, same
     # INFRA-01 reasoning as every other rate limiter in this backend),

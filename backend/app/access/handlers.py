@@ -422,6 +422,35 @@ class CompanyHandler:
             return JSONResponse({"error": "Could not submit the membership request right now."}, status_code=500)
         return JSONResponse({"status": "pending"}, status_code=201)
 
+    async def lookup_agent(self, request: Request) -> JSONResponse:
+        """U1: POST /companies/{company_id}/agents/lookup {email} ->
+        {uid, displayName}. Read-only, owner/admin-gated in ops, and
+        rate-limited with the same membership limiter as invites (a lookup
+        is only ever the first half of an invite)."""
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.membership_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        company_id = request.path_params.get("company_id")
+        email = _string_field(body, "email")
+        try:
+            result = await self.ops.lookup_agent_by_email(
+                company_id=company_id,
+                email=email or "",
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("agent lookup failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not look up that agent right now."}, status_code=500)
+        return JSONResponse(result, status_code=200)
+
     async def invite_employee(self, request: Request) -> JSONResponse:
         caller = await self.auth.authenticate(request)
         if caller is None:
@@ -676,3 +705,30 @@ class PermissionAdminHandler:
             self.logger.error("effective permissions read failed", extra={"error": str(exc)})
             return JSONResponse({"error": "Could not read your permissions right now."}, status_code=500)
         return JSONResponse(result, status_code=200)
+
+    async def list_service_requests(self, request: Request) -> JSONResponse:
+        """GET /api/v1/access/service-requests[?status=]. Any authenticated
+        caller may call this -- it backs BOTH admin.html's central Customer
+        Services inbox (U5: every provider, every request) and account.html's
+        "My Requests" tab (a customer's own requests across every provider
+        they've contacted). PermissionOps.list_service_requests does the
+        actual scoping from caller.is_admin/caller.uid, never from anything
+        in the request body or query string; see its own docstring for why
+        BOTH views have to go through the Admin SDK rather than a client-
+        side collectionGroup query."""
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not await self.read_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        status = request.query_params.get("status") or None
+        try:
+            requests = await self.ops.list_service_requests(
+                caller_uid=caller.uid, caller_is_admin=caller.is_admin, status=status
+            )
+        except ValidationError as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("service requests list failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not load service requests right now."}, status_code=500)
+        return JSONResponse({"requests": requests}, status_code=200)

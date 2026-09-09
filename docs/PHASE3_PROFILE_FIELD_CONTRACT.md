@@ -60,12 +60,25 @@ structurally different, non-interchangeable data models today.**
 Source: `firestore.rules:261-274` (create allowlist), `:318-334` (update
 allowlist + locked fields).
 
+**U1 (launch-readiness audit, 2026-09):** `users/{uid}` is world-readable
+whenever `role == 'agent'`, and a Firestore read is document-level, so the
+"no (owner/admin only read)" claims below for `email`/`phone` were wrong
+for agents. Those fields, the verification flags and `commissionRate` now
+live in **`users/{uid}/privateProfile/main`** (rules: read owner/admin;
+create/update admin, or owner for `commissionRate` only; collection-group
+read admin only). The backend signup writer, `admin.html`'s Add Agent flow,
+`agent-dashboard.html` and `office.html` (agent lookup moved to
+`POST /api/v1/access/companies/{id}/agents/lookup`) were updated together,
+and `backend/scripts/migrate_private_profile.py` moves existing documents
+(dry-run / apply / verify / rollback). Until that migration has been run in
+production, existing agents' fields are still on the public document.
+
 | Field | Public | Owner-editable | Backend/admin-only | Notes |
 |---|---|---|---|---|
-| `email` | no (owner/admin only read) | no (set at signup) | — | |
+| `email` | **moved to `privateProfile/main`** — never on the public doc | no (set at signup) | — | not in the client create allowlist any more |
 | `displayName` | yes* | yes | — | *public only if `role=='agent'`, else owner/admin read only (`firestore.rules:213`) |
 | `firstName`/`lastName` | no | no (create-only) | — | not in update allowlist — effectively immutable post-signup today |
-| `phone` | no | no (create-only) | — | same as above |
+| `phone` | **moved to `privateProfile/main`** | no (create-only) | — | not in the client create allowlist any more |
 | `photoURL` | yes* | yes | — | same visibility rule as `displayName` |
 | `role` | no | **no** | admin only | `'customer'\|'agent'\|'admin'` |
 | `requestedRole` | no | **no** | admin only | signup-intent signal, never itself a grant |
@@ -74,8 +87,8 @@ allowlist + locked fields).
 | `accountType` | no | **no** (write-once at signup) | admin/backend only | UI-routing hint only, never an authorization grant |
 | `activeOrganizationId` | no | **no** | backend only, via `POST /me/active-organization` | Phase 2.2: UX pointer only, never authorization |
 | `permissionOverrides` | no | **no client path at all**, ever | backend Admin SDK only | never client-writable, not even by admin |
-| `commissionRate` | no | yes (0–100 bound) | — | agent-only in practice |
-| `phoneVerified`/`phoneVerifiedAt`/`emailVerified` | no | no (create-only) | — | |
+| `commissionRate` | **moved to `privateProfile/main`** | yes there (0–100 bound, the only owner-editable private field) | — | agent-only in practice |
+| `phoneVerified`/`phoneVerifiedAt`/`emailVerified` | **moved to `privateProfile/main`** | no | backend/admin only | |
 | `createdAt` | no | no (create-only) | — | |
 | `assignedAgentId` | no | — | — | **dead field** — never written by any code path (Phase 1 finding, still true) |
 

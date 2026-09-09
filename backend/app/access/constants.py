@@ -30,6 +30,15 @@ SELF_ACCOUNT_TYPES: frozenset[str] = frozenset(
         "professional_designer",
         "professional_lawyer",
         "professional_landscaping",
+        # Maintenance was added as a real serviceType (firestore.rules'
+        # serviceProviders create rule, js/professional-roles.js,
+        # maintenance.html, signup-professional.html's TYPE_CATALOG) but
+        # its accountType was never registered here or in
+        # isValidSelfAccountType() -- so every Maintenance signup was
+        # rejected at /api/v1/auth/signup/complete with "Invalid account
+        # type." (launch-readiness audit, fix B1). Registered in both
+        # places together, per the module docstring above.
+        "professional_maintenance",
         "cleaning_individual",
         "cleaning_team_or_company_owner",
         "org_owner_residential_community",

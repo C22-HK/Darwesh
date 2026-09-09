@@ -9,14 +9,13 @@
 // deliberately never touches or weakens (see professional_work.test.mjs's
 // own describe blocks re-asserted unchanged at the bottom of this file).
 //
-// KNOWN ENVIRONMENT LIMITATION (same as professional_work.test.mjs): the
-// Storage emulator's rules-runtime needs outbound access to
-// firebase-public.firebaseio.com for firestore.get() cross-service calls.
-// In this sandbox that host is blocked, so every firestore.get() inside
-// storage.rules throws a generic "Null value error" regardless of actual
-// rule logic -- assertFails() cases still pass (a crash is "not
-// succeeded"), assertSucceeds() cases correctly and visibly fail. This is
-// not a bug in these tests or in storage.rules.
+// Every principal used below (seedOwnerContext()) gets a real
+// users/{uid} document, matching production shape: storage.rules'
+// isAdmin() does firestore.get(.../users/$(uid)).data.role, and a get()
+// against a document that does not exist throws rather than resolving
+// to a safe default -- a missing seed here would make an assertFails()
+// case "pass" for the wrong reason (a crash also counts as "not
+// succeeded") while an assertSucceeds() case fails outright.
 import { before, after, beforeEach, describe, it } from 'node:test';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { ref, uploadBytes, deleteObject } from 'firebase/storage';

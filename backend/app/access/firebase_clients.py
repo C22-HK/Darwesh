@@ -10,10 +10,29 @@
 # the (OTP-secret-gated) email-OTP endpoints happen to be configured.
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
+
 import firebase_admin
+from firebase_admin import auth as fb_auth
 from firebase_admin import firestore as fb_firestore
 
 from app.auth.firebase_credentials import build_firebase_credentials, unique_app_name
+
+
+def make_email_uid_resolver(app: firebase_admin.App) -> Callable[[str], Awaitable[str | None]]:
+    """U1: email -> Firebase Auth uid (or None) for CompanyOps.lookup_agent_by_email.
+    Same get_user_by_email call app.otp.firebase_admin_ops already relies
+    on; bound to THIS package's own Admin app."""
+
+    async def _resolve(email: str) -> str | None:
+        try:
+            user = await asyncio.to_thread(fb_auth.get_user_by_email, email, app=app)
+        except fb_auth.UserNotFoundError:
+            return None
+        return user.uid
+
+    return _resolve
 
 
 class AccessFirebaseClients:

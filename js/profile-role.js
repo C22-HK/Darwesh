@@ -31,9 +31,9 @@
 // One config object drives every role page -- this file has no
 // page-specific knowledge beyond `serviceType`.
 
-import { auth, db, getDoc, setDoc, updateDoc, addDoc } from './firebase-init.js';
+import { auth, db, getDoc, getDocs, setDoc, updateDoc, addDoc } from './firebase-init.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
-import { doc, collection } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+import { doc, collection, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { mountTabs, renderEmptyState, renderErrorState, withBusyButton } from './profile-shell.js';
 import { allowsPortfolio, roleIcon } from './professional-roles.js';
 import { wireMediaInput } from './profile-media.js';
@@ -154,6 +154,7 @@ export function initServiceProviderProfile(config) {
       setupTabs();
       if (showPortfolio) { if (renderWorkTab) renderWorkTab(workTabContext()); else renderProjects(); }
       renderContactTab();
+      renderRequestsTab();
     } catch (err) {
       hideStates();
       show('errorState');
@@ -436,7 +437,8 @@ export function initServiceProviderProfile(config) {
       overview: { key: 'overview', button: el('tabBtnOverview'), panel: el('panelOverview') },
       projects: { key: 'projects', button: el('tabBtnProjects'), panel: el('panelProjects') },
       services: { key: 'services', button: el('tabBtnServices'), panel: el('panelServices') },
-      contact: { key: 'contact', button: el('tabBtnContact'), panel: el('panelContact') }
+      contact: { key: 'contact', button: el('tabBtnContact'), panel: el('panelContact') },
+      requests: { key: 'requests', button: el('tabBtnRequests'), panel: el('panelRequests') }
     };
 
     let order = tabOrder || ['overview', 'projects', 'services', 'contact'];
@@ -448,7 +450,161 @@ export function initServiceProviderProfile(config) {
       if (panel) panel.remove();
     }
 
-    tabsController = mountTabs({ tabs: order.map((k) => byKey[k]).filter(Boolean) });
+    // Requests inbox (launch-readiness fix B2). Customer requests are
+    // written to serviceProviders/{id}/requests by the Contact tab's form,
+    // and firestore.rules lets ONLY the owning provider or an admin read
+    // them -- before this tab existed nothing on the site ever rendered
+    // them, so every request landed in a document nobody could see. The
+    // tab is appended for those two viewers and removed from the DOM
+    // outright for everyone else (same treatment as the Projects tab for
+    // a role without a portfolio): a visitor's page has no inbox surface
+    // to reach at all, not merely a hidden one.
+    const canSeeRequests = !!(el('tabBtnRequests') && el('panelRequests')) && (isOwnerView || isAdminView);
+    if (canSeeRequests) {
+      if (!order.includes('requests')) order = [...order, 'requests'];
+    } else {
+      order = order.filter((k) => k !== 'requests');
+      const btn = el('tabBtnRequests');
+      const panel = el('panelRequests');
+      if (btn) btn.remove();
+      if (panel) panel.remove();
+    }
+
+    tabsController = mountTabs({ tabs: order.map((k) => byKey[k]).filter((t) => t && t.button && t.panel) });
+  }
+
+  // ---- Requests inbox (owner / admin only) -----------------------------
+  const REQUEST_STATUSES = ['pending', 'accepted', 'declined', 'completed'];
+  const REQUEST_STATUS_META = {
+    pending:   { key: 'rp.requestStatusPending',   fallback: 'Pending',   badge: 'ps-badge-neutral' },
+    accepted:  { key: 'rp.requestStatusAccepted',  fallback: 'Accepted',  badge: 'ps-badge-verified' },
+    declined:  { key: 'rp.requestStatusDeclined',  fallback: 'Declined',  badge: 'ps-badge-unverified' },
+    completed: { key: 'rp.requestStatusCompleted', fallback: 'Completed', badge: 'ps-badge-verified' }
+  };
+  function requestStatusMeta(status) {
+    return REQUEST_STATUS_META[status] || REQUEST_STATUS_META.pending;
+  }
+  function formatRequestDate(value) {
+    const ms = typeof value === 'number'
+      ? value * 1000
+      : (value && typeof value.seconds === 'number' ? value.seconds * 1000 : null);
+    if (!ms) return '';
+    try { return new Date(ms).toLocaleDateString(); } catch { return ''; }
+  }
+
+  function requestCard(r) {
+    const meta = requestStatusMeta(r.status);
+    const name = r.customerName ? esc(r.customerName) : esc(tr('rp.requestCustomer', 'Customer'));
+    const phone = r.contactPhone
+      ? `<a class="text-secondary hover:underline" href="tel:${esc(r.contactPhone)}">${esc(r.contactPhone)}</a>`
+      : `<span class="opacity-70">${esc(tr('rp.requestNoPhone', 'No phone given'))}</span>`;
+    const date = formatRequestDate(r.createdAt);
+    const options = REQUEST_STATUSES.map((s) => {
+      const m = requestStatusMeta(s);
+      return `<option value="${s}"${(r.status || 'pending') === s ? ' selected' : ''}>${esc(tr(m.key, m.fallback))}</option>`;
+    }).join('');
+    return `
+      <article class="ps-card p-4 md:p-5 mb-3" data-request-id="${esc(r.id)}">
+        <div class="flex flex-wrap items-start justify-between gap-2 mb-2">
+          <div>
+            <p class="font-body-md text-[14px] font-semibold text-on-surface">${name}</p>
+            <p class="font-body-md text-[12.5px] text-on-surface-variant">${phone}${date ? ' · ' + esc(date) : ''}</p>
+          </div>
+          <span class="ps-badge ${meta.badge}">${esc(tr(meta.key, meta.fallback))}</span>
+        </div>
+        <p class="font-body-md text-[13.5px] text-on-surface mb-3" style="white-space:pre-line">${esc(r.message || '')}</p>
+        <form class="rp-request-form flex flex-wrap items-end gap-2">
+          <label class="block">
+            <span class="ps-field-label">${esc(tr('rp.requestStatusLabel', 'Status'))}</span>
+            <select class="ps-input" data-role="status">${options}</select>
+          </label>
+          <label class="block flex-1">
+            <span class="ps-field-label">${esc(tr('rp.requestNoteLabel', 'Private note (only you)'))}</span>
+            <input class="ps-input" data-role="note" type="text" maxlength="500" value="${esc(r.providerNote || '')}"/>
+          </label>
+          <button type="submit" class="ps-btn bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">${esc(tr('rp.requestSave', 'Save'))}</button>
+          <p class="rp-request-msg hidden text-[12px] w-full"></p>
+        </form>
+      </article>`;
+  }
+
+  function wireRequestCard(r) {
+    const card = document.querySelector(`#requestsList [data-request-id="${CSS.escape(r.id)}"]`);
+    if (!card) return;
+    const form = card.querySelector('.rp-request-form');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button[type="submit"]');
+      const msg = form.querySelector('.rp-request-msg');
+      withBusyButton(btn, async () => {
+        msg.classList.add('hidden');
+        const status = form.querySelector('[data-role="status"]').value;
+        const providerNote = form.querySelector('[data-role="note"]').value.trim().slice(0, 500);
+        if (!REQUEST_STATUSES.includes(status)) return;
+        try {
+          // Exactly the three keys firestore.rules lets the owning
+          // provider change on a request (status, providerNote,
+          // updatedAt) -- customerUid/message/contactPhone are never
+          // touched from here.
+          await updateDoc(doc(db, 'serviceProviders', providerId, 'requests', r.id), {
+            status, providerNote, updatedAt: Date.now() / 1000
+          });
+          r.status = status; r.providerNote = providerNote;
+          const badge = card.querySelector('.ps-badge');
+          const meta = requestStatusMeta(status);
+          badge.className = `ps-badge ${meta.badge}`;
+          badge.textContent = tr(meta.key, meta.fallback);
+          msg.textContent = tr('rp.requestSaved', 'Saved.');
+          msg.style.color = '';
+          msg.classList.remove('hidden');
+        } catch (err) {
+          msg.textContent = tr('rp.errorGeneric', 'Something went wrong. Please try again.');
+          msg.style.color = '#ba1a1a';
+          msg.classList.remove('hidden');
+        }
+      });
+    });
+  }
+
+  async function renderRequestsTab() {
+    const list = el('requestsList');
+    const emptyEl = el('requestsEmpty');
+    // Both elements are removed by setupTabs() for any viewer who is not
+    // the owner or an admin, so this is a no-op for visitors -- and the
+    // read below would be denied by firestore.rules for them regardless.
+    if (!list || !emptyEl || !(isOwnerView || isAdminView)) return;
+    list.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant">${esc(tr('rp.requestsLoading', 'Loading requests…'))}</p>`;
+    const items = [];
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'serviceProviders', providerId, 'requests'),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      ));
+      snap.forEach((d) => items.push({ id: d.id, ...d.data() }));
+    } catch (err) {
+      list.innerHTML = '';
+      renderErrorState(emptyEl, {
+        message: tr('rp.errorGeneric', 'Something went wrong. Please try again.'),
+        onRetry: renderRequestsTab
+      });
+      show('requestsEmpty');
+      return;
+    }
+    if (!items.length) {
+      list.innerHTML = '';
+      renderEmptyState(emptyEl, {
+        icon: 'inbox',
+        title: tr('rp.requestsEmpty', 'No requests yet.'),
+        hint: tr('rp.requestsEmptyHint', 'Requests sent through your profile will appear here.')
+      });
+      show('requestsEmpty');
+      return;
+    }
+    hide('requestsEmpty');
+    list.innerHTML = `<p class="rp-owner-note mb-3">${esc(tr('rp.requestsIntro', 'Requests sent to you through your profile. Only you and Darwesh Group admins can see them.'))}</p>`
+      + items.map(requestCard).join('');
+    items.forEach(wireRequestCard);
   }
 
   // Read-only context handed to a role's custom work-tab renderer
@@ -652,6 +808,11 @@ export function initServiceProviderProfile(config) {
           };
           const phone = el('requestPhone').value.trim();
           if (phone) payload.contactPhone = phone;
+          // The provider's inbox cannot read users/{customerUid}, so the
+          // customer's own display name travels with the request
+          // (optional, bounded -- see firestore.rules' requests create).
+          const customerName = String(currentUser.displayName || '').trim().slice(0, 120);
+          if (customerName) payload.customerName = customerName;
           await addDoc(collection(db, 'serviceProviders', providerId, 'requests'), payload);
           card.innerHTML = `<p class="rp-contact-sent font-body-md text-[14px] font-medium">${esc(tr('rp.contactSent', 'Your request has been sent.'))}</p>`;
         } catch (err) {

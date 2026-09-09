@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 
 from firebase_admin import firestore as fb_firestore
@@ -91,9 +92,22 @@ def _clean_text(value: object, *, field: str, max_length: int, required: bool = 
 
 
 class CompanyOps:
-    def __init__(self, db, logger: logging.Logger | None = None) -> None:
+    def __init__(
+        self,
+        db,
+        logger: logging.Logger | None = None,
+        resolve_email_uid: Callable[[str], Awaitable[str | None]] | None = None,
+    ) -> None:
         self._db = db
         self._logger = logger or logging.getLogger("darwesh.access.companies")
+        # U1: office.html used to find an invitee by querying
+        # users.where('email', '==', ...) client-side -- possible only because
+        # every agent's email sat on the world-readable users document. With
+        # email moved to users/{uid}/privateProfile/main, the lookup moves
+        # here, behind the owner/admin check in lookup_agent_by_email(). The
+        # resolver is Firebase Auth's get_user_by_email (app.main wires it);
+        # tests inject a fake.
+        self._resolve_email_uid = resolve_email_uid
 
     def _log_denied(
         self,
@@ -226,6 +240,47 @@ class CompanyOps:
             _txn(transaction)
 
         await asyncio.to_thread(_op)
+
+    async def lookup_agent_by_email(
+        self, *, company_id: str, email: str, caller_uid: str, caller_is_admin: bool
+    ) -> dict:
+        """U1: resolves an invitee's email to the uid the office owner
+        needs for invite_employee(). Only the office's owner or an admin
+        may ask (same gate as invite_employee itself), and the answer is
+        deliberately narrow: {uid, displayName} for an account that is a
+        real `role == 'agent'` profile, or NotFoundError for everything
+        else -- no account, a customer, a disabled lookup -- so this can
+        never be used to enumerate who has a Darwesh account beyond the
+        agents an office could already invite. Read-only; nothing is
+        written and nothing is audited as a change."""
+        cleaned = _clean_text(email, field="email", max_length=320, required=True) or ""
+        if "@" not in cleaned:
+            raise ValidationError("'email' must be an email address")
+        if self._resolve_email_uid is None:
+            raise NotFoundError("agent lookup is not available")
+        company_snap = await asyncio.to_thread(lambda: self._db.collection("companies").document(company_id).get())
+        if not company_snap.exists:
+            raise NotFoundError(f"company '{company_id}' does not exist")
+        owner_id = _owner_id(company_snap)
+        if not caller_is_admin and (owner_id is None or owner_id != caller_uid):
+            self._log_denied(
+                actor_uid=caller_uid,
+                action="agent_lookup_denied",
+                target_id=company_id,
+                target_company_id=company_id,
+                reason_code="forbidden_not_owner_or_admin",
+            )
+            raise ForbiddenError("only the office's owner or an admin may look up an agent")
+        uid = await self._resolve_email_uid(cleaned.lower())
+        if not uid:
+            raise NotFoundError("no agent account found with that email")
+        user_snap = await asyncio.to_thread(lambda: self._db.collection("users").document(uid).get())
+        data = (user_snap.to_dict() or {}) if user_snap.exists else {}
+        if data.get("role") != "agent":
+            # Same message as "no account" on purpose (no enumeration of
+            # non-agent accounts through an office owner's lookup).
+            raise NotFoundError("no agent account found with that email")
+        return {"uid": uid, "displayName": data.get("displayName") or ""}
 
     async def invite_employee(
         self, *, company_id: str, target_uid: str, caller_uid: str, caller_is_admin: bool

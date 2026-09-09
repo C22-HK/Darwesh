@@ -91,6 +91,12 @@ function renderOrgPicker() {
 async function selectOrg(org) {
   activeOrg = org;
   document.querySelectorAll('.op-org-card').forEach((c) => c.classList.toggle('is-active', c.dataset.id === org.id));
+  // U3 (launch-readiness): project/unit authoring lives here, but the
+  // organization's own profile (name/description/logo/business details,
+  // team) is a separate surface -- organization.html, built once that gap
+  // was flagged. This is the only link to it from this page.
+  const profileLink = el('opOrgProfileLink');
+  if (profileLink) profileLink.href = `organization.html?id=${encodeURIComponent(org.id)}`;
   showListView();
   await loadOrgProjects();
 }

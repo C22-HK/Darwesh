@@ -75,7 +75,8 @@ service cloud.firestore {
       return v in [
         'individual_customer', 'real_estate_agent', 'office_owner', 'office_employee',
         'professional_engineer', 'professional_designer', 'professional_lawyer',
-        'professional_landscaping', 'cleaning_individual', 'cleaning_team_or_company_owner',
+        'professional_landscaping', 'professional_maintenance',
+        'cleaning_individual', 'cleaning_team_or_company_owner',
         'org_owner_residential_community', 'org_owner_developer',
         'org_owner_finance_provider', 'org_owner_furniture_store'
       ];
@@ -376,11 +377,19 @@ service cloud.firestore {
                         || !exists(/databases/$(database)/documents/companies/$(request.resource.data.companyId)))
                     && (!('accountType' in request.resource.data)
                         || isValidSelfAccountType(request.resource.data.accountType))
+                    // U1 (launch-readiness audit): email / phone / the
+                    // verification flags / commissionRate are NOT in this
+                    // allowlist any more. users/{uid} is world-readable
+                    // when role == 'agent' (public agent profiles), and a
+                    // Firestore read is document-level, so any of those
+                    // fields on this document was public. They live in
+                    // users/{uid}/privateProfile/main now (see the match
+                    // block below) -- a client that still tries to write
+                    // them onto the public document is rejected here.
                     && request.resource.data.keys().hasOnly([
-                         'email', 'displayName', 'firstName', 'lastName', 'phone',
+                         'displayName', 'firstName', 'lastName',
                          'role', 'requestedRole', 'companyId', 'requestedCompanyId', 'requestedCompanyName',
-                         'accountType',
-                         'phoneVerified', 'phoneVerifiedAt', 'emailVerified', 'createdAt'
+                         'accountType', 'createdAt'
                        ]);
       // .get(field, null) rather than direct dot access for every locked
       // field below -- Firestore rules THROWS (and denies the whole
@@ -434,15 +443,50 @@ service cloud.firestore {
                            && request.resource.data.get('requestedRole', null) == resource.data.get('requestedRole', null)
                            && request.resource.data.get('accountType', null) == resource.data.get('accountType', null)
                            && request.resource.data.get('activeOrganizationId', null) == resource.data.get('activeOrganizationId', null)
-                           && (!('commissionRate' in request.resource.data)
-                               || ((request.resource.data.commissionRate is int || request.resource.data.commissionRate is float)
-                                   && request.resource.data.commissionRate >= 0
-                                   && request.resource.data.commissionRate <= 100))
+                           // U1: commissionRate moved to privateProfile/main
+                           // (owner-editable there, same 0-100 bound); an
+                           // owner self-edit may only touch the two public
+                           // presentation fields now. Removing a leftover
+                           // private field from the public doc is the
+                           // migration tool's (Admin SDK) job, not a client's.
                            && request.resource.data.diff(resource.data).affectedKeys()
-                                .hasOnly(['displayName', 'photoURL', 'commissionRate']))
+                                .hasOnly(['displayName', 'photoURL']))
                          || isAdmin()
                        );
       allow delete: if isAdmin();
+
+      // ---- U1: private contact / finance fields --------------------------
+      // users/{uid} is readable by ANYONE when role == 'agent' (public agent
+      // profiles on agent.html / listing.html cards), and Firestore reads
+      // are document-level -- so email, phone, the verification flags and
+      // commissionRate cannot sit on that document without being public.
+      // They live here: readable by the owner and admins only. Same split
+      // as listings/{id}/private/location (LOC-01), organizations/{id}/
+      // private/contact and serviceProviders/{id}/private/contact.
+      //
+      // Writers: the backend at signup (FirebaseAccountOps.create_user_profile,
+      // Admin SDK), admin.html's Add Agent flow (admin session), and the
+      // owner for commissionRate ONLY (agent-dashboard's Save Rate -- the
+      // one owner-editable field, same 0-100 bound the public doc used to
+      // enforce). The owner can never rewrite their verified email/phone.
+      match /privateProfile/{docId} {
+        function isValidCommissionRate(d) {
+          return !('commissionRate' in d)
+              || ((d.commissionRate is int || d.commissionRate is float)
+                  && d.commissionRate >= 0 && d.commissionRate <= 100);
+        }
+        allow read: if isOwner(uid) || isAdmin();
+        allow create: if isAdmin()
+                      || (isOwner(uid) && docId == 'main'
+                          && request.resource.data.keys().hasOnly(['commissionRate', 'updatedAt'])
+                          && isValidCommissionRate(request.resource.data));
+        allow update: if isAdmin()
+                      || (isOwner(uid) && docId == 'main'
+                          && request.resource.data.diff(resource.data).affectedKeys()
+                               .hasOnly(['commissionRate', 'updatedAt'])
+                          && isValidCommissionRate(request.resource.data));
+        allow delete: if isAdmin();
+      }
 
       // Per-user favorites and saved searches — only that user (ever) reads/writes.
       match /favorites/{listingId} {
@@ -1027,19 +1071,33 @@ service cloud.firestore {
       // can't relabel their org into a different business type after
       // the fact); an admin may still adjust `verified`/`type` directly,
       // matching the existing listings.verified admin-direct precedent.
+      // U3 (launch-readiness): an owner could always edit their org's
+      // public profile; an active staff member granted
+      // 'manage_organization_profile' (Phase 2.1's org-scoped grant,
+      // organizations/{orgId}/members/{uid}.permissions -- backend-only
+      // writable) could edit `private/contact` with it but NOT this
+      // document, so "staff can manage the profile" was half-built. This
+      // adds exactly the same field allowlist for that staff branch as
+      // the owner already has -- never `type`/`verified`/`ownerId`,
+      // matching the owner's own restriction.
+      function canEditOrgProfileFields() {
+        return request.resource.data.type == resource.data.type
+            && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+            && (!('details' in request.resource.data) || request.resource.data.details is map)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly([
+                   'name', 'description', 'logoUrl', 'coverImageUrl',
+                   'city', 'district', 'location',
+                   'details', 'updatedAt'
+                 ]);
+      }
       allow update: if request.resource.data.ownerId == resource.data.ownerId
                     && (
                          isAdmin()
-                         || (isOrgOwnerNow()
-                             && request.resource.data.type == resource.data.type
-                             && request.resource.data.get('verified', false) == resource.data.get('verified', false)
-                             && (!('details' in request.resource.data) || request.resource.data.details is map)
-                             && request.resource.data.diff(resource.data).affectedKeys()
-                                  .hasOnly([
-                                    'name', 'description', 'logoUrl', 'coverImageUrl',
-                                    'city', 'district', 'location',
-                                    'details', 'updatedAt'
-                                  ]))
+                         || (isOrgOwnerNow() && canEditOrgProfileFields())
+                         || (isOrgMember(orgId)
+                             && hasOrgPermission(orgId, 'manage_organization_profile')
+                             && canEditOrgProfileFields())
                        );
       allow delete: if isAdmin();
 
@@ -1210,10 +1268,18 @@ service cloud.firestore {
       }
 
       match /requests/{requestId} {
+        // customerName (launch-readiness fix B2): the provider's inbox
+        // (js/profile-role.js Requests tab) cannot read users/{customerUid}
+        // to show who wrote in, so the customer's own display name travels
+        // with the request. Optional, bounded, and still only ever readable
+        // by the owning provider / an admin per the read rule below.
         allow create: if isSignedIn()
                       && request.resource.data.customerUid == request.auth.uid
                       && request.resource.data.get('status', 'pending') == 'pending'
-                      && request.resource.data.keys().hasOnly(['customerUid', 'status', 'message', 'contactPhone', 'createdAt']);
+                      && request.resource.data.keys().hasOnly(['customerUid', 'status', 'message', 'contactPhone', 'customerName', 'createdAt'])
+                      && (!('customerName' in request.resource.data)
+                          || (request.resource.data.customerName is string
+                              && request.resource.data.customerName.size() <= 120));
         allow read: if isAdmin()
                     || (isSignedIn() && resource.data.customerUid == request.auth.uid)
                     || (isSignedIn() && providerOwnerId(providerId) == request.auth.uid);
@@ -2255,6 +2321,15 @@ service cloud.firestore {
     // seedable only via the Admin SDK directly (e.g. this phase's own
     // emulator test setup), not through any client surface, until a
     // later phase's backend endpoints are approved and built.
+    // U1: admin.html's Users & Roles / Agents / Network tabs need every
+    // user's private email in one query (not one read per row), so an
+    // admin may run a collection-group query over privateProfile. Only an
+    // admin -- an owner still reaches their own document through the
+    // users/{uid}/privateProfile match above, never through this path.
+    match /{path=**}/privateProfile/{docId} {
+      allow read: if isAdmin();
+    }
+
     match /permissionDefinitions/{key} {
       allow read: if isAdmin();
       allow write: if false;

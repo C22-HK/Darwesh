@@ -110,6 +110,27 @@ describe('3A / maintenance role', () => {
     await assertFails(setDoc(doc(as(OWNER), 'serviceProviders', OWNER),
       providerDoc(OWNER, { serviceType: 'maintenance', verified: true })));
   });
+
+  // Launch-readiness audit, fix B1: signup-professional.html offered the
+  // Maintenance type but isValidSelfAccountType() (and the backend's
+  // SELF_ACCOUNT_TYPES) did not list `professional_maintenance`, so the
+  // users/{uid} create that signup performs was denied. The accountType
+  // js/professional-roles.js maps for the maintenance role must be
+  // self-declarable exactly like every other role's.
+  it('a maintenance signup may self-declare accountType professional_maintenance', async () => {
+    const uid = 'maint-signup-uid';
+    await assertSucceeds(setDoc(doc(as(uid), 'users', uid),
+      { role: 'customer', accountType: 'professional_maintenance', createdAt: 1 }));
+  });
+
+  it('every accountType in js/professional-roles.js is self-declarable at signup', async () => {
+    const { PROFESSIONAL_ROLES } = await import('../../js/professional-roles.js');
+    for (const role of Object.values(PROFESSIONAL_ROLES)) {
+      const uid = `signup-${role.accountType}`;
+      await assertSucceeds(setDoc(doc(as(uid), 'users', uid),
+        { role: 'customer', accountType: role.accountType, createdAt: 1 }));
+    }
+  });
 });
 
 // ---------------------------------------------------------------------

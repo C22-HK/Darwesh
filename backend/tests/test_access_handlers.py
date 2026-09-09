@@ -110,6 +110,9 @@ class FakeCompanyOps:
     async def invite_employee(self, **kwargs):
         self._record("invite_employee", **kwargs)
 
+    async def lookup_agent_by_email(self, **kwargs):
+        return self._record("lookup_agent_by_email", **kwargs) or {"uid": "agent-uid", "displayName": "Agent"}
+
     async def accept_invitation(self, **kwargs):
         self._record("accept_invitation", **kwargs)
 
@@ -156,6 +159,9 @@ class FakePermissionOps:
             "globalPermissions": {},
             "organization": None,
         }
+
+    async def list_service_requests(self, **kwargs):
+        return self._record("list_service_requests", **kwargs) or []
 
 
 ALICE = CallerContext(uid="alice", email="alice@example.com", role="agent", is_admin=False)
@@ -542,6 +548,56 @@ def test_invite_employee_passes_authenticated_uid_and_admin_flag_never_from_body
     assert call["target_uid"] == "target-uid"
 
 
+# ---- U1: agent lookup by email (office invite helper) --------------------
+
+
+def test_lookup_agent_requires_authentication():
+    client, ops = make_company_client(caller=None)
+    resp = client.post("/api/v1/access/companies/company1/agents/lookup", json={"email": "agent@example.com"})
+    assert resp.status_code == 401
+    assert ops.calls == []
+
+
+def test_lookup_agent_passes_authenticated_uid_and_admin_flag_never_from_body():
+    client, ops = make_company_client(caller=ALICE)
+    resp = client.post(
+        "/api/v1/access/companies/company1/agents/lookup",
+        json={"email": "Agent@Example.com", "callerUid": "someone-else", "callerIsAdmin": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"uid": "agent-uid", "displayName": "Agent"}
+    action, call = ops.calls[0]
+    assert action == "lookup_agent_by_email"
+    assert call["caller_uid"] == "alice"
+    assert call["caller_is_admin"] is False
+    assert call["company_id"] == "company1"
+    assert call["email"] == "Agent@Example.com"
+
+
+def test_lookup_agent_maps_not_found_and_forbidden_to_generic_responses():
+    ops = FakeCompanyOps()
+    ops.next_error = NotFoundError("no agent account found with that email")
+    client, _ = make_company_client(caller=ALICE, company_ops=ops)
+    resp = client.post("/api/v1/access/companies/company1/agents/lookup", json={"email": "x@example.com"})
+    assert resp.status_code == 404
+    assert "x@example.com" not in resp.text
+
+    ops.next_error = ForbiddenError("only the office's owner or an admin may look up an agent")
+    resp = client.post("/api/v1/access/companies/company1/agents/lookup", json={"email": "x@example.com"})
+    assert resp.status_code == 403
+
+
+def test_lookup_agent_rejects_a_non_json_body():
+    client, ops = make_company_client(caller=ALICE)
+    resp = client.post(
+        "/api/v1/access/companies/company1/agents/lookup",
+        content=b"not json",
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert ops.calls == []
+
+
 def test_company_accept_invitation_uses_only_the_authenticated_callers_own_uid():
     client, company_ops = make_company_client(caller=ALICE)
     resp = client.post("/api/v1/access/companies/company1/invitations/accept", json={})
@@ -662,3 +718,67 @@ def test_get_my_permissions_without_query_param_passes_none():
     client, _org_ops, _perm_ops = make_client(caller=ALICE, perm_ops=perm_ops)
     client.get("/api/v1/access/me/permissions")
     assert perm_ops.calls[0][1]["organization_id"] is None
+
+
+# ---- list_service_requests (U5, launch-readiness) ----------------------
+#
+# Any authenticated caller may hit this endpoint now -- it backs BOTH
+# admin.html's central Provider Requests inbox (every provider's requests)
+# AND account.html's "My Requests" tab (a customer's own requests only).
+# The handler never trusts a query param for scope: it always forwards the
+# caller's own verified uid/is_admin, and PermissionOps.list_service_requests
+# is the thing that actually decides, server-side, whether that caller sees
+# everything or only their own customerUid-matching requests. See that
+# method's docstring and tests/firestore/customer_and_admin_requests_view
+# .test.mjs for why this moved off a client-side Firestore query entirely.
+
+
+def test_list_service_requests_requires_auth():
+    client, _org_ops, _perm_ops = make_client(caller=None)
+    resp = client.get("/api/v1/access/service-requests")
+    assert resp.status_code == 401
+
+
+def test_list_service_requests_succeeds_for_a_non_admin_and_returns_the_body():
+    perm_ops = FakePermissionOps()
+    perm_ops.next_result = [{"providerId": "p1", "requestId": "r1", "status": "pending"}]
+    client, _org_ops, _perm_ops = make_client(caller=ALICE, perm_ops=perm_ops)  # agent, not admin
+    resp = client.get("/api/v1/access/service-requests")
+    assert resp.status_code == 200
+    assert resp.json()["requests"] == [{"providerId": "p1", "requestId": "r1", "status": "pending"}]
+    assert perm_ops.calls[0] == (
+        "list_service_requests",
+        {"caller_uid": ALICE.uid, "caller_is_admin": False, "status": None},
+    )
+
+
+def test_list_service_requests_succeeds_for_an_admin_and_returns_the_body():
+    perm_ops = FakePermissionOps()
+    perm_ops.next_result = [{"providerId": "p1", "requestId": "r1", "status": "pending"}]
+    client, _org_ops, _perm_ops = make_client(caller=ADMIN, perm_ops=perm_ops)
+    resp = client.get("/api/v1/access/service-requests")
+    assert resp.status_code == 200
+    assert resp.json()["requests"] == [{"providerId": "p1", "requestId": "r1", "status": "pending"}]
+    assert perm_ops.calls[0] == (
+        "list_service_requests",
+        {"caller_uid": ADMIN.uid, "caller_is_admin": True, "status": None},
+    )
+
+
+def test_list_service_requests_forwards_the_status_query_param():
+    perm_ops = FakePermissionOps()
+    client, _org_ops, _perm_ops = make_client(caller=ADMIN, perm_ops=perm_ops)
+    resp = client.get("/api/v1/access/service-requests?status=pending")
+    assert resp.status_code == 200
+    assert perm_ops.calls[0] == (
+        "list_service_requests",
+        {"caller_uid": ADMIN.uid, "caller_is_admin": True, "status": "pending"},
+    )
+
+
+def test_list_service_requests_maps_a_validation_error_to_400():
+    perm_ops = FakePermissionOps()
+    perm_ops.next_error = ValidationError("'status' must be one of pending, accepted, declined, completed.")
+    client, _org_ops, _perm_ops = make_client(caller=ADMIN, perm_ops=perm_ops)
+    resp = client.get("/api/v1/access/service-requests?status=not-real")
+    assert resp.status_code == 400

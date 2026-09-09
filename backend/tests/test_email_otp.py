@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.access.constants import SELF_ACCOUNT_TYPES, is_valid_public_account_type
 from app.auth.reset import InMemoryRateLimiter, RateLimiter
 from app.otp.email_address import InvalidEmailAddress, normalize_email
 from app.otp.email_handler import (
@@ -670,6 +671,47 @@ def test_signup_complete_accepts_a_valid_professional_account_type():
     # grant (matches firestore.rules' isValidSelfAccountType() precedent).
     assert ops.profiles_written[0]["account_type"] == "professional_engineer"
     assert ops.profiles_written[0]["requested_role"] == "customer"
+
+
+@pytest.mark.parametrize("account_type", sorted(SELF_ACCOUNT_TYPES))
+def test_signup_complete_accepts_every_self_settable_account_type(account_type):
+    # Every type the public signup wizards offer (signup.html,
+    # signup-professional.html's TYPE_CATALOG) must be accepted here --
+    # `professional_maintenance` was offered by the wizard but missing
+    # from SELF_ACCOUNT_TYPES, so every Maintenance signup got a 400
+    # (launch-readiness audit, fix B1). Parametrized over the canonical
+    # set so a future type added to the wizard but not here fails loudly.
+    sender = FakeEmailSender()
+    service, store = make_service(sender=sender)
+    ops = FakeAccountOps()
+    client = make_client(service, store, account_ops=ops)
+
+    client.post("/api/v1/auth/email-otp/send", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY"})
+    code = _sent_code(sender, EMAIL_A)
+    verify_resp = client.post(
+        "/api/v1/auth/email-otp/verify", json={"email": EMAIL_A, "purpose": "SIGNUP_EMAIL_VERIFY", "code": code}
+    )
+    verify_token = verify_resp.json()["verifyToken"]
+
+    resp = client.post(
+        "/api/v1/auth/signup/complete",
+        json={
+            "verifyToken": verify_token,
+            "fullName": "Ahmed Darwesh",
+            "phoneNumber": "0750 123 4567",
+            "password": "a-strong-password-123",
+            "accountType": account_type,
+        },
+    )
+
+    assert resp.status_code == 200, resp.json()
+    assert ops.profiles_written[0]["account_type"] == account_type
+    assert ops.profiles_written[0]["requested_role"] == "customer"
+
+
+def test_professional_maintenance_is_a_self_settable_account_type():
+    assert "professional_maintenance" in SELF_ACCOUNT_TYPES
+    assert is_valid_public_account_type("professional_maintenance")
 
 
 @pytest.mark.parametrize(

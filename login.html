@@ -31,6 +31,7 @@ violation reporting. -->
 <link rel="manifest" href="/manifest.json"/>
 <link rel="canonical" href="https://www.darweshgroup.com/login.html"/>
 <title>Darwesh Group - Log In</title>
+<meta name="description" content="Log in to your Darwesh Group account."/>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <link href="css/profile-tokens.css" rel="stylesheet"/>
 <link href="css/cinematic.css" rel="stylesheet"/>
@@ -99,7 +100,7 @@ violation reporting. -->
       </header>
 
       <div class="mb-6">
-        <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.logInTitle">Log in</p>
+        <h1 class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.logInTitle">Log in</h1>
         <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.logInSubtitle">Access your favorites, submissions, and saved searches.</p>
       </div>
 
@@ -151,14 +152,22 @@ violation reporting. -->
   import { auth, db, getDoc } from './js/firebase-init.js';
   import { signInWithEmailAndPassword, onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  // Launch-readiness fix B3: the post-login destination is resolved by the
+  // same shared module the header chip and account.html use, so an office
+  // owner, a developer, a professional or an admin lands on their own page
+  // instead of the generic customer page.
+  import { resolveProfileDestination } from './js/profile-destination.js';
 
   // Already logged in? Skip straight to the right dashboard instead of
   // showing the login form again.
   onAuthStateChanged(auth, async (user) => {
     if (!user) return;
-    const snap = await getDoc(doc(db, 'users', user.uid));
-    const role = snap.exists() ? snap.data().role : 'customer';
-    window.location.href = role === 'agent' ? 'agent-dashboard.html' : 'account.html';
+    let profile = null;
+    try {
+      const snap = await getDoc(doc(db, 'users', user.uid));
+      profile = snap.exists() ? snap.data() : null;
+    } catch (e) { profile = null; }
+    window.location.href = resolveProfileDestination(profile);
   });
 
   const form = document.getElementById('loginForm');
@@ -243,9 +252,17 @@ violation reporting. -->
 
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      const snap = await getDoc(doc(db, 'users', cred.user.uid));
-      const role = snap.exists() ? snap.data().role : 'customer';
-      window.location.href = role === 'agent' ? 'agent-dashboard.html' : 'account.html';
+      let profile = null;
+      try {
+        const snap = await getDoc(doc(db, 'users', cred.user.uid));
+        profile = snap.exists() ? snap.data() : null;
+      } catch (profileErr) {
+        // Sign-in itself succeeded; a transient profile read failure must
+        // not strand the visitor on the login form -- fall back to the
+        // generic account page, which re-reads the profile itself.
+        console.error('[login] profile read failed after sign-in', profileErr.code || profileErr.name);
+      }
+      window.location.href = resolveProfileDestination(profile);
     } catch (err) {
       // The real error is always captured here (and, once Sentry is
       // configured via js/error-monitor.js, reported) -- only the safe,

@@ -63,6 +63,7 @@ ensureTeamMapEngine() below). -->
 <link rel="manifest" href="/manifest.json"/>
 <link rel="canonical" href="https://www.darweshgroup.com/agent-dashboard.html"/>
 <title>Darwesh Group - Agent Dashboard</title>
+<meta name="robots" content="noindex, nofollow"/>
 <link href="css/tailwind.css" rel="stylesheet"/>
 <!-- css/cinematic.css: only for its unscoped .lang-select/.lang-toggle-btn/
 .lang-flag/.lang-menu/.lang-option structural (layout-only, zero color)
@@ -82,6 +83,19 @@ change is not meant to make. -->
 <style>
   body { min-height: 100dvh; }
   #agentPinMap { background: #e5e8ee; }
+  /* CSS-drawn location pin for the Leaflet fallback picker -- identical to
+     sell.html's .dh-pin so the two submission forms agree visually. */
+  .dh-pin {
+    width: 30px; height: 30px; position: relative;
+    transform: rotate(45deg);
+    background: #B89A63; border: 2px solid #17150F;
+    border-radius: 50% 50% 50% 0;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+  }
+  .dh-pin::after {
+    content: ''; position: absolute; inset: 7px;
+    border-radius: 50%; background: #17150F;
+  }
   /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
      well-documented conflict with Google Maps' own internally-rendered
      <img> tiles/UI assets under .gm-style, once a key is configured and
@@ -525,7 +539,17 @@ change is not meant to make. -->
     map.on('click', (e) => setPin(e.latlng.lat, e.latlng.lng));
     setTimeout(() => map.invalidateSize(), 150);
     return {
-      place(lat, lng) { if (marker) marker.setLatLng([lat, lng]); else marker = L.marker([lat, lng]).addTo(map); },
+      // divIcon pin (same as sell.html's picker): Leaflet's default marker
+      // is an <img> served from unpkg.com, which this page's CSP img-src
+      // does not allow, so the stock icon rendered as a broken-image box
+      // whenever the Leaflet fallback ran (launch-readiness fix D1).
+      place(lat, lng) {
+        if (marker) { marker.setLatLng([lat, lng]); return; }
+        marker = L.marker([lat, lng], {
+          icon: L.divIcon({ className: '', html: '<div class="dh-pin" aria-hidden="true"></div>', iconSize: [30, 30], iconAnchor: [15, 30] }),
+          keyboard: false
+        }).addTo(map);
+      },
       clear() { if (marker) { map.removeLayer(marker); marker = null; } },
       panZoom(lat, lng, zoom) { map.setView([lat, lng], zoom); },
       invalidate() { map.invalidateSize(); },
@@ -1191,7 +1215,10 @@ change is not meant to make. -->
   document.getElementById('finSaveRateBtn').addEventListener('click', async () => {
     const rate = Number(document.getElementById('finCommissionRate').value) || 0;
     agentCommissionRate = rate;
-    await updateDoc(doc(db, 'users', currentUid), { commissionRate: rate });
+    // U1: commissionRate lives in the owner/admin-only private profile,
+    // never on the world-readable agent document. merge:true so a first
+    // save on an account that predates the migration creates the doc.
+    await setDoc(doc(db, 'users', currentUid, 'privateProfile', 'main'), { commissionRate: rate, updatedAt: Date.now() / 1000 }, { merge: true });
     const status = document.getElementById('finRateStatus');
     status.textContent = trDash('agentDash.finRateSaved', 'Saved.');
     status.classList.remove('hidden');
@@ -1259,7 +1286,16 @@ change is not meant to make. -->
     currentUid = user.uid;
     currentAgentName = profile.displayName || user.email;
     currentCompanyId = profile.companyId || null;
-    agentCommissionRate = Number(profile.commissionRate) || 0;
+    // U1: commissionRate is read from users/{uid}/privateProfile/main;
+    // an account not yet migrated still carries it on the public doc.
+    let privateProfile = {};
+    try {
+      const privSnap = await getDoc(doc(db, 'users', user.uid, 'privateProfile', 'main'));
+      if (privSnap.exists()) privateProfile = privSnap.data();
+    } catch (privErr) {
+      console.error('[agent-dashboard] private profile read failed', privErr.code || privErr.name);
+    }
+    agentCommissionRate = Number(privateProfile.commissionRate !== undefined ? privateProfile.commissionRate : profile.commissionRate) || 0;
     document.getElementById('agentNameLabel').textContent = currentAgentName;
     document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
     document.getElementById('agentWelcomeEmail').textContent = user.email;
