@@ -1,0 +1,554 @@
+/* Darwesh Group -- About page cinematic scroll system.
+ *
+ * Scoped entirely to `body[data-page="about"]` so it can never leak onto
+ * any other page. Built on top of the site-wide primitives already shipped
+ * elsewhere rather than inventing a parallel one:
+ *   - js/cine-scroll-3d.js writes --journey (0..1, whole document) on
+ *     <html> and --fp (0..1, that element's own travel through the
+ *     viewport) on every [data-flow] element. Both are live here exactly
+ *     as they are on Home -- this file only adds new CSS *consumers* of
+ *     them, never a second writer.
+ *   - .cine-pin-stage / .cine-pin-content (css/cinematic.css) is reused
+ *     verbatim for the Hero and Journey pins -- their sticky mechanism has
+ *     no dependency on the old, now-dead --section-progress value (see
+ *     that file's own comment), so it is safe to build fresh choreography
+ *     on top of it here.
+ *   - .cine-reveal / .cine-card-reveal (css/cinematic.css) + js/reveal.js
+ *     cover the page's lighter, one-shot entrances (Manifesto, cities,
+ *     follow/CTA) -- not reimplemented here.
+ * All motion is transform/opacity only. Every rule has a
+ * prefers-reduced-motion override; every pinned section has a static
+ * (position: static, no pin) mobile fallback under 768px, matching the
+ * pattern already established by cinematic.css's own 7% section.
+ */
+
+body[data-page="about"] {
+  --about-stone: #e7ded0;
+}
+
+/* =========================================================================
+ * Hero -- pinned, 4-stage evolution (IDEA -> STRUCTURE -> POSSIBILITY ->
+ * TOGETHER), one continuous scene rather than four separate slides. --hp
+ * ("hero progress") is this pin's own 0..1 read, taken from the single
+ * [data-flow="ab-hero"] element that spans the whole pinned scene -- so it
+ * advances smoothly for the full scroll distance of the stage, not just a
+ * quick flash at the top. Four overlapping bands are cut from it with
+ * clamp(), each driving one visual layer's opacity/filter -- the layers
+ * themselves never reposition or resize, only cross-fade and grade, which
+ * is what keeps this a single evolving composition instead of a slideshow.
+ * ========================================================================= */
+.about-hero-stage { position: relative; }
+@media (min-width: 768px) {
+  .about-hero-stage { min-height: 420vh; }
+}
+/* top:5rem is inherited from the shared .cine-pin-content rule
+ * (css/cinematic.css) deliberately, not overridden here -- that offset is
+ * what keeps pinned content from sticking underneath the fixed site
+ * header, so the pinned scene's own height is trimmed by the same amount
+ * instead of re-solving the header-clearance problem a second time. */
+.about-hero-stage .cine-pin-content { height: calc(100dvh - 5rem); overflow: hidden; }
+
+.ab-hero-scene {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ab-hero-scene {
+  /* Distance-from-band-center, avoiding the newer/less-supported CSS
+   * abs() function -- same max(x,-x) technique css/cinematic.css's own
+   * --d already uses. */
+  --b1: clamp(0, calc((0.26 - var(--fp, 0.5)) / 0.26), 1);
+  --b2-d: max(calc(var(--fp, 0.5) - 0.32), calc(0.32 - var(--fp, 0.5)));
+  --b2: clamp(0, calc(1 - var(--b2-d) / 0.22), 1);
+  --b3-d: max(calc(var(--fp, 0.5) - 0.62), calc(0.62 - var(--fp, 0.5)));
+  --b3: clamp(0, calc(1 - var(--b3-d) / 0.24), 1);
+  --b4: clamp(0, calc((var(--fp, 0.5) - 0.78) / 0.22), 1);
+}
+
+.ab-hero-layer { position: absolute; inset: 0; }
+
+/* Layer 1: blueprint -- faint grid + corner coordinates, an architectural
+ * drawing before anything has been built. */
+.ab-hero-blueprint {
+  background:
+    repeating-linear-gradient(0deg, rgba(198, 154, 75, 0.14) 0, rgba(198, 154, 75, 0.14) 1px, transparent 1px, transparent 64px),
+    repeating-linear-gradient(90deg, rgba(198, 154, 75, 0.14) 0, rgba(198, 154, 75, 0.14) 1px, transparent 1px, transparent 64px),
+    var(--ps-color-surface-bright, #0B0E12);
+  opacity: var(--b1);
+  transform: scale(calc(1.02 + (1 - var(--b1)) * 0.05));
+}
+.ab-hero-blueprint::before,
+.ab-hero-blueprint::after {
+  content: '';
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(198, 154, 75, 0.55);
+}
+.ab-hero-blueprint::before { inset-block-start: 40px; inset-inline-start: 40px; border-inline-end: none; border-block-end: none; }
+.ab-hero-blueprint::after { inset-block-end: 40px; inset-inline-end: 40px; border-inline-start: none; border-block-start: none; }
+
+/* Layer 2: structure -- unfilled geometric forms assembling, line-drawn
+ * only (no fill), reading as a building forming rather than a decoration. */
+.ab-hero-structure { opacity: var(--b2); }
+.ab-hero-structure-shape {
+  position: absolute;
+  border: 1.5px solid rgba(212, 175, 96, 0.6);
+  transform-origin: center;
+}
+.ab-hero-structure-shape.s1 { inset-inline-start: 18%; inset-block-end: 14%; width: 22%; height: clamp(140px, 30vh, 260px); transform: translateY(calc((1 - var(--b2)) * 40px)); }
+.ab-hero-structure-shape.s2 { inset-inline-start: 44%; inset-block-end: 14%; width: 16%; height: clamp(180px, 38vh, 320px); transform: translateY(calc((1 - var(--b2)) * 60px)); }
+.ab-hero-structure-shape.s3 { inset-inline-start: 64%; inset-block-end: 14%; width: 19%; height: clamp(110px, 24vh, 210px); transform: translateY(calc((1 - var(--b2)) * 30px)); }
+
+/* Layer 3: possibility -- the site's real hero photograph (unchanged
+ * asset, never replaced) grades in from monochrome to full color as the
+ * scene "materializes". */
+.ab-hero-photo {
+  background-size: cover;
+  background-position: center;
+  opacity: var(--b3);
+  filter: grayscale(calc(1 - var(--b3))) brightness(calc(0.75 + var(--b3) * 0.25));
+  transform: scale(calc(1.08 - var(--b3) * 0.04));
+}
+.ab-hero-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 6, 10, calc(0.55 - var(--b4) * 0.15));
+}
+
+/* Layer 4: together -- a soft gold bloom completing the composition. */
+.ab-hero-glow {
+  opacity: var(--b4);
+  background: radial-gradient(ellipse 70% 60% at 50% 55%, rgba(212, 175, 96, 0.28), transparent 70%);
+}
+
+.ab-hero-copy {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  max-width: 46rem;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.ab-hero-kicker {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--cine-gold-1);
+}
+.ab-hero-headline {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 700;
+  font-size: clamp(34px, 6.4vw, 76px);
+  line-height: 1.06;
+  letter-spacing: -0.01em;
+  color: var(--cine-text-primary);
+  text-wrap: balance;
+  transform: scale(calc(0.94 + var(--b4, 0) * 0.06));
+}
+.ab-hero-sub {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(14.5px, 1.6vw, 17px);
+  line-height: 1.65;
+  color: var(--cine-text-secondary);
+  max-width: 34rem;
+}
+.ab-hero-scroll-hint {
+  margin-block-start: 10px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--about-stone);
+  opacity: calc(0.7 - var(--b4, 0) * 0.7);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ab-hero-scroll-hint svg { width: 14px; height: 14px; animation: ab-scroll-bob 1.8s ease-in-out infinite; }
+@keyframes ab-scroll-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+
+.ab-hero-stagebar {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: clamp(18px, 4vh, 34px);
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: clamp(18px, 3vw, 40px);
+  font-family: 'IBM Plex Sans', sans-serif;
+  padding: 0 16px;
+}
+.ab-hero-stagebar span { display: none; }
+.ab-hero-stage-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.ab-hero-stage-num { font-size: 11px; font-weight: 700; color: var(--cine-gold-2); }
+.ab-hero-stage-name { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cine-text-secondary); white-space: nowrap; }
+/* Each item's opacity reads straight off the same --b1..--b4 bands
+ * driving the hero's visual layers, so the label bar and the scene it
+ * describes always agree without a second JS-driven class. */
+.ab-hero-stage-item:nth-child(1) { opacity: calc(0.3 + var(--b1, 0) * 0.7); }
+.ab-hero-stage-item:nth-child(2) { opacity: calc(0.3 + var(--b2, 0) * 0.7); }
+.ab-hero-stage-item:nth-child(3) { opacity: calc(0.3 + var(--b3, 0) * 0.7); }
+.ab-hero-stage-item:nth-child(4) { opacity: calc(0.3 + var(--b4, 0) * 0.7); }
+
+@media (max-width: 767px) {
+  .about-hero-stage { min-height: 0; }
+  .about-hero-stage .cine-pin-content { position: static; height: auto; padding-block: 92px 56px; }
+  .ab-hero-scene { min-height: 78vh; }
+  .ab-hero-stagebar { position: static; margin-block-start: 28px; flex-wrap: wrap; row-gap: 10px; }
+  .ab-hero-blueprint,
+  .ab-hero-structure,
+  .ab-hero-glow { opacity: 0; }
+  .ab-hero-photo { opacity: 1; filter: none; transform: none; }
+  .ab-hero-photo::after { background: rgba(3, 6, 10, 0.58); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-hero-stage .cine-pin-content { position: static; height: auto; padding-block: 96px 60px; }
+  .ab-hero-scene { --b1: 0; --b2: 0; --b3: 1; --b4: 1; min-height: 82vh; }
+  .ab-hero-headline { transform: none; }
+  .ab-hero-scroll-hint svg { animation: none; }
+}
+
+/* =========================================================================
+ * Our Story -- editorial reframe + a continuity device carrying the story
+ * photo's plane into the Manifesto section that follows (same technique
+ * css/home-world.css uses for .w-carry: an oversized, softly-masked image
+ * bleeding past its own section's bottom edge).
+ * ========================================================================= */
+.ab-story {
+  position: relative;
+  padding-block: clamp(72px, 12vh, 140px) clamp(40px, 8vh, 80px);
+}
+.ab-story-grid {
+  display: grid;
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
+}
+@media (min-width: 768px) {
+  .ab-story-grid { grid-template-columns: 0.95fr 1.05fr; }
+}
+.ab-story-num {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: clamp(64px, 9vw, 120px);
+  line-height: 0.85;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(198, 154, 75, 0.45);
+  margin-block-end: 8px;
+}
+.ab-story-body[data-flow] { transform: translateY(calc((0.5 - var(--fp, 0.5)) * 22px)); opacity: calc(0.55 + var(--fp, 0.5) * 0.45); transition: transform 60ms linear; }
+.ab-story-photo-wrap { position: relative; height: clamp(320px, 46vh, 480px); border-radius: var(--radius-lg, 20px); overflow: hidden; }
+.ab-story-photo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transform: translateY(calc((var(--fp, 0.5) - 0.5) * -60px)) scale(1.1);
+}
+.ab-story-photo-carry {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -40vh;
+  height: 55vh;
+  background-size: cover;
+  background-position: center 15%;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 85%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.5), transparent 85%);
+  opacity: calc(var(--fp, 0) * 0.5);
+  pointer-events: none;
+  z-index: 0;
+}
+@media (max-width: 767px) {
+  .ab-story-photo-carry { display: none; }
+  .ab-story-photo { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab-story-body[data-flow] { transform: none; opacity: 1; }
+  .ab-story-photo { transform: none; }
+  .ab-story-photo-carry { opacity: 0.2; }
+}
+
+/* =========================================================================
+ * Manifesto -- the four existing values, reframed as a single typographic
+ * statement rather than a second card grid. .cine-reveal handles the
+ * one-shot entrance (js/reveal.js); no pin, no [data-flow].
+ * ========================================================================= */
+.ab-manifesto { padding-block: clamp(64px, 11vh, 120px); position: relative; z-index: 1; }
+.ab-manifesto-inner { max-width: 52rem; margin-inline: auto; text-align: center; }
+.ab-manifesto-list {
+  margin-block-start: clamp(28px, 5vh, 48px);
+  display: grid;
+  gap: 2px;
+  text-align: start;
+  border-block-start: 1px solid var(--ps-color-outline-variant);
+}
+.ab-manifesto-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: clamp(16px, 3vw, 32px);
+  align-items: baseline;
+  padding-block: clamp(18px, 3vh, 28px);
+  border-block-end: 1px solid var(--ps-color-outline-variant);
+}
+.ab-manifesto-index { font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; font-size: 13px; color: var(--cine-gold-1); letter-spacing: 0.08em; }
+.ab-manifesto-copy h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: clamp(17px, 2vw, 21px); color: var(--cine-text-primary); margin-block-end: 4px; }
+.ab-manifesto-copy p { font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.6; color: var(--cine-text-secondary); max-width: 42rem; }
+
+/* =========================================================================
+ * Your Journey, Connected -- desktop: pinned SVG path with a
+ * pathLength-normalized stroke reveal (pathLength="1" on the <path> means
+ * stroke-dasharray/dashoffset can be plain 0..1 numbers regardless of the
+ * path's real on-screen length -- no JS length measurement needed).
+ * Mobile: no pin, a plain stacked rail -- see the max-width query below.
+ * ========================================================================= */
+.about-journey-stage { position: relative; }
+@media (min-width: 768px) {
+  .about-journey-stage { min-height: 260vh; }
+}
+/* min-height accounts for .cine-pin-content's inherited top:5rem offset
+ * (see the Hero pin's own comment above) so this flex-centered content
+ * never extends past the bottom of the visible viewport window while
+ * pinned. */
+.ab-journey-pin { display: flex; flex-direction: column; justify-content: center; gap: clamp(28px, 5vh, 48px); min-height: calc(100dvh - 5rem); padding-block: 48px; }
+.ab-journey-head { text-align: center; max-width: 40rem; margin-inline: auto; }
+.ab-journey-track { position: relative; max-width: 74rem; margin-inline: auto; width: 100%; padding-inline: clamp(16px, 4vw, 40px); }
+.ab-journey-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ab-journey-svg path {
+  fill: none;
+  stroke: var(--ps-color-outline-variant);
+  stroke-width: 2;
+}
+.ab-journey-svg path.ab-journey-path-fill {
+  stroke: var(--cine-gold-2);
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: calc(1 - var(--fp, 0));
+}
+
+/* Per-step "lit as you arrive" read -- four steep ramps cut from the pin's
+ * own --fp (written on .ab-journey-pin via [data-flow], inherited by every
+ * descendant below), one per step, each crossing from 0 to 1 quickly after
+ * its own threshold so it reads as a near-toggle without needing a JS
+ * class or a color-interpolation function. */
+.ab-journey-pin {
+  --l1: clamp(0, calc((var(--fp, 0) - 0.05) * 8), 1);
+  --l2: clamp(0, calc((var(--fp, 0) - 0.32) * 8), 1);
+  --l3: clamp(0, calc((var(--fp, 0) - 0.58) * 8), 1);
+  --l4: clamp(0, calc((var(--fp, 0) - 0.82) * 8), 1);
+}
+.ab-journey-steps { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(12px, 2vw, 24px); }
+.ab-journey-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding-block-start: 8px;
+}
+.ab-journey-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid var(--cine-gold-1);
+  background: var(--ps-color-surface-bright);
+}
+.ab-journey-step h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: clamp(15px, 1.6vw, 18px); color: var(--cine-text-primary); }
+.ab-journey-step p { font-family: 'Inter', sans-serif; font-size: 12.5px; line-height: 1.55; color: var(--cine-text-secondary); max-width: 15rem; }
+.ab-journey-step:nth-child(1) .ab-journey-dot { transform: scale(calc(1 + var(--l1, 0) * 0.35)); box-shadow: 0 0 0 calc(var(--l1, 0) * 6px) rgba(212, 175, 96, calc(var(--l1, 0) * 0.35)); opacity: calc(0.55 + var(--l1, 0) * 0.45); }
+.ab-journey-step:nth-child(2) .ab-journey-dot { transform: scale(calc(1 + var(--l2, 0) * 0.35)); box-shadow: 0 0 0 calc(var(--l2, 0) * 6px) rgba(212, 175, 96, calc(var(--l2, 0) * 0.35)); opacity: calc(0.55 + var(--l2, 0) * 0.45); }
+.ab-journey-step:nth-child(3) .ab-journey-dot { transform: scale(calc(1 + var(--l3, 0) * 0.35)); box-shadow: 0 0 0 calc(var(--l3, 0) * 6px) rgba(212, 175, 96, calc(var(--l3, 0) * 0.35)); opacity: calc(0.55 + var(--l3, 0) * 0.45); }
+.ab-journey-step:nth-child(4) .ab-journey-dot { transform: scale(calc(1 + var(--l4, 0) * 0.35)); box-shadow: 0 0 0 calc(var(--l4, 0) * 6px) rgba(212, 175, 96, calc(var(--l4, 0) * 0.35)); opacity: calc(0.55 + var(--l4, 0) * 0.45); }
+.ab-journey-step:nth-child(1) h3 { opacity: calc(0.45 + var(--l1, 0) * 0.55); }
+.ab-journey-step:nth-child(2) h3 { opacity: calc(0.45 + var(--l2, 0) * 0.55); }
+.ab-journey-step:nth-child(3) h3 { opacity: calc(0.45 + var(--l3, 0) * 0.55); }
+.ab-journey-step:nth-child(4) h3 { opacity: calc(0.45 + var(--l4, 0) * 0.55); }
+
+@media (max-width: 767px) {
+  .about-journey-stage { min-height: 0; }
+  .ab-journey-pin { position: static; min-height: 0; padding-block: 56px; }
+  .ab-journey-track { padding-inline: 4px; }
+  .ab-journey-svg { display: none; }
+  .ab-journey-steps { grid-template-columns: 1fr; gap: 0; border-inline-start: 2px solid var(--ps-color-outline-variant); margin-inline-start: 7px; }
+  .ab-journey-step { flex-direction: row; text-align: start; align-items: flex-start; padding-block: 18px; margin-inline-start: -8px; padding-inline-start: 22px; }
+  .ab-journey-dot { flex: none; margin-block-start: 4px; }
+  .ab-journey-step.is-lit .ab-journey-dot { transform: scale(1.15); }
+  .ab-journey-step h3 { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab-journey-pin { position: static; min-height: 0; }
+  .ab-journey-pin { --l1: 1; --l2: 1; --l3: 1; --l4: 1; }
+  .ab-journey-svg path.ab-journey-path-fill { stroke-dashoffset: 0; }
+}
+
+/* =========================================================================
+ * The Darwesh World -- ecosystem. Desktop: radial nodes positioned by JS
+ * (js/about-ecosystem.js) via --angle/--radius on each node, using the
+ * standard CSS radial-layout trick (rotate, translate out, rotate back)
+ * so each node's own content stays upright. Mobile: plain accordion, no
+ * positioning math at all -- both DOM structures are always rendered,
+ * this file's max-width:767px query alone decides which is visible, so
+ * there is no JS breakpoint branching or resize-boundary flash.
+ * ========================================================================= */
+.ab-world { padding-block: clamp(72px, 12vh, 140px); position: relative; z-index: 1; }
+.ab-world-head { text-align: center; max-width: 40rem; margin-inline: auto clamp(40px, 7vh, 72px); }
+
+.ab-world-orbit {
+  position: relative;
+  width: min(680px, 92vw);
+  aspect-ratio: 1 / 1;
+  margin-inline: auto;
+}
+.ab-world-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.ab-world-lines line { stroke: var(--ps-color-outline-variant); stroke-width: 1; transition: stroke var(--motion-standard, 300ms) var(--ease-premium, ease); }
+.ab-world-lines line.is-active { stroke: var(--cine-gold-2); }
+
+.ab-world-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(120px, 18vw, 156px);
+  height: clamp(120px, 18vw, 156px);
+  border-radius: 999px;
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--cine-gold-1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 4px;
+  padding: 10px;
+  z-index: 2;
+  box-shadow: 0 0 0 1px rgba(198, 154, 75, 0.12), 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+.ab-world-hub .material-symbols-outlined { color: var(--cine-gold-2); font-size: 22px; }
+.ab-world-hub strong { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--cine-text-primary); line-height: 1.2; }
+
+.ab-world-node {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(76px, 11vw, 96px);
+  height: clamp(76px, 11vw, 96px);
+  margin: calc(-1 * clamp(76px, 11vw, 96px) / 2) 0 0 calc(-1 * clamp(76px, 11vw, 96px) / 2);
+  transform: rotate(var(--angle, 0deg)) translateX(var(--radius, 240px)) rotate(calc(var(--angle, 0deg) * -1));
+  border-radius: 999px;
+  background: var(--ps-color-surface-container-lowest);
+  border: 1px solid var(--ps-color-outline-variant);
+  color: var(--cine-text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: border-color var(--motion-standard, 300ms) var(--ease-premium, ease), color var(--motion-standard, 300ms) var(--ease-premium, ease), transform var(--motion-standard, 300ms) var(--ease-premium, ease), background-color var(--motion-standard, 300ms) var(--ease-premium, ease);
+}
+.ab-world-node .material-symbols-outlined { font-size: 20px; }
+.ab-world-node span.ab-world-node-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 10px; font-weight: 700; text-align: center; line-height: 1.2; padding-inline: 4px; }
+.ab-world-node:hover,
+.ab-world-node:focus-visible,
+.ab-world-node[aria-pressed="true"] {
+  border-color: var(--cine-gold-2);
+  color: var(--cine-text-primary);
+  background: var(--ps-color-surface-container);
+  transform: rotate(var(--angle, 0deg)) translateX(var(--radius, 240px)) rotate(calc(var(--angle, 0deg) * -1)) scale(1.08);
+}
+.ab-world-node:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+.ab-world-detail {
+  margin-block-start: clamp(28px, 5vh, 48px);
+  max-width: 34rem;
+  margin-inline: auto;
+  text-align: center;
+  min-height: 108px;
+}
+.ab-world-detail h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 19px; color: var(--cine-text-primary); margin-block-end: 6px; }
+.ab-world-detail p { font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.6; color: var(--cine-text-secondary); margin-block-end: 14px; }
+.ab-world-detail a { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cine-gold-2); }
+.ab-world-detail a:hover { color: var(--cine-gold-1); }
+
+/* Mobile: accordion, no radial math, no lines. */
+.ab-world-accordion { display: none; }
+@media (max-width: 767px) {
+  .ab-world-orbit,
+  .ab-world-detail { display: none; }
+  .ab-world-accordion { display: block; border-block-start: 1px solid var(--ps-color-outline-variant); }
+  .ab-world-acc-item { border-block-end: 1px solid var(--ps-color-outline-variant); }
+  .ab-world-acc-trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-block: 16px;
+    text-align: start;
+    color: var(--cine-text-primary);
+    background: none;
+    border: none;
+  }
+  .ab-world-acc-trigger .material-symbols-outlined { color: var(--cine-gold-2); flex: none; }
+  .ab-world-acc-trigger span.ab-world-acc-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 15px; flex: 1; }
+  .ab-world-acc-trigger .material-symbols-outlined.ab-world-acc-chevron { transition: transform var(--motion-standard, 300ms) var(--ease-premium, ease); }
+  .ab-world-acc-item[data-open="true"] .ab-world-acc-chevron { transform: rotate(180deg); }
+  .ab-world-acc-panel { overflow: hidden; max-height: 0; transition: max-height var(--motion-standard, 320ms) var(--ease-premium, ease); }
+  .ab-world-acc-item[data-open="true"] .ab-world-acc-panel { max-height: 220px; }
+  .ab-world-acc-panel-inner { padding-block-end: 18px; padding-inline-start: 38px; }
+  .ab-world-acc-panel-inner p { font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.6; color: var(--cine-text-secondary); margin-block-end: 10px; }
+  .ab-world-acc-panel-inner a { font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cine-gold-2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ab-world-node { transition: none; }
+  .ab-world-acc-panel { transition: none; }
+}
+
+/* =========================================================================
+ * MAM AI entrance -- a passive visual moment (see the inline module at the
+ * foot of about.html), lazily mounted via IntersectionObserver + dynamic
+ * import so js/mam-entity-3d.js and Three.js are never fetched unless a
+ * visitor actually scrolls near this section.
+ * ========================================================================= */
+.ab-mam { padding-block: clamp(72px, 12vh, 140px); position: relative; overflow: hidden; }
+.ab-mam-inner { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; }
+.ab-mam-entity-host { width: min(360px, 70vw); height: min(360px, 70vw); position: relative; margin-block: 12px; }
+.ab-mam-entity-host[data-mounted="false"]::before {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  border-radius: 999px;
+  border: 1px solid rgba(198, 154, 75, 0.3);
+  background: radial-gradient(circle, rgba(198, 154, 75, 0.12), transparent 70%);
+}
+.ab-mam-body { max-width: 34rem; }
+.ab-mam-cta { margin-block-start: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ab-mam-entity-host { opacity: 1; }
+}
+
+/* =========================================================================
+ * Follow Us / CTA -- existing copy and real links, unchanged; a soft gold
+ * glow closes out the page's motion language rather than a hard stop.
+ * ========================================================================= */
+.ab-close { position: relative; }
+.ab-close::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 70% 50% at 50% 100%, rgba(212, 175, 96, 0.08), transparent 70%);
+  pointer-events: none;
+}
