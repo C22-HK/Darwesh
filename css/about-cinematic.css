@@ -68,238 +68,190 @@ body[data-page="about"] {
 }
 
 /* =========================================================================
- * Hero -- pinned, one hand-drawn architectural house that evolves through
- * five continuous stages as the visitor scrolls: THE IDEA (blueprint
- * outline) -> THE STRUCTURE (walls/roof drawn solid) -> THE DESIGN (glass
- * and materials arrive) -> THE LIFE (warm light + landscaping) -> TOGETHER
- * (the completed scene, soft gold bloom). One continuous drawing that
- * assembles itself, not four/five separate slides -- every stage reads
- * off the SAME --fp value in continuously increasing ramps, so nothing
- * ever has to "jump" between stages.
+ * Hero -- pinned. js/about-particle-scene.js renders a volumetric particle
+ * field into #abHeroParticleMount, driven every frame by this stage's own
+ * --pp (read directly by the scene module, not proxied through CSS): a
+ * formless cool-toned dust cloud coalesces into a real, dimensional house
+ * (walls, a pitched roof, a chimney, glowing windows, a door, landscaping)
+ * while the camera dollies in, then resolves warm gold and blooms. One
+ * continuous particle system, not five slides -- see that module for the
+ * per-property scroll ramps. This file only places the mount, the
+ * atmosphere wash, and the minimal copy on top of it.
  * ========================================================================= */
-.about-hero-stage { position: relative; }
+/* .about-cinema-stage is now ONE continuous sticky canvas spanning the
+ * hero formation, the breathing-space beat, and all eight world scenes --
+ * not three separate pins with normal sections breaking them up. A
+ * single master --pp (0..1 across the whole 1400vh track) is written
+ * here by the shared script at the foot of about.html; .ab-cinema-track
+ * below remaps it into each phase's own local share (--heroPp/
+ * --breathePp/--worldPp) so every existing formula inside each phase
+ * keeps reading its OWN name unchanged. */
+.about-cinema-stage { position: relative; }
 @media (min-width: 768px) {
-  .about-hero-stage { min-height: 460vh; }
+  /* Two classes to out-specificity css/cinematic.css's own
+   * `.cine-scope .cine-pin-stage { min-height: 190vh }` (0,2,0 beats a
+   * single-class selector regardless of source order) -- this element
+   * already carries both classes, so this is a real, not a hack. */
+  .about-cinema-stage.cine-pin-stage { min-height: 1400vh; }
 }
 /* top:5rem is inherited from the shared .cine-pin-content rule
  * (css/cinematic.css) deliberately, not overridden here -- that offset is
  * what keeps pinned content from sticking underneath the fixed site
  * header, so the pinned scene's own height is trimmed by the same amount
  * instead of re-solving the header-clearance problem a second time. */
-.about-hero-stage .cine-pin-content { height: calc(100dvh - 5rem); overflow: hidden; }
+.about-cinema-stage .cine-pin-content { height: calc(100dvh - 5rem); overflow: hidden; }
 
-.ab-hero-scene {
+.ab-cinema-track {
   position: relative;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  --heroPp: clamp(0, calc(var(--pp, 0) / 0.22), 1);
+  --breathePp: clamp(0, calc((var(--pp, 0) - 0.22) / 0.16), 1);
+  --worldPp: clamp(0, calc((var(--pp, 0) - 0.34) / 0.66), 1);
 }
+/* Cross-dissolves at the two phase boundaries -- the hero fades as the
+ * breathing space arrives, the breathing space fades as the world
+ * sequence arrives. Objects are never destroyed and replaced by an
+ * unrelated section; each phase simply hands off opacity to the next.
+ * The three windows below are deliberately CONTIGUOUS (hero's fade-out
+ * ends exactly where breathe's fade-in ends, breathe's fade-out ends
+ * exactly where world's fade-in ends) -- earlier numbers here left a
+ * long double-exposure smear (hero and breathe both partially visible
+ * across pp 0.29-0.345) followed by a dead blank gap (pp 0.345-0.37)
+ * where nothing was visible at all. */
+.ab-hero-scene { opacity: clamp(0, calc(1 - (var(--pp, 0) - 0.22) / 0.04), 1); }
+.ab-breathe-scene {
+  opacity: min(
+    clamp(0, calc((var(--pp, 0) - 0.22) / 0.04), 1),
+    clamp(0, calc(1 - (var(--pp, 0) - 0.34) / 0.04), 1)
+  );
+}
+.ab-world-pin { opacity: clamp(0, calc((var(--pp, 0) - 0.34) / 0.04), 1); }
+
 .ab-hero-scene {
-  /* Continuous ramps, not discrete bands -- each stage's signature effect
-   * simply starts contributing at its own threshold and keeps rising, so
-   * the drawing is always mid-transition somewhere rather than sitting in
-   * a dead zone between bands.
-   *   --drawn    outline stroke reveal (walls/roof/openings)
-   *   --drawn2   openings (door/windows) outline, starts a beat later
-   *   --materialize  fills arrive: roof tone, cool glass, ground
-   *   --warmth   warm interior light + landscaping accents
-   *   --bloom    final soft gold bloom + headline settle
-   */
-  --drawn: clamp(0, calc(var(--pp, 0) / 0.26), 1);
-  --drawn2: clamp(0, calc((var(--pp, 0) - 0.1) / 0.28), 1);
-  --materialize: clamp(0, calc((var(--pp, 0) - 0.34) / 0.4), 1);
-  --warmth: clamp(0, calc((var(--pp, 0) - 0.56) / 0.32), 1);
-  --bloom: clamp(0, calc((var(--pp, 0) - 0.82) / 0.18), 1);
-}
-
-.ab-hero-layer { position: absolute; inset: 0; }
-
-/* Blueprint grid -- present from the very start, fades back (never fully
- * away) once the drawing is underway so the "architectural study" feeling
- * persists as a texture rather than a slide that gets replaced. */
-.ab-hero-blueprint {
-  background:
-    repeating-linear-gradient(0deg, rgba(198, 154, 75, 0.13) 0, rgba(198, 154, 75, 0.13) 1px, transparent 1px, transparent 56px),
-    repeating-linear-gradient(90deg, rgba(198, 154, 75, 0.13) 0, rgba(198, 154, 75, 0.13) 1px, transparent 1px, transparent 56px),
-    var(--ps-color-surface-bright, #0B0E12);
-  opacity: calc(1 - var(--materialize, 0) * 0.55);
-}
-.ab-hero-blueprint::before,
-.ab-hero-blueprint::after {
-  content: '';
   position: absolute;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(198, 154, 75, 0.5);
-  opacity: calc(1 - var(--bloom, 0) * 0.6);
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--ps-color-surface-bright, #0B0E12);
+  /* --bloom drives the headline's own settle-scale below; the particle
+   * scene computes its OWN bloom internally from --heroPp, this is just
+   * the cheap CSS-side echo so the copy settles in sync without a second
+   * source of truth for the number. */
+  --bloom: clamp(0, calc((var(--heroPp, 0) - 0.9) / 0.1), 1);
 }
-.ab-hero-blueprint::before { inset-block-start: 40px; inset-inline-start: 40px; border-inline-end: none; border-block-end: none; }
-.ab-hero-blueprint::after { inset-block-end: 40px; inset-inline-end: 40px; border-inline-start: none; border-block-start: none; }
 
-/* Light register: gold-on-cream grid lines read as too low-contrast, so
- * this scene's blueprint texture switches to fine ink lines instead --
- * still the same "architectural drawing" texture, just the correct
- * register for a bright paper surface. */
-.ab-light .ab-hero-blueprint {
+/* A warm corner glow bleeding in from the upper edge, echoing the
+ * reference video's own atmosphere -- present from the first frame,
+ * strengthening as the scene warms so it never looks like a flat
+ * dark box waiting for content. */
+.ab-hero-atmosphere {
+  position: absolute;
+  inset: 0;
   background:
-    repeating-linear-gradient(0deg, rgba(32, 27, 18, 0.09) 0, rgba(32, 27, 18, 0.09) 1px, transparent 1px, transparent 56px),
-    repeating-linear-gradient(90deg, rgba(32, 27, 18, 0.09) 0, rgba(32, 27, 18, 0.09) 1px, transparent 1px, transparent 56px),
-    var(--ps-color-surface-bright);
-}
-.ab-light .ab-hero-blueprint::before,
-.ab-light .ab-hero-blueprint::after {
-  border-color: rgba(32, 27, 18, 0.4);
+    radial-gradient(ellipse 55% 42% at 78% 8%, rgba(212, 175, 96, calc(0.10 + var(--heroPp, 0) * 0.10)), transparent 62%),
+    radial-gradient(ellipse 60% 50% at 22% 96%, rgba(198, 154, 75, calc(0.05 + var(--heroPp, 0) * 0.07)), transparent 65%);
+  z-index: 0;
 }
 
-/* The real hero photograph (unchanged asset) -- kept as a dim atmospheric
- * backdrop, not the subject: the house drawing is. Only ever contributes
- * a soft sky/context glow behind the house once the scene has warmed up. */
-.ab-hero-photo {
-  background-size: cover;
-  background-position: center;
-  opacity: calc(var(--warmth, 0) * 0.32);
-  filter: grayscale(0.4) brightness(0.75) saturate(0.85);
+.ab-hero-particle-mount {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
 }
-.ab-hero-photo::after {
+.ab-particle-canvas { display: block; width: 100%; height: 100%; }
+
+/* Edge vignette + a final bloom wash keep focus on the particle field's
+ * center and give the Together finale a genuine light-up rather than a
+ * flat color swap. */
+.ab-hero-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse 78% 65% at 50% 46%, transparent 55%, rgba(6, 7, 9, 0.55) 100%);
+}
+.ab-hero-vignette::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: var(--ps-color-surface-bright, #0B0E12);
-  opacity: calc(1 - var(--warmth, 0) * 0.55);
-}
-
-/* Ground warmth wash -- widens the house's presence into its setting
- * without adding new imagery. */
-.ab-hero-ground-wash {
-  background: radial-gradient(ellipse 60% 45% at 50% 78%, rgba(198, 154, 75, calc(var(--warmth, 0) * 0.14)), transparent 70%);
-}
-
-/* Final soft gold bloom completing the composition. */
-.ab-hero-glow {
+  background: radial-gradient(ellipse 60% 45% at 50% 40%, rgba(212, 175, 96, 0.22), transparent 70%);
   opacity: var(--bloom, 0);
-  background: radial-gradient(ellipse 65% 55% at 50% 52%, rgba(212, 175, 96, 0.26), transparent 70%);
-}
-
-/* ---- The house drawing itself ------------------------------------------
- * One SVG, viewBox 0 0 600 460. Structural paths use pathLength="1" so
- * stroke-dasharray/dashoffset are plain 0..1 numbers regardless of the
- * path's real geometry -- no JS length measurement needed (same technique
- * already used for the Journey/service scenes below). Door/window
- * "openings" are expressed as closed rect-shaped paths for the same
- * reason. Fills are separate stacked shapes with animated opacity rather
- * than an animated fill color, avoiding color-interpolation functions. */
-.ab-house-wrap {
-  position: relative;
-  width: min(620px, 72vw);
-  aspect-ratio: 600 / 460;
-  z-index: 1;
-}
-.ab-house-svg { width: 100%; height: 100%; overflow: visible; }
-.ab-house-svg .ab-house-line {
-  fill: none;
-  stroke: var(--cine-gold-1);
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: calc(1 - var(--drawn, 0));
-}
-.ab-house-svg .ab-house-line.ab-house-opening {
-  stroke-dashoffset: calc(1 - var(--drawn2, 0));
-  stroke-width: 1.8;
-}
-.ab-house-svg .ab-house-stud {
-  fill: none;
-  stroke: rgba(212, 175, 96, 0.55);
-  stroke-width: 1.3;
-  stroke-dasharray: 1;
-  stroke-dashoffset: calc(1 - var(--drawn2, 0));
-}
-.ab-house-roof-fill {
-  fill: var(--ps-color-surface-container-high, #1C1F21);
-  fill-opacity: var(--materialize, 0);
-}
-.ab-house-glass-cool {
-  fill: rgba(198, 219, 214, 0.5);
-  fill-opacity: var(--materialize, 0);
-}
-.ab-house-glass-warm {
-  fill: #f4c877;
-  fill-opacity: calc(var(--warmth, 0) * 0.85);
-}
-.ab-house-ground-line {
-  stroke: var(--ps-color-outline-variant);
-  stroke-width: 1.5;
-  fill: none;
-}
-.ab-house-tree {
-  transform-box: fill-box;
-  transform-origin: bottom center;
-  transform: scale(calc(0.4 + var(--warmth, 0) * 0.6));
-  opacity: var(--warmth, 0);
-  fill: var(--ps-color-surface-container-high, #1C1F21);
-  stroke: rgba(212, 175, 96, 0.5);
-  stroke-width: 1.2;
 }
 
 .ab-hero-copy {
   position: relative;
-  z-index: 2;
+  z-index: 3;
   text-align: center;
-  max-width: 46rem;
-  padding: 0 24px;
+  max-width: 40rem;
+  padding: 0 24px 8vh;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+}
+/* A soft scrim behind the copy only (not the whole frame) -- guarantees
+ * the headline stays legible regardless of how dense or bright the
+ * particle field behind it happens to be at any given scroll position. */
+.ab-hero-copy::before {
+  content: '';
+  position: absolute;
+  inset: -12px -28px -8vh;
+  z-index: -1;
+  background: radial-gradient(ellipse 75% 85% at 50% 40%, rgba(6, 7, 9, 0.55), transparent 75%);
 }
 .ab-hero-kicker {
   font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.32em;
+  letter-spacing: 0.38em;
   text-transform: uppercase;
   color: var(--cine-gold-1);
+  position: relative;
+  padding-block-end: 14px;
+}
+.ab-hero-kicker::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-end: 0;
+  width: 28px;
+  height: 1px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, var(--cine-gold-1), transparent);
 }
 .ab-hero-headline {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-weight: 700;
-  font-size: clamp(30px, 5.4vw, 62px);
-  line-height: 1.06;
+  font-weight: 600;
+  font-size: clamp(28px, 4.8vw, 54px);
+  line-height: 1.08;
   letter-spacing: -0.01em;
   color: var(--cine-text-primary);
   text-wrap: balance;
-  transform: scale(calc(0.96 + var(--bloom, 0) * 0.04));
-}
-.ab-hero-sub {
-  font-family: 'Inter', sans-serif;
-  font-size: clamp(13.5px, 1.4vw, 16px);
-  line-height: 1.6;
-  color: var(--cine-text-secondary);
-  max-width: 32rem;
+  text-shadow: 0 2px 40px rgba(0, 0, 0, 0.4);
+  transform: scale(calc(0.97 + var(--bloom, 0) * 0.03));
 }
 .ab-hero-scroll-hint {
-  margin-block-start: 6px;
+  margin-block-start: 4px;
   font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 11px;
-  letter-spacing: 0.18em;
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--about-stone);
-  opacity: calc(0.7 - var(--bloom, 0) * 0.7);
+  opacity: calc(0.65 - var(--bloom, 0) * 0.65);
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.ab-hero-scroll-hint svg { width: 14px; height: 14px; animation: ab-scroll-bob 1.8s ease-in-out infinite; }
+.ab-hero-scroll-hint svg { width: 13px; height: 13px; animation: ab-scroll-bob 1.8s ease-in-out infinite; }
 @keyframes ab-scroll-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
 
 .ab-hero-stagebar {
   position: absolute;
   inset-inline: 0;
   inset-block-end: clamp(16px, 3.5vh, 30px);
-  z-index: 2;
+  z-index: 3;
   display: flex;
   justify-content: center;
   gap: clamp(14px, 2.6vw, 32px);
@@ -309,30 +261,47 @@ body[data-page="about"] {
 .ab-hero-stage-item { display: flex; align-items: baseline; gap: 7px; }
 .ab-hero-stage-num { font-size: 11px; font-weight: 700; color: var(--cine-gold-2); }
 .ab-hero-stage-name { font-size: 10px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--cine-text-secondary); white-space: nowrap; }
-/* Each item lights up off its own steep ramp cut from --fp -- same
+/* Each item lights up off its own steep ramp cut from --pp -- same
  * near-toggle technique used throughout this file, no JS-driven class. */
-.ab-hero-scene { --sl1: clamp(0, calc(1 - var(--pp, 0) * 6), 1); --sl2: clamp(0, calc((var(--pp, 0) - 0.15) * 8), 1); --sl3: clamp(0, calc((var(--pp, 0) - 0.38) * 8), 1); --sl4: clamp(0, calc((var(--pp, 0) - 0.6) * 8), 1); --sl5: clamp(0, calc((var(--pp, 0) - 0.84) * 8), 1); }
+.ab-hero-scene { --sl1: clamp(0, calc(1 - var(--heroPp, 0) * 6), 1); --sl2: clamp(0, calc((var(--heroPp, 0) - 0.15) * 8), 1); --sl3: clamp(0, calc((var(--heroPp, 0) - 0.38) * 8), 1); --sl4: clamp(0, calc((var(--heroPp, 0) - 0.6) * 8), 1); --sl5: clamp(0, calc((var(--heroPp, 0) - 0.84) * 8), 1); }
 .ab-hero-stage-item:nth-child(1) { opacity: calc(0.35 + var(--sl1, 0) * 0.65); }
 .ab-hero-stage-item:nth-child(2) { opacity: calc(0.3 + var(--sl2, 0) * 0.7); }
 .ab-hero-stage-item:nth-child(3) { opacity: calc(0.3 + var(--sl3, 0) * 0.7); }
 .ab-hero-stage-item:nth-child(4) { opacity: calc(0.3 + var(--sl4, 0) * 0.7); }
 .ab-hero-stage-item:nth-child(5) { opacity: calc(0.3 + var(--sl5, 0) * 0.7); }
 
-@media (max-width: 767px) {
-  .about-hero-stage { min-height: 0; }
-  .about-hero-stage .cine-pin-content { position: static; height: auto; padding-block: 88px 48px; }
-  .ab-hero-scene { min-height: 76vh; flex-direction: column; gap: 28px; }
-  .ab-house-wrap { width: min(420px, 82vw); order: -1; }
-  .ab-hero-stagebar { position: static; margin-block-start: 20px; flex-wrap: wrap; row-gap: 8px; }
-  .ab-hero-blueprint { opacity: 0.4; }
-  .ab-hero-photo { opacity: 0.22; }
-}
+/* Mobile and reduced-motion mobile/pin-drop overrides for the WHOLE
+ * merged .about-cinema-stage (hero + breathe + world) live together in
+ * one consolidated block near the end of this file, after the world
+ * scene rules they also touch -- see that block for the full picture. */
 
-@media (prefers-reduced-motion: reduce) {
-  .about-hero-stage .cine-pin-content { position: static; height: auto; padding-block: 92px 56px; }
-  .ab-hero-scene { --drawn: 1; --drawn2: 1; --materialize: 1; --warmth: 1; --bloom: 1; min-height: 82vh; }
-  .ab-hero-headline { transform: none; }
-  .ab-hero-scroll-hint svg { animation: none; }
+/* =========================================================================
+ * Breathing space -- the reference video's own device: almost everything
+ * disappears for one short beat between the architectural formation and
+ * the service sequence. A deliberately near-empty, bright canvas with a
+ * single small, elegant line of type -- never filled with content just
+ * because the viewport is available.
+ * ========================================================================= */
+.ab-breathe-scene {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ps-color-surface-bright);
+}
+.ab-breathe-line {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 500;
+  font-size: clamp(15px, 1.8vw, 22px);
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  color: var(--cine-text-primary);
+  text-align: center;
+  max-width: 20rem;
+  padding-inline: 24px;
+  opacity: clamp(0, calc(1 - max(calc(var(--breathePp, 0) - 0.5), calc(0.5 - var(--breathePp, 0))) * 2.4), 1);
+  transform: translateY(calc((1 - var(--breathePp, 0)) * 10px));
 }
 
 /* =========================================================================
@@ -438,13 +407,7 @@ body[data-page="about"] {
  * off that SAME per-scene number, so visibility and motion are always in
  * sync with no second value to keep in step.
  * ========================================================================= */
-.about-world-stage { position: relative; }
-@media (min-width: 768px) {
-  .about-world-stage { min-height: 760vh; }
-}
-.about-world-stage .cine-pin-content { height: calc(100dvh - 5rem); overflow: hidden; }
-
-.ab-world-pin { position: relative; width: 100%; height: 100%; }
+.ab-world-pin { position: absolute; inset: 0; }
 .ab-world-head {
   position: absolute;
   inset-inline: 0;
@@ -456,153 +419,218 @@ body[data-page="about"] {
 
 .ab-world-pin {
   /* One "distance from peak" number per scene (8 evenly spaced peaks,
-   * 0.125 apart), each turned into a 0..1 visibility read. Half-width
-   * 0.055 is deliberately under half the peak spacing (0.0625) so no two
-   * scenes are ever simultaneously non-zero -- text never double-exposes
-   * during the crossfade, just a brief, soft dissolve through empty. */
-  --w0d: max(calc(var(--pp, 0) - 0.0625), calc(0.0625 - var(--pp, 0)));
+   * 0.125 apart of --worldPp, this phase's own 0..1 share of the master
+   * --pp), each turned into a 0..1 visibility read. Half-width 0.055 is
+   * deliberately under half the peak spacing (0.0625) so no two scenes
+   * are ever simultaneously non-zero -- text never double-exposes during
+   * the crossfade, just a brief, soft dissolve through empty. */
+  --w0d: max(calc(var(--worldPp, 0) - 0.0625), calc(0.0625 - var(--worldPp, 0)));
   --w0: clamp(0, calc(1 - var(--w0d) / 0.055), 1);
-  --w1d: max(calc(var(--pp, 0) - 0.1875), calc(0.1875 - var(--pp, 0)));
+  --w1d: max(calc(var(--worldPp, 0) - 0.1875), calc(0.1875 - var(--worldPp, 0)));
   --w1: clamp(0, calc(1 - var(--w1d) / 0.055), 1);
-  --w2d: max(calc(var(--pp, 0) - 0.3125), calc(0.3125 - var(--pp, 0)));
+  --w2d: max(calc(var(--worldPp, 0) - 0.3125), calc(0.3125 - var(--worldPp, 0)));
   --w2: clamp(0, calc(1 - var(--w2d) / 0.055), 1);
-  --w3d: max(calc(var(--pp, 0) - 0.4375), calc(0.4375 - var(--pp, 0)));
+  --w3d: max(calc(var(--worldPp, 0) - 0.4375), calc(0.4375 - var(--worldPp, 0)));
   --w3: clamp(0, calc(1 - var(--w3d) / 0.055), 1);
-  --w4d: max(calc(var(--pp, 0) - 0.5625), calc(0.5625 - var(--pp, 0)));
+  --w4d: max(calc(var(--worldPp, 0) - 0.5625), calc(0.5625 - var(--worldPp, 0)));
   --w4: clamp(0, calc(1 - var(--w4d) / 0.055), 1);
-  --w5d: max(calc(var(--pp, 0) - 0.6875), calc(0.6875 - var(--pp, 0)));
+  --w5d: max(calc(var(--worldPp, 0) - 0.6875), calc(0.6875 - var(--worldPp, 0)));
   --w5: clamp(0, calc(1 - var(--w5d) / 0.055), 1);
-  --w6d: max(calc(var(--pp, 0) - 0.8125), calc(0.8125 - var(--pp, 0)));
+  --w6d: max(calc(var(--worldPp, 0) - 0.8125), calc(0.8125 - var(--worldPp, 0)));
   --w6: clamp(0, calc(1 - var(--w6d) / 0.055), 1);
-  --w7d: max(calc(var(--pp, 0) - 0.9375), calc(0.9375 - var(--pp, 0)));
+  --w7d: max(calc(var(--worldPp, 0) - 0.9375), calc(0.9375 - var(--worldPp, 0)));
   --w7: clamp(0, calc(1 - var(--w7d) / 0.055), 1);
 }
 
-/* Each scene owns its own full-bleed background, not just its text --
- * crossfading opacity therefore carries the light/dark mood shift along
- * with the content, exactly like the transition it's paired with. The
- * outer element is the full-viewport color fill; .ab-world-scene-inner
- * is the capped, centered text+visual pair inside it. */
+/* Each scene is a real photograph (the site's own service/city
+ * photography) undergoing a genuine filter/scale TRANSFORMATION, not a
+ * text+icon pair -- construction clearing, unfinished space resolving,
+ * dull ground turning lush, haze lifting, damage healing, a document
+ * integrating, a payment path lighting up. Crossfading opacity carries
+ * the light/dark mood shift along with the content, exactly like the
+ * transition it's paired with. */
 .ab-world-scene {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   background-color: var(--ps-color-surface-bright);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   pointer-events: none;
 }
-.ab-world-scene-inner {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: center;
-  gap: clamp(24px, 5vw, 72px);
-  max-width: 1180px;
-  margin-inline: auto;
-  padding-inline: clamp(20px, 5vw, 56px);
-  width: 100%;
+/* Scenes wipe into each other through an expanding circle rather than a
+ * plain crossfade -- a real "shape as transition device", not a
+ * decorative flourish. Later scenes paint over earlier ones in DOM order,
+ * so each one's own growing circle is what performs the iris-wipe; a
+ * thin gold ring riding the circle's current edge (the ::before below)
+ * makes that shape visible as it moves, echoing the reference video's
+ * own use of a gold disc as the connective device between scenes. */
+.ab-world-scene[data-scene="0"] { clip-path: circle(calc(var(--w0, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="1"] { clip-path: circle(calc(var(--w1, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="2"] { clip-path: circle(calc(var(--w2, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="3"] { clip-path: circle(calc(var(--w3, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="4"] { clip-path: circle(calc(var(--w4, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="5"] { clip-path: circle(calc(var(--w5, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="6"] { clip-path: circle(calc(var(--w6, 0) * 85%) at 50% 50%); }
+.ab-world-scene[data-scene="7"] { clip-path: circle(calc(var(--w7, 0) * 85%) at 50% 50%); }
+.ab-world-scene::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 2px solid var(--cine-gold-1);
+  pointer-events: none;
+  box-shadow: 0 0 24px 2px rgba(212, 175, 96, 0.5);
 }
-.ab-world-scene[data-scene="0"] { opacity: var(--w0); transform: translateY(calc((1 - var(--w0)) * 18px)); }
-.ab-world-scene[data-scene="1"] { opacity: var(--w1); transform: translateY(calc((1 - var(--w1)) * 18px)); }
-.ab-world-scene[data-scene="2"] { opacity: var(--w2); transform: translateY(calc((1 - var(--w2)) * 18px)); }
-.ab-world-scene[data-scene="3"] { opacity: var(--w3); transform: translateY(calc((1 - var(--w3)) * 18px)); }
-.ab-world-scene[data-scene="4"] { opacity: var(--w4); transform: translateY(calc((1 - var(--w4)) * 18px)); }
-.ab-world-scene[data-scene="5"] { opacity: var(--w5); transform: translateY(calc((1 - var(--w5)) * 18px)); }
-.ab-world-scene[data-scene="6"] { opacity: var(--w6); transform: translateY(calc((1 - var(--w6)) * 18px)); }
-.ab-world-scene[data-scene="7"] { opacity: var(--w7); transform: translateY(calc((1 - var(--w7)) * 18px)); }
+.ab-world-scene[data-scene="0"]::before { width: calc(var(--w0, 0) * 170%); height: calc(var(--w0, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w0, 0) * (1 - var(--w0, 0))); }
+.ab-world-scene[data-scene="1"]::before { width: calc(var(--w1, 0) * 170%); height: calc(var(--w1, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w1, 0) * (1 - var(--w1, 0))); }
+.ab-world-scene[data-scene="2"]::before { width: calc(var(--w2, 0) * 170%); height: calc(var(--w2, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w2, 0) * (1 - var(--w2, 0))); }
+.ab-world-scene[data-scene="3"]::before { width: calc(var(--w3, 0) * 170%); height: calc(var(--w3, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w3, 0) * (1 - var(--w3, 0))); }
+.ab-world-scene[data-scene="4"]::before { width: calc(var(--w4, 0) * 170%); height: calc(var(--w4, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w4, 0) * (1 - var(--w4, 0))); }
+.ab-world-scene[data-scene="5"]::before { width: calc(var(--w5, 0) * 170%); height: calc(var(--w5, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w5, 0) * (1 - var(--w5, 0))); }
+.ab-world-scene[data-scene="6"]::before { width: calc(var(--w6, 0) * 170%); height: calc(var(--w6, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w6, 0) * (1 - var(--w6, 0))); }
+.ab-world-scene[data-scene="7"]::before { width: calc(var(--w7, 0) * 170%); height: calc(var(--w7, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w7, 0) * (1 - var(--w7, 0))); }
 
-.ab-world-scene-text { pointer-events: auto; }
-.ab-world-scene-eyebrow { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cine-gold-1); }
-.ab-world-scene-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: clamp(24px, 3vw, 38px); color: var(--cine-text-primary); margin-block: 10px 12px; letter-spacing: -0.01em; }
-.ab-world-scene-body { font-family: 'Inter', sans-serif; font-size: 14.5px; line-height: 1.65; color: var(--cine-text-secondary); max-width: 30rem; }
+.ab-world-scene-media {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  /* Baseline Ken Burns: a slow, continuous scale for the whole time this
+   * scene is visible -- never a static photo behind the text. */
+  transform: scale(1.1);
+  transition: none;
+}
+.ab-world-scene-overlay {
+  position: absolute;
+  inset-block-start: 8%;
+  inset-inline-end: 6%;
+  width: min(180px, 26vw);
+  aspect-ratio: 1 / 1;
+  overflow: visible;
+  z-index: 1;
+  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.45));
+}
+.ab-world-scene-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(8, 7, 5, 0.05) 0%, rgba(8, 7, 5, 0.35) 55%, rgba(8, 7, 5, 0.78) 100%);
+  z-index: 1;
+}
+.ab-world-scene.ab-light .ab-world-scene-scrim {
+  background: linear-gradient(180deg, rgba(246, 241, 228, 0.08) 0%, rgba(246, 241, 228, 0.45) 55%, rgba(246, 241, 228, 0.88) 100%);
+}
+
+.ab-world-scene-text {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  padding: 0 clamp(24px, 6vw, 72px) clamp(48px, 8vh, 96px);
+  max-width: 34rem;
+}
+/* Strong scale contrast, not a medium size for everything: a tiny,
+ * technical, monospace-leaning label against a much larger headline. */
+.ab-world-scene-eyebrow { font-family: 'IBM Plex Sans', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--cine-gold-1); }
+.ab-world-scene-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: clamp(32px, 5.2vw, 58px); line-height: 1.04; color: var(--cine-text-primary); margin-block: 12px 14px; letter-spacing: -0.015em; text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35); }
+.ab-world-scene-body { font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.65; color: var(--cine-text-secondary); max-width: 26rem; }
 .ab-world-scene-link { display: inline-flex; margin-block-start: 16px; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cine-gold-2); border-block-end: 1px solid rgba(212, 175, 96, 0.4); padding-block-end: 3px; }
 .ab-world-scene-link:hover { color: var(--cine-gold-1); }
 
-.ab-world-scene-visual { position: relative; aspect-ratio: 1 / 1; max-width: 320px; margin-inline: auto; }
-.ab-world-scene-visual svg { width: 100%; height: 100%; overflow: visible; }
+/* Scene 0 -- Property & Projects: the visitor's entry into the Darwesh
+ * world, a real skyline (Erbil Citadel) settling into focus. */
+.ab-world-scene[data-scene="0"] .ab-world-scene-media { filter: saturate(clamp(0.5, calc(0.5 + var(--w0, 0) * 0.5), 1)) brightness(clamp(0.82, calc(0.82 + var(--w0, 0) * 0.18), 1)); transform: scale(clamp(1.16, calc(1.28 - var(--w0, 0) * 0.12), 1.28)); }
 
-/* Scene 0 -- Property & Projects: a skyline rising from the ground, the
- * visitor's entry into the Darwesh world (never a circle). */
-.ab-world-skybar { transform-box: fill-box; transform-origin: bottom; transform: scaleY(var(--w0, 0)); fill: var(--ps-color-surface-container-high, #1C1F21); stroke: var(--cine-gold-1); stroke-width: 1.5; }
-.ab-world-skyline-ground { stroke: var(--ps-color-outline-variant); stroke-width: 1.5; fill: none; }
+/* Scene 1 -- Engineering: a structural grid overlays raw, desaturated
+ * construction, then lifts as the real building clears into focus. */
+.ab-world-scene[data-scene="1"] .ab-world-scene-media { filter: grayscale(clamp(0, calc(0.55 - var(--w1, 0) * 0.55), 0.55)) contrast(clamp(0.95, calc(0.95 + var(--w1, 0) * 0.1), 1.05)) brightness(clamp(0.8, calc(0.8 + var(--w1, 0) * 0.22), 1.02)); transform: scale(clamp(1.1, calc(1.22 - var(--w1, 0) * 0.12), 1.22)); }
+.ab-world-grid-overlay { stroke: var(--cine-gold-2); stroke-width: 1.1; opacity: clamp(0, calc(1 - var(--w1, 0) * 1.3), 1); }
 
-/* Scene 1 -- Engineering: the tallest building's floors filling in from
- * the ground up. */
-.ab-world-floor { fill: rgba(212, 175, 96, 0.16); stroke: var(--cine-gold-2); stroke-width: 1; opacity: 0; }
-.ab-world-scene[data-scene="1"] .ab-world-floor:nth-child(1) { opacity: clamp(0, calc((var(--w1, 0) - 0) * 3), 1); }
-.ab-world-scene[data-scene="1"] .ab-world-floor:nth-child(2) { opacity: clamp(0, calc((var(--w1, 0) - 0.15) * 3), 1); }
-.ab-world-scene[data-scene="1"] .ab-world-floor:nth-child(3) { opacity: clamp(0, calc((var(--w1, 0) - 0.3) * 3), 1); }
-.ab-world-scene[data-scene="1"] .ab-world-floor:nth-child(4) { opacity: clamp(0, calc((var(--w1, 0) - 0.45) * 3), 1); }
-.ab-world-grid-overlay { stroke: rgba(198, 154, 75, 0.35); stroke-width: 0.8; opacity: calc(1 - var(--w1, 0) * 0.5); }
+/* Scene 2 -- Interior & Architectural Design: an unfinished, blurred
+ * space resolves into the sharp, fully realized real design work. */
+.ab-world-scene[data-scene="2"] .ab-world-scene-media { filter: blur(clamp(0, calc(7px - var(--w2, 0) * 7px), 7px)) grayscale(clamp(0, calc(0.4 - var(--w2, 0) * 0.4), 0.4)) brightness(clamp(0.85, calc(0.85 + var(--w2, 0) * 0.2), 1.05)); transform: scale(clamp(1.06, calc(1.16 - var(--w2, 0) * 0.1), 1.16)); }
 
-/* Scene 2 -- Interior & Architectural Design: a room's window warming
- * from bare glass to lit, a light beam clipping in. */
-.ab-world-room-wall { fill: var(--ps-color-surface-container, #141619); stroke: var(--ps-color-outline-variant); stroke-width: 1.2; }
-.ab-world-room-window-cool { fill: rgba(198, 219, 214, 0.35); opacity: clamp(0, calc(var(--w2, 0) * 2.4), 1); }
-.ab-world-room-window-warm { fill: #f4c877; opacity: clamp(0, calc((var(--w2, 0) - 0.4) * 2.6), 0.85); }
-.ab-world-room-beam { fill: rgba(244, 200, 119, 0.18); clip-path: inset(0 calc((1 - var(--w2, 0)) * 100%) 0 0); }
+/* Scene 3 -- Landscaping: dull, dry ground turns lush and vivid. */
+.ab-world-scene[data-scene="3"] .ab-world-scene-media { filter: saturate(clamp(0.35, calc(0.35 + var(--w3, 0) * 0.85), 1.2)) brightness(clamp(0.78, calc(0.78 + var(--w3, 0) * 0.3), 1.08)); transform: scale(clamp(1.1, calc(1.22 - var(--w3, 0) * 0.12), 1.22)); }
 
-/* Scene 3 -- Landscaping: trees growing, a garden path drawing on. */
-.ab-world-tree { transform-box: fill-box; transform-origin: bottom center; transform: scale(clamp(0, calc(var(--w3, 0) * 1.6), 1)); fill: var(--ps-color-surface-container-high, #1C1F21); stroke: var(--cine-gold-2); stroke-width: 1.1; }
-.ab-world-path-line { fill: none; stroke: var(--cine-gold-1); stroke-width: 1.6; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--w3, 0)); }
+/* Scene 4 -- Cleaning: literal haze lifts to a crisp, bright, reflective
+ * result -- the clearest possible "before/after" filter transition. */
+.ab-world-scene[data-scene="4"] .ab-world-scene-media { filter: blur(clamp(0, calc(9px - var(--w4, 0) * 9px), 9px)) brightness(clamp(0.7, calc(0.7 + var(--w4, 0) * 0.4), 1.1)) contrast(clamp(0.8, calc(0.8 + var(--w4, 0) * 0.25), 1.05)) saturate(clamp(0.5, calc(0.5 + var(--w4, 0) * 0.6), 1.1)); transform: scale(clamp(1.08, calc(1.18 - var(--w4, 0) * 0.1), 1.18)); }
 
-/* Scene 4 -- Cleaning: haze clears to a crisp, reflective surface. Literal
- * filter transition, communicating "care" directly. */
-.ab-world-clean-panel { fill: var(--ps-color-surface-container, #141619); stroke: var(--ps-color-outline-variant); stroke-width: 1.2; }
-.ab-world-clean-haze { fill: rgba(180, 186, 178, 0.4); opacity: clamp(0, calc(1 - var(--w4, 0) * 1.6), 1); }
-.ab-world-clean-shine { fill: none; stroke: rgba(244, 239, 231, 0.55); stroke-width: 1; opacity: clamp(0, calc((var(--w4, 0) - 0.35) * 2), 1); }
+/* Scene 5 -- Maintenance & Renovation: a real crack heals over the photo
+ * as the desaturated, damaged surface renews into full color. */
+.ab-world-scene[data-scene="5"] .ab-world-scene-media { filter: grayscale(clamp(0, calc(0.6 - var(--w5, 0) * 0.6), 0.6)) sepia(clamp(0, calc(0.18 - var(--w5, 0) * 0.18), 0.18)) contrast(clamp(0.85, calc(0.85 + var(--w5, 0) * 0.15), 1)) brightness(clamp(0.8, calc(0.8 + var(--w5, 0) * 0.22), 1.02)); transform: scale(clamp(1.1, calc(1.2 - var(--w5, 0) * 0.1), 1.2)); }
+.ab-world-crack { fill: none; stroke: rgba(255, 138, 128, 0.85); stroke-width: 3; stroke-dasharray: 1; stroke-dashoffset: var(--w5, 0); }
 
-/* Scene 5 -- Maintenance & Renovation: a crack heals (undraws) as the
- * surface finishes. */
-.ab-world-repair-panel { fill: var(--ps-color-surface-container, #141619); stroke: rgba(212, 175, 96, calc(0.25 + var(--w5, 0) * 0.35)); stroke-width: 1.2; }
-.ab-world-crack { fill: none; stroke: rgba(255, 138, 128, 0.7); stroke-width: 1.4; stroke-dasharray: 1; stroke-dashoffset: var(--w5, 0); }
+/* Scene 6 -- Legal: a real document's lines fill in and verify over the
+ * photo, integrating the paperwork into the property journey itself. */
+.ab-world-scene[data-scene="6"] .ab-world-scene-media { filter: saturate(clamp(0.55, calc(0.55 + var(--w6, 0) * 0.5), 1.05)) brightness(clamp(0.85, calc(0.85 + var(--w6, 0) * 0.18), 1.03)); transform: scale(clamp(1.08, calc(1.18 - var(--w6, 0) * 0.1), 1.18)); }
+.ab-world-doc { fill: rgba(20, 22, 25, 0.72); stroke: rgba(212, 175, 96, 0.55); stroke-width: 1.4; }
+.ab-world-doc-line { transform-box: fill-box; transform-origin: left; fill: rgba(212, 175, 96, 0.75); }
+.ab-world-doc-line:nth-child(2) { transform: scaleX(clamp(0, calc(var(--w6, 0) * 3), 1)); }
+.ab-world-doc-line:nth-child(3) { transform: scaleX(clamp(0, calc((var(--w6, 0) - 0.15) * 3), 1)); }
+.ab-world-doc-line:nth-child(4) { transform: scaleX(clamp(0, calc((var(--w6, 0) - 0.3) * 3), 1)); }
+.ab-world-doc-check { transform-box: fill-box; transform-origin: center; transform: scale(clamp(0, calc((var(--w6, 0) - 0.55) * 2.2), 1)); stroke: var(--cine-success, #6BD99A); stroke-width: 3; fill: none; }
 
-/* Scene 6 -- Legal: a document's lines filling in, then a verified mark. */
-.ab-world-doc { fill: var(--ps-color-surface-container, #141619); stroke: var(--ps-color-outline-variant); stroke-width: 1.2; }
-.ab-world-doc-line { transform-box: fill-box; transform-origin: left; fill: rgba(212, 175, 96, 0.4); }
-.ab-world-doc-line:nth-child(1) { transform: scaleX(clamp(0, calc(var(--w6, 0) * 3), 1)); }
-.ab-world-doc-line:nth-child(2) { transform: scaleX(clamp(0, calc((var(--w6, 0) - 0.15) * 3), 1)); }
-.ab-world-doc-line:nth-child(3) { transform: scaleX(clamp(0, calc((var(--w6, 0) - 0.3) * 3), 1)); }
-.ab-world-doc-check { transform-box: fill-box; transform-origin: center; transform: scale(clamp(0, calc((var(--w6, 0) - 0.55) * 2.2), 1)); stroke: var(--cine-success, #6BD99A); stroke-width: 2; fill: none; }
-
-/* Scene 7 -- Installments: a stepped path filling in gold, one step at a
- * time, as the terms are met -- no separate moving token, the fill
- * reveal itself is the progress indicator. */
-.ab-world-step-path { fill: none; stroke: var(--ps-color-outline-variant); stroke-width: 1.5; }
-.ab-world-step-fill { fill: none; stroke: var(--cine-gold-2); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--w7, 0)); }
+/* Scene 7 -- Installments: a real stepped path lights up gold across the
+ * photo, one step at a time, as the terms are met. */
+.ab-world-scene[data-scene="7"] .ab-world-scene-media { filter: saturate(clamp(0.55, calc(0.55 + var(--w7, 0) * 0.5), 1.05)) brightness(clamp(0.85, calc(0.85 + var(--w7, 0) * 0.18), 1.03)); transform: scale(clamp(1.08, calc(1.18 - var(--w7, 0) * 0.1), 1.18)); }
+.ab-world-step-path { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 2.5; }
+.ab-world-step-fill { fill: none; stroke: var(--cine-gold-2); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--w7, 0)); }
 .ab-world-step-dot { fill: var(--cine-gold-2); opacity: 0; }
 .ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(1) { opacity: clamp(0, calc(var(--w7, 0) * 5), 1); }
 .ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(2) { opacity: clamp(0, calc((var(--w7, 0) - 0.3) * 5), 1); }
 .ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(3) { opacity: clamp(0, calc((var(--w7, 0) - 0.6) * 5), 1); }
 .ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(4) { opacity: clamp(0, calc((var(--w7, 0) - 0.85) * 5), 1); }
 
+/* =========================================================================
+ * Mobile and reduced-motion: the WHOLE merged .about-cinema-stage (hero +
+ * breathe + world) drops its pin and lays the three phases out as a
+ * normal static stack -- the same simplified-but-same-identity
+ * composition in both cases, not cards. Desktop keeps the rich
+ * scroll-scrubbed version; this is the "lighter effects" mobile variant
+ * the same objects, just not scroll-linked.
+ * ========================================================================= */
 @media (max-width: 767px) {
-  .about-world-stage { min-height: 0; }
-  .about-world-stage .cine-pin-content { position: static; height: auto; padding-block: 64px; }
-  .ab-world-head { position: static; margin-block-end: 32px; }
-  .ab-world-pin { display: flex; flex-direction: column; gap: 56px; height: auto; }
+  .about-cinema-stage { min-height: 0; }
+  .about-cinema-stage .cine-pin-content { position: static; height: auto; padding-block: 0; }
+  .ab-cinema-track { position: static; height: auto; display: flex; flex-direction: column; }
+  .ab-hero-scene { position: static; opacity: 1 !important; min-height: 84vh; }
+  .ab-hero-stagebar { position: static; margin-block-start: 20px; flex-wrap: wrap; row-gap: 8px; padding-block-end: 24px; }
+  .ab-hero-copy { padding-block-end: 4vh; }
+  .ab-breathe-scene { position: static; opacity: 1 !important; min-height: 46vh; }
+  .ab-breathe-line { opacity: 1 !important; transform: none !important; }
+  .ab-world-pin { position: static; opacity: 1 !important; display: flex; flex-direction: column; gap: 48px; height: auto; }
+  .ab-world-head { position: static; margin-block-end: 8px; }
   .ab-world-scene {
     position: static;
-    opacity: 1 !important;
+    min-height: 68vh;
+    clip-path: none !important;
     transform: none !important;
   }
-  .ab-world-scene-inner {
-    grid-template-columns: 1fr;
-    text-align: center;
-    gap: 20px;
-    padding-inline: 8px;
-  }
-  .ab-world-scene-visual { order: -1; max-width: 220px; }
-  .ab-world-scene-body { margin-inline: auto; }
+  .ab-world-scene::before { display: none; }
+  .ab-world-scene-text { padding-block-end: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ab-world-pin { --w0: 1; --w1: 1; --w2: 1; --w3: 1; --w4: 1; --w5: 1; --w6: 1; --w7: 1; }
-  .about-world-stage .cine-pin-content { position: static; height: auto; }
-  .ab-world-scene { position: static; }
-  .ab-world-head { position: static; margin-block-end: 32px; }
-  .ab-world-pin { display: flex; flex-direction: column; gap: 56px; height: auto; }
-  .ab-world-scene-inner { grid-template-columns: 1fr; text-align: center; padding-inline: 8px; }
-  .ab-world-scene-visual { order: -1; max-width: 220px; margin-inline: auto; }
+  .about-cinema-stage { min-height: 0; }
+  .about-cinema-stage .cine-pin-content { position: static; height: auto; }
+  .ab-cinema-track { position: static; height: auto; display: flex; flex-direction: column; }
+  .ab-hero-scene { position: static; opacity: 1 !important; min-height: 88vh; }
+  .ab-hero-headline { transform: none; }
+  .ab-hero-scroll-hint svg { animation: none; }
+  .ab-breathe-scene { position: static; opacity: 1 !important; min-height: 40vh; }
+  .ab-breathe-line { opacity: 1 !important; transform: none !important; }
+  .ab-world-pin { --w0: 1; --w1: 1; --w2: 1; --w3: 1; --w4: 1; --w5: 1; --w6: 1; --w7: 1; position: static; opacity: 1 !important; display: flex; flex-direction: column; gap: 48px; height: auto; }
+  .ab-world-head { position: static; margin-block-end: 8px; }
+  .ab-world-scene {
+    position: static;
+    min-height: 68vh;
+    clip-path: none !important;
+    transform: none !important;
+  }
+  .ab-world-scene::before { display: none; }
 }
 
 /* =========================================================================
