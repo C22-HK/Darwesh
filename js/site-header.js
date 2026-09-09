@@ -1,6 +1,6 @@
 // Darwesh shared site header -- the ONE canonical top nav bar (flag
-// language selector, wordmark, Home / Properties Map / Services / About /
-// Profile / notifications) for every public content page. There is
+// language selector, wordmark, Home / Properties Map / Sell / MAM AI /
+// About / Profile / notifications) for every public content page. There is
 // deliberately ONE public property map (map.html) -- the earlier
 // "Buy/Rent Map" + "Explore Map" pairing competed for the same job and
 // was consolidated into one "Properties Map" link; a follow-up pass then
@@ -70,10 +70,11 @@
 // tag on the page:
 //   <div id="siteHeader" data-active="propertiesMap"></div>
 //   <script src="./js/site-header.js"></script>
-// `data-active` is one of: home, propertiesMap, sell, mamai, services,
-// about -- omit/
-// leave blank on a page with no matching nav item (e.g. a detail page,
-// listing.html), which then highlights nothing as current. map.html
+// `data-active` is one of: home, propertiesMap, sell, mamai, about --
+// omit/leave blank on a page with no matching nav item (e.g. a detail
+// page, listing.html, or services.html now that Services is no longer a
+// top-level nav item -- see below), which then highlights nothing as
+// current. map.html
 // itself always highlights as propertiesMap regardless of its own
 // ?type= query param -- Buy and Rent are modes of that one page, not
 // separate pages, so there is nothing else to distinguish by URL.
@@ -184,7 +185,12 @@
             '<a class="' + navClass('mamai') + '" href="mam-ai.html" data-i18n="mamai.navLabel"' + ariaCurrent('mamai') + '>MAM AI</a>' +
           '</div>' +
           '<div class="flex items-center gap-6">' +
-            '<a class="' + navClass('services') + '" href="services.html" data-i18n="nav.services"' + ariaCurrent('services') + '>Services</a>' +
+            // "Services" was removed as a standalone nav item -- the
+            // Darwesh Service Universe carousel on the Home page (and
+            // the many in-context links throughout the site) is now how
+            // visitors reach services.html and every individual service
+            // page. Those pages and URLs are unchanged; only this one
+            // top-level nav entry is gone.
             '<a class="' + navClass('about') + '" href="about.html" data-i18n="nav.about"' + ariaCurrent('about') + '>About</a>' +
             notifBell('') +
             authGuest +
