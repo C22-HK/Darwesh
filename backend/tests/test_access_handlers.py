@@ -589,7 +589,11 @@ def test_lookup_agent_maps_not_found_and_forbidden_to_generic_responses():
 
 def test_lookup_agent_rejects_a_non_json_body():
     client, ops = make_company_client(caller=ALICE)
-    resp = client.post("/api/v1/access/companies/company1/agents/lookup", content=b"not json", headers={"Content-Type": "application/json"})
+    resp = client.post(
+        "/api/v1/access/companies/company1/agents/lookup",
+        content=b"not json",
+        headers={"Content-Type": "application/json"},
+    )
     assert resp.status_code == 400
     assert ops.calls == []
 

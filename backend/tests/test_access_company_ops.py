@@ -182,7 +182,9 @@ def _ops_with_directory(db, directory: dict[str, str]) -> CompanyOps:
 async def test_lookup_agent_by_email_returns_uid_for_a_real_agent_to_the_owner(db):
     owner = _uid("owner")
     agent = _uid("agent")
-    db.collection("users").document(agent).set({"role": "agent", "displayName": "Agent A", "createdAt": time.time()})
+    db.collection("users").document(agent).set(
+        {"role": "agent", "displayName": "Agent A", "createdAt": time.time()}
+    )
     ops = _ops_with_directory(db, {"agent@example.com": agent})
     company_id = await ops.create_company(caller_uid=owner, name="Acme Realty")
 
@@ -225,7 +227,9 @@ async def test_lookup_agent_by_email_never_reveals_non_agent_accounts(db):
             company_id=company_id, email="nobody@example.com", caller_uid=owner, caller_is_admin=False
         )
     with pytest.raises(ValidationError):
-        await ops.lookup_agent_by_email(company_id=company_id, email="not-an-email", caller_uid=owner, caller_is_admin=False)
+        await ops.lookup_agent_by_email(
+            company_id=company_id, email="not-an-email", caller_uid=owner, caller_is_admin=False
+        )
 
 
 async def test_invite_employee_by_owner_creates_invited_record(db, ops):

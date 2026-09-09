@@ -258,9 +258,7 @@ class CompanyOps:
             raise ValidationError("'email' must be an email address")
         if self._resolve_email_uid is None:
             raise NotFoundError("agent lookup is not available")
-        company_snap = await asyncio.to_thread(
-            lambda: self._db.collection("companies").document(company_id).get()
-        )
+        company_snap = await asyncio.to_thread(lambda: self._db.collection("companies").document(company_id).get())
         if not company_snap.exists:
             raise NotFoundError(f"company '{company_id}' does not exist")
         owner_id = _owner_id(company_snap)

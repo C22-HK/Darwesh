@@ -3,6 +3,7 @@ fields (email, phone, verification flags) to users/{uid}/privateProfile/main
 and NEVER onto the world-readable users/{uid} document -- in one batch, so
 the two documents exist together or not at all. Exercised against a fake
 Firestore client (no Admin app is initialised), so it runs everywhere."""
+
 from __future__ import annotations
 
 import asyncio
@@ -19,7 +20,7 @@ class _Doc:
     def __init__(self, path: str) -> None:
         self.path = path
 
-    def collection(self, name: str) -> "_Coll":
+    def collection(self, name: str) -> _Coll:
         return _Coll(f"{self.path}/{name}")
 
 
@@ -102,6 +103,8 @@ def test_create_user_profile_splits_private_fields_into_the_private_subdocument(
 def test_create_user_profile_omits_account_type_when_not_given():
     db = _Db()
     ops = _ops_with(db)
-    asyncio.run(ops.create_user_profile("uid-2", display_name="X", email="x@example.com", phone_e164="+9647500000000"))
+    asyncio.run(
+        ops.create_user_profile("uid-2", display_name="X", email="x@example.com", phone_e164="+9647500000000")
+    )
     public = dict(db.batches[0].sets)["users/uid-2"]
     assert "accountType" not in public

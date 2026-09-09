@@ -454,10 +454,22 @@ async def test_list_service_requests_admin_sees_every_provider_newest_first(db, 
     c1 = _uid("customer")
     admin_uid = _uid("admin")
     db.collection("serviceProviders").document(p1).set(
-        {"serviceType": "engineer", "providerType": "individual", "ownerId": p1, "displayName": "Eng One", "verified": False}
+        {
+            "serviceType": "engineer",
+            "providerType": "individual",
+            "ownerId": p1,
+            "displayName": "Eng One",
+            "verified": False,
+        }
     )
     db.collection("serviceProviders").document(p2).set(
-        {"serviceType": "cleaning", "providerType": "individual", "ownerId": p2, "displayName": "Clean Two", "verified": False}
+        {
+            "serviceType": "cleaning",
+            "providerType": "individual",
+            "ownerId": p2,
+            "displayName": "Clean Two",
+            "verified": False,
+        }
     )
     db.collection("users").document(c1).set({"role": "customer", "displayName": "Cust One"})
     db.collection("serviceProviders").document(p1).collection("requests").document("r1").set(
@@ -480,7 +492,13 @@ async def test_list_service_requests_admin_status_filter(db, ops):
     p1 = _uid("provider")
     admin_uid = _uid("admin")
     db.collection("serviceProviders").document(p1).set(
-        {"serviceType": "designer", "providerType": "individual", "ownerId": p1, "displayName": "D", "verified": False}
+        {
+            "serviceType": "designer",
+            "providerType": "individual",
+            "ownerId": p1,
+            "displayName": "D",
+            "verified": False,
+        }
     )
     db.collection("serviceProviders").document(p1).collection("requests").document("rp").set(
         {"customerUid": _uid("customer"), "status": "pending", "message": "m", "createdAt": 1}
@@ -503,10 +521,22 @@ async def test_list_service_requests_non_admin_sees_only_their_own_requests(db, 
     p1, p2 = _uid("provider"), _uid("provider")
     customer_a, customer_b = _uid("customer"), _uid("customer")
     db.collection("serviceProviders").document(p1).set(
-        {"serviceType": "lawyer", "providerType": "individual", "ownerId": p1, "displayName": "L1", "verified": False}
+        {
+            "serviceType": "lawyer",
+            "providerType": "individual",
+            "ownerId": p1,
+            "displayName": "L1",
+            "verified": False,
+        }
     )
     db.collection("serviceProviders").document(p2).set(
-        {"serviceType": "maintenance", "providerType": "individual", "ownerId": p2, "displayName": "M1", "verified": False}
+        {
+            "serviceType": "maintenance",
+            "providerType": "individual",
+            "ownerId": p2,
+            "displayName": "M1",
+            "verified": False,
+        }
     )
     db.collection("serviceProviders").document(p1).collection("requests").document("ra1").set(
         {"customerUid": customer_a, "status": "pending", "message": "mine 1", "createdAt": 1}

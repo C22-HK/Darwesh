@@ -35,6 +35,7 @@ EXAMPLES
   # production (deliberate, two flags, after a Firestore export/backup):
   GOOGLE_APPLICATION_CREDENTIALS=... python3 backend/scripts/migrate_private_profile.py --project <real-project-id> --allow-production --mode dry-run
 """
+
 from __future__ import annotations
 
 import argparse
@@ -90,8 +91,7 @@ def iter_users(db, page_size: int):
         docs = list(q.stream())
         if not docs:
             return
-        for d in docs:
-            yield d
+        yield from docs
         last = docs[-1]
         del firestore  # noqa: F821 -- keep the import local to this function's scope
 
@@ -217,16 +217,31 @@ def seed_demo(db) -> None:
     now = time.time()
     demo = {
         "agent-legacy-1": {
-            "displayName": "Legacy Agent", "role": "agent", "companyId": "co-1", "email": "agent1@example.com",
-            "phone": "+9647500000001", "phoneVerified": True, "emailVerified": True, "commissionRate": 2.5, "createdAt": now,
+            "displayName": "Legacy Agent",
+            "role": "agent",
+            "companyId": "co-1",
+            "email": "agent1@example.com",
+            "phone": "+9647500000001",
+            "phoneVerified": True,
+            "emailVerified": True,
+            "commissionRate": 2.5,
+            "createdAt": now,
         },
         "agent-legacy-2": {
-            "displayName": "Second Agent", "role": "agent", "companyId": "co-1", "email": "agent2@example.com",
-            "phone": "+9647500000002", "createdAt": now,
+            "displayName": "Second Agent",
+            "role": "agent",
+            "companyId": "co-1",
+            "email": "agent2@example.com",
+            "phone": "+9647500000002",
+            "createdAt": now,
         },
         "customer-legacy-1": {
-            "displayName": "Customer", "role": "customer", "accountType": "individual_customer",
-            "email": "customer@example.com", "phone": "+9647500000003", "createdAt": now,
+            "displayName": "Customer",
+            "role": "customer",
+            "accountType": "individual_customer",
+            "email": "customer@example.com",
+            "phone": "+9647500000003",
+            "createdAt": now,
         },
         "already-clean-1": {"displayName": "Clean Profile", "role": "customer", "createdAt": now},
         "admin-1": {"displayName": "Admin", "role": "admin", "email": "admin@example.com", "createdAt": now},
@@ -234,7 +249,9 @@ def seed_demo(db) -> None:
     for uid, data in demo.items():
         db.collection("users").document(uid).set(data)
     # A user created by the NEW backend writer already has the split shape.
-    db.collection("users").document("new-shape-1").set({"displayName": "New Shape", "role": "customer", "createdAt": now})
+    db.collection("users").document("new-shape-1").set(
+        {"displayName": "New Shape", "role": "customer", "createdAt": now}
+    )
     db.collection("users").document("new-shape-1").collection(PRIVATE_COLLECTION).document(PRIVATE_DOC).set(
         {"email": "new@example.com", "phone": "+9647500000009", "createdAt": now}
     )
@@ -244,13 +261,21 @@ def seed_demo(db) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project", required=True, help="Firebase project id (demo-darwesh for the emulator)")
-    parser.add_argument("--mode", choices=["dry-run", "apply", "verify", "rollback", "seed-demo"], default="dry-run")
-    parser.add_argument("--allow-production", action="store_true", help="required to run without FIRESTORE_EMULATOR_HOST")
+    parser.add_argument(
+        "--mode", choices=["dry-run", "apply", "verify", "rollback", "seed-demo"], default="dry-run"
+    )
+    parser.add_argument(
+        "--allow-production", action="store_true", help="required to run without FIRESTORE_EMULATOR_HOST"
+    )
     parser.add_argument("--page-size", type=int, default=300)
-    parser.add_argument("--batch-size", type=int, default=400, help="max writes per committed batch (Firestore limit 500)")
+    parser.add_argument(
+        "--batch-size", type=int, default=400, help="max writes per committed batch (Firestore limit 500)"
+    )
     parser.add_argument("--report", help="write the JSON report/stats to this file")
     parser.add_argument("--delete-private", action="store_true", help="rollback: also delete privateProfile/main")
-    parser.add_argument("--all", action="store_true", help="rollback: restore every private doc, not only migrated ones")
+    parser.add_argument(
+        "--all", action="store_true", help="rollback: restore every private doc, not only migrated ones"
+    )
     args = parser.parse_args()
     if args.batch_size > 480 or args.batch_size < 2:
         parser.error("--batch-size must be between 2 and 480")
@@ -273,16 +298,42 @@ def main() -> None:
         stats = apply(db, args.page_size, args.batch_size)
         after = verify(db, args.page_size)
         ok = not after["publicDocsStillPrivate"]
-        print(json.dumps({"mode": "apply", "planned": before["needingMigration"], **stats,
-                          "verifiedClean": ok, "leftover": len(after["publicDocsStillPrivate"])}, indent=2))
-        out = {"mode": "apply", "target": target, "started": started, "planned": before["needingMigration"], "stats": stats, "verify": after}
+        print(
+            json.dumps(
+                {
+                    "mode": "apply",
+                    "planned": before["needingMigration"],
+                    **stats,
+                    "verifiedClean": ok,
+                    "leftover": len(after["publicDocsStillPrivate"]),
+                },
+                indent=2,
+            )
+        )
+        out = {
+            "mode": "apply",
+            "target": target,
+            "started": started,
+            "planned": before["needingMigration"],
+            "stats": stats,
+            "verify": after,
+        }
         if not ok:
             sys.exit(1)
     elif args.mode == "verify":
         result = verify(db, args.page_size)
-        print(json.dumps({"mode": "verify", "scannedUsers": result["scannedUsers"], "privateDocs": result["privateDocs"],
-                          "publicDocsStillPrivate": len(result["publicDocsStillPrivate"]),
-                          "examples": result["publicDocsStillPrivate"][:10]}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "mode": "verify",
+                    "scannedUsers": result["scannedUsers"],
+                    "privateDocs": result["privateDocs"],
+                    "publicDocsStillPrivate": len(result["publicDocsStillPrivate"]),
+                    "examples": result["publicDocsStillPrivate"][:10],
+                },
+                indent=2,
+            )
+        )
         out = {"mode": "verify", "target": target, "started": started, **result}
         if result["publicDocsStillPrivate"]:
             if args.report:
