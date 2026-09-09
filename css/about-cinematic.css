@@ -396,16 +396,18 @@ body[data-page="about"] {
  * ========================================================================= */
 
 /* =========================================================================
- * The Darwesh World -- one continuous pinned sequence, eight scenes, each
- * a real visual TRANSFORMATION rather than a card or icon. Every scene is
- * absolutely stacked in the same frame and crossfades via its own
- * "distance from its own peak scroll position" read cut from the pin's
- * single --fp -- so the camera never jumps, only the composition changes,
- * exactly like the Hero above. Each scene's own signature detail (skyline
- * rising, floors filling, glass warming, trees growing, haze clearing, a
- * crack healing, a document filling in, a token moving down a path) reads
- * off that SAME per-scene number, so visibility and motion are always in
- * sync with no second value to keep in step.
+ * The Darwesh World -- ONE persistent object for the entire eight-service
+ * span: a real architectural floor plan (the whole plot -> the structural
+ * grid -> the living/design room -> the garden -> the kitchen -> the
+ * utility room -> the office nook -> the approach path) that never
+ * leaves the screen. A gold light tours the plan itself; each service is
+ * DISCOVERED as a real zone of the building via the SAME "distance from
+ * its own peak scroll position" read every earlier phase in this file
+ * uses (8 evenly spaced peaks, 0.125 apart of --worldPp) -- never a card,
+ * circle, or crossfading photo slideshow. One real photo travels with the
+ * active zone as a small inset, and one large gold circle -- the video's
+ * own "gold shape becomes light" device -- washes the frame once, at the
+ * design-to-garden handoff, as a literal transition, not decoration.
  * ========================================================================= */
 .ab-world-pin { position: absolute; inset: 0; }
 .ab-world-head {
@@ -418,12 +420,10 @@ body[data-page="about"] {
 }
 
 .ab-world-pin {
-  /* One "distance from peak" number per scene (8 evenly spaced peaks,
-   * 0.125 apart of --worldPp, this phase's own 0..1 share of the master
-   * --pp), each turned into a 0..1 visibility read. Half-width 0.055 is
-   * deliberately under half the peak spacing (0.0625) so no two scenes
-   * are ever simultaneously non-zero -- text never double-exposes during
-   * the crossfade, just a brief, soft dissolve through empty. */
+  /* Half-width 0.055 is deliberately under half the peak spacing
+   * (0.0625) so no two zones are ever simultaneously non-zero -- one
+   * service's plan-glow/caption/inset always finishes fading before the
+   * next one starts. */
   --w0d: max(calc(var(--worldPp, 0) - 0.0625), calc(0.0625 - var(--worldPp, 0)));
   --w0: clamp(0, calc(1 - var(--w0d) / 0.055), 1);
   --w1d: max(calc(var(--worldPp, 0) - 0.1875), calc(0.1875 - var(--worldPp, 0)));
@@ -440,149 +440,154 @@ body[data-page="about"] {
   --w6: clamp(0, calc(1 - var(--w6d) / 0.055), 1);
   --w7d: max(calc(var(--worldPp, 0) - 0.9375), calc(0.9375 - var(--worldPp, 0)));
   --w7: clamp(0, calc(1 - var(--w7d) / 0.055), 1);
+  /* One dedicated pulse centered on the 2->3 (Design->Garden) boundary. */
+  --sund: max(calc(var(--worldPp, 0) - 0.375), calc(0.375 - var(--worldPp, 0)));
+  --sun: clamp(0, calc(1 - var(--sund) / 0.07), 1);
 }
 
-/* Each scene is a real photograph (the site's own service/city
- * photography) undergoing a genuine filter/scale TRANSFORMATION, not a
- * text+icon pair -- construction clearing, unfinished space resolving,
- * dull ground turning lush, haze lifting, damage healing, a document
- * integrating, a payment path lighting up. Crossfading opacity carries
- * the light/dark mood shift along with the content, exactly like the
- * transition it's paired with. */
-.ab-world-scene {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  background-color: var(--ps-color-surface-bright);
-  display: flex;
-  align-items: flex-end;
-  pointer-events: none;
-}
-/* Scenes wipe into each other through an expanding circle rather than a
- * plain crossfade -- a real "shape as transition device", not a
- * decorative flourish. Later scenes paint over earlier ones in DOM order,
- * so each one's own growing circle is what performs the iris-wipe; a
- * thin gold ring riding the circle's current edge (the ::before below)
- * makes that shape visible as it moves, echoing the reference video's
- * own use of a gold disc as the connective device between scenes. */
-.ab-world-scene[data-scene="0"] { clip-path: circle(calc(var(--w0, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="1"] { clip-path: circle(calc(var(--w1, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="2"] { clip-path: circle(calc(var(--w2, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="3"] { clip-path: circle(calc(var(--w3, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="4"] { clip-path: circle(calc(var(--w4, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="5"] { clip-path: circle(calc(var(--w5, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="6"] { clip-path: circle(calc(var(--w6, 0) * 85%) at 50% 50%); }
-.ab-world-scene[data-scene="7"] { clip-path: circle(calc(var(--w7, 0) * 85%) at 50% 50%); }
-.ab-world-scene::before {
+/* A slow warm wash breathing behind the plan -- the background itself
+ * keeps transforming continuously through the whole span rather than
+ * sitting on one flat color, strongest around the design/garden zones. */
+.ab-world-pin::before {
   content: '';
   position: absolute;
-  z-index: 4;
-  left: 50%;
-  top: 50%;
-  border-radius: 50%;
-  border: 2px solid var(--cine-gold-1);
-  pointer-events: none;
-  box-shadow: 0 0 24px 2px rgba(212, 175, 96, 0.5);
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse 65% 55% at 32% 45%, rgba(212, 175, 96, calc(0.05 + var(--w2, 0) * 0.05 + var(--w3, 0) * 0.09)), transparent 68%);
 }
-.ab-world-scene[data-scene="0"]::before { width: calc(var(--w0, 0) * 170%); height: calc(var(--w0, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w0, 0) * (1 - var(--w0, 0))); }
-.ab-world-scene[data-scene="1"]::before { width: calc(var(--w1, 0) * 170%); height: calc(var(--w1, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w1, 0) * (1 - var(--w1, 0))); }
-.ab-world-scene[data-scene="2"]::before { width: calc(var(--w2, 0) * 170%); height: calc(var(--w2, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w2, 0) * (1 - var(--w2, 0))); }
-.ab-world-scene[data-scene="3"]::before { width: calc(var(--w3, 0) * 170%); height: calc(var(--w3, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w3, 0) * (1 - var(--w3, 0))); }
-.ab-world-scene[data-scene="4"]::before { width: calc(var(--w4, 0) * 170%); height: calc(var(--w4, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w4, 0) * (1 - var(--w4, 0))); }
-.ab-world-scene[data-scene="5"]::before { width: calc(var(--w5, 0) * 170%); height: calc(var(--w5, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w5, 0) * (1 - var(--w5, 0))); }
-.ab-world-scene[data-scene="6"]::before { width: calc(var(--w6, 0) * 170%); height: calc(var(--w6, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w6, 0) * (1 - var(--w6, 0))); }
-.ab-world-scene[data-scene="7"]::before { width: calc(var(--w7, 0) * 170%); height: calc(var(--w7, 0) * 170%); transform: translate(-50%, -50%); opacity: calc(4 * var(--w7, 0) * (1 - var(--w7, 0))); }
 
-.ab-world-scene-media {
+.ab-world-plan-wrap {
   position: absolute;
   inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.ab-world-plan-svg {
+  width: min(74vw, 980px);
+  /* The plan never sits still: a slow continuous drift across the whole
+   * eight-service span keeps it a living object, not a static diagram. */
+  transform:
+    scale(calc(0.94 + var(--worldPp, 0) * 0.09))
+    rotate(calc(-1.6deg + var(--worldPp, 0) * 3.2deg))
+    translateY(calc((0.5 - var(--worldPp, 0)) * 26px));
+}
+.ab-plan-static { stroke: var(--cine-text-secondary); stroke-width: 1.4; opacity: 0.4; }
+.ab-plan-plot { stroke-dasharray: 6 5; opacity: 0.5; }
+.ab-plan-footprint { stroke-width: 2; }
+.ab-plan-wall { stroke-width: 1.6; }
+.ab-plan-garden-fence { stroke-dasharray: 3 4; }
+.ab-plan-tree { fill: rgba(139, 168, 120, 0.32); stroke: rgba(139, 168, 120, 0.6); stroke-width: 1.2; }
+.ab-plan-path { stroke-width: 1.6; }
+.ab-plan-path-dot-static { fill: var(--cine-text-secondary); opacity: 0.4; stroke: none; }
+.ab-plan-door { fill: var(--ps-color-surface-bright, #0B0E12); stroke: none; }
+
+/* Each zone group carries the plan's real detail for that service (grid,
+ * furniture, fixtures, a healing crack, a verifying document, a lit
+ * path) and lights up gold in sync with its own caption/inset below --
+ * the SAME number drives all three, so they arrive and leave together. */
+.ab-plan-zone[data-zone="0"] { opacity: var(--w0, 0); }
+.ab-plan-zone[data-zone="1"] { opacity: var(--w1, 0); }
+.ab-plan-zone[data-zone="2"] { opacity: var(--w2, 0); }
+.ab-plan-zone[data-zone="3"] { opacity: var(--w3, 0); }
+.ab-plan-zone[data-zone="4"] { opacity: var(--w4, 0); }
+.ab-plan-zone[data-zone="5"] { opacity: var(--w5, 0); }
+.ab-plan-zone[data-zone="6"] { opacity: var(--w6, 0); }
+.ab-plan-zone[data-zone="7"] { opacity: var(--w7, 0); }
+
+.ab-plan-zone-glow {
+  fill: rgba(212, 175, 96, 0.16);
+  stroke: var(--cine-gold-1);
+  stroke-width: 2.6;
+  filter: drop-shadow(0 0 10px rgba(212, 175, 96, 0.55));
+}
+.ab-plan-connector { stroke: var(--cine-gold-2); stroke-width: 1.4; stroke-dasharray: 4 3; opacity: 0.7; }
+/* The caption column flips side under RTL (inset-inline-start), so the
+ * connector's near-caption endpoint has to flip with it -- otherwise it
+ * keeps pointing at the physical left edge while the caption it's meant
+ * to lead to has moved to the right. */
+[dir="rtl"] .ab-plan-connector { x1: 854; }
+.ab-plan-grid { stroke: var(--cine-gold-2); stroke-width: 1.2; }
+.ab-plan-furniture, .ab-plan-fixture, .ab-plan-fixture-round, .ab-plan-desk { fill: rgba(212, 175, 96, 0.22); stroke: var(--cine-gold-2); stroke-width: 1.4; }
+.ab-plan-crack { fill: none; stroke: rgba(255, 138, 128, 0.9); stroke-width: 2.6; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--w5, 0)); }
+.ab-plan-doc { fill: rgba(20, 22, 25, 0.65); stroke: var(--cine-gold-1); stroke-width: 1.4; }
+.ab-plan-doc-check { stroke: var(--cine-success, #6BD99A); stroke-width: 3; transform-box: fill-box; transform-origin: center; transform: scale(clamp(0, calc((var(--w6, 0) - 0.4) * 2.4), 1)); }
+.ab-plan-step-fill { fill: none; stroke: var(--cine-gold-2); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--w7, 0)); }
+.ab-plan-path-dot { fill: var(--cine-gold-2); opacity: 0; }
+.ab-plan-zone[data-zone="7"] .ab-plan-path-dot:nth-of-type(1) { opacity: clamp(0, calc(var(--w7, 0) * 4), 1); }
+.ab-plan-zone[data-zone="7"] .ab-plan-path-dot:nth-of-type(2) { opacity: clamp(0, calc((var(--w7, 0) - 0.4) * 4), 1); }
+
+/* The video's own "gold circle becomes sunlight" device, reproduced once
+ * -- a literal transition, not a repeated tic on every scene boundary. */
+.ab-world-sun {
+  position: absolute;
+  z-index: 2;
+  inset-inline-end: 12%;
+  inset-block-start: 28%;
+  width: clamp(240px, 30vw, 460px);
+  height: clamp(240px, 30vw, 460px);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212, 175, 96, 0.9), rgba(212, 175, 96, 0.35) 45%, transparent 72%);
+  opacity: calc(var(--sun, 0) * 0.85);
+  transform: scale(calc(0.3 + var(--sun, 0) * 1.9));
+  pointer-events: none;
+}
+
+/* A single real photo travels with the active zone, small and framed
+ * like a physical print set down on the plan -- photographic reality
+ * without letting a full-bleed image take the object's place again. */
+.ab-world-inset {
+  position: absolute;
+  z-index: 3;
+  inset-inline-end: clamp(20px, 4vw, 64px);
+  inset-block-end: clamp(20px, 5vh, 56px);
+  width: clamp(140px, 15vw, 210px);
+  height: clamp(100px, 11vw, 150px);
   background-size: cover;
   background-position: center;
-  /* Baseline Ken Burns: a slow, continuous scale for the whole time this
-   * scene is visible -- never a static photo behind the text. */
-  transform: scale(1.1);
-  transition: none;
+  border: 4px solid var(--ps-color-surface-bright, #0B0E12);
+  outline: 1px solid rgba(212, 175, 96, 0.4);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  transform: rotate(-2.5deg);
+  pointer-events: none;
 }
-.ab-world-scene-overlay {
-  position: absolute;
-  inset-block-start: 8%;
-  inset-inline-end: 6%;
-  width: min(180px, 26vw);
-  aspect-ratio: 1 / 1;
-  overflow: visible;
-  z-index: 1;
-  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.45));
-}
-.ab-world-scene-scrim {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(8, 7, 5, 0.05) 0%, rgba(8, 7, 5, 0.35) 55%, rgba(8, 7, 5, 0.78) 100%);
-  z-index: 1;
-}
-.ab-world-scene.ab-light .ab-world-scene-scrim {
-  background: linear-gradient(180deg, rgba(246, 241, 228, 0.08) 0%, rgba(246, 241, 228, 0.45) 55%, rgba(246, 241, 228, 0.88) 100%);
-}
+.ab-world-inset[data-zone="0"] { opacity: var(--w0, 0); }
+.ab-world-inset[data-zone="1"] { opacity: var(--w1, 0); }
+.ab-world-inset[data-zone="2"] { opacity: var(--w2, 0); }
+.ab-world-inset[data-zone="3"] { opacity: var(--w3, 0); }
+.ab-world-inset[data-zone="4"] { opacity: var(--w4, 0); }
+.ab-world-inset[data-zone="5"] { opacity: var(--w5, 0); }
+.ab-world-inset[data-zone="6"] { opacity: var(--w6, 0); }
+.ab-world-inset[data-zone="7"] { opacity: var(--w7, 0); }
 
-.ab-world-scene-text {
-  position: relative;
-  z-index: 2;
-  pointer-events: auto;
-  padding: 0 clamp(24px, 6vw, 72px) clamp(48px, 8vh, 96px);
-  max-width: 34rem;
+.ab-world-caption {
+  position: absolute;
+  z-index: 4;
+  inset-inline-start: clamp(24px, 6vw, 84px);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  max-width: 22rem;
+  padding-inline-end: 24px;
+  pointer-events: none;
 }
+.ab-world-caption .ab-world-scene-link { pointer-events: auto; }
+.ab-world-caption[data-zone="0"] { opacity: var(--w0, 0); }
+.ab-world-caption[data-zone="1"] { opacity: var(--w1, 0); }
+.ab-world-caption[data-zone="2"] { opacity: var(--w2, 0); }
+.ab-world-caption[data-zone="3"] { opacity: var(--w3, 0); }
+.ab-world-caption[data-zone="4"] { opacity: var(--w4, 0); }
+.ab-world-caption[data-zone="5"] { opacity: var(--w5, 0); }
+.ab-world-caption[data-zone="6"] { opacity: var(--w6, 0); }
+.ab-world-caption[data-zone="7"] { opacity: var(--w7, 0); }
+
 /* Strong scale contrast, not a medium size for everything: a tiny,
  * technical, monospace-leaning label against a much larger headline. */
 .ab-world-scene-eyebrow { font-family: 'IBM Plex Sans', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase; color: var(--cine-gold-1); }
-.ab-world-scene-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: clamp(32px, 5.2vw, 58px); line-height: 1.04; color: var(--cine-text-primary); margin-block: 12px 14px; letter-spacing: -0.015em; text-shadow: 0 2px 24px rgba(0, 0, 0, 0.35); }
-.ab-world-scene-body { font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.65; color: var(--cine-text-secondary); max-width: 26rem; }
+.ab-world-scene-title { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: clamp(28px, 3.6vw, 44px); line-height: 1.06; color: var(--cine-text-primary); margin-block: 12px 14px; letter-spacing: -0.015em; text-shadow: 0 2px 24px rgba(0, 0, 0, 0.4); }
+.ab-world-scene-body { font-family: 'Inter', sans-serif; font-size: 13.5px; line-height: 1.65; color: var(--cine-text-secondary); max-width: 24rem; }
 .ab-world-scene-link { display: inline-flex; margin-block-start: 16px; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cine-gold-2); border-block-end: 1px solid rgba(212, 175, 96, 0.4); padding-block-end: 3px; }
 .ab-world-scene-link:hover { color: var(--cine-gold-1); }
-
-/* Scene 0 -- Property & Projects: the visitor's entry into the Darwesh
- * world, a real skyline (Erbil Citadel) settling into focus. */
-.ab-world-scene[data-scene="0"] .ab-world-scene-media { filter: saturate(clamp(0.5, calc(0.5 + var(--w0, 0) * 0.5), 1)) brightness(clamp(0.82, calc(0.82 + var(--w0, 0) * 0.18), 1)); transform: scale(clamp(1.16, calc(1.28 - var(--w0, 0) * 0.12), 1.28)); }
-
-/* Scene 1 -- Engineering: a structural grid overlays raw, desaturated
- * construction, then lifts as the real building clears into focus. */
-.ab-world-scene[data-scene="1"] .ab-world-scene-media { filter: grayscale(clamp(0, calc(0.55 - var(--w1, 0) * 0.55), 0.55)) contrast(clamp(0.95, calc(0.95 + var(--w1, 0) * 0.1), 1.05)) brightness(clamp(0.8, calc(0.8 + var(--w1, 0) * 0.22), 1.02)); transform: scale(clamp(1.1, calc(1.22 - var(--w1, 0) * 0.12), 1.22)); }
-.ab-world-grid-overlay { stroke: var(--cine-gold-2); stroke-width: 1.1; opacity: clamp(0, calc(1 - var(--w1, 0) * 1.3), 1); }
-
-/* Scene 2 -- Interior & Architectural Design: an unfinished, blurred
- * space resolves into the sharp, fully realized real design work. */
-.ab-world-scene[data-scene="2"] .ab-world-scene-media { filter: blur(clamp(0, calc(7px - var(--w2, 0) * 7px), 7px)) grayscale(clamp(0, calc(0.4 - var(--w2, 0) * 0.4), 0.4)) brightness(clamp(0.85, calc(0.85 + var(--w2, 0) * 0.2), 1.05)); transform: scale(clamp(1.06, calc(1.16 - var(--w2, 0) * 0.1), 1.16)); }
-
-/* Scene 3 -- Landscaping: dull, dry ground turns lush and vivid. */
-.ab-world-scene[data-scene="3"] .ab-world-scene-media { filter: saturate(clamp(0.35, calc(0.35 + var(--w3, 0) * 0.85), 1.2)) brightness(clamp(0.78, calc(0.78 + var(--w3, 0) * 0.3), 1.08)); transform: scale(clamp(1.1, calc(1.22 - var(--w3, 0) * 0.12), 1.22)); }
-
-/* Scene 4 -- Cleaning: literal haze lifts to a crisp, bright, reflective
- * result -- the clearest possible "before/after" filter transition. */
-.ab-world-scene[data-scene="4"] .ab-world-scene-media { filter: blur(clamp(0, calc(9px - var(--w4, 0) * 9px), 9px)) brightness(clamp(0.7, calc(0.7 + var(--w4, 0) * 0.4), 1.1)) contrast(clamp(0.8, calc(0.8 + var(--w4, 0) * 0.25), 1.05)) saturate(clamp(0.5, calc(0.5 + var(--w4, 0) * 0.6), 1.1)); transform: scale(clamp(1.08, calc(1.18 - var(--w4, 0) * 0.1), 1.18)); }
-
-/* Scene 5 -- Maintenance & Renovation: a real crack heals over the photo
- * as the desaturated, damaged surface renews into full color. */
-.ab-world-scene[data-scene="5"] .ab-world-scene-media { filter: grayscale(clamp(0, calc(0.6 - var(--w5, 0) * 0.6), 0.6)) sepia(clamp(0, calc(0.18 - var(--w5, 0) * 0.18), 0.18)) contrast(clamp(0.85, calc(0.85 + var(--w5, 0) * 0.15), 1)) brightness(clamp(0.8, calc(0.8 + var(--w5, 0) * 0.22), 1.02)); transform: scale(clamp(1.1, calc(1.2 - var(--w5, 0) * 0.1), 1.2)); }
-.ab-world-crack { fill: none; stroke: rgba(255, 138, 128, 0.85); stroke-width: 3; stroke-dasharray: 1; stroke-dashoffset: var(--w5, 0); }
-
-/* Scene 6 -- Legal: a real document's lines fill in and verify over the
- * photo, integrating the paperwork into the property journey itself. */
-.ab-world-scene[data-scene="6"] .ab-world-scene-media { filter: saturate(clamp(0.55, calc(0.55 + var(--w6, 0) * 0.5), 1.05)) brightness(clamp(0.85, calc(0.85 + var(--w6, 0) * 0.18), 1.03)); transform: scale(clamp(1.08, calc(1.18 - var(--w6, 0) * 0.1), 1.18)); }
-.ab-world-doc { fill: rgba(20, 22, 25, 0.72); stroke: rgba(212, 175, 96, 0.55); stroke-width: 1.4; }
-.ab-world-doc-line { transform-box: fill-box; transform-origin: left; fill: rgba(212, 175, 96, 0.75); }
-.ab-world-doc-line:nth-child(2) { transform: scaleX(clamp(0, calc(var(--w6, 0) * 3), 1)); }
-.ab-world-doc-line:nth-child(3) { transform: scaleX(clamp(0, calc((var(--w6, 0) - 0.15) * 3), 1)); }
-.ab-world-doc-line:nth-child(4) { transform: scaleX(clamp(0, calc((var(--w6, 0) - 0.3) * 3), 1)); }
-.ab-world-doc-check { transform-box: fill-box; transform-origin: center; transform: scale(clamp(0, calc((var(--w6, 0) - 0.55) * 2.2), 1)); stroke: var(--cine-success, #6BD99A); stroke-width: 3; fill: none; }
-
-/* Scene 7 -- Installments: a real stepped path lights up gold across the
- * photo, one step at a time, as the terms are met. */
-.ab-world-scene[data-scene="7"] .ab-world-scene-media { filter: saturate(clamp(0.55, calc(0.55 + var(--w7, 0) * 0.5), 1.05)) brightness(clamp(0.85, calc(0.85 + var(--w7, 0) * 0.18), 1.03)); transform: scale(clamp(1.08, calc(1.18 - var(--w7, 0) * 0.1), 1.18)); }
-.ab-world-step-path { fill: none; stroke: rgba(255, 255, 255, 0.55); stroke-width: 2.5; }
-.ab-world-step-fill { fill: none; stroke: var(--cine-gold-2); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--w7, 0)); }
-.ab-world-step-dot { fill: var(--cine-gold-2); opacity: 0; }
-.ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(1) { opacity: clamp(0, calc(var(--w7, 0) * 5), 1); }
-.ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(2) { opacity: clamp(0, calc((var(--w7, 0) - 0.3) * 5), 1); }
-.ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(3) { opacity: clamp(0, calc((var(--w7, 0) - 0.6) * 5), 1); }
-.ab-world-scene[data-scene="7"] .ab-world-step-dot:nth-of-type(4) { opacity: clamp(0, calc((var(--w7, 0) - 0.85) * 5), 1); }
 
 /* =========================================================================
  * Mobile and reduced-motion: the WHOLE merged .about-cinema-stage (hero +
@@ -601,16 +606,20 @@ body[data-page="about"] {
   .ab-hero-copy { padding-block-end: 4vh; }
   .ab-breathe-scene { position: static; opacity: 1 !important; min-height: 46vh; }
   .ab-breathe-line { opacity: 1 !important; transform: none !important; }
-  .ab-world-pin { position: static; opacity: 1 !important; display: flex; flex-direction: column; gap: 48px; height: auto; }
+  .ab-world-pin { position: static; opacity: 1 !important; display: flex; flex-direction: column; gap: 32px; height: auto; }
   .ab-world-head { position: static; margin-block-end: 8px; }
-  .ab-world-scene {
+  .ab-world-plan-wrap { position: static; min-height: 62vh; margin-block-end: 8px; }
+  .ab-world-plan-svg { width: min(88vw, 560px); transform: none !important; }
+  .ab-plan-zone { opacity: 1 !important; }
+  .ab-world-sun { display: none; }
+  .ab-world-inset { display: none; }
+  .ab-world-caption {
     position: static;
-    min-height: 68vh;
-    clip-path: none !important;
+    opacity: 1 !important;
     transform: none !important;
+    max-width: none;
+    padding: 0 24px 28px;
   }
-  .ab-world-scene::before { display: none; }
-  .ab-world-scene-text { padding-block-end: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -622,15 +631,20 @@ body[data-page="about"] {
   .ab-hero-scroll-hint svg { animation: none; }
   .ab-breathe-scene { position: static; opacity: 1 !important; min-height: 40vh; }
   .ab-breathe-line { opacity: 1 !important; transform: none !important; }
-  .ab-world-pin { --w0: 1; --w1: 1; --w2: 1; --w3: 1; --w4: 1; --w5: 1; --w6: 1; --w7: 1; position: static; opacity: 1 !important; display: flex; flex-direction: column; gap: 48px; height: auto; }
+  .ab-world-pin { --w0: 1; --w1: 1; --w2: 1; --w3: 1; --w4: 1; --w5: 1; --w6: 1; --w7: 1; position: static; opacity: 1 !important; display: flex; flex-direction: column; gap: 32px; height: auto; }
   .ab-world-head { position: static; margin-block-end: 8px; }
-  .ab-world-scene {
+  .ab-world-plan-wrap { position: static; min-height: 62vh; margin-block-end: 8px; }
+  .ab-world-plan-svg { width: min(88vw, 560px); transform: none !important; }
+  .ab-plan-zone { opacity: 1 !important; }
+  .ab-world-sun { display: none; }
+  .ab-world-inset { display: none; }
+  .ab-world-caption {
     position: static;
-    min-height: 68vh;
-    clip-path: none !important;
+    opacity: 1 !important;
     transform: none !important;
+    max-width: none;
+    padding: 0 24px 28px;
   }
-  .ab-world-scene::before { display: none; }
 }
 
 /* =========================================================================
