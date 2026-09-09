@@ -171,7 +171,7 @@
     '<a id="navProfileLink" class="hidden items-center h-9 px-4 rounded-full border border-[#2B2C2A] hover:border-[#C69A4B] text-[#F4EFE7] text-sm font-semibold transition-colors" href="login.html" data-i18n="nav.profile">Profile</a>';
 
   mount.innerHTML =
-    '<header class="fixed top-0 left-0 w-full z-50 h-[76px] bg-[#0B0E12] border-b border-[#2B2C2A]">' +
+    '<header class="fixed top-0 left-0 w-full z-50 h-[76px] bg-[#0B0E12] border-b border-[#2B2C2A]" style="background-color:#0B0E12">' +
 
       // ---- Desktop / wide-tablet split layout (lg+) ----
       '<div class="hidden lg:block relative h-full">' +
