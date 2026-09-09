@@ -6,17 +6,17 @@
 // project_media.test.mjs) -- these two paths had ZERO test coverage
 // before this file. Run with `npm run test:storage-rules`.
 //
-// KNOWN ENVIRONMENT LIMITATION (same as every other *_media.test.mjs in
-// this directory): the Storage emulator's rules-runtime needs outbound
-// access to firebase-public.firebaseio.com for the firestore.get()
-// cross-service calls both isActiveOrgMember() and isAdmin() make. In a
-// network-restricted sandbox that blocks that host, every such call
-// throws a generic "Null value error" regardless of actual rule logic --
-// assertFails() cases can pass for the wrong reason (a crash also counts
-// as "not succeeded"), while assertSucceeds() cases correctly and
-// visibly fail. Any assertSucceeds() failure in this file with that
-// exact "Null value error" symptom is an environment limitation, not a
-// rules defect -- it is NEVER reported as a passing test either way.
+// Every principal used here gets a users/{uid} doc (role: 'customer'),
+// matching how project_media.test.mjs's seedOwnerContext() already does
+// it and how a real signed-up account always looks: storage.rules'
+// isAdmin() does firestore.get(.../users/$(uid)).data.role -- a get()
+// against a document that does not exist throws (not a missing-field
+// case the existing .get(key, default) safe-accessor style guards
+// against; .data itself is the problem, not one field on it), which an
+// isAdmin() || <real-check> expression only survives if the real-check
+// resolves independently. Omitting this seed produced exactly that
+// crash for this file's own principals during diagnosis; it was never a
+// property of storage.rules or of this sandbox.
 import { before, after, beforeEach, describe, it } from 'node:test';
 import { assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { ref, uploadBytes, deleteObject, getBytes } from 'firebase/storage';
@@ -43,7 +43,11 @@ const OTHER_OWNER = 'other-org-owner-uid';
 const ORG = 'org-1';
 const OTHER_ORG = 'other-org-1';
 
+async function seedUser(uid, data) {
+  await seedFirestore(testEnv, ['users', uid], data);
+}
 async function seedOrg(orgId = ORG, ownerId = OWNER) {
+  await seedUser(ownerId, { role: 'customer', accountType: 'org_owner_furniture_store', createdAt: 1 });
   await seedFirestore(testEnv, ['organizations', orgId], {
     ownerId,
     type: 'org_owner_furniture_store',
@@ -52,10 +56,8 @@ async function seedOrg(orgId = ORG, ownerId = OWNER) {
   });
 }
 async function seedActiveMember(orgId, uid, status = 'active') {
+  await seedUser(uid, { role: 'customer', createdAt: 1 });
   await seedFirestore(testEnv, ['organizations', orgId, 'members', uid], { status, role: 'member' });
-}
-async function seedUser(uid, data) {
-  await seedFirestore(testEnv, ['users', uid], data);
 }
 
 const SMALL_BYTES = new Uint8Array(1024);
