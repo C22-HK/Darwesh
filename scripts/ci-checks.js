@@ -58,17 +58,25 @@ if (failures === 0) ok(`inline script syntax valid across ${htmlFiles.length} pa
 const i18nPath = path.join(ROOT, 'js/i18n.js');
 const i18nSrc = fs.readFileSync(i18nPath, 'utf8');
 const kuMatch = i18nSrc.match(/ku:\s*\{([\s\S]*?)\r?\n {2}\},\r?\n {2}ar:/);
-const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\r?\n {2}\}\s*\};/);
-if (!kuMatch || !arMatch) {
-  fail('js/i18n.js: could not locate ku/ar dictionary blocks (structure changed?)');
+const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\r?\n {2}\},\r?\n {2}tr:/);
+const trMatch = i18nSrc.match(/tr:\s*\{([\s\S]*?)\r?\n {2}\}\s*\};/);
+if (!kuMatch || !arMatch || !trMatch) {
+  fail('js/i18n.js: could not locate ku/ar/tr dictionary blocks (structure changed?)');
 } else {
   const kuKeys = new Set([...kuMatch[1].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
   const arKeys = new Set([...arMatch[1].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
+  const trKeys = new Set([...trMatch[1].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
   const onlyKu = [...kuKeys].filter(k => !arKeys.has(k));
   const onlyAr = [...arKeys].filter(k => !kuKeys.has(k));
   if (onlyKu.length) fail(`js/i18n.js: keys present in ku but missing from ar: ${onlyKu.join(', ')}`);
   if (onlyAr.length) fail(`js/i18n.js: keys present in ar but missing from ku: ${onlyAr.join(', ')}`);
-  if (!onlyKu.length && !onlyAr.length) ok(`i18n key parity (${kuKeys.size} keys each in ku/ar)`);
+  const onlyKuNotTr = [...kuKeys].filter(k => !trKeys.has(k));
+  const onlyTrNotKu = [...trKeys].filter(k => !kuKeys.has(k));
+  if (onlyKuNotTr.length) fail(`js/i18n.js: keys present in ku but missing from tr: ${onlyKuNotTr.join(', ')}`);
+  if (onlyTrNotKu.length) fail(`js/i18n.js: keys present in tr but missing from ku: ${onlyTrNotKu.join(', ')}`);
+  if (!onlyKu.length && !onlyAr.length && !onlyKuNotTr.length && !onlyTrNotKu.length) {
+    ok(`i18n key parity (${kuKeys.size} keys each in ku/ar/tr)`);
+  }
 
   const definedKeys = new Set([...i18nSrc.matchAll(/'([a-zA-Z0-9_.]+)':\s*'/g)].map(m => m[1]));
   // Keys built by string concatenation at runtime (e.g. 'auth.pro.svc.' + x)

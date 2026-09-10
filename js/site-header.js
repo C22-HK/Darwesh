@@ -107,6 +107,7 @@
           '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">EN</span>' +
           '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">KU</span>' +
           '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">AR</span>' +
+          '<span class="lang-current" data-flag-for="tr"><img class="lang-flag" src="images/flags/turkey.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">TR</span>' +
         '</button>' +
         '<div class="lang-menu hidden absolute start-0 top-full mt-2 z-50 bg-[#17191B] border border-[#2B2C2A] rounded-xl shadow-lg">' +
           '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="ku" onclick="setLanguage(\'ku\')" type="button">' +
@@ -115,6 +116,10 @@
           '</button>' +
           '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="ar" onclick="setLanguage(\'ar\')" type="button">' +
             '<img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>' +
+            '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
+          '</button>' +
+          '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="tr" onclick="setLanguage(\'tr\')" type="button">' +
+            '<img class="lang-flag" src="images/flags/turkey.svg" alt="" width="20" height="14" decoding="async"><span>Türkçe</span>' +
             '<span class="lang-option-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg></span>' +
           '</button>' +
           '<button class="lang-option rounded-lg text-[#F4EFE7] hover:bg-[#1C1F21]" data-lsel data-lang="en" onclick="setLanguage(\'en\')" type="button">' +
