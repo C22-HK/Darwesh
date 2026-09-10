@@ -427,8 +427,8 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
   voiceToggleBtn.type = 'button';
   voiceToggleBtn.className = 'mamcp-icon-btn';
   voiceToggleBtn.hidden = true;
-  voiceToggleBtn.title = 'Voice replies';
-  voiceToggleBtn.setAttribute('aria-label', 'Toggle voice replies');
+  voiceToggleBtn.title = tr('mam.voiceRepliesLabel', 'Voice replies');
+  voiceToggleBtn.setAttribute('aria-label', tr('mam.voiceRepliesLabel', 'Voice replies'));
   const voiceToggleIcon = document.createElement('span');
   voiceToggleIcon.className = 'mamcp-icon';
   voiceToggleBtn.appendChild(voiceToggleIcon);
@@ -451,7 +451,7 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
 
   const emptyState = document.createElement('p');
   emptyState.className = 'mamcp-empty';
-  emptyState.textContent = tr('mam.greeting', "Ask me about Darwesh listings, projects, or service providers.");
+  emptyState.textContent = tr('mam.greeting', "Hi, I'm MAM AI. Ask me about Darwesh properties -- how can I help?");
   log.appendChild(emptyState);
 
   document.body.appendChild(panel);
@@ -499,21 +499,21 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
   input.autocomplete = 'off';
   input.maxLength = MAX_MESSAGE_LENGTH;
   input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM anything…');
-  input.setAttribute('aria-label', 'Ask MAM');
+  input.setAttribute('aria-label', tr('mam.askAriaLabel', 'Ask MAM'));
   form.appendChild(input);
 
   const micBtn = document.createElement('button');
   micBtn.type = 'button';
   micBtn.className = 'mamcp-bar-btn mamcp-mic';
   micBtn.hidden = true;
-  micBtn.setAttribute('aria-label', 'Speak your question');
+  micBtn.setAttribute('aria-label', tr('mam.micAriaLabel', 'Speak your question'));
   micBtn.innerHTML = ICON_MIC_SVG;
   form.appendChild(micBtn);
 
   const sendBtn = document.createElement('button');
   sendBtn.type = 'submit';
   sendBtn.className = 'mamcp-bar-btn mamcp-send';
-  sendBtn.setAttribute('aria-label', 'Send message');
+  sendBtn.setAttribute('aria-label', tr('mam.sendAriaLabel', 'Send message'));
   sendBtn.innerHTML = ICON_SEND_SVG;
   form.appendChild(sendBtn);
   barWrap.appendChild(form);
@@ -1474,7 +1474,7 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
       } else if (err && err.name === 'AbortError') {
         errMsg = tr('mam.timeout', 'That took too long to answer. Please try again.');
       } else if (err instanceof BackendUnavailableError) {
-        errMsg = tr('mam.offline', "I couldn't reach the Darwesh server. Check your connection and try again.");
+        errMsg = tr('mam.offline', "I can't reach the Darwesh server right now. Please try again.");
       } else {
         errMsg = tr('mam.genericError', "That didn't go through. Please try again.");
       }
@@ -1952,12 +1952,12 @@ export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, 
       startListening();
     }
 
-    const GREETING_TEXT_KU = 'سڵاو، من مامم. چۆن دەتوانم یارمەتیت بدەم؟';
     function speakGreeting() {
-      addAssistantBubble({ message: GREETING_TEXT_KU });
-      recordTurn({ role: 'assistant', text: GREETING_TEXT_KU, cards: [] });
+      const greetingText = tr('mam.greeting', "Hi, I'm MAM AI. Ask me about Darwesh properties -- how can I help?");
+      addAssistantBubble({ message: greetingText });
+      recordTurn({ role: 'assistant', text: greetingText, cards: [] });
       setVoiceState('PROCESSING'); // acknowledgement beat, mirrors the wake-handoff one above
-      speak(GREETING_TEXT_KU, { onDone: () => { if (handsFree) startListening(); } });
+      speak(greetingText, { onDone: () => { if (handsFree) startListening(); } });
     }
 
     // ONE predictable on/off switch for the mic/voice button: anything

@@ -36,7 +36,7 @@ export const SERVICE_CATALOG = [
     taglineKey: 'svc.engineer.tagline', tagline: 'Structural, civil, and MEP engineering from verified professionals.',
     profileHref: 'engineer.html',
     directoryHref: 'service.html?type=engineer',
-    ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Engineers'
+    ctaKey: 'svc.cta.browseEngineers', ctaFallback: 'Browse Engineers'
   },
   {
     key: 'designer',
@@ -64,7 +64,7 @@ export const SERVICE_CATALOG = [
     taglineKey: 'svc.lawyer.tagline', tagline: 'Real estate and property legal services from verified professionals.',
     profileHref: 'lawyer.html',
     directoryHref: 'service.html?type=lawyer',
-    ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Lawyers'
+    ctaKey: 'svc.cta.browseLawyers', ctaFallback: 'Browse Lawyers'
   },
   {
     key: 'landscaping',
@@ -76,7 +76,7 @@ export const SERVICE_CATALOG = [
     taglineKey: 'svc.landscaping.tagline', tagline: 'Garden, yard, and outdoor space design from verified professionals.',
     profileHref: 'landscaping.html',
     directoryHref: 'service.html?type=landscaping',
-    ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Landscapers'
+    ctaKey: 'svc.cta.browseLandscapers', ctaFallback: 'Browse Landscapers'
   },
   {
     key: 'cleaning',
@@ -88,7 +88,7 @@ export const SERVICE_CATALOG = [
     taglineKey: 'svc.cleaning.tagline', tagline: 'Home, office, and move-in/move-out cleaning from individuals, teams, and companies.',
     profileHref: 'cleaning.html',
     directoryHref: 'service.html?type=cleaning',
-    ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Cleaning Providers'
+    ctaKey: 'svc.cta.browseCleaning', ctaFallback: 'Browse Cleaning Providers'
   },
   {
     // Maintenance was added to js/professional-roles.js in Phase 3B --
@@ -108,7 +108,7 @@ export const SERVICE_CATALOG = [
     taglineKey: 'svc.maintenance.tagline', tagline: 'Repairs, upkeep, and property maintenance from verified providers.',
     profileHref: 'maintenance.html',
     directoryHref: 'service.html?type=maintenance',
-    ctaKey: 'svc.cta.browseProviders', ctaFallback: 'Browse Maintenance Providers'
+    ctaKey: 'svc.cta.browseMaintenance', ctaFallback: 'Browse Maintenance Providers'
   },
   {
     // INSTALLMENT is the one service here that is NOT a serviceProviders

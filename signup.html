@@ -237,7 +237,7 @@ violation reporting. -->
   import { auth, db, getDoc } from './js/firebase-init.js';
   import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-  import { sendEmailOtp, verifyEmailOtp, completeSignup, BackendUnavailableError, BackendResponseError } from './js/backend-api.js';
+  import { sendEmailOtp, verifyEmailOtp, completeSignup, BackendUnavailableError, BackendResponseError, localizeBackendError } from './js/backend-api.js';
   import { wireOtpInputs, maskEmail } from './js/otp-ui.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -299,8 +299,7 @@ violation reporting. -->
   // err.message from somewhere else.
   function describeBackendError(err) {
     if (err instanceof BackendUnavailableError) return tr('auth.otp.errBackendUnavailable', "Couldn't reach the server. Please check your connection and try again.");
-    if (err instanceof BackendResponseError) return err.message;
-    return tr('auth.otp.errGeneric', 'Something went wrong. Please try again.');
+    return localizeBackendError(err, tr);
   }
 
   // Everything the user typed on Step 1, kept only in memory (never in

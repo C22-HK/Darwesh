@@ -115,7 +115,7 @@ function brandBlock() {
   // brand name is a fixed Latin proper noun, never mirrored.
   return (
     '<div class="sf-brand">' +
-      '<a href="index.html" dir="ltr" class="sf-brand-lockup" aria-label="Darwesh Group — Home">' +
+      '<a href="index.html" dir="ltr" class="sf-brand-lockup" aria-label="Darwesh Group — Home" data-i18n-aria="nav.brandHomeLabel">' +
         '<span class="sf-brand-word">Darwesh</span>' +
         '<span class="brand-logo-circle sf-brand-circle">' +
           '<img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async" class="sf-brand-mark object-contain">' +

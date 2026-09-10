@@ -33,6 +33,59 @@ export class BackendResponseError extends Error {
   }
 }
 
+// The backend's `error` strings above are written in English only --
+// every page that showed err.message directly left KU/AR/TR visitors
+// reading raw English for the exact validation errors (wrong/expired
+// OTP, rate limits) they're most likely to hit. This is the one place
+// that maps each known backend string to a translated, safe UI
+// message; a message the backend hasn't sent before (wording changed,
+// or a case this list doesn't cover yet) falls back to a generic
+// translated error rather than raw English. Every page's
+// describeBackendError() should call this for a BackendResponseError
+// instead of returning err.message.
+const KNOWN_BACKEND_ERRORS = [
+  ['Please provide a valid request body.', 'auth.err.invalidBody'],
+  ['Unsupported or missing purpose.', 'auth.err.invalidPurpose'],
+  ["That email address doesn't look right.", 'auth.err.invalidEmail'],
+  ["That phone number doesn't look right.", 'auth.err.invalidPhone'],
+  ['Too many requests. Please wait a while and try again.', 'auth.err.tooManyRequests'],
+  ['Too many requests for this email address. Please wait a while and try again.', 'auth.err.tooManyRequestsEmail'],
+  ['Too many requests for this phone number. Please wait a while and try again.', 'auth.err.tooManyRequestsPhone'],
+  ['A code was already sent recently. Please wait before requesting another.', 'auth.err.codeAlreadySent'],
+  ['Please provide the verification code.', 'auth.err.missingCode'],
+  ['Too many incorrect attempts. Please request a new code.', 'auth.err.tooManyAttempts'],
+  ['That code is incorrect or has expired.', 'auth.err.codeIncorrect'],
+  ['Missing or invalid verification token.', 'auth.err.invalidToken'],
+  ['Please provide your full name.', 'auth.err.missingName'],
+  ['Invalid requested role.', 'auth.err.invalidRole'],
+  ['Please provide the company or agency you work for.', 'auth.err.missingCompany'],
+  ['Invalid account type.', 'auth.err.invalidAccountType'],
+  ['This verification code has expired or already been used. Please start over.', 'auth.err.codeExpired'],
+  ['This reset link has expired or already been used. Please request a new code.', 'auth.err.resetLinkExpired'],
+  ['Could not create your account right now. Please try again.', 'auth.err.createAccountFailed'],
+  ['Could not complete your signup right now. Please try again.', 'auth.err.completeSignupFailed'],
+  ['Missing or invalid reset token.', 'auth.err.invalidResetToken'],
+  ['Could not reset your password right now. Please try again.', 'auth.err.resetFailed'],
+];
+// Messages with a number or field name interpolated by the backend
+// (password/company length, "account with this X already exists") --
+// matched by prefix/substring since the exact text varies.
+const KNOWN_BACKEND_ERROR_PATTERNS = [
+  [/^Password must be at least \d+ characters\.$/, 'auth.err.passwordTooShort'],
+  [/^Company name must be at most \d+ characters\.$/, 'auth.err.companyNameTooLong'],
+  [/^An account with this .+ already exists\.$/, 'auth.err.accountExists'],
+];
+
+export function localizeBackendError(err, tr, genericKey, genericFallback) {
+  if (err instanceof BackendResponseError) {
+    const exact = KNOWN_BACKEND_ERRORS.find(([msg]) => msg === err.message);
+    if (exact) return tr(exact[1], err.message);
+    const pattern = KNOWN_BACKEND_ERROR_PATTERNS.find(([re]) => re.test(err.message));
+    if (pattern) return tr(pattern[1], err.message);
+  }
+  return tr(genericKey || 'auth.otp.errGeneric', genericFallback || 'Something went wrong. Please try again.');
+}
+
 async function postJson(path, body) {
   let response;
   try {

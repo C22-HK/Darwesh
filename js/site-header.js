@@ -103,7 +103,7 @@
     var pad = size === 'sm' ? 'px-2.5 py-1.5' : 'px-3 py-2';
     return (
       '<div class="relative">' +
-        '<button aria-label="Language" class="lang-toggle-btn inline-flex items-center gap-1.5 ' + pad + ' rounded-md border border-[#2B2C2A] bg-[#17191B] text-[#F4EFE7] hover:border-[#C69A4B] transition-colors" type="button">' +
+        '<button aria-label="Language" data-i18n-aria="nav.languageLabel" class="lang-toggle-btn inline-flex items-center gap-1.5 ' + pad + ' rounded-md border border-[#2B2C2A] bg-[#17191B] text-[#F4EFE7] hover:border-[#C69A4B] transition-colors" type="button">' +
           '<span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">EN</span>' +
           '<span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">KU</span>' +
           '<span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="' + flagW + '" height="' + flagH + '" decoding="async">AR</span>' +
@@ -133,7 +133,7 @@
 
   function notifBell(extraClass) {
     return (
-      '<button aria-label="Notifications" class="' + (extraClass || '') + ' relative p-2.5 rounded-full hover:bg-[#1C1F21] transition-all duration-200 active:scale-95 text-[#F4EFE7]" type="button" style="--notif-dot-ring:#0B0E12">' +
+      '<button aria-label="Notifications" data-i18n-aria="nav.notificationsLabel" class="' + (extraClass || '') + ' relative p-2.5 rounded-full hover:bg-[#1C1F21] transition-all duration-200 active:scale-95 text-[#F4EFE7]" type="button" style="--notif-dot-ring:#0B0E12">' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>' +
       '</button>'
     );
@@ -147,7 +147,7 @@
   // not translated content, so it stays LTR regardless of page direction,
   // same as a logo image would.
   var brandLockup =
-    '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home">' +
+    '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home" data-i18n-aria="nav.brandHomeLabel">' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Darwesh</span>' +
       '<span class="brand-logo-circle">' +
         '<img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async" class="hdr-mark object-contain">' +
@@ -158,7 +158,7 @@
   var propertiesMapItem =
     '<div class="relative flex items-center gap-0.5">' +
       '<a class="' + navClass('propertiesMap') + '" href="map.html" data-i18n="nav.propertiesMap"' + ariaCurrent('propertiesMap') + '>Properties Map</a>' +
-      '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-[#F4EFE7]' : 'text-[#B8B0A5] hover:text-[#F4EFE7]') + ' transition-colors" type="button" aria-label="Buy or rent">' +
+      '<button class="nav-map-toggle-btn flex items-center p-0.5 rounded ' + (active === 'propertiesMap' ? 'text-[#F4EFE7]' : 'text-[#B8B0A5] hover:text-[#F4EFE7]') + ' transition-colors" type="button" aria-label="Buy or rent" data-i18n-aria="nav.buyOrRentLabel">' +
         '<span class="text-[18px]" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></span>' +
       '</button>' +
       '<div class="nav-map-menu hidden absolute start-0 top-full mt-2 z-50 min-w-[140px] bg-[#17191B] border border-[#2B2C2A] rounded-xl shadow-lg py-1">' +
