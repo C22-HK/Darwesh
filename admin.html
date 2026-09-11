@@ -82,6 +82,7 @@ text-on-surface-variant/etc. classes would start resolving through, a
 real, wide-reaching visual change (89+ uses on this page alone) this
 change is not meant to make. -->
 <link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/admin-shell.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
@@ -387,7 +388,7 @@ change is not meant to make. -->
     .req-filter-input::placeholder { color: #4f6073; }
   </style>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
+<body class="admin-shell bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
 <h1 class="sr-only" data-i18n="admin.pageH1">Darwesh Group admin dashboard</h1>
 
 <!-- Loading -->
@@ -426,10 +427,26 @@ change is not meant to make. -->
 
 <!-- Dashboard -->
 <div id="adminContent" class="hidden pb-16">
-  <header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
-    <div class="flex items-center gap-3">
-      <span class="material-symbols-outlined text-primary">admin_panel_settings</span>
-      <span class="font-headline-md text-[20px] text-primary font-bold" data-i18n="admin.title">Darwesh Admin</span>
+  <div id="adminSidebarMount"></div>
+  <header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40 gap-3">
+    <div class="flex items-center gap-3 min-w-0">
+      <button id="adminHamburgerBtn" type="button" class="ash-icon-btn ash-hamburger" aria-label="Open menu" data-i18n-aria="admin.shell.openMenu">
+        <span class="material-symbols-outlined" aria-hidden="true">menu</span>
+      </button>
+      <span class="material-symbols-outlined text-primary hidden sm:inline">admin_panel_settings</span>
+      <span class="font-headline-md text-[20px] text-primary font-bold hidden sm:inline" data-i18n="admin.title">Darwesh Admin</span>
+      <span class="ash-topbar-crumb truncate" id="adminBreadcrumb"></span>
+    </div>
+    <div class="flex items-center gap-3 min-w-0">
+      <label class="ash-topbar-search" id="adminSearchWrap">
+        <span class="material-symbols-outlined" aria-hidden="true">search</span>
+        <input type="text" id="adminSearchInput" data-i18n-placeholder="admin.shell.searchPlaceholder" placeholder="Search admin sections…">
+        <span class="ash-topbar-kbd" id="adminCmdkHint">⌘K</span>
+      </label>
+      <button type="button" class="ash-quick-create" id="adminQuickCreateBtn">
+        <span class="material-symbols-outlined" aria-hidden="true" style="font-size:16px;">add</span>
+        <span data-i18n="admin.shell.quickCreate">Quick create</span>
+      </button>
     </div>
     <div class="flex items-center gap-4">
       <a href="index.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.backToSite">Back to site</a>
@@ -470,7 +487,7 @@ change is not meant to make. -->
       <span data-i18n-html="admin.notice">Users, Roles, and Listings below are read from and written to the real Darwesh Group database — visible from any device, for every agent and admin. Only the <strong>Scan Log</strong> tab stays local to this browser.</span>
     </div>
 
-    <div class="flex border-b border-outline-variant mb-6 flex-wrap">
+    <div class="flex border-b border-outline-variant mb-6 flex-wrap" id="adminTabBarLegacy">
       <button class="admin-tab active" data-tab="dashboard" type="button" data-i18n="admin.dashboardTab">Dashboard</button>
       <button class="admin-tab" data-tab="users" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
@@ -1066,8 +1083,87 @@ change is not meant to make. -->
         <p id="leaderboardEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
       </div>
     </section>
+
+    <!-- Roadmap placeholders: Phase 1 ships the full information architecture
+         (sidebar) up front; these nine sections get their real screens in
+         later phases (see the Admin Panel plan) rather than being hidden
+         from the nav until then -- an honest "planned" state, not a dead
+         link or fabricated data. -->
+    <section id="tab-organizations" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">domain</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.organizations">Organizations</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.organizations">Manage real-estate agencies, developers, and service organizations -- approvals, members, and verification -- from one place.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-professionals" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">engineering</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.professionals">Professionals</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.professionals">A full directory of engineers, designers, lawyers, and other service professionals, with verification and performance at a glance.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-financial" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">payments</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.financial">Financial Management</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.financial">Revenue, commissions, subscriptions, and refunds, clearly split into confirmed, pending, and estimated -- never presented as one blended number.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-reports" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">monitoring</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.reports">Reports</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.reports">Deeper, exportable reporting across listings, requests, and professional performance, beyond the Overview dashboard's live snapshot.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-content" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">edit_note</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.content">Content Management</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.content">Homepage sections, featured listings, banners, and FAQ -- editable in Kurdish, Arabic, and English, with draft/published states.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-notifications" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">notifications</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.notifications">Notifications</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.notifications">A live feed of approvals, new requests, and security warnings that need an admin's attention.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-security" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">shield</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.security">Security</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.security">Recent admin logins, suspicious activity, and permission changes, scoped to what this platform's real audit data can show.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-auditlogs" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">history</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.auditLogs">Audit Logs</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.auditLogs">A searchable read-only view of accessAuditLog -- every permission and role change, who made it, and when.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
+    <section id="tab-settings" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">settings</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.settings">Settings</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.settings">Platform-wide configuration -- cities, property types, service categories, and commission rules.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
+      </div>
+    </section>
   </main>
 </div>
+<script src="./js/admin-shell.js"></script>
 
 <!-- Customer Services: full request detail -->
 <div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="requestDetailOverlay">
@@ -1211,7 +1307,7 @@ import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './
 // rolePermissionDefaults with the client SDK (admin-readable per rules),
 // writes ONLY through the backend endpoint (the collection is never
 // client-writable, admin sessions included).
-import { setRoleDefaults, listServiceRequests, BackendResponseError } from './js/backend-api.js';
+import { setRoleDefaults, listServiceRequests, getMyPermissions, BackendResponseError } from './js/backend-api.js';
 import { SELF_ACCOUNT_TYPES, PERMISSION_GROUPS, RECOMMENDED_ROLE_DEFAULTS } from './js/permission-catalog.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
@@ -1338,6 +1434,13 @@ onAuthStateChanged(auth, async (user) => {
   document.getElementById('notAdminGate').classList.add('hidden');
   document.getElementById('adminContent').classList.remove('hidden');
   initDashboard();
+  // Best-effort nav refinement only -- see admin-shell.js's
+  // AdminShellApplyPermissions doc comment: page access itself stays the
+  // hard role==='admin' gate above, this just hides a couple of sidebar
+  // entries an admin without those specific permissions can't act on.
+  if (window.AdminShellApplyPermissions) {
+    getMyPermissions(user).then((res) => window.AdminShellApplyPermissions(res)).catch(() => {});
+  }
 });
 
 // ---------------------------------------------------------------------
