@@ -261,6 +261,25 @@ export function initServiceProviderProfile(config) {
       // complaint.
       onStepClick: () => { const b = el('editProfileBtn'); if (b) b.click(); }
     });
+    // Verification & Rewards (§C) -- the SAME component account.html
+    // mounts. Owner-only and mounted explicitly rather than through the
+    // module's [data-verification-rewards] auto-mount: this page is
+    // PUBLIC, and an auto-mount would show a visitor their own
+    // verification state while they are looking at somebody else's
+    // profile. It reads only the signed-in user's own documents either
+    // way, so this is a clarity boundary, not a privacy one.
+    const vrHost = el('verificationRewards');
+    if (vrHost) {
+      if (isOwnerView && auth.currentUser) {
+        vrHost.hidden = false;
+        import('./verification-rewards.js')
+          .then((m) => m.mountVerificationRewards(vrHost, auth.currentUser.uid))
+          .catch(() => { vrHost.hidden = true; });
+      } else {
+        vrHost.hidden = true;
+        vrHost.innerHTML = '';
+      }
+    }
     if (isAdminView) {
       show('adminViewingNote');
       const verifyBtn = el('verifyToggleBtn');

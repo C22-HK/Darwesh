@@ -41,6 +41,10 @@ from app.otp.handler import PasswordResetConfirmHandler
 from app.otp.service import OtpService
 from app.otp.store import FirestoreChallengeStore, InMemoryChallengeStore
 from app.server import create_app
+from app.verification.archive_ops import ArchiveOps
+from app.verification.handlers import PermissionReader, ReferralPublicHandler, VerificationHandler
+from app.verification.referral_ops import ReferralOps
+from app.verification.verification_ops import VerificationOps
 
 logger = logging.getLogger("darwesh")
 
@@ -314,6 +318,104 @@ def build_access_handlers(
     )
 
 
+def build_verification_handlers(
+    cfg: Config,
+) -> tuple[ReferralPublicHandler | None, VerificationHandler | None]:
+    """Wires up the Verification, Referral and Reward endpoints.
+
+    Gated on the SAME Firebase Admin credential check as every other
+    Firestore-backed feature -- and on nothing else. In particular it is
+    NOT gated on a storage bucket or an archive key: a deployment
+    without those still gets identity review, referral qualification and
+    reward computation, and the two actions that genuinely need storage
+    (revealing one evidence object, running the archive pipeline) each
+    fail with their own honest message instead (§BI). Silently hiding
+    the whole feature because one optional binding is missing would be
+    the worse failure -- it would look like the feature was never built.
+    """
+    if not _has_firebase_credential(cfg):
+        logger.info(
+            "Verification endpoints not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or "
+            "deploy with APP_ENV=production to use Application Default Credentials -- to enable them)"
+        )
+        return None, None
+
+    try:
+        clients = AccessFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id)
+    except ValueError as exc:
+        logger.error("Verification endpoints misconfigured, skipping", extra={"error": str(exc)})
+        return None, None
+
+    db = clients.firestore_client
+    auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
+
+    evidence_bucket = None
+    archive_vault = None
+    if cfg.verification_evidence_bucket or cfg.verification_archive_bucket:
+        from firebase_admin import storage as fb_storage
+
+        if cfg.verification_evidence_bucket:
+            evidence_bucket = fb_storage.bucket(cfg.verification_evidence_bucket, app=clients.app)
+        if cfg.verification_archive_bucket:
+            archive_vault = fb_storage.bucket(cfg.verification_archive_bucket, app=clients.app)
+    else:
+        logger.info(
+            "Verification evidence/archive storage not configured; document reveal and archiving "
+            "will report themselves unavailable (set VERIFICATION_EVIDENCE_BUCKET / "
+            "VERIFICATION_ARCHIVE_BUCKET to enable them)"
+        )
+
+    referral_ops = ReferralOps(db)
+    verification_ops = VerificationOps(db, bucket=evidence_bucket, referral_ops=referral_ops)
+    archive_ops = ArchiveOps(db, vault=archive_vault, live_bucket=evidence_bucket)
+
+    # Same FirestoreRateLimiter-in-production/InMemory-in-development
+    # split as build_access_handlers, with its own namespaces so a burst
+    # of verification traffic cannot exhaust an unrelated counter.
+    # Submission is the tightest self-service limit (resubmitting an ID
+    # a dozen times an hour is not a real user), and evidence reveal is
+    # the tightest of all.
+    if cfg.is_production:
+        submit_limiter = FirestoreRateLimiter(
+            db, name="verification_submit", limit=10, window_seconds=60 * 60, logger=logger
+        )
+        read_limiter = FirestoreRateLimiter(
+            db, name="verification_read", limit=240, window_seconds=60 * 60, logger=logger
+        )
+        admin_limiter = FirestoreRateLimiter(
+            db, name="verification_admin", limit=200, window_seconds=60 * 60, logger=logger
+        )
+        reveal_limiter = FirestoreRateLimiter(
+            db, name="verification_reveal", limit=40, window_seconds=60 * 60, logger=logger
+        )
+        code_check_limiter = FirestoreRateLimiter(
+            db, name="referral_code_check", limit=30, window_seconds=60 * 60, logger=logger
+        )
+    else:
+        submit_limiter = InMemoryRateLimiter(limit=10, window_seconds=60 * 60)
+        read_limiter = InMemoryRateLimiter(limit=240, window_seconds=60 * 60)
+        admin_limiter = InMemoryRateLimiter(limit=200, window_seconds=60 * 60)
+        reveal_limiter = InMemoryRateLimiter(limit=40, window_seconds=60 * 60)
+        code_check_limiter = InMemoryRateLimiter(limit=30, window_seconds=60 * 60)
+
+    logger.info("Verification, referral and reward endpoints enabled")
+    return (
+        ReferralPublicHandler(ops=referral_ops, limiter=code_check_limiter, logger=logger),
+        VerificationHandler(
+            verification=verification_ops,
+            referrals=referral_ops,
+            archives=archive_ops,
+            auth=auth_gate,
+            permissions=PermissionReader(db),
+            submit_limiter=submit_limiter,
+            read_limiter=read_limiter,
+            admin_limiter=admin_limiter,
+            reveal_limiter=reveal_limiter,
+            logger=logger,
+        ),
+    )
+
+
 def build_mam_provider(cfg: Config) -> ChatProvider | None:
     """Constructs the configured MAM chat provider adapter, or None (safe
     default: deterministic-fallback-only, see intent_resolver.py). Every
@@ -450,6 +552,7 @@ def create_configured_app():
     organization_handler, permission_admin_handler, company_handler = build_access_handlers(cfg)
     mam_handler = build_mam_handler(cfg)
     voice_handler = build_voice_handler(cfg)
+    referral_public_handler, verification_handler = build_verification_handlers(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -462,6 +565,8 @@ def create_configured_app():
         company_handler,
         mam_handler,
         voice_handler,
+        referral_public_handler,
+        verification_handler,
     )
 
 

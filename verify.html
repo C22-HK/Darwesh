@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<title>Darwesh Group - Identity Verification</title>
+<!-- A personal verification flow is never a search result. -->
+<meta name="robots" content="noindex, nofollow"/>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/verify.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script src="./js/icon-fallback.js"></script>
+</head>
+<body class="vj">
+
+<div class="vj-shell">
+
+  <div class="vj-top">
+    <a class="vj-brand" href="index.html">Darwesh Group</a>
+    <a class="vj-exit" href="account.html" data-i18n="verify.doneCta">Back to my account</a>
+  </div>
+
+  <!-- Signed-out. The flow needs an account, and says so instead of
+       silently rendering an inert form. -->
+  <div class="vj-panel" id="vjSignedOut" hidden>
+    <h2 data-i18n="verify.pageTitle">Identity Verification</h2>
+    <p class="vj-body" data-i18n="verify.signInRequired">You need to be signed in to verify your identity.</p>
+    <div class="vj-actions">
+      <a class="vj-btn vj-btn-primary" href="login.html" data-i18n="nav.login">Log in</a>
+      <a class="vj-btn" href="signup.html" data-i18n="nav.signUp">Sign up</a>
+    </div>
+  </div>
+
+  <div id="vjLoading" class="vj-panel">
+    <p class="vj-body" data-i18n="vr.loadFailed">Loading…</p>
+  </div>
+
+  <div id="vjMain" hidden>
+    <div class="vj-hero">
+      <h1 data-i18n="verify.heroTitle">Verify your account</h1>
+      <p data-i18n="verify.heroBody">Two steps: your national ID, then a short face photo. Your documents stay private and are used only for review.</p>
+      <p class="vj-reward" id="vjReward" hidden></p>
+    </div>
+
+    <ol class="vj-steps" id="vjSteps">
+      <li class="vj-step" data-step="start">
+        <span class="vj-step-bar"></span>
+        <span class="vj-step-label" data-i18n="verify.stepStart">Start</span>
+      </li>
+      <li class="vj-step" data-step="id">
+        <span class="vj-step-bar"></span>
+        <span class="vj-step-label" data-i18n="verify.stepId">National ID</span>
+      </li>
+      <li class="vj-step" data-step="face">
+        <span class="vj-step-bar"></span>
+        <span class="vj-step-label" data-i18n="verify.stepFace">Face</span>
+      </li>
+      <li class="vj-step" data-step="done">
+        <span class="vj-step-bar"></span>
+        <span class="vj-step-label" data-i18n="verify.stepDone">Submitted</span>
+      </li>
+    </ol>
+
+    <!-- 1. Start + consent (§AO: no evidence without recorded consent) -->
+    <section class="vj-panel" id="vjPanelStart" hidden>
+      <h2 data-i18n="verify.startTitle">Before you begin</h2>
+      <p class="vj-body" data-i18n="verify.startBody">Have your national ID ready and find a well-lit spot. The steps take under two minutes.</p>
+      <div class="vj-consent">
+        <h3 data-i18n="verify.consentTitle">Consent</h3>
+        <p data-i18n="verify.consentBody">I agree that Darwesh may process my identity documents for the purpose of identity verification. Documents are stored privately, are never shared with any outside party, and are archived encrypted after the retention period.</p>
+      </div>
+      <div class="vj-actions">
+        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjConsentBtn" data-i18n="verify.consentAccept">I agree, continue</button>
+      </div>
+      <p class="vj-privacy" data-i18n="verify.privacyNote">Your photos never appear on your public profile and are never sent to any outside party.</p>
+    </section>
+
+    <!-- 2. National ID -->
+    <section class="vj-panel" id="vjPanelId" hidden>
+      <h2 data-i18n="verify.idTitle">National ID</h2>
+      <p class="vj-body" data-i18n="verify.idBody">Photograph the front of your ID. Make sure all four corners are visible.</p>
+
+      <div class="vj-slots">
+        <div class="vj-slot" data-slot="id_front">
+          <div class="vj-slot-preview" data-preview>
+            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+          </div>
+          <div class="vj-slot-main">
+            <span class="vj-slot-title" data-i18n="verify.idFront">Front</span>
+            <span class="vj-slot-meta" data-meta></span>
+            <div class="vj-slot-actions">
+              <label class="vj-btn" for="vjFileFront" data-i18n="verify.idChoose">Choose photo</label>
+              <input class="vj-file" type="file" id="vjFileFront" accept="image/jpeg,image/png,image/webp" capture="environment"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="vj-slot" data-slot="id_back">
+          <div class="vj-slot-preview" data-preview>
+            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+          </div>
+          <div class="vj-slot-main">
+            <span class="vj-slot-title" data-i18n="verify.idBack">Back (optional)</span>
+            <span class="vj-slot-meta" data-meta></span>
+            <div class="vj-slot-actions">
+              <label class="vj-btn" for="vjFileBack" data-i18n="verify.idChoose">Choose photo</label>
+              <input class="vj-file" type="file" id="vjFileBack" accept="image/jpeg,image/png,image/webp" capture="environment"/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="vjIdNotice"></div>
+
+      <div class="vj-actions">
+        <button type="button" class="vj-btn vj-btn-ghost" data-vj-back="start" data-i18n="verify.back">Back</button>
+        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjIdNext" disabled data-i18n="verify.next">Continue</button>
+      </div>
+    </section>
+
+    <!-- 3. Face / liveness. A capture here is EVIDENCE, never a result:
+         nothing on this page decides whether the face matched. -->
+    <section class="vj-panel" id="vjPanelFace" hidden>
+      <h2 data-i18n="verify.faceTitle">Face photo</h2>
+      <p class="vj-body" data-i18n="verify.faceBody">Look straight at the camera. Remove a mask or sunglasses.</p>
+
+      <div class="vj-camera" id="vjCamera" hidden>
+        <video id="vjVideo" playsinline muted autoplay></video>
+        <div class="vj-camera-guide"></div>
+      </div>
+      <div class="vj-camera" id="vjShot" hidden>
+        <img id="vjShotImg" alt=""/>
+      </div>
+
+      <div id="vjFaceNotice"></div>
+
+      <div class="vj-actions">
+        <button type="button" class="vj-btn vj-btn-ghost" data-vj-back="id" data-i18n="verify.back">Back</button>
+        <button type="button" class="vj-btn" id="vjCaptureBtn" hidden data-i18n="verify.faceCapture">Take photo</button>
+        <button type="button" class="vj-btn" id="vjRetakeBtn" hidden data-i18n="verify.faceRetake">Retake</button>
+        <label class="vj-btn" for="vjFileFace" id="vjFaceUploadLabel" data-i18n="verify.faceUpload">Choose a photo</label>
+        <input class="vj-file" type="file" id="vjFileFace" accept="image/jpeg,image/png,image/webp" capture="user"/>
+        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjSubmitBtn" disabled>
+          <span class="vj-spinner" id="vjSubmitSpinner" hidden></span>
+          <span id="vjSubmitLabel" data-i18n="verify.submit">Send for review</span>
+        </button>
+      </div>
+      <p class="vj-privacy" data-i18n="verify.privacyNote">Your photos never appear on your public profile and are never sent to any outside party.</p>
+    </section>
+
+    <!-- 4. Submitted / already-in-review / verified. One panel, three
+         honest messages -- never "Success" for something that did not
+         reach the server. -->
+    <section class="vj-panel vj-done" id="vjPanelDone" hidden>
+      <div class="vj-done-mark">
+        <span class="material-symbols-outlined" aria-hidden="true" id="vjDoneIcon">check</span>
+      </div>
+      <h2 id="vjDoneTitle" data-i18n="verify.doneTitle">Your documents were sent</h2>
+      <p class="vj-body" id="vjDoneBody" data-i18n="verify.doneBody">The Darwesh team reviews them by hand. We'll let you know as soon as there's a decision.</p>
+      <div class="vj-actions">
+        <a class="vj-btn vj-btn-primary" href="account.html" data-i18n="verify.doneCta">Back to my account</a>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="./js/i18n.js"></script>
+<script type="module">
+  import { auth, db, storage } from './js/firebase-init.js';
+  import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+  import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+  import { ref, uploadBytes } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js';
+  import {
+    uploadEvidence,
+    submitCase,
+    validateFile,
+    rewardBadgeText,
+  } from './js/verify-journey.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  const $ = (id) => document.getElementById(id);
+
+  const storageApi = { ref, uploadBytes };
+  // Files chosen but not yet uploaded. Bytes leave the browser only when
+  // the person presses "Send for review" -- picking a photo is not a
+  // submission, and backing out of the flow uploads nothing.
+  const picked = { id_front: null, id_back: null, selfie: null };
+  let currentUser = null;
+  let stream = null;
+
+  // ---- Step chrome ----------------------------------------------------
+  const ORDER = ['start', 'id', 'face', 'done'];
+  const PANELS = { start: 'vjPanelStart', id: 'vjPanelId', face: 'vjPanelFace', done: 'vjPanelDone' };
+  let step = 'start';
+
+  function goto(next) {
+    step = next;
+    ORDER.forEach((name) => { $(PANELS[name]).hidden = name !== next; });
+    const index = ORDER.indexOf(next);
+    document.querySelectorAll('#vjSteps .vj-step').forEach((li) => {
+      const i = ORDER.indexOf(li.dataset.step);
+      li.classList.toggle('is-done', i < index);
+      li.classList.toggle('is-current', i === index);
+    });
+    if (next !== 'face') stopCamera();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function notice(hostId, tone, html) {
+    const host = $(hostId);
+    if (!html) { host.innerHTML = ''; return; }
+    host.innerHTML = `<div class="vj-notice vj-notice-${tone}">${html}</div>`;
+  }
+
+  function escapeText(value) {
+    const span = document.createElement('span');
+    span.textContent = value == null ? '' : String(value);
+    return span.innerHTML;
+  }
+
+  function fileErrorMessage(code) {
+    if (code === 'type') return tr('verify.fileType', 'JPEG, PNG or WebP only.');
+    if (code === 'size') return tr('verify.fileTooLarge', 'That image is too large (12 MB maximum).');
+    return tr('verify.errGeneric', "We couldn't finish that just now. Please try again.");
+  }
+
+  // ---- ID step --------------------------------------------------------
+  function bindSlot(kind, inputId) {
+    const input = $(inputId);
+    const slot = document.querySelector(`.vj-slot[data-slot="${kind}"]`);
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const problem = validateFile(file);
+      if (problem) {
+        notice('vjIdNotice', 'err', escapeText(fileErrorMessage(problem)));
+        input.value = '';
+        return;
+      }
+      notice('vjIdNotice', null, '');
+      picked[kind] = file;
+
+      const preview = slot.querySelector('[data-preview]');
+      const url = URL.createObjectURL(file);
+      preview.innerHTML = `<img alt="" src="${url}"/>`;
+      preview.querySelector('img').addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+      slot.classList.add('is-filled');
+      slot.querySelector('[data-meta]').textContent = file.name.slice(0, 40);
+      slot.querySelector('label.vj-btn').textContent = tr('verify.idRetake', 'Change photo');
+
+      // Only the front is required -- plenty of IDs carry everything on
+      // one side, and demanding a second photo would fail those people.
+      $('vjIdNext').disabled = !picked.id_front;
+    });
+  }
+  bindSlot('id_front', 'vjFileFront');
+  bindSlot('id_back', 'vjFileBack');
+
+  $('vjIdNext').addEventListener('click', () => { goto('face'); startCamera(); });
+
+  // ---- Face step ------------------------------------------------------
+  async function startCamera() {
+    const media = navigator.mediaDevices;
+    if (!media || !media.getUserMedia) {
+      // Honest and non-blocking: the upload path is always available, so
+      // no camera never means no verification.
+      notice('vjFaceNotice', 'warn', escapeText(tr('verify.cameraUnavailable', 'No camera is available on this device. You can choose a photo instead.')));
+      return;
+    }
+    try {
+      stream = await media.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false });
+      const video = $('vjVideo');
+      video.srcObject = stream;
+      $('vjCamera').hidden = false;
+      $('vjCaptureBtn').hidden = false;
+      $('vjFaceUploadLabel').hidden = true;
+      notice('vjFaceNotice', null, '');
+    } catch (_) {
+      notice('vjFaceNotice', 'warn', escapeText(tr('verify.cameraDenied', 'Camera access was not allowed. You can choose a photo instead.')));
+    }
+  }
+
+  function stopCamera() {
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      stream = null;
+    }
+    $('vjCamera').hidden = true;
+    $('vjCaptureBtn').hidden = true;
+  }
+
+  function showShot(blob) {
+    const url = URL.createObjectURL(blob);
+    $('vjShotImg').src = url;
+    $('vjShotImg').addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+    $('vjShot').hidden = false;
+    $('vjRetakeBtn').hidden = false;
+    $('vjSubmitBtn').disabled = false;
+  }
+
+  $('vjCaptureBtn').addEventListener('click', () => {
+    const video = $('vjVideo');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 960;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      picked.selfie = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
+      stopCamera();
+      showShot(blob);
+    }, 'image/jpeg', 0.92);
+  });
+
+  $('vjRetakeBtn').addEventListener('click', () => {
+    picked.selfie = null;
+    $('vjShot').hidden = true;
+    $('vjRetakeBtn').hidden = true;
+    $('vjSubmitBtn').disabled = true;
+    $('vjFaceUploadLabel').hidden = false;
+    startCamera();
+  });
+
+  $('vjFileFace').addEventListener('change', () => {
+    const file = $('vjFileFace').files && $('vjFileFace').files[0];
+    if (!file) return;
+    const problem = validateFile(file);
+    if (problem) {
+      notice('vjFaceNotice', 'err', escapeText(fileErrorMessage(problem)));
+      $('vjFileFace').value = '';
+      return;
+    }
+    notice('vjFaceNotice', null, '');
+    picked.selfie = file;
+    stopCamera();
+    showShot(file);
+  });
+
+  document.querySelectorAll('[data-vj-back]').forEach((btn) => {
+    btn.addEventListener('click', () => goto(btn.dataset.vjBack));
+  });
+
+  // ---- Submit ---------------------------------------------------------
+  function setSubmitting(busy) {
+    $('vjSubmitBtn').disabled = busy || !picked.selfie;
+    $('vjSubmitSpinner').hidden = !busy;
+    $('vjSubmitLabel').textContent = busy
+      ? tr('verify.submitting', 'Sending…')
+      : tr('verify.submit', 'Send for review');
+  }
+
+  function qualityList(items) {
+    const names = items.map((i) => tr(`verify.quality.${i}`, i));
+    return `<ul>${names.map((n) => `<li>${escapeText(n)}</li>`).join('')}</ul>`;
+  }
+
+  $('vjSubmitBtn').addEventListener('click', async () => {
+    if (!currentUser || !picked.selfie || !picked.id_front) return;
+    setSubmitting(true);
+    notice('vjFaceNotice', null, '');
+
+    let evidence;
+    try {
+      const kinds = [['id_front', picked.id_front], ['selfie', picked.selfie]];
+      if (picked.id_back) kinds.splice(1, 0, ['id_back', picked.id_back]);
+      evidence = [];
+      for (const [kind, file] of kinds) {
+        // Sequential, not Promise.all: three simultaneous multi-megabyte
+        // uploads on a phone connection is how a submission half-fails.
+        evidence.push(await uploadEvidence(storage, storageApi, currentUser.uid, kind, file));
+      }
+    } catch (err) {
+      console.error('[verify] upload failed', err && err.code);
+      notice('vjFaceNotice', 'err', escapeText(tr('verify.uploadFailed', 'That image could not be uploaded. Please try again.')));
+      setSubmitting(false);
+      return;
+    }
+
+    // Readability problems are reported, never used to block: a reviewer
+    // decides whether an image is good enough, not this page (§AA).
+    const issues = [...new Set(evidence.flatMap((e) => e.quality.issues))];
+
+    const result = await submitCase(currentUser, evidence, null);
+    setSubmitting(false);
+
+    if (result.ok) {
+      showDone('submitted', issues);
+      return;
+    }
+    if (result.unavailable) {
+      // §BI: the endpoint is not live. Say exactly that, stay on this
+      // screen, and never render the success state.
+      notice('vjFaceNotice', 'err', escapeText(tr('verify.errUnavailable',
+        "Verification isn't switched on yet. Nothing was submitted — please try again later.")));
+      return;
+    }
+    const message = (result.error && result.error.message) || tr('verify.errGeneric', "We couldn't finish that just now. Please try again.");
+    notice('vjFaceNotice', 'err', escapeText(message));
+  });
+
+  function showDone(mode, issues) {
+    const icon = $('vjDoneIcon');
+    const title = $('vjDoneTitle');
+    const body = $('vjDoneBody');
+    if (mode === 'verified') {
+      icon.textContent = 'verified';
+      title.textContent = tr('verify.statusVerifiedTitle', 'Your account is verified');
+      body.textContent = tr('verify.statusVerifiedBody', 'Your reward is active and the referral network is open.');
+    } else if (mode === 'pending') {
+      icon.textContent = 'hourglass_top';
+      title.textContent = tr('verify.statusPendingTitle', 'Your submission is under review');
+      body.textContent = tr('verify.statusPendingBody', "We have your documents. There's no need to send them again.");
+    } else {
+      icon.textContent = 'check';
+      title.textContent = tr('verify.doneTitle', 'Your documents were sent');
+      body.textContent = tr('verify.doneBody', "The Darwesh team reviews them by hand. We'll let you know as soon as there's a decision.");
+    }
+    goto('done');
+    if (issues && issues.length) {
+      // Shown after a real submission, so nobody is left wondering why a
+      // reviewer later asks for a clearer photo.
+      $('vjPanelDone').insertAdjacentHTML('beforeend',
+        `<div class="vj-notice vj-notice-warn" style="text-align:start;">${
+          escapeText(tr('verify.qualityWarning', 'This image may be hard to read:'))
+        }${qualityList(issues)}</div>`);
+    }
+  }
+
+  // ---- Boot -----------------------------------------------------------
+  onAuthStateChanged(auth, async (user) => {
+    $('vjLoading').hidden = true;
+    if (!user) {
+      $('vjSignedOut').hidden = false;
+      $('vjMain').hidden = true;
+      return;
+    }
+    currentUser = user;
+    $('vjSignedOut').hidden = true;
+    $('vjMain').hidden = false;
+
+    // The reward figure comes from the live config, never a literal in
+    // this page -- 3.5 stays 3.5 because rewardConfig says so (§A).
+    try {
+      const cfg = await getDoc(doc(db, 'rewardConfig', 'current'));
+      const badge = $('vjReward');
+      badge.textContent = rewardBadgeText(cfg.exists() ? cfg.data() : null);
+      badge.hidden = false;
+    } catch (_) { /* the badge is a nicety; its absence blocks nothing */ }
+
+    // Where someone already is decides what they see: re-submitting a
+    // case that is already in review only wastes a reviewer's time.
+    let kase = {};
+    try {
+      const snap = await getDoc(doc(db, 'verificationCases', user.uid));
+      kase = snap.exists() ? snap.data() : {};
+    } catch (_) { /* no case yet, or unreadable -- start the journey */ }
+
+    const status = kase.verificationStatus || 'unverified';
+    if (status === 'verified' && kase.idVerified === true && kase.faceResult === 'passed') {
+      showDone('verified');
+    } else if (status === 'pending' || status === 'needs_review') {
+      showDone('pending');
+    } else {
+      if (status === 'needs_resubmission' && kase.reviewReason) {
+        notice('vjIdNotice', 'warn', escapeText(kase.reviewReason));
+      }
+      goto('start');
+    }
+  });
+
+  $('vjConsentBtn').addEventListener('click', () => goto('id'));
+
+  window.addEventListener('pagehide', stopCamera);
+</script>
+<script type="module" src="./js/error-monitor.js"></script>
+</body></html>

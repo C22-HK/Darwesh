@@ -483,3 +483,118 @@ export function addProviderNote(user, providerId, text, authorName) {
     body: { text, authorName }
   });
 }
+
+// True when a call failed because the endpoint is NOT LIVE -- the network
+// could not be reached, or the deployed backend has no such route yet
+// (404). Deliberately separate from "the backend answered and said no":
+// §BI requires an undeployed feature to say so honestly rather than
+// either fabricating success or blaming the user's input. Self-correcting
+// -- the moment the route is deployed, this stops matching with no code
+// change, which a hardcoded "coming soon" flag would not.
+export function isEndpointUnavailable(err) {
+  if (err instanceof BackendUnavailableError) return true;
+  return err instanceof BackendResponseError && (err.status === 404 || err.status === 503);
+}
+
+// ---- Verification, referrals and rewards --------------------------------
+//
+// Every one of these is a request for the SERVER to decide something.
+// None of them returns a value the browser is then trusted to act on as
+// authoritative: verified/qualified/discountPercent are read back from
+// Firestore (where the rules make them client-unwritable), and these
+// wrappers exist only to ASK. See backend/app/verification/handlers.py.
+
+// Unauthenticated on purpose: this runs during signup, before a Firebase
+// account exists. Only ever sends the public code (§N) and only ever
+// gets back a first name -- never the owner's uid, email or phone.
+export function checkReferralCode(code) {
+  return postJson('/api/v1/auth/referral/check', { code });
+}
+
+// The whole self-service picture in one call: the caller's own case, their
+// referral network, and the current reward policy.
+export function getMyVerification(user) {
+  return authedRequest(user, 'GET', '/api/v1/access/me/verification');
+}
+
+// `evidence` is METADATA for objects already uploaded to the caller's own
+// private Storage prefix -- never image bytes, and never a result. The
+// backend rebuilds each storagePath from the verified uid, so a caller
+// cannot point a case at somebody else's upload.
+export function submitVerification(user, { track, evidence, idName, consentVersion }) {
+  return authedRequest(user, 'POST', '/api/v1/access/verification/submit', {
+    body: { track, evidence, idName, consentVersion }
+  });
+}
+
+export function claimReferral(user, code) {
+  return authedRequest(user, 'POST', '/api/v1/access/referrals/claim', { body: { code } });
+}
+
+// ---- Admin: Network Verification Center ---------------------------------
+
+export function getVerificationMetrics(user) {
+  return authedRequest(user, 'GET', '/api/v1/access/admin/verification/metrics');
+}
+
+export function listVerificationCases(user, status) {
+  return authedRequest(user, 'GET', '/api/v1/access/admin/verification/cases', {
+    query: { status }
+  });
+}
+
+export function getVerificationCase(user, uid) {
+  return authedRequest(user, 'GET', `/api/v1/access/admin/verification/cases/${encodeURIComponent(uid)}`);
+}
+
+// accountStatus is optional and independent of the verification decision
+// (§H): rejecting a verification does not by itself restrict an account.
+export function reviewVerificationCase(user, uid, { status, accountStatus, reason }) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/verification/cases/${encodeURIComponent(uid)}/review`, {
+    body: { status, accountStatus, reason }
+  });
+}
+
+export function setVerificationFaceResult(user, uid, result) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/verification/cases/${encodeURIComponent(uid)}/face-result`, {
+    body: { result }
+  });
+}
+
+// One object per call, audited before the URL is minted, and the URL
+// expires in minutes (§Z). There is deliberately no bulk equivalent.
+export function revealVerificationEvidence(user, uid, evidenceId) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/verification/cases/${encodeURIComponent(uid)}/evidence/reveal`, {
+    body: { evidenceId }
+  });
+}
+
+export function archiveVerificationCase(user, uid) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/verification/cases/${encodeURIComponent(uid)}/archive`, {
+    body: {}
+  });
+}
+
+export function listReferrals(user, status) {
+  return authedRequest(user, 'GET', '/api/v1/access/admin/referrals', { query: { status } });
+}
+
+export function setReferralStatus(user, referralId, status, reason) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/referrals/${encodeURIComponent(referralId)}/status`, {
+    body: { status, reason }
+  });
+}
+
+export function correctReferrer(user, { referredUid, code, reason }) {
+  return authedRequest(user, 'POST', '/api/v1/access/admin/referrals/correct-referrer', {
+    body: { referredUid, code, reason }
+  });
+}
+
+export function getRewardConfig(user) {
+  return authedRequest(user, 'GET', '/api/v1/access/admin/reward-config');
+}
+
+export function saveRewardConfig(user, config) {
+  return authedRequest(user, 'POST', '/api/v1/access/admin/reward-config', { body: config });
+}

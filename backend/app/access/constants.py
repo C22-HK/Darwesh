@@ -104,6 +104,10 @@ PROTECTED_PERMISSIONS: frozenset[str] = frozenset(
         "suspend_users",
         "change_organization_owner",
         "manage_platform_security",
+        # Permanently closing an account is irreversible and takes a
+        # person's access to their own history with it (brief §AB), so it
+        # is never delegable through role defaults or a user override.
+        "verification.account.close",
     }
 )
 
@@ -183,6 +187,23 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
         "approve_profiles",
         "manage_reports",
         "moderate_content",
+        # Verification / Network / Rewards (brief §AL). Granular on
+        # purpose: being an admin must NOT by itself mean being able to
+        # open someone's national ID. `verification.view` (see the queue)
+        # is a much weaker grant than `verification.documents.view` (open
+        # one evidence object) or `verification.sensitive.reveal`, and
+        # the account-lifecycle keys escalate separately again --
+        # restrict < suspend < close.
+        "verification.view",
+        "verification.review",
+        "verification.documents.view",
+        "verification.sensitive.reveal",
+        "verification.account.restrict",
+        "verification.account.suspend",
+        "referrals.review",
+        "rewards.manage",
+        "offers.manage",
+        "archives.view",
     }
 )
 

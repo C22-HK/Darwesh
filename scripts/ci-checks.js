@@ -472,7 +472,10 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
   const pySrc = fs.readFileSync(path.join(ROOT, 'backend/app/access/constants.py'), 'utf8');
   const pySet = (name) => {
     const m = pySrc.match(new RegExp('^' + name + ':\\s*frozenset\\[str\\]\\s*=\\s*frozenset\\(\\s*\\{([\\s\\S]*?)\\}\\s*\\)', 'm'));
-    return m ? new Set([...m[1].matchAll(/"([a-z_]+)"/g)].map(x => x[1])) : null;
+    // [a-z_.] -- the verification/referral/reward keys are dotted
+    // (verification.documents.view); a [a-z_]+ class silently dropped
+    // every one of them and compared truncated sets.
+    return m ? new Set([...m[1].matchAll(/"([a-z_.]+)"/g)].map(x => x[1])) : null;
   };
   const pyTypes = pySet('SELF_ACCOUNT_TYPES');
   const pyKnown = pySet('KNOWN_PERMISSIONS');
@@ -629,6 +632,154 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
 
   if (offersBugs === 0) {
     ok('offers regressions guarded: no ES import of the classic escape-html.js, admin drawer scrim is outside the transformed sidebar, offer percentage stays templated');
+  }
+}
+
+// ---------------------------------------------------------------------
+// 12. Verification & rewards: the two invariants a typo can silently break
+// ---------------------------------------------------------------------
+{
+  let vrBugs = 0;
+
+  // (a) Referral-code normalization must agree between the browser and
+  // the backend, and must accept a code in its OWN canonical printed
+  // form. This is not hypothetical: the JS character class was
+  // /[\s‐-―_.]/ -- `‐-―` is the U+2010..U+2015 typographic-dash RANGE,
+  // which does NOT contain the ASCII hyphen -- so "DW-M7K4P", the exact
+  // string the app prints and people copy, kept its hyphen, became
+  // "-M7K4P" once the prefix was stripped, failed the length check and
+  // was reported to the user as an invalid code. It never reached the
+  // backend, so no server-side test could have caught it.
+  const CODE_CASES = [
+    ['DW-M7K4P', 'DW-M7K4P'],   // canonical printed form
+    ['dw-m7k4p', 'DW-M7K4P'],   // §K: case-insensitive
+    ['DW M7K4P', 'DW-M7K4P'],   // typed with a space
+    ['M7K4P', 'DW-M7K4P'],      // prefix omitted
+    ['DW–M7K4P', 'DW-M7K4P'], // en-dash pasted from a chat message
+    ['nonsense!!', null],
+    ['DW-M7K4', null],          // too short
+    ['DW-OOOOO', null],         // O is not in the alphabet
+  ];
+  const modelJs = fs.readFileSync(path.join(ROOT, 'js/verification-model.js'), 'utf8');
+  const modelPy = fs.readFileSync(path.join(ROOT, 'backend/app/verification/model.py'), 'utf8');
+
+  const jsProbe = path.join(tmpDir, 'code-probe.mjs');
+  fs.writeFileSync(jsProbe,
+    `import { normalizeReferralCode } from ${JSON.stringify(path.join(ROOT, 'js/verification-model.js'))};\n`
+    + `console.log(JSON.stringify(${JSON.stringify(CODE_CASES.map((c) => c[0]))}.map(normalizeReferralCode)));\n`);
+  let jsOut;
+  try {
+    // stderr is piped, not inherited: node warns about importing a .js
+    // ES module from a package.json with no "type", which is noise here.
+    jsOut = JSON.parse(execFileSync(process.execPath, [jsProbe], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }).trim());
+  } catch (err) {
+    fail(`js/verification-model.js: normalizeReferralCode could not be evaluated -- ${err.message}`);
+    vrBugs++;
+    jsOut = null;
+  }
+  if (jsOut) {
+    CODE_CASES.forEach(([input, want], i) => {
+      const got = jsOut[i] === undefined ? null : jsOut[i];
+      if (got !== want) {
+        fail(`js/verification-model.js: normalizeReferralCode(${JSON.stringify(input)}) returned ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+        vrBugs++;
+      }
+    });
+  }
+
+  // The Python side is the authority; a divergence means one layer would
+  // accept a code the other rejects.
+  let pyOut = null;
+  try {
+    pyOut = JSON.parse(execFileSync('python3', [
+      '-c',
+      'import json,sys; sys.path.insert(0, sys.argv[1]);'
+      + ' from app.verification.model import normalize_referral_code as n;'
+      + ' print(json.dumps([n(c) for c in json.loads(sys.argv[2])]))',
+      path.join(ROOT, 'backend'),
+      JSON.stringify(CODE_CASES.map((c) => c[0])),
+    ], { encoding: 'utf8' }).trim());
+  } catch {
+    // Python is not guaranteed on every machine that runs this script;
+    // the JS assertions above still hold, and the backend's own pytest
+    // suite covers the Python side independently.
+    pyOut = null;
+  }
+  if (pyOut && jsOut && JSON.stringify(pyOut) !== JSON.stringify(jsOut)) {
+    fail(`referral-code normalization has drifted between layers: js=${JSON.stringify(jsOut)} python=${JSON.stringify(pyOut)}`);
+    vrBugs++;
+  }
+
+  // (b) A decimal reward percentage must survive every layer. parseInt
+  // or Math.round on a reward path turns 3.5% into 3% or 4% and 6.5%
+  // into 7% -- the single most costly rounding bug this feature could
+  // ship, and invisible until someone is billed.
+  const rewardsJs = fs.readFileSync(path.join(ROOT, 'js/rewards.js'), 'utf8');
+  // Comments stripped first: the file's own header explains WHY
+  // parseInt('3.5') === 3 is forbidden, and that explanation must not
+  // trip the check that enforces it.
+  const rewardsCode = rewardsJs
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  if (/parseInt\s*\(/.test(rewardsCode)) {
+    fail('js/rewards.js: parseInt() on a reward path truncates a decimal percentage -- 3.5 must stay 3.5, never become 3');
+    vrBugs++;
+  }
+  if (!/Number\.EPSILON/.test(rewardsJs)) {
+    fail('js/rewards.js: the Number.EPSILON nudge in toBasisPoints is gone -- (1.005 * 100) is 100.49999999999999 in binary floating point and would round DOWN, silently losing a hundredth of a percent');
+    vrBugs++;
+  }
+  if (!/Decimal/.test(fs.readFileSync(path.join(ROOT, 'backend/app/verification/rewards.py'), 'utf8'))) {
+    fail('backend/app/verification/rewards.py: the authoritative reward formula must use decimal.Decimal, never float arithmetic');
+    vrBugs++;
+  }
+
+  // (c) The archive-first deletion rule (§AT) is enforced by a type: only
+  // verify_archive() can build an ArchiveReceipt, and delete_live_evidence
+  // requires one. A `force` escape hatch would make the guarantee a
+  // suggestion.
+  const archivePy = fs.readFileSync(path.join(ROOT, 'backend/app/verification/archive_ops.py'), 'utf8');
+  if (!/def delete_live_evidence\(\s*self,\s*receipt: ArchiveReceipt/.test(archivePy)) {
+    fail('backend/app/verification/archive_ops.py: delete_live_evidence must take an ArchiveReceipt -- that coupling is what makes "delete without a verified archive" unreachable rather than merely discouraged');
+    vrBugs++;
+  }
+  if (/def delete_live_evidence\([^)]*\bforce\b/.test(archivePy)) {
+    fail('backend/app/verification/archive_ops.py: delete_live_evidence gained a `force` parameter -- §AT allows no override of the six archive checks');
+    vrBugs++;
+  }
+
+  // (d) §AJ: a shared network is not evidence of fraud. Families,
+  // offices and whole buildings here share one connection.
+  if (/["']ip_|["']shared_ip|["']ip_address/.test(modelPy)) {
+    fail('backend/app/verification/model.py: an IP-address risk flag was added -- §AJ forbids treating a shared network as proof of fraud');
+    vrBugs++;
+  }
+
+  // (e) The client must never be able to assert an outcome.
+  const clientAuthority = [
+    ['js/verify-journey.js', /verificationStatus\s*:\s*['"]verified/],
+    ['js/verification-rewards.js', /setDoc|updateDoc|addDoc/],
+  ];
+  clientAuthority.forEach(([file, pattern]) => {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    if (pattern.test(src)) {
+      fail(`${file}: the browser is writing or asserting verification/reward state -- §AK makes the server the only authority for verified, referralUnlocked, referral status and discountPercent`);
+      vrBugs++;
+    }
+  });
+
+  // Sanity: the model files were actually read (a rename would otherwise
+  // make every check above vacuously pass).
+  if (!/normalizeReferralCode/.test(modelJs) || !/normalize_referral_code/.test(modelPy)) {
+    fail('referral-code normalization functions not found -- this check is no longer testing anything');
+    vrBugs++;
+  }
+
+  if (vrBugs === 0) {
+    ok('verification & rewards guarded: referral-code normalization agrees across JS/Python and accepts its own canonical form, decimal percentages survive both layers, archive-first deletion has no override, no IP-as-fraud flag, the client asserts no outcome');
   }
 }
 

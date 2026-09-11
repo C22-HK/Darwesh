@@ -162,8 +162,7 @@ violation reporting. -->
             </div>
             <p id="authError" class="hidden text-error text-[13px]" role="alert"></p>
             <button id="submitBtn" class="ps-btn auth-btn-primary" type="submit">
-              <span class="auth-spinner hidden" id="submitSpinner"></span>
-              <span id="submitBtnLabel" data-i18n="auth.signUpBtn">Create Account</span>
+              <span data-i18n="auth.signup.continueBtn">Continue</span>
             </button>
           </form>
         </div>
@@ -186,7 +185,39 @@ violation reporting. -->
         <a href="index.html" class="block text-center mt-5 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="nav.backToSite">Back to site</a>
       </div>
 
-      <!-- Step 2: email OTP verification -->
+      <!-- Step 2: referral code (optional, §M). Never blocks account
+           creation -- a person must be able to sign up without one. -->
+      <div id="referralStepView" class="hidden">
+        <div class="text-center mb-6">
+          <div class="auth-security-badge"><span class="material-symbols-outlined" style="font-size:26px;">redeem</span></div>
+          <p class="font-headline-md text-headline-md text-primary mb-1" data-i18n="auth.referral.title">Do you have an invite code?</p>
+          <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="auth.referral.subtitle">If someone invited you, enter their code here. It's optional — you can continue without one.</p>
+        </div>
+
+        <div class="auth-card">
+          <label class="auth-label" for="fReferralCode" data-i18n="auth.referral.label">Referral Code</label>
+          <div class="auth-input-wrap">
+            <span class="material-symbols-outlined auth-input-icon">confirmation_number</span>
+            <!-- A referral code is a Latin identifier: kept LTR even on an
+                 RTL page so DW-M7K4P stays readable while being typed. -->
+            <input id="fReferralCode" class="auth-input" type="text" inputmode="text" maxlength="16"
+                   autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false"
+                   placeholder="DW-XXXXX" data-i18n-placeholder="auth.referral.placeholder"
+                   style="direction:ltr; text-transform:uppercase; letter-spacing:.08em;"/>
+          </div>
+          <p id="referralStatus" class="hidden font-body-md text-[12.5px] mt-2" role="status"></p>
+
+          <button id="referralVerifyBtn" class="ps-btn auth-btn-primary mt-4" type="button">
+            <span class="auth-spinner hidden" id="referralSpinner"></span>
+            <span id="referralVerifyLabel" data-i18n="auth.referral.verifyBtn">Verify code</span>
+          </button>
+        </div>
+
+        <button id="referralSkipBtn" type="button" class="block text-center w-full mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="auth.referral.skip">Skip</button>
+        <button id="referralBackBtn" type="button" class="block text-center w-full mt-3 font-body-md text-[13px] text-on-surface-variant hover:text-primary" data-i18n="auth.signup.backToForm">Edit details</button>
+      </div>
+
+      <!-- Step 3: email OTP verification -->
       <div id="otpStepView" class="hidden">
         <div class="text-center mb-6">
           <div class="auth-security-badge"><span class="material-symbols-outlined" style="font-size:26px;">mark_email_read</span></div>
@@ -221,7 +252,7 @@ violation reporting. -->
         <button id="otpBackBtn" type="button" class="block text-center w-full mt-4 font-label-caps text-label-caps text-on-surface-variant hover:text-primary" data-i18n="auth.signup.backToForm">Edit details</button>
       </div>
 
-      <!-- Step 3: finishing up -->
+      <!-- Step 4: finishing up -->
       <div id="signingInView" class="hidden text-center py-12">
         <span class="auth-spinner" style="border-top-color:#031d39; border-color:rgba(3,29,57,0.15); width:28px; height:28px;"></span>
         <p class="font-body-md text-body-md text-on-surface-variant mt-4" id="signingInLabel"></p>
@@ -237,7 +268,8 @@ violation reporting. -->
   import { auth, db, getDoc } from './js/firebase-init.js';
   import { signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
   import { doc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-  import { sendEmailOtp, verifyEmailOtp, completeSignup, BackendUnavailableError, BackendResponseError, localizeBackendError } from './js/backend-api.js';
+  import { sendEmailOtp, verifyEmailOtp, completeSignup, checkReferralCode, claimReferral, isEndpointUnavailable, BackendUnavailableError, BackendResponseError, localizeBackendError } from './js/backend-api.js';
+  import { normalizeReferralCode } from './js/verification-model.js';
   import { wireOtpInputs, maskEmail } from './js/otp-ui.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
@@ -246,10 +278,11 @@ violation reporting. -->
   // Step visibility
   // ---------------------------------------------------------------------
   const formStepView = document.getElementById('formStepView');
+  const referralStepView = document.getElementById('referralStepView');
   const otpStepView = document.getElementById('otpStepView');
   const signingInView = document.getElementById('signingInView');
   function showStep(view) {
-    [formStepView, otpStepView, signingInView].forEach(v => v.classList.add('hidden'));
+    [formStepView, referralStepView, otpStepView, signingInView].forEach(v => v.classList.add('hidden'));
     view.classList.remove('hidden');
   }
 
@@ -264,18 +297,10 @@ violation reporting. -->
   // ---------------------------------------------------------------------
   const form = document.getElementById('signupForm');
   const errEl = document.getElementById('authError');
-  const submitBtn = document.getElementById('submitBtn');
-  const submitSpinner = document.getElementById('submitSpinner');
-  const submitBtnLabel = document.getElementById('submitBtnLabel');
 
   function showError(msg) {
     errEl.textContent = msg;
     errEl.classList.remove('hidden');
-  }
-  function setSubmitLoading(loading) {
-    submitBtn.disabled = loading;
-    submitSpinner.classList.toggle('hidden', !loading);
-    submitBtnLabel.textContent = loading ? tr('auth.signup.sendingCode', 'Sending code…') : tr('auth.signUpBtn', 'Create Account');
   }
 
   function wirePasswordToggle(inputId, btnId, iconId) {
@@ -332,20 +357,131 @@ violation reporting. -->
       return;
     }
 
-    submitting = true;
-    setSubmitLoading(true);
+    // Step 1 is pure validation -- no network call yet. The email OTP is
+    // sent on the way OUT of the referral step instead, so the code
+    // doesn't start expiring while someone hunts for an invite code.
+    // A referral code already confirmed on step 2 survives a trip back
+    // here to fix a typo -- retyping it would be a needless annoyance.
+    const keptCode = pendingSignup ? pendingSignup.referralCode : null;
+    pendingSignup = { fullName, phoneNumber, email, password, referralCode: keptCode };
+    showStep(referralStepView);
+    syncReferralButton();
+  });
+
+  // ---------------------------------------------------------------------
+  // Step 2: the optional referral code (§M).
+  //
+  // Optional means optional: Skip is always available, a code that can't
+  // be checked never blocks signup, and nothing here can fail in a way
+  // that costs someone their account. The client sends only the PUBLIC
+  // code -- the backend resolves who owns it (§N) and returns at most a
+  // first name, never a uid, email or phone.
+  // ---------------------------------------------------------------------
+  const referralInput = document.getElementById('fReferralCode');
+  const referralStatus = document.getElementById('referralStatus');
+  const referralVerifyBtn = document.getElementById('referralVerifyBtn');
+  const referralSpinner = document.getElementById('referralSpinner');
+  const referralVerifyLabel = document.getElementById('referralVerifyLabel');
+  const referralSkipBtn = document.getElementById('referralSkipBtn');
+  const referralBackBtn = document.getElementById('referralBackBtn');
+
+  function setReferralStatus(msg, tone) {
+    referralStatus.textContent = msg;
+    referralStatus.className = 'font-body-md text-[12.5px] mt-2 ' +
+      (tone === 'error' ? 'text-error' : tone === 'ok' ? 'text-secondary font-medium' : 'text-on-surface-variant');
+  }
+  function clearReferralStatus() {
+    referralStatus.textContent = '';
+    referralStatus.classList.add('hidden');
+  }
+  function setReferralLoading(loading) {
+    referralVerifyBtn.disabled = loading;
+    referralSkipBtn.disabled = loading;
+    referralSpinner.classList.toggle('hidden', !loading);
+  }
+  // The button is "Verify code" while the field holds something
+  // unconfirmed, and "Continue" once there is nothing left to check --
+  // so an empty field never looks like it is asking for a code.
+  function syncReferralButton() {
+    const hasText = referralInput.value.trim().length > 0;
+    const key = hasText && !pendingSignup?.referralCode ? 'auth.referral.verifyBtn' : 'auth.referral.continue';
+    referralVerifyLabel.textContent = tr(key, hasText && !pendingSignup?.referralCode ? 'Verify code' : 'Continue');
+  }
+  referralInput.addEventListener('input', () => {
+    if (pendingSignup) pendingSignup.referralCode = null;
+    clearReferralStatus();
+    syncReferralButton();
+  });
+
+  referralBackBtn.addEventListener('click', () => showStep(formStepView));
+  referralSkipBtn.addEventListener('click', () => {
+    if (pendingSignup) pendingSignup.referralCode = null;
+    proceedToOtp();
+  });
+
+  referralVerifyBtn.addEventListener('click', async () => {
+    const raw = referralInput.value.trim();
+    if (!raw || pendingSignup?.referralCode) { proceedToOtp(); return; }
+
+    // Normalized with the same function the backend uses, so "dw m7k4p"
+    // and "DW-M7K4P" are the one code both sides agree on.
+    const normalized = normalizeReferralCode(raw);
+    if (!normalized) {
+      setReferralStatus(tr('auth.referral.invalid', "That code isn't valid. Check it or skip this step."), 'error');
+      referralStatus.classList.remove('hidden');
+      return;
+    }
+
+    setReferralLoading(true);
     try {
-      await sendEmailOtp(email, 'SIGNUP_EMAIL_VERIFY');
-      pendingSignup = { fullName, phoneNumber, email, password };
+      const result = await checkReferralCode(normalized);
+      pendingSignup.referralCode = normalized;
+      const name = result && result.displayName;
+      setReferralStatus(
+        name
+          ? tr('auth.referral.valid', '{name} invited you').replace('{name}', name)
+          : tr('auth.referral.validNoName', 'Code is valid'),
+        'ok',
+      );
+      referralStatus.classList.remove('hidden');
+      syncReferralButton();
+    } catch (err) {
+      if (isEndpointUnavailable(err)) {
+        // §BI: the check isn't live. Say so honestly and let them
+        // continue -- never a fake "Verified" and never a dead end. The
+        // code is still carried forward and claimed after signup; if
+        // that also fails, they are told where to add it later.
+        pendingSignup.referralCode = normalized;
+        setReferralStatus(tr('auth.referral.checkUnavailable', "We can't check codes right now. You can continue and add yours later in Settings."), 'muted');
+        syncReferralButton();
+      } else {
+        pendingSignup.referralCode = null;
+        setReferralStatus(tr('auth.referral.invalid', "That code isn't valid. Check it or skip this step."), 'error');
+      }
+      referralStatus.classList.remove('hidden');
+    } finally {
+      setReferralLoading(false);
+    }
+  });
+
+  async function proceedToOtp() {
+    if (submitting) return;
+    submitting = true;
+    setReferralLoading(true);
+    try {
+      await sendEmailOtp(pendingSignup.email, 'SIGNUP_EMAIL_VERIFY');
+      clearReferralStatus();
       enterOtpStep();
     } catch (err) {
       console.error('[signup] otp send failed', err.name, err.status || '');
-      showError(describeBackendError(err));
+      // Shown on the referral step, where the person actually is.
+      setReferralStatus(describeBackendError(err), 'error');
+      referralStatus.classList.remove('hidden');
     } finally {
       submitting = false;
-      setSubmitLoading(false);
+      setReferralLoading(false);
     }
-  });
+  }
 
   // ---------------------------------------------------------------------
   // Step 2: email OTP entry
@@ -419,6 +555,7 @@ violation reporting. -->
   otpBackBtn.addEventListener('click', () => {
     clearInterval(resendTimer);
     showStep(formStepView);
+    syncReferralButton();
   });
 
   otpResendBtn.addEventListener('click', async () => {
@@ -495,7 +632,24 @@ violation reporting. -->
       if (result.customToken) {
         document.getElementById('signingInLabel').textContent = tr('auth.signup.signingIn', 'Signing you in…');
         try {
-          await signInWithCustomToken(auth, result.customToken);
+          const cred = await signInWithCustomToken(auth, result.customToken);
+          // The referral is claimed AFTER the account exists, as the
+          // signed-in user, so the backend derives the referred uid from
+          // a verified token rather than from anything this page says
+          // (§AK). Non-fatal by design: the account is already real, and
+          // the code can still be entered later in Verification &
+          // Rewards, so a failure here must never strand the person.
+          if (pendingSignup.referralCode && cred && cred.user) {
+            try {
+              await claimReferral(cred.user, pendingSignup.referralCode);
+            } catch (referralErr) {
+              console.warn('[signup] referral claim failed', referralErr.name, referralErr.status || '');
+              try {
+                sessionStorage.setItem('darwesh_referral_notice', tr('auth.referral.claimFailed',
+                  'Your account was created, but the referral code was not recorded. You can add it in Verification & Rewards.'));
+              } catch (_) { /* private mode -- the notice is a nicety, not the flow */ }
+            }
+          }
           window.location.href = 'account.html';
           return;
         } catch (signInErr) {

@@ -115,6 +115,25 @@ class Config:
     # built). Leave unset to fall back to that best-effort lookup.
     kurdishtts_sorani_speaker_id: str = ""
 
+    # --- Verification, referrals and rewards ---
+    # The verification/referral/reward endpoints register on the same
+    # Firebase Admin credential every other Firestore-backed feature
+    # uses; the two settings below are about STORAGE, and each one only
+    # unlocks the part of the feature that genuinely needs it.
+    #
+    # verification_evidence_bucket names the bucket holding live identity
+    # evidence, so an admin with verification.documents.view can be given
+    # a short-lived signed URL for one object. Unset means that ONE
+    # action reports "evidence storage is not configured in this
+    # environment" -- review, decisions and rewards all still work.
+    verification_evidence_bucket: str = ""
+    # verification_archive_bucket is the SEPARATE archive vault (§AS):
+    # never the site bucket, never publicly readable. Unset means the
+    # archive pipeline refuses to run at all, which is the correct
+    # failure -- archiving without a vault would mean deleting live
+    # evidence with nowhere to have put it.
+    verification_archive_bucket: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.env == "production"
@@ -151,4 +170,6 @@ def load() -> Config:
         kurdishtts_stt_key=os.environ.get("KURDISHTTS_STT_KEY", ""),
         kurdishtts_tts_key=os.environ.get("KURDISHTTS_TTS_KEY", ""),
         kurdishtts_sorani_speaker_id=os.environ.get("KURDISHTTS_SORANI_SPEAKER_ID", ""),
+        verification_evidence_bucket=os.environ.get("VERIFICATION_EVIDENCE_BUCKET", ""),
+        verification_archive_bucket=os.environ.get("VERIFICATION_ARCHIVE_BUCKET", ""),
     )

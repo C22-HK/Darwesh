@@ -344,6 +344,34 @@ service firebase.storage {
                      && (isAdmin() || isActiveOrgMember(orgId));
       allow delete: if request.auth != null && (isAdmin() || isActiveOrgMember(orgId));
     }
+    // ================================================================
+    // VERIFICATION EVIDENCE (brief §AN) -- national ID and face/liveness
+    // ================================================================
+    // The most sensitive bytes on the platform. Three properties matter:
+    //
+    //   1. NO PUBLIC READ. `allow read: if false` for everyone, including
+    //      the owner and including an admin. There is deliberately no
+    //      client read path at all: admins reach one object at a time
+    //      through the backend, which checks verification.documents.view,
+    //      writes an audit record FIRST, and mints a signed URL that
+    //      expires in ten minutes (§Z). A permanent URL cannot exist
+    //      because no rule here ever grants one.
+    //   2. Write scoped to the uploader's own uid, so one user can never
+    //      place evidence in another user's case.
+    //   3. No client delete. Raw evidence is removed only by the archival
+    //      pipeline, and only after the archive is verified intact (§AT).
+    //      A user who could delete their own evidence could destroy the
+    //      record behind an approved verification.
+    match /verification-evidence/{uid}/{fileName} {
+      allow read: if false;
+      allow write: if request.auth != null
+                     && request.auth.uid == uid
+                     && fileName.matches('^[A-Za-z0-9._-]{1,120}$')
+                     && request.resource.size < 12 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+      allow delete: if false;
+    }
+
     match /product-media/{orgId}/{fileName} {
       allow read: if true;
       allow write: if request.auth != null

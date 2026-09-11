@@ -44,6 +44,7 @@
     ] },
     { key: 'people', labelKey: 'admin.nav.groupPeople', labelText: 'People & Organizations', items: [
       { tab: 'users', icon: 'group', labelKey: 'admin.usersTab', labelText: 'Users & Roles' },
+      { tab: 'verification', icon: 'verified_user', labelKey: 'admin.nv.tab', labelText: 'Network Verification' },
       { tab: 'organizations', icon: 'domain', labelKey: 'admin.nav.organizations', labelText: 'Organizations' },
       { tab: 'professionals', icon: 'engineering', labelKey: 'admin.nav.professionals', labelText: 'Professionals' },
       { tab: 'agents', icon: 'badge', labelKey: 'admin.agentsTab', labelText: 'Agents' },

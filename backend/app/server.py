@@ -29,6 +29,8 @@ def create_app(
     company_handler: object | None = None,
     mam_handler: object | None = None,
     voice_handler: object | None = None,
+    referral_public_handler: object | None = None,
+    verification_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -53,7 +55,11 @@ def create_app(
     voice_handler backs the KurdishTTS Sorani voice proxy (see
     app.mam.voice) -- gated only on whether KURDISHTTS_STT_KEY/
     KURDISHTTS_TTS_KEY are set (see app.main.build_voice_handler), no
-    Firebase credential required."""
+    Firebase credential required. referral_public_handler/
+    verification_handler back the Verification, Referral and Reward
+    endpoints (see app.verification.handlers) -- gated on the same
+    Firebase Admin credential check, since every one of them reads or
+    writes Firestore with the Admin SDK."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -283,6 +289,76 @@ def create_app(
         app.add_api_route("/api/v1/mam/voice/config", voice_handler.config, methods=["GET"])
         app.add_api_route("/api/v1/mam/voice/stt", voice_handler.stt, methods=["POST"])
         app.add_api_route("/api/v1/mam/voice/tts", voice_handler.tts, methods=["POST"])
+
+    # Verification, referrals and rewards. The one unauthenticated route
+    # is the signup-time referral-code check -- there is no Firebase
+    # account yet at that point in the flow.
+    if referral_public_handler is not None:
+        app.add_api_route("/api/v1/auth/referral/check", referral_public_handler.check_code, methods=["POST"])
+    if verification_handler is not None:
+        app.add_api_route("/api/v1/access/me/verification", verification_handler.me, methods=["GET"])
+        app.add_api_route("/api/v1/access/verification/submit", verification_handler.submit, methods=["POST"])
+        app.add_api_route("/api/v1/access/referrals/claim", verification_handler.claim_referral, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/access/admin/verification/metrics",
+            verification_handler.admin_metrics,
+            methods=["GET"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/verification/cases",
+            verification_handler.admin_list_cases,
+            methods=["GET"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/verification/cases/{uid}",
+            verification_handler.admin_case_detail,
+            methods=["GET"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/verification/cases/{uid}/review",
+            verification_handler.admin_review_case,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/verification/cases/{uid}/face-result",
+            verification_handler.admin_set_face_result,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/verification/cases/{uid}/evidence/reveal",
+            verification_handler.admin_reveal_evidence,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/verification/cases/{uid}/archive",
+            verification_handler.admin_archive_case,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/referrals",
+            verification_handler.admin_list_referrals,
+            methods=["GET"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/referrals/{referralId}/status",
+            verification_handler.admin_set_referral_status,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/referrals/correct-referrer",
+            verification_handler.admin_correct_referrer,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/reward-config",
+            verification_handler.admin_reward_config,
+            methods=["GET"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/reward-config",
+            verification_handler.admin_save_reward_config,
+            methods=["POST"],
+        )
 
     return app
 

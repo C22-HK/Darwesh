@@ -1,0 +1,232 @@
+/* The identity verification journey (verify.html).
+ *
+ * Deliberately quiet. Handing over a national ID is an act of trust, and
+ * the page it happens on should feel like a bank counter, not a game:
+ * one instruction at a time, generous whitespace, no progress
+ * gamification, no scores.
+ *
+ * Self-contained brand tokens, matching css/verification-rewards.css, so
+ * the two read as one system.
+ */
+
+.vj {
+  --vj-bg: #17150F;
+  --vj-bg-2: #100e0a;
+  --vj-panel: rgba(255, 255, 255, .035);
+  --vj-cream: #F4EFE7;
+  --vj-muted: #B8B0A5;
+  --vj-gold: #c69a4b;
+  --vj-gold-bright: #d4af60;
+  --vj-rule: rgba(198, 154, 75, .28);
+  --vj-ok: #74c69d;
+  --vj-warn: #e0b563;
+  --vj-err: #e5787a;
+
+  box-sizing: border-box;
+  min-height: 100dvh;
+  background: radial-gradient(120% 90% at 50% 0%, #201d15 0%, var(--vj-bg) 46%, var(--vj-bg-2) 100%);
+  color: var(--vj-cream);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.vj *, .vj *::before, .vj *::after { box-sizing: inherit; }
+
+.vj-shell {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: clamp(20px, 5vw, 48px) 16px clamp(48px, 8vw, 88px);
+}
+
+/* ---- Header ---------------------------------------------------------- */
+.vj-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: clamp(20px, 4vw, 34px);
+}
+.vj-brand {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600; font-size: 15px; color: var(--vj-cream); text-decoration: none;
+}
+.vj-exit { font-size: 13px; color: var(--vj-muted); text-decoration: none; }
+.vj-exit:hover { color: var(--vj-gold-bright); }
+
+.vj-hero { text-align: center; margin-bottom: clamp(22px, 4vw, 34px); }
+.vj-hero h1 {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(24px, 5.5vw, 34px);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+.vj-hero p {
+  margin: .65em auto 0; max-width: 46ch;
+  font-size: 13.5px; line-height: 1.6; color: var(--vj-muted);
+}
+.vj-reward {
+  display: inline-flex; align-items: center; gap: 7px;
+  margin-top: 14px; padding: 6px 14px;
+  border: 1px solid var(--vj-rule); border-radius: 999px;
+  background: rgba(198, 154, 75, .08);
+  font-size: 12.5px; font-weight: 600; color: var(--vj-gold-bright);
+  /* Deliberately NOT nowrap: this is a whole translated sentence, and
+     at 320px the Kurdish version is 362px wide -- it pushed 58px past
+     the viewport and made the page scroll sideways. "3.5%" has no break
+     opportunity inside it anyway, so wrapping the sentence is safe. */
+  text-align: center;
+  max-width: 100%;
+}
+
+/* ---- Stepper --------------------------------------------------------- */
+.vj-steps {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px; list-style: none; margin: 0 0 clamp(20px, 4vw, 30px); padding: 0;
+}
+.vj-step { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.vj-step-bar { height: 3px; border-radius: 99px; background: rgba(255,255,255,.1); }
+.vj-step.is-done .vj-step-bar { background: var(--vj-ok); }
+.vj-step.is-current .vj-step-bar { background: var(--vj-gold-bright); }
+.vj-step-label {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--vj-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.vj-step.is-current .vj-step-label { color: var(--vj-cream); font-weight: 600; }
+[dir="rtl"] .vj-step-label { letter-spacing: 0; text-transform: none; }
+
+/* ---- Panels ---------------------------------------------------------- */
+.vj-panel {
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 16px;
+  background: var(--vj-panel);
+  padding: clamp(18px, 4vw, 28px);
+}
+.vj-panel[hidden] { display: none !important; }
+.vj-panel h2 {
+  margin: 0 0 .45em;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 18px; font-weight: 700;
+}
+.vj-panel .vj-body { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--vj-muted); }
+
+.vj-consent {
+  margin-top: 18px; padding: 16px;
+  border: 1px solid var(--vj-rule); border-radius: 12px;
+  background: rgba(198, 154, 75, .05);
+}
+.vj-consent h3 { margin: 0 0 .5em; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-gold); }
+[dir="rtl"] .vj-consent h3 { letter-spacing: .03em; text-transform: none; }
+.vj-consent p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--vj-muted); }
+
+/* ---- Capture slots --------------------------------------------------- */
+.vj-slots { display: grid; gap: 14px; margin-top: 18px; }
+.vj-slot {
+  border: 1px dashed rgba(255,255,255,.16);
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+.vj-slot.is-filled { border-style: solid; border-color: var(--vj-rule); background: rgba(198,154,75,.05); }
+.vj-slot-preview {
+  width: 96px; aspect-ratio: 3 / 2;
+  border-radius: 8px; overflow: hidden;
+  background: rgba(0,0,0,.35);
+  display: grid; place-items: center;
+  color: rgba(184,176,165,.6);
+}
+.vj-slot-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vj-slot-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.vj-slot-title { font-size: 14px; font-weight: 600; }
+.vj-slot-meta { font-size: 12px; color: var(--vj-muted); }
+.vj-slot-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.vj-file { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---- Camera ---------------------------------------------------------- */
+.vj-camera {
+  position: relative;
+  margin-top: 18px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  aspect-ratio: 3 / 4;
+  max-width: 340px;
+  max-height: 60vh;
+  margin-inline: auto;
+}
+.vj-camera video, .vj-camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* The oval is guidance, not a mask -- the full frame is captured. */
+.vj-camera-guide {
+  position: absolute; inset: 8%;
+  border: 2px solid rgba(212, 175, 96, .55);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ---- Quality notice -------------------------------------------------- */
+.vj-notice {
+  margin-top: 14px; padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 12.5px; line-height: 1.55;
+}
+.vj-notice-warn { background: rgba(224, 181, 99, .12); border: 1px solid rgba(224, 181, 99, .35); color: #f0d9a8; }
+.vj-notice-err { background: rgba(229, 120, 122, .12); border: 1px solid rgba(229, 120, 122, .38); color: #f3b8b9; }
+.vj-notice-ok { background: rgba(116, 198, 157, .12); border: 1px solid rgba(116, 198, 157, .35); color: #a9e0c5; }
+.vj-notice ul { margin: .5em 0 0; padding-inline-start: 1.2em; }
+
+/* ---- Buttons --------------------------------------------------------- */
+.vj-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
+.vj-actions-end { justify-content: flex-end; }
+.vj-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 22px; border-radius: 10px;
+  border: 1px solid var(--vj-rule);
+  background: transparent; color: var(--vj-cream);
+  font: inherit; font-size: 13.5px; font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  transition: background .18s ease, border-color .18s ease;
+}
+.vj-btn:hover:not(:disabled) { border-color: var(--vj-gold); background: rgba(198,154,75,.1); }
+.vj-btn:focus-visible { outline: 2px solid var(--vj-gold-bright); outline-offset: 2px; }
+.vj-btn-primary { background: var(--vj-gold-bright); border-color: transparent; color: #17150F; }
+.vj-btn-primary:hover:not(:disabled) { background: #e0bd72; }
+.vj-btn:disabled { opacity: .5; cursor: not-allowed; }
+.vj-btn-ghost { border-color: transparent; color: var(--vj-muted); }
+.vj-btn-ghost:hover { color: var(--vj-cream); background: rgba(255,255,255,.05); }
+.vj-grow { flex: 1 1 auto; }
+
+.vj-spinner {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid currentColor; border-top-color: transparent;
+  animation: vjSpin .8s linear infinite;
+}
+@keyframes vjSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .vj-spinner { animation-duration: 2.4s; } }
+
+.vj-privacy {
+  margin: 18px 0 0; font-size: 11.5px; line-height: 1.6;
+  color: rgba(184,176,165,.75); text-align: center;
+}
+
+/* ---- Terminal states -------------------------------------------------- */
+.vj-done { text-align: center; padding-block: clamp(16px, 4vw, 28px); }
+.vj-done-mark {
+  width: 58px; height: 58px; margin: 0 auto 18px;
+  border-radius: 50%; display: grid; place-items: center;
+  background: rgba(116,198,157,.15); color: var(--vj-ok);
+  border: 1px solid rgba(116,198,157,.4);
+}
+.vj-done h2 { margin: 0 0 .5em; }
+.vj-done .vj-body { max-width: 42ch; margin-inline: auto; }
+.vj-done .vj-actions { justify-content: center; }
+
+/* ---- Mobile (§BH: 320 / 375 / 390 / 430) ------------------------------ */
+@media (max-width: 560px) {
+  .vj-shell { padding-inline: 16px; }
+  .vj-panel { padding: 16px 14px; border-radius: 14px; }
+  .vj-slot { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 12px; }
+  .vj-slot-preview { width: 72px; }
+  .vj-actions .vj-btn { flex: 1 1 auto; }
+  .vj-steps { gap: 4px; }
+  .vj-step-label { font-size: 10px; }
+}

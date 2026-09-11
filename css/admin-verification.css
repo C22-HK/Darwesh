@@ -1,0 +1,132 @@
+/* Admin Panel -- Network Verification Center.
+ *
+ * Adds only the shapes the existing admin vocabulary has no precedent
+ * for: the metric strip, the two-column desk, the evidence rows and the
+ * reward-config form. Everything else (tables, cards, badges, the detail
+ * overlay, buttons) comes from css/admin-shell.css unchanged, so this
+ * tab reads as part of the same panel rather than a visitor in it.
+ */
+
+/* ---- Metric strip -----------------------------------------------------
+ * Real counts only. Deliberately quiet: these are queue sizes a reviewer
+ * glances at, not a scoreboard. */
+.ash-nv-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 4px 0 22px;
+}
+.ash-nv-metric {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--ash-border); border-radius: 14px;
+  background: var(--ash-surface);
+}
+.ash-nv-metric-value {
+  font: 700 26px/1.1 'Plus Jakarta Sans', sans-serif;
+  color: var(--ash-text);
+  font-variant-numeric: tabular-nums;
+}
+.ash-nv-metric-label {
+  font: 500 12px/1.35 'Inter', sans-serif;
+  color: var(--ash-text-secondary);
+}
+/* The states that need someone to act read warm; the settled one does
+   not. A queue of zero pending cases should look calm, not green. */
+.ash-nv-metric[data-metric="pending"] .ash-nv-metric-value,
+.ash-nv-metric[data-metric="needs_review"] .ash-nv-metric-value { color: var(--ash-accent); }
+
+/* ---- Two-column desk --------------------------------------------------
+ * Queue on the left where the work is, policy on the right where it is
+ * referred to. One column below 1100px -- the queue matters more, so it
+ * stays first in source order and needs no reordering. */
+.ash-nv-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .ash-nv-columns { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+}
+.ash-nv-col { min-width: 0; }
+
+.ash-nv-hint {
+  font: 500 12px/1.55 'Inter', sans-serif;
+  color: var(--ash-text-secondary);
+  margin: 6px 0 0;
+}
+.ash-nv-msg {
+  font: 500 12.5px/1.5 'Inter', sans-serif;
+  color: var(--ash-text-secondary);
+  margin: 8px 0 0;
+  min-height: 1em;
+}
+.ash-nv-msg-bad { color: var(--ash-error); }
+
+/* ---- Evidence ---------------------------------------------------------
+ * One row per document, one button per row. There is deliberately no
+ * grid of thumbnails: bulk-viewing identity documents is exactly what
+ * the one-click-one-audit-one-expiring-URL design prevents. */
+.ash-nv-evidence { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ash-nv-evidence-row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ash-border); border-radius: 12px;
+  background: var(--ash-surface-sunken);
+}
+.ash-nv-evidence-row > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ash-nv-evidence-kind {
+  font: 600 13px/1.3 'Inter', sans-serif; color: var(--ash-text);
+}
+
+/* ---- Referrals --------------------------------------------------------
+ * A relationship, its risk flags and the four things a reviewer can do
+ * about it, on one row. */
+.ash-nv-referrals { display: flex; flex-direction: column; gap: 10px; }
+.ash-nv-referral {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--ash-border); border-radius: 14px;
+  background: var(--ash-surface);
+}
+.ash-nv-referral .ash-nv-msg { grid-column: 1 / -1; margin: 0; }
+.ash-nv-referral-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+@media (max-width: 720px) {
+  .ash-nv-referral { grid-template-columns: minmax(0, 1fr); }
+  .ash-nv-referral .ash-detail-actions { width: 100%; }
+}
+
+/* ---- Reward configuration ---------------------------------------------
+ * A short form, not a settings sprawl: five values decide the whole
+ * reward model, and the preview below them shows what they add up to. */
+.ash-nv-config {
+  padding: 16px;
+  border: 1px solid var(--ash-border); border-radius: 14px;
+  background: var(--ash-surface);
+}
+.ash-nv-field {
+  display: flex; flex-direction: column; gap: 5px;
+  margin-bottom: 12px;
+}
+.ash-nv-field > span {
+  font: 500 12.5px/1.35 'Inter', sans-serif;
+  color: var(--ash-text-secondary);
+}
+.ash-nv-field input, .ash-nv-field select { width: 100%; }
+.ash-nv-preview {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--ash-accent-wash);
+  color: var(--ash-text);
+  font: 600 14px/1.4 'Inter', sans-serif;
+  font-variant-numeric: tabular-nums;
+  /* The whole line is one calculation -- let it wrap, but never break a
+     figure like "6.5%" away from its own sign. */
+  overflow-wrap: anywhere;
+}

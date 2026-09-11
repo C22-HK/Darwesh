@@ -483,6 +483,15 @@ service cloud.firestore {
       // owner for commissionRate ONLY (agent-dashboard's Save Rate -- the
       // one owner-editable field, same 0-100 bound the public doc used to
       // enforce). The owner can never rewrite their verified email/phone.
+      // The user's computed personal network reward (brief §S, §BD).
+      // READ-ONLY to its owner: the discount is a function of verified
+      // facts, and a browser that could write it could grant itself 100%.
+      // The single writer is ReferralOps.recompute_reward (Admin SDK).
+      match /private/{docId} {
+        allow read: if isOwner(uid) || (isAdmin() && hasPermission('rewards.manage'));
+        allow write: if false;
+      }
+
       match /privateProfile/{docId} {
         function isValidCommissionRate(d) {
           return !('commissionRate' in d)
@@ -2341,6 +2350,123 @@ service cloud.firestore {
              // derived state nonsense, so it is refused at the source.
              && (d.startAt == null || d.endAt == null || d.startAt < d.endAt);
     }
+    // =================================================================
+    // VERIFICATION, REFERRALS AND REWARDS (brief §AK -- server authority)
+    // =================================================================
+    //
+    // THE GOVERNING RULE: the browser is never authoritative for
+    // verified, referralUnlocked, referral.status, discountPercent,
+    // rewardGranted, businessVerified or professionalVerified. Every
+    // collection in this section is therefore WRITE-CLOSED to every
+    // client session, admin included -- the only writer is the backend's
+    // Admin SDK (app/verification/*), which bypasses these rules and is
+    // the single place those transitions exist.
+    //
+    // Refusing admin writes here too is deliberate and is what makes the
+    // guarantee real: if an admin session could set verificationStatus
+    // directly from a browser, a compromised admin tab could grant a
+    // reward without ever passing through the audited, permission-gated
+    // ops layer.
+
+    function verificationPercentValid(v) {
+      // int OR float: the personal reward is 3.5 / 6.5 and must never be
+      // coerced to an integer (brief §A).
+      return (v is int || v is float) && v >= 0 && v <= 100;
+    }
+
+    // ---- verification cases -----------------------------------------
+    // A user may READ their own case (they need to see their status) and
+    // may SUBMIT one. Everything a reviewer decides -- verificationStatus
+    // beyond 'pending', idVerified, faceResult, riskFlags, reviewedBy --
+    // is backend-only.
+    match /verificationCases/{caseUid} {
+      // The case carries the ID name and risk flags, so it is readable
+      // only by its owner or an admin with the verification permission.
+      allow read: if isSignedIn()
+                  && (request.auth.uid == caseUid
+                      || (isAdmin() && hasPermission('verification.view')));
+
+      // Submission is the ONE client write, and it may only ever move a
+      // case to 'pending' -- never to 'verified'.
+      allow create: if isSignedIn()
+                    && request.auth.uid == caseUid
+                    && request.resource.data.verificationStatus == 'pending'
+                    && request.resource.data.get('idVerified', false) == false
+                    && request.resource.data.get('faceResult', 'pending') == 'pending'
+                    && !('riskFlags' in request.resource.data)
+                    && !('reviewedBy' in request.resource.data)
+                    && !('verifiedAt' in request.resource.data);
+      allow update: if isSignedIn()
+                    && request.auth.uid == caseUid
+                    // Only a resubmission: from a state that invites one,
+                    // back to 'pending'.
+                    && resource.data.verificationStatus in ['needs_resubmission', 'rejected', 'unverified']
+                    && request.resource.data.verificationStatus == 'pending'
+                    // A resubmission can never carry a decision with it.
+                    && request.resource.data.get('idVerified', false) == resource.data.get('idVerified', false)
+                    && request.resource.data.get('faceResult', 'pending') == resource.data.get('faceResult', 'pending')
+                    && request.resource.data.get('riskFlags', []) == resource.data.get('riskFlags', [])
+                    && request.resource.data.get('reviewedBy', '') == resource.data.get('reviewedBy', '');
+      allow delete: if false;
+
+      // Evidence METADATA. The bytes live in Storage; this never holds an
+      // image. Opening one is a permissioned, audited backend action --
+      // being an admin is not enough (brief §AL).
+      match /evidence/{evidenceId} {
+        allow read: if isSignedIn()
+                    && (request.auth.uid == caseUid
+                        || (isAdmin() && hasPermission('verification.documents.view')));
+        allow create: if isSignedIn() && request.auth.uid == caseUid;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---- referral codes ---------------------------------------------
+    // Deliberately NOT publicly readable. A client that could list this
+    // collection could harvest every code in the system and map codes to
+    // owner uids; validation goes through the backend, which returns only
+    // a safe display name (brief §N).
+    match /referralCodes/{code} {
+      allow read: if isSignedIn()
+                  && (resource.data.ownerUid == request.auth.uid
+                      || (isAdmin() && hasPermission('referrals.review')));
+      allow write: if false;
+    }
+
+    // ---- referral relationships -------------------------------------
+    // Status transitions decide money, so no client may write one.
+    match /referrals/{referralId} {
+      allow read: if isSignedIn()
+                  && (resource.data.referrerUid == request.auth.uid
+                      || resource.data.referredUid == request.auth.uid
+                      || (isAdmin() && hasPermission('referrals.review')));
+      allow write: if false;
+    }
+
+    // ---- reward configuration (brief §T) ----------------------------
+    // Readable by any signed-in user so the UI can show what is on offer;
+    // writable only by the backend behind rewards.manage.
+    match /rewardConfig/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- reward ledger (append-only history, brief §S) ---------------
+    match /rewardLedger/{entryId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('rewards.manage')));
+      allow write: if false;
+    }
+
+    // ---- archive metadata (brief §AV) -------------------------------
+    // Metadata only -- never the archive itself, which lives in a
+    // separate private vault with no client access at all (§AS).
+    match /verificationArchives/{archiveId} {
+      allow read: if isAdmin() && hasPermission('archives.view');
+      allow write: if false;
+    }
+
     match /offers/{offerId} {
       allow read: if resource.data.status == 'active' || isAdmin();
       // createdBy/updatedBy are taken from the verified token, never

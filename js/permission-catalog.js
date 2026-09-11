@@ -39,7 +39,10 @@ export const SELF_ACCOUNT_TYPES = [
 // Listed only so the UI can guarantee it never sends one.
 export const PROTECTED_PERMISSIONS = [
   'admin_access', 'manage_roles', 'manage_permissions', 'verify_profiles',
-  'suspend_users', 'change_organization_owner', 'manage_platform_security'
+  'suspend_users', 'change_organization_owner', 'manage_platform_security',
+  // Permanently closing an account is irreversible and takes a person's
+  // access to their own history with it, so it is never delegable.
+  'verification.account.close'
 ];
 
 // Every grantable key, grouped exactly as constants.py groups them. The
@@ -85,6 +88,23 @@ export const PERMISSION_GROUPS = [
   ] },
   { key: 'moderation', labelKey: 'admin.rd.groupModeration', fallback: 'Moderation (non-protected)', permissions: [
     { key: 'approve_profiles' }, { key: 'manage_reports' }, { key: 'moderate_content' }
+  ] },
+  // Verification / Network / Rewards. Granular on purpose (brief §AL):
+  // being an admin must not by itself mean being able to open someone's
+  // national ID, so seeing the queue, opening one document, revealing
+  // sensitive fields and restricting/suspending an account are four
+  // separate grants that escalate in that order.
+  { key: 'verification', labelKey: 'admin.rd.groupVerification', fallback: 'Verification & network', permissions: [
+    { key: 'verification.view', rules: true },
+    { key: 'verification.review', rules: true },
+    { key: 'verification.documents.view', rules: true },
+    { key: 'verification.sensitive.reveal' },
+    { key: 'verification.account.restrict' },
+    { key: 'verification.account.suspend' },
+    { key: 'referrals.review', rules: true },
+    { key: 'rewards.manage', rules: true },
+    { key: 'offers.manage' },
+    { key: 'archives.view', rules: true }
   ] }
 ];
 
