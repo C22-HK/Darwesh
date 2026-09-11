@@ -88,6 +88,15 @@ class FakeOrganizationOps:
     async def set_active_organization(self, **kwargs):
         self._record("set_active_organization", **kwargs)
 
+    async def set_status(self, **kwargs):
+        self._record("set_status", **kwargs)
+
+    async def set_verified(self, **kwargs):
+        self._record("set_verified", **kwargs)
+
+    async def add_note(self, **kwargs):
+        return self._record("add_note", **kwargs) or "new-note-id"
+
 
 class FakeCompanyOps:
     def __init__(self):
@@ -133,6 +142,41 @@ class FakeCompanyOps:
 
     async def list_my_companies(self, **kwargs):
         return self._record("list_my_companies", **kwargs) or []
+
+    async def set_status(self, **kwargs):
+        self._record("set_status", **kwargs)
+
+    async def set_verified(self, **kwargs):
+        self._record("set_verified", **kwargs)
+
+    async def add_note(self, **kwargs):
+        return self._record("add_note", **kwargs) or "new-note-id"
+
+
+class FakeProfessionalOps:
+    """Admin Panel Phase 2: FakeCompanyOps' shape, for the two methods
+    ProfessionalOps actually has (no create/membership surface -- see
+    professional_ops.py's header)."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, dict]] = []
+        self.next_result = None
+        self.next_error: Exception | None = None
+
+    def _record(self, action: str, **kwargs):
+        self.calls.append((action, kwargs))
+        if self.next_error is not None:
+            raise self.next_error
+        return self.next_result
+
+    async def set_status(self, **kwargs):
+        self._record("set_status", **kwargs)
+
+    async def set_verified(self, **kwargs):
+        self._record("set_verified", **kwargs)
+
+    async def add_note(self, **kwargs):
+        return self._record("add_note", **kwargs) or "new-note-id"
 
 
 class FakePermissionOps:
@@ -184,16 +228,59 @@ def make_client(
         ownership_transfer_limiter=InMemoryRateLimiter(limit=limit, window_seconds=60),
         logger=logger,
     )
+    # Admin Panel Phase 2: perm_handler also backs organization/company/
+    # professional status+verify moderation (see handlers.py's
+    # PermissionAdminHandler comment) -- org_ops is the SAME fake the
+    # caller configured (so existing org-focused assertions still work
+    # unchanged); company_ops/professional_ops are always fresh fakes
+    # here since no existing test needs to inspect them (tests that do
+    # construct their own client directly, see make_admin_moderation_client).
     perm_handler = PermissionAdminHandler(
         ops=perm_ops,
         auth=auth,
         mutation_limiter=InMemoryRateLimiter(limit=limit, window_seconds=60),
         read_limiter=InMemoryRateLimiter(limit=limit, window_seconds=60),
         logger=logger,
+        org_ops=org_ops,
+        company_ops=FakeCompanyOps(),
+        professional_ops=FakeProfessionalOps(),
     )
     cfg = Config(port="8080", env="development", allowed_origins=[])
     app = create_app(cfg, None, None, None, None, None, org_handler, perm_handler)
     return TestClient(app), org_ops, perm_ops
+
+
+def make_admin_moderation_client(
+    *,
+    caller: CallerContext | None = ADMIN,
+    org_ops=None,
+    company_ops=None,
+    professional_ops=None,
+    generous_limits: bool = True,
+) -> tuple[TestClient, FakeOrganizationOps, FakeCompanyOps, FakeProfessionalOps]:
+    """Admin Panel Phase 2: dedicated fixture for the organization/company/
+    professional status+verify endpoints, giving direct access to all
+    three fakes (make_client only exposes org_ops/perm_ops, sufficient
+    for every pre-Phase-2 test but not these)."""
+    org_ops = org_ops or FakeOrganizationOps()
+    company_ops = company_ops or FakeCompanyOps()
+    professional_ops = professional_ops or FakeProfessionalOps()
+    auth = FakeAuthGate(caller)
+    limit = 1000 if generous_limits else 0
+    logger = make_test_logger()
+    perm_handler = PermissionAdminHandler(
+        ops=FakePermissionOps(),
+        auth=auth,
+        mutation_limiter=InMemoryRateLimiter(limit=limit, window_seconds=60),
+        read_limiter=InMemoryRateLimiter(limit=limit, window_seconds=60),
+        logger=logger,
+        org_ops=org_ops,
+        company_ops=company_ops,
+        professional_ops=professional_ops,
+    )
+    cfg = Config(port="8080", env="development", allowed_origins=[])
+    app = create_app(cfg, None, None, None, None, None, None, perm_handler)
+    return TestClient(app), org_ops, company_ops, professional_ops
 
 
 def make_company_client(
@@ -782,3 +869,258 @@ def test_list_service_requests_maps_a_validation_error_to_400():
     client, _org_ops, _perm_ops = make_client(caller=ADMIN, perm_ops=perm_ops)
     resp = client.get("/api/v1/access/service-requests?status=not-real")
     assert resp.status_code == 400
+
+
+# ---- Admin Panel Phase 2: organization/company/professional moderation ----
+
+
+def test_unauthenticated_set_organization_status_returns_401():
+    client, _org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=None)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/status", json={"status": "active"})
+    assert resp.status_code == 401
+
+
+def test_non_admin_set_organization_status_returns_403_and_never_calls_ops():
+    org_ops = FakeOrganizationOps()
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ALICE, org_ops=org_ops)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/status", json={"status": "active"})
+    assert resp.status_code == 403
+    assert org_ops.calls == []  # rejected before the ops layer is ever reached
+
+
+def test_admin_set_organization_status_calls_ops_with_reason():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post(
+        "/api/v1/access/admin/organizations/org-1/status",
+        json={"status": "rejected", "reason": "Could not verify business registration."},
+    )
+    assert resp.status_code == 200
+    assert org_ops.calls[0] == (
+        "set_status",
+        {
+            "org_id": "org-1",
+            "new_status": "rejected",
+            "reason": "Could not verify business registration.",
+            "caller_uid": ADMIN.uid,
+            "caller_is_admin": True,
+        },
+    )
+
+
+def test_admin_set_organization_status_rejects_unknown_status_with_400():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/status", json={"status": "banned"})
+    assert resp.status_code == 400
+    assert org_ops.calls == []  # bad status is rejected at the handler layer, never reaches ops
+
+
+def test_admin_set_organization_status_maps_validation_error_to_400():
+    org_ops = FakeOrganizationOps()
+    org_ops.next_error = ValidationError("'reason' is required when setting status to 'rejected'")
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN, org_ops=org_ops)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/status", json={"status": "rejected"})
+    assert resp.status_code == 400
+
+
+def test_admin_set_organization_verified_calls_ops():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/verify", json={"verified": True})
+    assert resp.status_code == 200
+    assert org_ops.calls[0] == (
+        "set_verified", {"org_id": "org-1", "verified": True, "caller_uid": ADMIN.uid, "caller_is_admin": True}
+    )
+
+
+def test_non_admin_set_organization_verified_returns_403():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/verify", json={"verified": True})
+    assert resp.status_code == 403
+    assert org_ops.calls == []
+
+
+def test_admin_set_company_status_calls_ops():
+    client, _org_ops, company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post(
+        "/api/v1/access/admin/companies/company-1/status", json={"status": "suspended", "reason": "Reported."}
+    )
+    assert resp.status_code == 200
+    assert company_ops.calls[0] == (
+        "set_status",
+        {
+            "company_id": "company-1",
+            "new_status": "suspended",
+            "reason": "Reported.",
+            "caller_uid": ADMIN.uid,
+            "caller_is_admin": True,
+        },
+    )
+
+
+def test_non_admin_set_company_status_returns_403():
+    client, _org_ops, company_ops, _pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/companies/company-1/status", json={"status": "active"})
+    assert resp.status_code == 403
+    assert company_ops.calls == []
+
+
+def test_admin_set_company_verified_calls_ops():
+    client, _org_ops, company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/companies/company-1/verify", json={"verified": False})
+    assert resp.status_code == 200
+    assert company_ops.calls[0] == (
+        "set_verified",
+        {"company_id": "company-1", "verified": False, "caller_uid": ADMIN.uid, "caller_is_admin": True},
+    )
+
+
+def test_admin_set_provider_status_calls_ops():
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post(
+        "/api/v1/access/admin/providers/provider-1/status",
+        json={"status": "rejected", "reason": "License unverifiable."},
+    )
+    assert resp.status_code == 200
+    assert pro_ops.calls[0] == (
+        "set_status",
+        {
+            "provider_id": "provider-1",
+            "new_status": "rejected",
+            "reason": "License unverifiable.",
+            "caller_uid": ADMIN.uid,
+            "caller_is_admin": True,
+        },
+    )
+
+
+def test_non_admin_set_provider_status_returns_403_never_calls_ops():
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/status", json={"status": "active"})
+    assert resp.status_code == 403
+    assert pro_ops.calls == []
+
+
+def test_admin_set_provider_verified_calls_ops():
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/verify", json={"verified": True})
+    assert resp.status_code == 200
+    assert pro_ops.calls[0] == (
+        "set_verified", {"provider_id": "provider-1", "verified": True, "caller_uid": ADMIN.uid, "caller_is_admin": True}
+    )
+
+
+def test_non_admin_set_provider_verified_returns_403_never_calls_ops():
+    """The professional's own session (ALICE, is_admin=False) must never
+    reach the ops layer at all -- 'do not let professionals approve or
+    verify themselves', proven at the HTTP layer here (see
+    test_access_professional_ops.py for the same guarantee proven again
+    at the ops layer against a real emulator)."""
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/verify", json={"verified": True})
+    assert resp.status_code == 403
+    assert pro_ops.calls == []
+
+
+def test_set_provider_verified_requires_boolean_body():
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/verify", json={"verified": "yes"})
+    assert resp.status_code == 400
+    assert pro_ops.calls == []
+
+
+def test_rate_limited_set_provider_status_returns_429():
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ADMIN, generous_limits=False)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/status", json={"status": "active"})
+    assert resp.status_code == 429
+
+
+# ---- admin notes (Admin Panel Phase 2) -------------------------------------
+
+
+def test_admin_add_organization_note_calls_ops():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post(
+        "/api/v1/access/admin/organizations/org-1/notes",
+        json={"text": "Called the owner, verifying license.", "authorName": "Admin One"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["noteId"] == "new-note-id"
+    assert org_ops.calls[0] == (
+        "add_note",
+        {
+            "org_id": "org-1",
+            "text": "Called the owner, verifying license.",
+            "caller_uid": ADMIN.uid,
+            "author_name": "Admin One",
+            "caller_is_admin": True,
+        },
+    )
+
+
+def test_non_admin_add_organization_note_returns_403_never_calls_ops():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/notes", json={"text": "hi"})
+    assert resp.status_code == 403
+    assert org_ops.calls == []
+
+
+def test_unauthenticated_add_organization_note_returns_401():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=None)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/notes", json={"text": "hi"})
+    assert resp.status_code == 401
+    assert org_ops.calls == []
+
+
+def test_admin_add_company_note_calls_ops():
+    client, _org_ops, company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/companies/company-1/notes", json={"text": "Docs pending."})
+    assert resp.status_code == 201
+    assert company_ops.calls[0] == (
+        "add_note",
+        {
+            "company_id": "company-1",
+            "text": "Docs pending.",
+            "caller_uid": ADMIN.uid,
+            "author_name": None,
+            "caller_is_admin": True,
+        },
+    )
+
+
+def test_non_admin_add_company_note_returns_403():
+    client, _org_ops, company_ops, _pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/companies/company-1/notes", json={"text": "hi"})
+    assert resp.status_code == 403
+    assert company_ops.calls == []
+
+
+def test_admin_add_provider_note_calls_ops():
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ADMIN)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/notes", json={"text": "Confirmed license #123."})
+    assert resp.status_code == 201
+    assert pro_ops.calls[0] == (
+        "add_note",
+        {
+            "provider_id": "provider-1",
+            "text": "Confirmed license #123.",
+            "caller_uid": ADMIN.uid,
+            "author_name": None,
+            "caller_is_admin": True,
+        },
+    )
+
+
+def test_non_admin_add_provider_note_returns_403_never_calls_ops():
+    """Same 'never let a professional touch their own moderation record'
+    guarantee as the status/verify endpoints -- a professional must not
+    be able to write into their own adminNotes either."""
+    client, _org_ops, _company_ops, pro_ops = make_admin_moderation_client(caller=ALICE)
+    resp = client.post("/api/v1/access/admin/providers/provider-1/notes", json={"text": "hi"})
+    assert resp.status_code == 403
+    assert pro_ops.calls == []
+
+
+def test_rate_limited_add_organization_note_returns_429():
+    client, org_ops, _company_ops, _pro_ops = make_admin_moderation_client(caller=ADMIN, generous_limits=False)
+    resp = client.post("/api/v1/access/admin/organizations/org-1/notes", json={"text": "hi"})
+    assert resp.status_code == 429
+    assert org_ops.calls == []

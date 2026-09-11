@@ -18,10 +18,11 @@ from fastapi.responses import JSONResponse
 
 from app.access.caller_context import AuthGate
 from app.access.company_ops import CompanyOps
-from app.access.constants import ALL_ACCOUNT_TYPES, ORGANIZATION_TYPES
+from app.access.constants import ALL_ACCOUNT_TYPES, ENTITY_STATUSES, ORGANIZATION_TYPES
 from app.access.errors import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.access.organization_ops import OrganizationOps
 from app.access.permission_ops import PermissionOps
+from app.access.professional_ops import ProfessionalOps
 from app.auth.reset import RateLimiter
 
 _UNAUTHENTICATED = JSONResponse({"error": "Authentication required."}, status_code=401)
@@ -617,6 +618,19 @@ class PermissionAdminHandler:
     mutation_limiter: RateLimiter
     read_limiter: RateLimiter
     logger: logging.Logger
+    # Admin Panel Phase 2: organization/company/professional status +
+    # verification moderation lives on this handler rather than a new
+    # dedicated one -- it's already admin-gated end-to-end (every method
+    # below checks caller.is_admin before anything else, same as
+    # set_role_defaults/set_user_overrides above), already constructed
+    # once per app in app.main.build_access_handlers, and adding fields
+    # here avoids widening build_access_handlers' return-tuple arity
+    # (touched by app.main's startup wiring and its own tests) for what
+    # is, at the HTTP layer, the same "admin-only mutation, audited"
+    # shape as everything else this class already does.
+    org_ops: OrganizationOps
+    company_ops: CompanyOps
+    professional_ops: ProfessionalOps
 
     async def set_role_defaults(self, request: Request) -> JSONResponse:
         caller = await self.auth.authenticate(request)
@@ -732,3 +746,267 @@ class PermissionAdminHandler:
             self.logger.error("service requests list failed", extra={"error": str(exc)})
             return JSONResponse({"error": "Could not load service requests right now."}, status_code=500)
         return JSONResponse({"requests": requests}, status_code=200)
+
+    # ---- Admin Panel Phase 2: organization/company/professional status
+    # and verification moderation. Every method here checks
+    # caller.is_admin BEFORE calling into the ops layer (structurally, not
+    # just as an ops-layer detail) -- the ops layer re-checks
+    # caller_is_admin independently too (organization_ops.py/company_ops.py/
+    # professional_ops.py's own set_status/set_verified), matching this
+    # project's "server re-derives trust at every layer" convention. A
+    # non-admin caller gets a flat 403 before any Firestore read happens.
+
+    async def set_organization_status(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        org_id = request.path_params.get("org_id")
+        new_status = _string_field(body, "status")
+        if new_status is None or new_status not in ENTITY_STATUSES:
+            return JSONResponse({"error": f"'status' must be one of: {sorted(ENTITY_STATUSES)}"}, status_code=400)
+        try:
+            await self.org_ops.set_status(
+                org_id=org_id,
+                new_status=new_status,
+                reason=_string_field(body, "reason"),
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("organization status change failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not update this organization's status right now."}, status_code=500)
+        return JSONResponse({"status": new_status}, status_code=200)
+
+    async def set_organization_verified(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None or not isinstance(body.get("verified"), bool):
+            return JSONResponse({"error": "'verified' must be a boolean."}, status_code=400)
+        org_id = request.path_params.get("org_id")
+        try:
+            await self.org_ops.set_verified(
+                org_id=org_id, verified=body["verified"], caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("organization verification change failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not update this organization's verification right now."}, status_code=500)
+        return JSONResponse({"verified": body["verified"]}, status_code=200)
+
+    async def set_company_status(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        company_id = request.path_params.get("company_id")
+        new_status = _string_field(body, "status")
+        if new_status is None or new_status not in ENTITY_STATUSES:
+            return JSONResponse({"error": f"'status' must be one of: {sorted(ENTITY_STATUSES)}"}, status_code=400)
+        try:
+            await self.company_ops.set_status(
+                company_id=company_id,
+                new_status=new_status,
+                reason=_string_field(body, "reason"),
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company status change failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not update this company's status right now."}, status_code=500)
+        return JSONResponse({"status": new_status}, status_code=200)
+
+    async def set_company_verified(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None or not isinstance(body.get("verified"), bool):
+            return JSONResponse({"error": "'verified' must be a boolean."}, status_code=400)
+        company_id = request.path_params.get("company_id")
+        try:
+            await self.company_ops.set_verified(
+                company_id=company_id, verified=body["verified"], caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company verification change failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not update this company's verification right now."}, status_code=500)
+        return JSONResponse({"verified": body["verified"]}, status_code=200)
+
+    async def set_provider_status(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        provider_id = request.path_params.get("provider_id")
+        new_status = _string_field(body, "status")
+        if new_status is None or new_status not in ENTITY_STATUSES:
+            return JSONResponse({"error": f"'status' must be one of: {sorted(ENTITY_STATUSES)}"}, status_code=400)
+        try:
+            await self.professional_ops.set_status(
+                provider_id=provider_id,
+                new_status=new_status,
+                reason=_string_field(body, "reason"),
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("provider status change failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not update this professional's status right now."}, status_code=500)
+        return JSONResponse({"status": new_status}, status_code=200)
+
+    async def set_provider_verified(self, request: Request) -> JSONResponse:
+        """No self-verification path: caller.is_admin is required above
+        before self.professional_ops.set_verified is ever called, and
+        that method independently requires caller_is_admin too -- a
+        professional's own session can never reach this with a truthy
+        admin flag, structurally, not by convention."""
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None or not isinstance(body.get("verified"), bool):
+            return JSONResponse({"error": "'verified' must be a boolean."}, status_code=400)
+        provider_id = request.path_params.get("provider_id")
+        try:
+            await self.professional_ops.set_verified(
+                provider_id=provider_id, verified=body["verified"], caller_uid=caller.uid, caller_is_admin=caller.is_admin
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("provider verification change failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not update this professional's verification right now."}, status_code=500)
+        return JSONResponse({"verified": body["verified"]}, status_code=200)
+
+    # ---- admin notes: private, staff-only, never owner-visible --------
+    #
+    # organizations/companies/serviceProviders' adminNotes subcollections
+    # are `allow write: if false` in firestore.rules -- these three
+    # methods are the only trusted path in. `authorName` is an optional
+    # display label the client sends (the caller's own Firebase
+    # displayName); it is never the authorization signal and is only ever
+    # used as a fallback-safe label next to the note (see each ops
+    # module's add_note() docstring).
+
+    async def add_organization_note(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        org_id = request.path_params.get("org_id")
+        try:
+            note_id = await self.org_ops.add_note(
+                org_id=org_id,
+                text=_string_field(body, "text"),
+                caller_uid=caller.uid,
+                author_name=_string_field(body, "authorName"),
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("organization note add failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not add this note right now."}, status_code=500)
+        return JSONResponse({"noteId": note_id}, status_code=201)
+
+    async def add_company_note(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        company_id = request.path_params.get("company_id")
+        try:
+            note_id = await self.company_ops.add_note(
+                company_id=company_id,
+                text=_string_field(body, "text"),
+                caller_uid=caller.uid,
+                author_name=_string_field(body, "authorName"),
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("company note add failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not add this note right now."}, status_code=500)
+        return JSONResponse({"noteId": note_id}, status_code=201)
+
+    async def add_provider_note(self, request: Request) -> JSONResponse:
+        caller = await self.auth.authenticate(request)
+        if caller is None:
+            return _UNAUTHENTICATED
+        if not caller.is_admin:
+            return _FORBIDDEN
+        if not await self.mutation_limiter.allow(caller.uid):
+            return _RATE_LIMITED
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        provider_id = request.path_params.get("provider_id")
+        try:
+            note_id = await self.professional_ops.add_note(
+                provider_id=provider_id,
+                text=_string_field(body, "text"),
+                caller_uid=caller.uid,
+                author_name=_string_field(body, "authorName"),
+                caller_is_admin=caller.is_admin,
+            )
+        except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("provider note add failed", extra={"error": str(exc)})
+            return JSONResponse({"error": "Could not add this note right now."}, status_code=500)
+        return JSONResponse({"noteId": note_id}, status_code=201)

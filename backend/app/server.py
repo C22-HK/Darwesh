@@ -220,6 +220,63 @@ def create_app(
             permission_admin_handler.list_service_requests,
             methods=["GET"],
         )
+        # Admin Panel Phase 2: organization/company/professional
+        # moderation -- admin-only (permission_admin_handler checks
+        # caller.is_admin before anything else), audited, never a
+        # self-service path. See handlers.py's PermissionAdminHandler
+        # comment for why these live here rather than a new handler.
+        app.add_api_route(
+            "/api/v1/access/admin/organizations/{org_id}/status",
+            permission_admin_handler.set_organization_status,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/organizations/{org_id}/verify",
+            permission_admin_handler.set_organization_verified,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/companies/{company_id}/status",
+            permission_admin_handler.set_company_status,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/companies/{company_id}/verify",
+            permission_admin_handler.set_company_verified,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/providers/{provider_id}/status",
+            permission_admin_handler.set_provider_status,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/providers/{provider_id}/verify",
+            permission_admin_handler.set_provider_verified,
+            methods=["POST"],
+        )
+        # Admin Panel Phase 2: private admin notes. adminNotes
+        # subcollections are `allow write: if false` in firestore.rules
+        # on all three collections (never client-writable, including
+        # isAdmin()) -- these are the only trusted path to create one.
+        # Reads stay a direct client Firestore query (adminNotes is
+        # already isAdmin()-readable per the rules), so there is no
+        # corresponding GET route here.
+        app.add_api_route(
+            "/api/v1/access/admin/organizations/{org_id}/notes",
+            permission_admin_handler.add_organization_note,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/companies/{company_id}/notes",
+            permission_admin_handler.add_company_note,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/access/admin/providers/{provider_id}/notes",
+            permission_admin_handler.add_provider_note,
+            methods=["POST"],
+        )
     if mam_handler is not None:
         app.add_api_route("/api/v1/mam/chat", mam_handler.chat, methods=["POST"])
     if voice_handler is not None:

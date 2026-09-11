@@ -190,12 +190,22 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
 # rule exactly. 'real_estate_office' is deliberately absent: offices stay
 # on the pre-existing `companies` collection this phase (Phase 1 §2.2
 # migration note); creating that type is not offered here.
+# 'contractor'/'moving_company' (Admin Panel Phase 2): additive values
+# filling the two organization categories the admin brief requested that
+# had no collection/type of their own anywhere in the schema -- general
+# contractors and moving companies are neither `companies` (real-estate
+# offices only) nor `serviceProviders` (individual-profile professions
+# only), so they're modeled here alongside the other multi-staff org
+# types this collection already covers. No existing document's `type` is
+# affected; this only widens what a NEW org may declare.
 ORGANIZATION_TYPES: frozenset[str] = frozenset(
     {
         "residential_community",
         "developer_project",
         "finance_provider",
         "furniture_store",
+        "contractor",
+        "moving_company",
     }
 )
 
@@ -203,6 +213,19 @@ ORGANIZATION_TYPES: frozenset[str] = frozenset(
 # firestore.rules' serviceProviders create rule exactly.
 SERVICE_TYPES: frozenset[str] = frozenset({"engineer", "designer", "lawyer", "landscaping", "cleaning"})
 PROVIDER_TYPES: frozenset[str] = frozenset({"individual", "team", "company"})
+
+# Admin Panel Phase 2: the shared status lifecycle for organizations,
+# companies, and serviceProviders. Additive to the pre-existing `verified`
+# boolean on all three (never replaces it -- `verified` still means "an
+# admin has confirmed this entity's identity/legitimacy"; `status` is the
+# separate admin-moderation state: is this entity currently allowed to
+# operate on the platform at all). A document with no `status` field
+# (every one created before this phase) is read by the admin UI as
+# 'active' if verified else 'pending' -- computed at read time, no bulk
+# migration write required. 'rejected'/'suspended' require a
+# `rejectionReason` (see ORG_STATUS_REASON_REQUIRED below).
+ENTITY_STATUSES: frozenset[str] = frozenset({"pending", "active", "rejected", "suspended"})
+ENTITY_STATUS_REASON_REQUIRED: frozenset[str] = frozenset({"rejected", "suspended"})
 
 # serviceProviders.servicesOffered -- mirrors firestore.rules'
 # isValidServicesOffered() exactly.

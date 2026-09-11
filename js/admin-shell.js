@@ -39,8 +39,8 @@
     ] },
     { key: 'people', labelKey: 'admin.nav.groupPeople', labelText: 'People & Organizations', items: [
       { tab: 'users', icon: 'group', labelKey: 'admin.usersTab', labelText: 'Users & Roles' },
-      { tab: 'organizations', icon: 'domain', labelKey: 'admin.nav.organizations', labelText: 'Organizations', soon: true },
-      { tab: 'professionals', icon: 'engineering', labelKey: 'admin.nav.professionals', labelText: 'Professionals', soon: true },
+      { tab: 'organizations', icon: 'domain', labelKey: 'admin.nav.organizations', labelText: 'Organizations' },
+      { tab: 'professionals', icon: 'engineering', labelKey: 'admin.nav.professionals', labelText: 'Professionals' },
       { tab: 'agents', icon: 'badge', labelKey: 'admin.agentsTab', labelText: 'Agents' },
       { tab: 'branches', icon: 'account_tree', labelKey: 'admin.branchesTab', labelText: 'Branches' },
       { tab: 'network', icon: 'hub', labelKey: 'admin.networkTab', labelText: 'Network' },
@@ -302,5 +302,38 @@
       var el = mount.querySelector('.ash-nav-item[data-nav-id="' + it._id + '"]');
       if (el) el.style.display = granted ? '' : 'none';
     });
+  };
+
+  // ---- Shared toast feedback (Admin Panel Phase 2) ----------------------
+  // No toast system existed anywhere in admin.html before this -- every
+  // tab used alert()/confirm() for mutation feedback. Organizations/
+  // Professionals' new approve/reject/verify/suspend/reactivate actions
+  // need non-blocking success/error feedback, so this is a small, shared,
+  // --ash-*-themed helper any tab (not just the two new ones) can call.
+  var toastHost = null;
+  function ensureToastHost() {
+    if (toastHost) return toastHost;
+    toastHost = document.createElement('div');
+    toastHost.className = 'ash-toast-host';
+    toastHost.setAttribute('aria-live', 'polite');
+    toastHost.setAttribute('role', 'status');
+    document.body.appendChild(toastHost);
+    return toastHost;
+  }
+  // variant: 'success' (default) | 'error'
+  window.AdminShellToast = function (message, variant) {
+    var host = ensureToastHost();
+    var el = document.createElement('div');
+    el.className = 'ash-toast ash-toast-' + (variant === 'error' ? 'error' : 'success');
+    el.textContent = String(message == null ? '' : message);
+    host.appendChild(el);
+    // Force layout before adding the visible class so the entrance
+    // transition actually runs instead of starting already-shown.
+    void el.offsetWidth;
+    el.classList.add('ash-toast-show');
+    setTimeout(function () {
+      el.classList.remove('ash-toast-show');
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
+    }, variant === 'error' ? 5000 : 3200);
   };
 })();

@@ -394,3 +394,92 @@ export function declineOrganizationInvitation(user, orgId) {
     body: {}
   });
 }
+
+// U3/Admin Panel Phase 2: the Organizations tab's own "add a staff member"
+// action needs the target's uid (same as every other membership call
+// above) -- this endpoint already existed (organization_ops.py's
+// invite_member) but had no client wrapper until now.
+export function inviteOrganizationMember(user, orgId, targetUid) {
+  return authedRequest(
+    user,
+    'POST',
+    `/api/v1/access/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(targetUid)}/invite`,
+    { body: {} }
+  );
+}
+
+// Admin Panel Phase 2's "owner assignment" feature. Backend-mediated only
+// (organization_ops.py's transfer_ownership) -- ownerId is locked against
+// every direct client write, including isAdmin(), in firestore.rules.
+export function transferOrganizationOwnership(user, orgId, newOwnerUid) {
+  return authedRequest(user, 'POST', `/api/v1/access/organizations/${encodeURIComponent(orgId)}/transfer-ownership`, {
+    body: { newOwnerUid }
+  });
+}
+
+// ---- Admin Panel Phase 2: organization/company/professional moderation --
+//
+// Admin-only (the backend re-checks caller.is_admin; a non-admin gets 403
+// and the ops layer is never reached -- see PermissionAdminHandler.set_*
+// in backend/app/access/handlers.py). `reason` is required by the backend
+// whenever `status` is 'rejected' or 'suspended' (ENTITY_STATUS_REASON_REQUIRED)
+// -- a missing reason comes back as a 400 BackendResponseError, not a
+// silent no-op.
+export function setOrganizationStatus(user, orgId, status, reason) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/organizations/${encodeURIComponent(orgId)}/status`, {
+    body: { status, reason }
+  });
+}
+
+export function setOrganizationVerified(user, orgId, verified) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/organizations/${encodeURIComponent(orgId)}/verify`, {
+    body: { verified }
+  });
+}
+
+export function setCompanyStatus(user, companyId, status, reason) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/companies/${encodeURIComponent(companyId)}/status`, {
+    body: { status, reason }
+  });
+}
+
+export function setCompanyVerified(user, companyId, verified) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/companies/${encodeURIComponent(companyId)}/verify`, {
+    body: { verified }
+  });
+}
+
+export function setProviderStatus(user, providerId, status, reason) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/providers/${encodeURIComponent(providerId)}/status`, {
+    body: { status, reason }
+  });
+}
+
+export function setProviderVerified(user, providerId, verified) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/providers/${encodeURIComponent(providerId)}/verify`, {
+    body: { verified }
+  });
+}
+
+// Private admin notes. adminNotes subcollections are `allow write: if
+// false` in firestore.rules on all three collections -- these are the
+// only way to create one. Reading them back is a direct client Firestore
+// query instead (adminNotes is already isAdmin()-readable), so there is
+// no corresponding "list notes" wrapper here.
+export function addOrganizationNote(user, orgId, text, authorName) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/organizations/${encodeURIComponent(orgId)}/notes`, {
+    body: { text, authorName }
+  });
+}
+
+export function addCompanyNote(user, companyId, text, authorName) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/companies/${encodeURIComponent(companyId)}/notes`, {
+    body: { text, authorName }
+  });
+}
+
+export function addProviderNote(user, providerId, text, authorName) {
+  return authedRequest(user, 'POST', `/api/v1/access/admin/providers/${encodeURIComponent(providerId)}/notes`, {
+    body: { text, authorName }
+  });
+}

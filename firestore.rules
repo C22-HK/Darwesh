@@ -305,6 +305,20 @@ service cloud.firestore {
                     || (isSignedIn() && request.auth.uid == employeeUid);
         allow write: if false;
       }
+
+      // Admin Panel Phase 2: private internal notes on this company,
+      // for the admin moderation team only -- mirrors /employees' own
+      // "never client-writable, including isAdmin()" posture so notes
+      // are always written through the backend (which can stamp
+      // authorUid/authorName from the verified caller instead of trusting
+      // whatever a direct client write would claim). The owner/staff of
+      // this company must never see these, which is why read is isAdmin()
+      // only -- not isCompanyOwnerNow() -- unlike every other subcollection
+      // on this document.
+      match /adminNotes/{noteId} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
     }
 
     // ---- User profiles ----
@@ -1041,9 +1055,15 @@ service cloud.firestore {
       // membership doc is required for the owner to have full access.
       allow create: if isSignedIn()
                     && request.resource.data.ownerId == request.auth.uid
+                    // 'contractor'/'moving_company' (Admin Panel Phase 2):
+                    // additive types for the two organization categories
+                    // that had no collection/type anywhere before -- see
+                    // backend/app/access/constants.py's ORGANIZATION_TYPES
+                    // comment. No existing document's `type` changes.
                     && request.resource.data.type in [
                          'residential_community', 'developer_project',
-                         'finance_provider', 'furniture_store'
+                         'finance_provider', 'furniture_store',
+                         'contractor', 'moving_company'
                        ]
                     && request.resource.data.name is string
                     && request.resource.data.name.size() > 0
@@ -1141,6 +1161,18 @@ service cloud.firestore {
         allow read: if isAdmin()
                     || (isSignedIn() && orgOwnerId(orgId) == request.auth.uid)
                     || (isSignedIn() && request.auth.uid == memberUid);
+        allow write: if false;
+      }
+
+      // Admin Panel Phase 2: private internal notes on this organization,
+      // for the admin moderation team only -- same "never client-
+      // writable, including isAdmin()" posture as /members above, so
+      // notes are always written through the backend (stamping
+      // authorUid/authorName from the verified caller). Read is isAdmin()
+      // only, deliberately NOT isOrgOwnerNow()/isOrgMember() -- the org's
+      // own owner/staff must never see these.
+      match /adminNotes/{noteId} {
+        allow read: if isAdmin();
         allow write: if false;
       }
     }
@@ -1288,6 +1320,18 @@ service cloud.firestore {
                           && request.resource.data.customerUid == resource.data.customerUid
                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'providerNote', 'updatedAt']));
         allow delete: if isAdmin();
+      }
+
+      // Admin Panel Phase 2: private internal notes on this professional's
+      // profile, for the admin moderation team only -- same "never
+      // client-writable, including isAdmin()" posture as organizations'
+      // and companies' own adminNotes above, so notes are always written
+      // through the backend (stamping authorUid/authorName from the
+      // verified caller). Read is isAdmin() only -- the provider must
+      // never see these.
+      match /adminNotes/{noteId} {
+        allow read: if isAdmin();
+        allow write: if false;
       }
     }
 

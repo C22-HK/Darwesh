@@ -21,6 +21,7 @@ from app.access.firebase_clients import AccessFirebaseClients, make_email_uid_re
 from app.access.handlers import CompanyHandler, OrganizationHandler, PermissionAdminHandler
 from app.access.organization_ops import OrganizationOps
 from app.access.permission_ops import PermissionOps
+from app.access.professional_ops import ProfessionalOps
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import FirestoreRateLimiter, Handler, InMemoryRateLimiter
@@ -297,6 +298,12 @@ def build_access_handlers(
             mutation_limiter=mutation_limiter,
             read_limiter=read_limiter,
             logger=logger,
+            # Admin Panel Phase 2: same org_ops/company_ops instances
+            # OrganizationHandler/CompanyHandler already use below -- one
+            # OrganizationOps/CompanyOps per app, not a second instance.
+            org_ops=org_ops,
+            company_ops=company_ops,
+            professional_ops=ProfessionalOps(db, logger=logger),
         ),
         # Phase 3: reuses the SAME membership_limiter instance as
         # OrganizationHandler above (one shared per-uid counter across

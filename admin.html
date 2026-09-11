@@ -1084,27 +1084,14 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- Roadmap placeholders: Phase 1 ships the full information architecture
-         (sidebar) up front; these nine sections get their real screens in
-         later phases (see the Admin Panel plan) rather than being hidden
-         from the nav until then -- an honest "planned" state, not a dead
-         link or fabricated data. -->
-    <section id="tab-organizations" class="admin-tab-panel">
-      <div class="ash-empty-state">
-        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">domain</span>
-        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.organizations">Organizations</p>
-        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.organizations">Manage real-estate agencies, developers, and service organizations -- approvals, members, and verification -- from one place.</p>
-        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
-      </div>
-    </section>
-    <section id="tab-professionals" class="admin-tab-panel">
-      <div class="ash-empty-state">
-        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">engineering</span>
-        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.professionals">Professionals</p>
-        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.professionals">A full directory of engineers, designers, lawyers, and other service professionals, with verification and performance at a glance.</p>
-        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
-      </div>
-    </section>
+    <!-- Roadmap placeholders: Phase 1 shipped the full information
+         architecture (sidebar) up front; Organizations and Professionals
+         got their real screens in Phase 2 (js/admin-orgs-pros.js, built the
+         first time each tab is opened -- data-ash-built guards the
+         rebuild). The remaining seven still ship as an honest "planned"
+         state below, not a dead link or fabricated data. -->
+    <section id="tab-organizations" class="admin-tab-panel"></section>
+    <section id="tab-professionals" class="admin-tab-panel"></section>
     <section id="tab-financial" class="admin-tab-panel">
       <div class="ash-empty-state">
         <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">payments</span>
@@ -1309,6 +1296,11 @@ import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './
 // client-writable, admin sessions included).
 import { setRoleDefaults, listServiceRequests, getMyPermissions, BackendResponseError } from './js/backend-api.js';
 import { SELF_ACCOUNT_TYPES, PERMISSION_GROUPS, RECOMMENDED_ROLE_DEFAULTS } from './js/permission-catalog.js';
+// Admin Panel Phase 2: Organizations & Professionals tabs -- a separate
+// module (not inlined into this already-large script) since it owns its
+// own state/rendering for two full tabs; it imports firebase-init.js and
+// backend-api.js directly rather than depending on this file's closures.
+import { renderOrgsTab, renderProsTab } from './js/admin-orgs-pros.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
 // Bulk views (intelligence map, requests map — hundreds of listings at a
@@ -1881,6 +1873,8 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
     if (tab.dataset.tab === 'estateintel') { setTimeout(() => { if (window.estateIntelEngine) window.estateIntelEngine.invalidate(); }, 50); renderEstateIntelTab(); }
     if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
+    if (tab.dataset.tab === 'organizations') renderOrgsTab();
+    if (tab.dataset.tab === 'professionals') renderProsTab();
   });
 });
 

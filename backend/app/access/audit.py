@@ -49,7 +49,7 @@ class AuditEntry:
     actor_uid: str
     actor_role: str
     action: str
-    target_type: str  # 'user' | 'organization' | 'role' | 'membership'
+    target_type: str  # 'user' | 'organization' | 'role' | 'membership' | 'serviceProvider' (Admin Panel Phase 2)
     target_id: str
     target_organization_id: str | None = None
     changed_fields: list[str] = field(default_factory=list)

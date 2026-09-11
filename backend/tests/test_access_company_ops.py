@@ -534,3 +534,79 @@ async def test_concurrent_approve_and_reject_only_one_wins(db, ops):
     assert len(successes) == 1
     assert len(failures) == 1
     assert isinstance(failures[0], (ConflictError, NotFoundError))
+
+
+# ---- Admin Panel Phase 2: set_status / set_verified -----------------------
+
+
+async def test_set_status_requires_admin(db, ops):
+    owner = _uid("owner")
+    company_id = await ops.create_company(caller_uid=owner, name="Office")
+    with pytest.raises(ForbiddenError):
+        await ops.set_status(
+            company_id=company_id, new_status="active", reason=None, caller_uid=owner, caller_is_admin=False
+        )
+    company = db.collection("companies").document(company_id).get()
+    assert company.get("status") is None
+
+
+async def test_set_status_admin_approve_writes_status_and_audit(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    company_id = await ops.create_company(caller_uid=owner, name="Office")
+
+    await ops.set_status(
+        company_id=company_id, new_status="active", reason=None, caller_uid=admin, caller_is_admin=True
+    )
+
+    company = db.collection("companies").document(company_id).get()
+    assert company.get("status") == "active"
+    assert company.get("statusUpdatedBy") == admin
+
+    entries = _audit_entries(db, target_organization_id=company_id)
+    assert any(
+        e["action"] == "company_status_changed" and e["adminUid"] == admin and e["newValue"] == "active"
+        for e in entries
+    )
+
+
+async def test_set_status_suspend_requires_reason(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    company_id = await ops.create_company(caller_uid=owner, name="Office")
+    with pytest.raises(ValidationError):
+        await ops.set_status(
+            company_id=company_id, new_status="suspended", reason=None, caller_uid=admin, caller_is_admin=True
+        )
+
+
+async def test_set_verified_requires_admin_and_blocks_self_verification(db, ops):
+    owner = _uid("owner")
+    company_id = await ops.create_company(caller_uid=owner, name="Office")
+
+    with pytest.raises(ForbiddenError):
+        await ops.set_verified(company_id=company_id, verified=True, caller_uid=owner, caller_is_admin=False)
+
+    company = db.collection("companies").document(company_id).get()
+    assert company.get("verified") is False
+
+
+async def test_set_verified_admin_writes_flag_and_audit(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    company_id = await ops.create_company(caller_uid=owner, name="Office")
+
+    await ops.set_verified(company_id=company_id, verified=True, caller_uid=admin, caller_is_admin=True)
+
+    company = db.collection("companies").document(company_id).get()
+    assert company.get("verified") is True
+
+    entries = _audit_entries(db, target_organization_id=company_id)
+    assert any(e["action"] == "company_verified" and e["adminUid"] == admin for e in entries)
+
+
+async def test_set_status_missing_company_raises_not_found(ops):
+    with pytest.raises(NotFoundError):
+        await ops.set_status(
+            company_id=_uid("missing"), new_status="active", reason=None, caller_uid=_uid("admin"), caller_is_admin=True
+        )

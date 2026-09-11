@@ -325,8 +325,189 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
   color: var(--ash-accent-strong); background: var(--ash-accent-wash); border-radius: 999px; padding: 5px 11px;
 }
 
+/* ---- Admin Panel Phase 2: entity status badges ---------------------------
+ * Extends admin.html's existing .badge family (.badge-verified/.badge-
+ * pending, defined inline in that file) with the two new lifecycle states
+ * Organizations/Professionals introduce (ENTITY_STATUSES in
+ * backend/app/access/constants.py) that had no visual precedent yet --
+ * .badge-active reuses the same green as the existing .badge-verified
+ * (both mean "in good standing"), .badge-rejected/.badge-suspended use
+ * --ash-error for a clearly different, attention-drawing state. */
+.badge-active { background: #003115; color: #4ae183; }
+.badge-rejected { background: var(--ash-error-wash, rgba(193,68,58,.12)); color: var(--ash-error, #C1443A); }
+.badge-suspended { background: var(--ash-surface-sunken, #F3F0EA); color: var(--ash-text-secondary, #6B6459); }
+
+/* ---- Admin Panel Phase 2: shared toast feedback --------------------------
+ * window.AdminShellToast() in js/admin-shell.js -- replaces alert()/
+ * confirm() for mutation feedback across every admin tab, not just
+ * Organizations/Professionals. */
+.ash-toast-host {
+  position: fixed; z-index: 300; bottom: 20px; inset-inline-end: 20px;
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  max-width: min(360px, calc(100vw - 32px));
+}
+.ash-toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 10px;
+  padding: 12px 16px; border-radius: 12px; background: var(--ash-text);
+  color: #fff; font: 500 13px/1.4 'Inter', sans-serif;
+  box-shadow: 0 12px 32px rgba(27,29,31,.28);
+  opacity: 0; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease;
+}
+.ash-toast-show { opacity: 1; transform: translateY(0); }
+.ash-toast-error { background: var(--ash-error); }
+.ash-toast-success { background: var(--ash-text); }
+.ash-toast-success::before, .ash-toast-error::before {
+  content: ''; width: 8px; height: 8px; border-radius: 999px; flex: none;
+  background: var(--ash-accent);
+}
+.ash-toast-error::before { background: #fff; }
+
+/* ---- Admin Panel Phase 2: Organizations/Professionals table + cards ------
+ * Reuses admin-table/.badge/.filter-chip everywhere else; this only adds
+ * the desktop-table/mobile-card dual-render shape neither had a precedent
+ * for anywhere in admin.html before this phase. */
+.ash-entity-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px;
+}
+.ash-entity-search {
+  position: relative; flex: 1 1 240px; min-width: 200px;
+}
+.ash-entity-search input {
+  width: 100%; padding: 9px 12px 9px 36px; border-radius: 10px; border: 1px solid var(--ash-border);
+  background: var(--ash-surface); color: var(--ash-text); font: 500 13px/1.3 'Inter', sans-serif;
+}
+[dir="rtl"] .ash-entity-search input { padding: 9px 36px 9px 12px; }
+.ash-entity-search .material-symbols-outlined {
+  position: absolute; inset-inline-start: 10px; top: 50%; transform: translateY(-50%);
+  font-size: 18px; color: var(--ash-text-secondary); pointer-events: none;
+}
+.ash-entity-select {
+  padding: 8px 10px; border-radius: 10px; border: 1px solid var(--ash-border);
+  background: var(--ash-surface); color: var(--ash-text); font: 500 12.5px/1.3 'Inter', sans-serif;
+}
+.ash-entity-count { color: var(--ash-text-secondary); font: 500 12px/1.3 'Inter', sans-serif; white-space: nowrap; }
+
+.ash-entity-cards { display: none; flex-direction: column; gap: 10px; }
+@media (max-width: 900px) {
+  .ash-entity-table-wrap { display: none; }
+  .ash-entity-cards { display: flex; }
+}
+.ash-entity-card {
+  background: var(--ash-surface); border: 1px solid var(--ash-border); border-radius: 14px; padding: 14px;
+  display: flex; flex-direction: column; gap: 8px; cursor: pointer;
+}
+.ash-entity-card:hover { border-color: var(--ash-accent); }
+.ash-entity-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.ash-entity-card-title { font: 700 14px/1.3 'Plus Jakarta Sans', sans-serif; color: var(--ash-text); }
+.ash-entity-card-sub { font: 500 12px/1.4 'Inter', sans-serif; color: var(--ash-text-secondary); }
+.ash-entity-card-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.ash-entity-row { cursor: pointer; }
+.ash-entity-row:hover { background: var(--ash-surface-sunken); }
+
+.ash-entity-empty, .ash-entity-loading, .ash-entity-error {
+  padding: 48px 20px; text-align: center; color: var(--ash-text-secondary);
+  font: 500 13px/1.5 'Inter', sans-serif;
+}
+.ash-entity-error { color: var(--ash-error); }
+.ash-entity-retry {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
+  border-radius: 999px; background: var(--ash-text); color: #fff; border: none; cursor: pointer;
+  font: 700 12px/1 'IBM Plex Sans', sans-serif;
+}
+.ash-entity-skeleton-row td { padding: 14px 12px; }
+.ash-entity-skel {
+  height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--ash-surface-sunken) 25%, var(--ash-border) 37%, var(--ash-surface-sunken) 63%);
+  background-size: 400% 100%; animation: ash-skel-shine 1.4s ease infinite;
+}
+@keyframes ash-skel-shine { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+.ash-entity-pagination {
+  display: flex; align-items: center; justify-content: center; gap: 6px; padding: 14px 0 4px;
+}
+.ash-entity-page-btn {
+  min-width: 32px; height: 32px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--ash-border);
+  background: var(--ash-surface); color: var(--ash-text); font: 600 12.5px/1 'Inter', sans-serif; cursor: pointer;
+}
+.ash-entity-page-btn:hover { background: var(--ash-surface-sunken); }
+.ash-entity-page-btn[disabled] { opacity: .4; cursor: not-allowed; }
+.ash-entity-page-btn.active { background: var(--ash-text); color: #fff; border-color: var(--ash-text); }
+
+/* ---- Admin Panel Phase 2: entity detail overlay --------------------------
+ * A new bottom-sheet-on-mobile/centered-on-desktop overlay, matching the
+ * shape of the existing #requestDetailOverlay (see admin.html) but scoped
+ * under its own id per entity type. */
+.ash-detail-backdrop {
+  position: fixed; inset: 0; background: rgba(27,29,31,.5); z-index: 150;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.ash-detail-panel {
+  width: min(720px, 100%); max-height: min(88vh, 900px); overflow-y: auto;
+  background: var(--ash-surface); border-radius: 18px; box-shadow: 0 30px 70px rgba(27,29,31,.35);
+}
+@media (max-width: 640px) {
+  .ash-detail-backdrop { align-items: flex-end; padding: 0; }
+  .ash-detail-panel { width: 100%; max-height: 92vh; border-radius: 18px 18px 0 0; }
+}
+.ash-detail-head {
+  position: sticky; top: 0; background: var(--ash-surface); z-index: 2;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  padding: 18px 20px; border-bottom: 1px solid var(--ash-border);
+}
+.ash-detail-title { font: 700 17px/1.3 'Plus Jakarta Sans', sans-serif; color: var(--ash-text); }
+.ash-detail-sub { font: 500 12.5px/1.4 'Inter', sans-serif; color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-detail-close {
+  flex: none; width: 32px; height: 32px; border-radius: 999px; border: none; cursor: pointer;
+  background: var(--ash-surface-sunken); color: var(--ash-text);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ash-detail-body { padding: 18px 20px 28px; display: flex; flex-direction: column; gap: 22px; }
+.ash-detail-section-title {
+  font: 700 11px/1.3 'IBM Plex Sans', sans-serif; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ash-text-secondary); margin-bottom: 10px;
+}
+.ash-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ash-detail-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px;
+  font: 700 12px/1 'IBM Plex Sans', sans-serif; letter-spacing: .02em; border: 1px solid var(--ash-border);
+  background: var(--ash-surface); color: var(--ash-text); cursor: pointer;
+}
+.ash-detail-btn:hover { background: var(--ash-surface-sunken); }
+.ash-detail-btn-primary { background: var(--ash-accent); color: var(--ash-on-accent); border-color: var(--ash-accent); }
+.ash-detail-btn-primary:hover { background: #D4AF60; }
+.ash-detail-btn-danger { background: var(--ash-error); color: #fff; border-color: var(--ash-error); }
+.ash-detail-btn-danger:hover { filter: brightness(1.08); }
+.ash-detail-kv { display: grid; grid-template-columns: minmax(120px, 30%) 1fr; gap: 8px 14px; }
+.ash-detail-kv dt { color: var(--ash-text-secondary); font: 500 12.5px/1.5 'Inter', sans-serif; }
+.ash-detail-kv dd { color: var(--ash-text); font: 500 13px/1.5 'Inter', sans-serif; }
+.ash-detail-note {
+  padding: 10px 12px; border-radius: 10px; background: var(--ash-surface-sunken); display: flex; flex-direction: column; gap: 4px;
+}
+.ash-detail-note-meta { font: 600 11.5px/1.3 'IBM Plex Sans', sans-serif; color: var(--ash-text-secondary); }
+.ash-detail-note-text { font: 500 13px/1.5 'Inter', sans-serif; color: var(--ash-text); white-space: pre-wrap; }
+.ash-detail-textarea {
+  width: 100%; min-height: 76px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--ash-border);
+  background: var(--ash-surface); color: var(--ash-text); font: 500 13px/1.5 'Inter', sans-serif; resize: vertical;
+}
+.ash-detail-related-link {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px;
+  border-radius: 10px; border: 1px solid var(--ash-border); font: 500 12.5px/1.4 'Inter', sans-serif; color: var(--ash-text);
+}
+.ash-detail-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 10px; }
+.ash-detail-stat {
+  padding: 12px; border-radius: 12px; background: var(--ash-surface-sunken); text-align: center;
+}
+.ash-detail-stat-value { font: 700 20px/1.2 'Plus Jakarta Sans', sans-serif; color: var(--ash-text); font-variant-numeric: tabular-nums; }
+.ash-detail-stat-label { font: 600 10.5px/1.3 'IBM Plex Sans', sans-serif; letter-spacing: .04em; text-transform: uppercase; color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-detail-timeline { display: flex; flex-direction: column; gap: 10px; }
+.ash-detail-timeline-item { display: flex; gap: 10px; font: 500 12.5px/1.5 'Inter', sans-serif; }
+.ash-detail-timeline-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--ash-accent); margin-top: 5px; }
+.ash-detail-timeline-time { color: var(--ash-text-secondary); font-size: 11.5px; }
+
 @media (prefers-reduced-motion: reduce) {
   body.admin-shell #adminContent,
   body.admin-shell #adminSidebarMount,
-  .ash-collapse-btn .material-symbols-outlined { transition: none !important; }
+  .ash-collapse-btn .material-symbols-outlined,
+  .ash-toast,
+  .ash-entity-skel { transition: none !important; animation: none !important; }
 }

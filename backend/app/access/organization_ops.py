@@ -30,6 +30,8 @@ from firebase_admin import firestore as fb_firestore
 
 from app.access.audit import AuditEntry, write_audit, write_denied_audit
 from app.access.constants import (
+    ENTITY_STATUS_REASON_REQUIRED,
+    ENTITY_STATUSES,
     INVITATION_EXPIRY_DAYS,
     MEMBER_ROLE_EMPLOYEE,
     MEMBER_STATUS_ACTIVE,
@@ -168,6 +170,170 @@ class OrganizationOps:
             return org_ref.id
 
         return await asyncio.to_thread(_write)
+
+    # ---- admin moderation: status / verification (Admin Panel Phase 2) -
+    # Both methods are ADMIN-ONLY -- no owner branch at all, structurally
+    # (caller_is_admin is required, not merely preferred) -- so an
+    # organization can never approve, verify, or reactivate itself. This
+    # is the trusted, audited path the new admin.html Organizations tab
+    # calls; the firestore.rules `allow update: if isAdmin()` branch on
+    # this collection is technically unrestricted enough to permit an
+    # admin's direct client write to these same fields, but routing
+    # through here is what makes the audit-log entry and the
+    # reason-required-on-reject/suspend validation real rather than a
+    # UI-only convention (an admin's own browser console could otherwise
+    # skip both).
+    async def set_status(
+        self, *, org_id: str, new_status: str, reason: str | None, caller_uid: str, caller_is_admin: bool
+    ) -> None:
+        if new_status not in ENTITY_STATUSES:
+            raise ValidationError(f"'{new_status}' is not a valid status (allowed: {sorted(ENTITY_STATUSES)})")
+        clean_reason = _clean_text(reason, field="reason", max_length=_MAX_TEXT_FIELD_LENGTH)
+        if new_status in ENTITY_STATUS_REASON_REQUIRED and not clean_reason:
+            raise ValidationError(f"'reason' is required when setting status to '{new_status}'")
+        org_ref = self._db.collection("organizations").document(org_id)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                if not caller_is_admin:
+                    raise ForbiddenError("only an admin may change an organization's status")
+                org_snap = org_ref.get(transaction=txn)
+                if not org_snap.exists:
+                    raise NotFoundError(f"organization '{org_id}' does not exist")
+                previous_status = org_snap.get("status") or ("active" if org_snap.get("verified") else "pending")
+                update = {
+                    "status": new_status,
+                    "statusUpdatedAt": fb_firestore.SERVER_TIMESTAMP,
+                    "statusUpdatedBy": caller_uid,
+                }
+                # rejectionReason is cleared on any status that isn't
+                # reject/suspend so a stale reason never lingers and
+                # displays against a since-reactivated/approved entity.
+                update["rejectionReason"] = clean_reason if new_status in ENTITY_STATUS_REASON_REQUIRED else None
+                txn.update(org_ref, update)
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="admin",
+                        action="organization_status_changed",
+                        target_type="organization",
+                        target_id=org_id,
+                        target_organization_id=org_id,
+                        previous_value=previous_status,
+                        new_value=new_status,
+                        changed_fields=["status"],
+                    ),
+                )
+
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="organization_status_change_denied",
+                    target_type="organization",
+                    target_id=org_id,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_admin",
+                )
+                raise exc
+
+        await asyncio.to_thread(_op)
+
+    async def set_verified(self, *, org_id: str, verified: bool, caller_uid: str, caller_is_admin: bool) -> None:
+        org_ref = self._db.collection("organizations").document(org_id)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                if not caller_is_admin:
+                    raise ForbiddenError("only an admin may verify an organization")
+                org_snap = org_ref.get(transaction=txn)
+                if not org_snap.exists:
+                    raise NotFoundError(f"organization '{org_id}' does not exist")
+                previous_verified = bool(org_snap.get("verified"))
+                txn.update(org_ref, {"verified": verified, "updatedAt": fb_firestore.SERVER_TIMESTAMP})
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="admin",
+                        action="organization_verified",
+                        target_type="organization",
+                        target_id=org_id,
+                        target_organization_id=org_id,
+                        previous_value=previous_verified,
+                        new_value=verified,
+                        changed_fields=["verified"],
+                    ),
+                )
+
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="organization_verification_denied",
+                    target_type="organization",
+                    target_id=org_id,
+                    target_organization_id=org_id,
+                    reason_code="forbidden_not_admin",
+                )
+                raise exc
+
+        await asyncio.to_thread(_op)
+
+    # ---- admin notes: private, staff-only, never owner-visible --------
+    #
+    # organizations/{orgId}/adminNotes is `allow write: if false` in
+    # firestore.rules (same "never client-writable, including isAdmin()"
+    # posture as /members) -- this is the one trusted path in. `note_text`
+    # is the caller's Firebase displayName, purely a display label sent by
+    # the client; it is NEVER the authorization signal (that's
+    # caller_is_admin, checked below) and never trusted for anything but
+    # what a future reader of the note sees next to it -- falls back to
+    # the verified caller_uid itself if empty/invalid so the note is never
+    # unattributed.
+    async def add_note(
+        self, *, org_id: str, text: str, caller_uid: str, author_name: str | None, caller_is_admin: bool
+    ) -> str:
+        if not caller_is_admin:
+            self._log_denied(
+                actor_uid=caller_uid,
+                action="organization_note_denied",
+                target_type="organization",
+                target_id=org_id,
+                target_organization_id=org_id,
+                reason_code="forbidden_not_admin",
+            )
+            raise ForbiddenError("only an admin may add a note to an organization")
+        clean_text = _clean_text(text, field="text", max_length=_MAX_TEXT_FIELD_LENGTH, required=True)
+        clean_author = _clean_text(author_name, field="authorName", max_length=200) or caller_uid
+        org_ref = self._db.collection("organizations").document(org_id)
+
+        def _op() -> str:
+            if not org_ref.get().exists:
+                raise NotFoundError(f"organization '{org_id}' does not exist")
+            note_ref = org_ref.collection("adminNotes").document()
+            note_ref.set(
+                {
+                    "authorUid": caller_uid,
+                    "authorName": clean_author,
+                    "text": clean_text,
+                    "createdAt": fb_firestore.SERVER_TIMESTAMP,
+                }
+            )
+            return note_ref.id
+
+        return await asyncio.to_thread(_op)
 
     # ---- membership: request / invite / approve / reject / remove -----
 

@@ -962,3 +962,141 @@ async def test_set_active_org_race_with_concurrent_member_removal(db, ops):
         # gone either way, proven above).
         user = db.collection("users").document(employee).get()
         assert user.get("activeOrganizationId") == org_id
+
+
+# ---- Admin Panel Phase 2: set_status / set_verified ----------------------
+
+
+async def test_set_status_requires_admin(db, ops):
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    with pytest.raises(ForbiddenError):
+        await ops.set_status(
+            org_id=org_id, new_status="active", reason=None, caller_uid=owner, caller_is_admin=False
+        )
+    # An organization's own owner cannot approve/verify themselves --
+    # confirmed above (ForbiddenError even for the real owner), not just
+    # for an unrelated caller.
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("status") is None  # untouched
+
+
+async def test_set_status_admin_approve_writes_status_and_audit(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    await ops.set_status(org_id=org_id, new_status="active", reason=None, caller_uid=admin, caller_is_admin=True)
+
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("status") == "active"
+    assert org.get("statusUpdatedBy") == admin
+    assert org.get("rejectionReason") is None
+
+    entries = _audit_entries(db, target_organization_id=org_id)
+    assert any(
+        e["action"] == "organization_status_changed" and e["adminUid"] == admin and e["newValue"] == "active"
+        for e in entries
+    )
+
+
+async def test_set_status_reject_requires_reason(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    with pytest.raises(ValidationError):
+        await ops.set_status(
+            org_id=org_id, new_status="rejected", reason=None, caller_uid=admin, caller_is_admin=True
+        )
+    with pytest.raises(ValidationError):
+        await ops.set_status(
+            org_id=org_id, new_status="rejected", reason="   ", caller_uid=admin, caller_is_admin=True
+        )
+
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("status") is None  # rejected both attempts, nothing written
+
+
+async def test_set_status_reject_with_reason_records_it(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    await ops.set_status(
+        org_id=org_id,
+        new_status="rejected",
+        reason="Business license could not be verified.",
+        caller_uid=admin,
+        caller_is_admin=True,
+    )
+
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("status") == "rejected"
+    assert org.get("rejectionReason") == "Business license could not be verified."
+
+
+async def test_set_status_clears_reason_on_reactivation(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    await ops.set_status(org_id=org_id, new_status="suspended", reason="Reported abuse.", caller_uid=admin, caller_is_admin=True)
+
+    await ops.set_status(org_id=org_id, new_status="active", reason=None, caller_uid=admin, caller_is_admin=True)
+
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("status") == "active"
+    assert org.get("rejectionReason") is None  # a stale reason never lingers past reactivation
+
+
+async def test_set_status_rejects_unknown_status(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+    with pytest.raises(ValidationError):
+        await ops.set_status(
+            org_id=org_id, new_status="banned", reason=None, caller_uid=admin, caller_is_admin=True
+        )
+
+
+async def test_set_status_missing_organization_raises_not_found(ops):
+    with pytest.raises(NotFoundError):
+        await ops.set_status(
+            org_id=_uid("missing"), new_status="active", reason=None, caller_uid=_uid("admin"), caller_is_admin=True
+        )
+
+
+async def test_set_verified_requires_admin_and_blocks_self_verification(db, ops):
+    owner = _uid("owner")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    with pytest.raises(ForbiddenError):
+        await ops.set_verified(org_id=org_id, verified=True, caller_uid=owner, caller_is_admin=False)
+
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("verified") is False
+
+
+async def test_set_verified_admin_writes_flag_and_audit(db, ops):
+    owner = _uid("owner")
+    admin = _uid("admin")
+    org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
+
+    await ops.set_verified(org_id=org_id, verified=True, caller_uid=admin, caller_is_admin=True)
+
+    org = db.collection("organizations").document(org_id).get()
+    assert org.get("verified") is True
+
+    entries = _audit_entries(db, target_organization_id=org_id)
+    assert any(
+        e["action"] == "organization_verified" and e["adminUid"] == admin and e["newValue"] is True
+        for e in entries
+    )
+
+
+async def test_create_organization_accepts_contractor_and_moving_company_types(ops):
+    # Admin Panel Phase 2: additive types filling the two organization
+    # categories that had no home in this collection before.
+    contractor_id = await ops.create_organization(caller_uid=_uid("owner"), org_type="contractor", name="Builders Co")
+    mover_id = await ops.create_organization(caller_uid=_uid("owner"), org_type="moving_company", name="Movers Co")
+    assert contractor_id and mover_id

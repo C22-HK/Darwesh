@@ -227,6 +227,39 @@ service firebase.storage {
       allow delete: if request.auth != null && (isAdmin() || ownsProvider());
     }
 
+    // verification-docs/{collection}/{entityId}/{fileName} -- Admin Panel
+    // Phase 2's private verification documents (business license, ID,
+    // certification, etc.) for organizations, companies and service
+    // providers under moderation. Deliberately admin-READ-ONLY -- unlike
+    // every other path in this file, this one is NEVER `allow read: if
+    // true` and never customer-visible: these are the documents an admin
+    // uses to decide whether to approve/verify/reject an entity, not
+    // public storefront content (same "authenticated getBytes()/getBlob(),
+    // never a plain <img> src" consumption pattern as sell-verification/
+    // above). {collection} is constrained to the three entity collections
+    // that carry the new status/verified lifecycle (see firestore.rules'
+    // adminNotes comment on those same three collections) so this path
+    // can't be repurposed as a generic admin-only dumping ground for an
+    // unrelated collection. Ownership check cross-references the same
+    // `ownerId` field name all three collections already share (same
+    // firestore.get() pattern as company-logos/professional-media above).
+    match /verification-docs/{collection}/{entityId}/{fileName} {
+      function isVerificationDocCollection() {
+        return collection in ['organizations', 'companies', 'serviceProviders'];
+      }
+      function ownsVerificationDocEntity() {
+        return firestore.get(/databases/(default)/documents/$(collection)/$(entityId)).data.get('ownerId', null) == request.auth.uid;
+      }
+      allow read: if isAdmin();
+      allow write: if request.auth != null
+                     && isVerificationDocCollection()
+                     && fileName.matches('^[A-Za-z0-9._-]{1,120}$')
+                     && request.resource.size < 10 * 1024 * 1024
+                     && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+                     && (isAdmin() || ownsVerificationDocEntity());
+      allow delete: if false;
+    }
+
     // ---- Real-estate Projects/Buildings/Units/Floor Plans (Phase 1:
     // rules + schema only, no upload UI yet -- see firestore.rules'
     // matching section for the full architecture). Four fully separate,

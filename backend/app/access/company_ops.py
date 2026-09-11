@@ -42,6 +42,8 @@ from firebase_admin import firestore as fb_firestore
 
 from app.access.audit import AuditEntry, write_audit, write_denied_audit
 from app.access.constants import (
+    ENTITY_STATUS_REASON_REQUIRED,
+    ENTITY_STATUSES,
     INVITATION_EXPIRY_DAYS,
     MEMBER_STATUS_ACTIVE,
     MEMBER_STATUS_INVITED,
@@ -194,6 +196,157 @@ class CompanyOps:
             return company_ref.id
 
         return await asyncio.to_thread(_write)
+
+    # ---- admin moderation: status / verification (Admin Panel Phase 2) -
+    # Mirrors OrganizationOps.set_status/set_verified exactly (see that
+    # module's comment for the full rationale) -- admin-only, no owner
+    # branch, audited in the same transaction as the mutation.
+    # target_type stays "organization" for consistency with
+    # create_company's own audit entry above (this taxonomy has never had
+    # a separate "company" value; a company's audit trail already lives
+    # under target_type="organization" + target_organization_id=company_id).
+    async def set_status(
+        self, *, company_id: str, new_status: str, reason: str | None, caller_uid: str, caller_is_admin: bool
+    ) -> None:
+        if new_status not in ENTITY_STATUSES:
+            raise ValidationError(f"'{new_status}' is not a valid status (allowed: {sorted(ENTITY_STATUSES)})")
+        clean_reason = _clean_text(reason, field="reason", max_length=_MAX_TEXT_FIELD_LENGTH)
+        if new_status in ENTITY_STATUS_REASON_REQUIRED and not clean_reason:
+            raise ValidationError(f"'reason' is required when setting status to '{new_status}'")
+        company_ref = self._db.collection("companies").document(company_id)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                if not caller_is_admin:
+                    raise ForbiddenError("only an admin may change a company's status")
+                company_snap = company_ref.get(transaction=txn)
+                if not company_snap.exists:
+                    raise NotFoundError(f"company '{company_id}' does not exist")
+                data = company_snap.to_dict() or {}
+                previous_status = data.get("status") or ("active" if data.get("verified") else "pending")
+                update = {
+                    "status": new_status,
+                    "statusUpdatedAt": fb_firestore.SERVER_TIMESTAMP,
+                    "statusUpdatedBy": caller_uid,
+                    "rejectionReason": clean_reason if new_status in ENTITY_STATUS_REASON_REQUIRED else None,
+                }
+                txn.update(company_ref, update)
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="admin",
+                        action="company_status_changed",
+                        target_type="organization",
+                        target_id=company_id,
+                        target_organization_id=company_id,
+                        previous_value=previous_status,
+                        new_value=new_status,
+                        changed_fields=["status"],
+                    ),
+                )
+
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="company_status_change_denied",
+                    target_id=company_id,
+                    target_company_id=company_id,
+                    reason_code="forbidden_not_admin",
+                )
+                raise exc
+
+        await asyncio.to_thread(_op)
+
+    async def set_verified(self, *, company_id: str, verified: bool, caller_uid: str, caller_is_admin: bool) -> None:
+        company_ref = self._db.collection("companies").document(company_id)
+
+        def _op() -> None:
+            transaction = self._db.transaction()
+
+            @fb_firestore.transactional
+            def _txn(txn) -> None:
+                if not caller_is_admin:
+                    raise ForbiddenError("only an admin may verify a company")
+                company_snap = company_ref.get(transaction=txn)
+                if not company_snap.exists:
+                    raise NotFoundError(f"company '{company_id}' does not exist")
+                previous_verified = bool((company_snap.to_dict() or {}).get("verified"))
+                txn.update(company_ref, {"verified": verified, "updatedAt": fb_firestore.SERVER_TIMESTAMP})
+                write_audit(
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=caller_uid,
+                        actor_role="admin",
+                        action="company_verified",
+                        target_type="organization",
+                        target_id=company_id,
+                        target_organization_id=company_id,
+                        previous_value=previous_verified,
+                        new_value=verified,
+                        changed_fields=["verified"],
+                    ),
+                )
+
+            try:
+                _txn(transaction)
+            except ForbiddenError as exc:
+                self._log_denied(
+                    actor_uid=caller_uid,
+                    action="company_verification_denied",
+                    target_id=company_id,
+                    target_company_id=company_id,
+                    reason_code="forbidden_not_admin",
+                )
+                raise exc
+
+        await asyncio.to_thread(_op)
+
+    # ---- admin notes: private, staff-only, never owner-visible ----------
+    #
+    # companies/{companyId}/adminNotes is `allow write: if false` in
+    # firestore.rules, mirroring organizations' own adminNotes -- this is
+    # the one trusted path in. `author_name` is a display label the client
+    # sends (the caller's Firebase displayName), never the authorization
+    # signal (caller_is_admin is), and falls back to caller_uid if empty.
+    async def add_note(
+        self, *, company_id: str, text: str, caller_uid: str, author_name: str | None, caller_is_admin: bool
+    ) -> str:
+        if not caller_is_admin:
+            self._log_denied(
+                actor_uid=caller_uid,
+                action="company_note_denied",
+                target_id=company_id,
+                target_company_id=company_id,
+                reason_code="forbidden_not_admin",
+            )
+            raise ForbiddenError("only an admin may add a note to a company")
+        clean_text = _clean_text(text, field="text", max_length=_MAX_TEXT_FIELD_LENGTH, required=True)
+        clean_author = _clean_text(author_name, field="authorName", max_length=200) or caller_uid
+        company_ref = self._db.collection("companies").document(company_id)
+
+        def _op() -> str:
+            if not company_ref.get().exists:
+                raise NotFoundError(f"company '{company_id}' does not exist")
+            note_ref = company_ref.collection("adminNotes").document()
+            note_ref.set(
+                {
+                    "authorUid": caller_uid,
+                    "authorName": clean_author,
+                    "text": clean_text,
+                    "createdAt": fb_firestore.SERVER_TIMESTAMP,
+                }
+            )
+            return note_ref.id
+
+        return await asyncio.to_thread(_op)
 
     # ---- membership: request / invite / approve / reject / remove -------
 
