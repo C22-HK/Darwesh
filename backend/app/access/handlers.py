@@ -783,7 +783,9 @@ class PermissionAdminHandler:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("organization status change failed", extra={"error": str(exc)})
-            return JSONResponse({"error": "Could not update this organization's status right now."}, status_code=500)
+            return JSONResponse(
+                {"error": "Could not update this organization's status right now."}, status_code=500
+            )
         return JSONResponse({"status": new_status}, status_code=200)
 
     async def set_organization_verified(self, request: Request) -> JSONResponse:
@@ -806,7 +808,9 @@ class PermissionAdminHandler:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("organization verification change failed", extra={"error": str(exc)})
-            return JSONResponse({"error": "Could not update this organization's verification right now."}, status_code=500)
+            return JSONResponse(
+                {"error": "Could not update this organization's verification right now."}, status_code=500
+            )
         return JSONResponse({"verified": body["verified"]}, status_code=200)
 
     async def set_company_status(self, request: Request) -> JSONResponse:
@@ -853,13 +857,18 @@ class PermissionAdminHandler:
         company_id = request.path_params.get("company_id")
         try:
             await self.company_ops.set_verified(
-                company_id=company_id, verified=body["verified"], caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                company_id=company_id,
+                verified=body["verified"],
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("company verification change failed", extra={"error": str(exc)})
-            return JSONResponse({"error": "Could not update this company's verification right now."}, status_code=500)
+            return JSONResponse(
+                {"error": "Could not update this company's verification right now."}, status_code=500
+            )
         return JSONResponse({"verified": body["verified"]}, status_code=200)
 
     async def set_provider_status(self, request: Request) -> JSONResponse:
@@ -889,7 +898,9 @@ class PermissionAdminHandler:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("provider status change failed", extra={"error": str(exc)})
-            return JSONResponse({"error": "Could not update this professional's status right now."}, status_code=500)
+            return JSONResponse(
+                {"error": "Could not update this professional's status right now."}, status_code=500
+            )
         return JSONResponse({"status": new_status}, status_code=200)
 
     async def set_provider_verified(self, request: Request) -> JSONResponse:
@@ -911,13 +922,18 @@ class PermissionAdminHandler:
         provider_id = request.path_params.get("provider_id")
         try:
             await self.professional_ops.set_verified(
-                provider_id=provider_id, verified=body["verified"], caller_uid=caller.uid, caller_is_admin=caller.is_admin
+                provider_id=provider_id,
+                verified=body["verified"],
+                caller_uid=caller.uid,
+                caller_is_admin=caller.is_admin,
             )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
             self.logger.error("provider verification change failed", extra={"error": str(exc)})
-            return JSONResponse({"error": "Could not update this professional's verification right now."}, status_code=500)
+            return JSONResponse(
+                {"error": "Could not update this professional's verification right now."}, status_code=500
+            )
         return JSONResponse({"verified": body["verified"]}, status_code=200)
 
     # ---- admin notes: private, staff-only, never owner-visible --------

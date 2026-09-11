@@ -608,5 +608,9 @@ async def test_set_verified_admin_writes_flag_and_audit(db, ops):
 async def test_set_status_missing_company_raises_not_found(ops):
     with pytest.raises(NotFoundError):
         await ops.set_status(
-            company_id=_uid("missing"), new_status="active", reason=None, caller_uid=_uid("admin"), caller_is_admin=True
+            company_id=_uid("missing"),
+            new_status="active",
+            reason=None,
+            caller_uid=_uid("admin"),
+            caller_is_admin=True,
         )

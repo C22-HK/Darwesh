@@ -927,7 +927,8 @@ def test_admin_set_organization_verified_calls_ops():
     resp = client.post("/api/v1/access/admin/organizations/org-1/verify", json={"verified": True})
     assert resp.status_code == 200
     assert org_ops.calls[0] == (
-        "set_verified", {"org_id": "org-1", "verified": True, "caller_uid": ADMIN.uid, "caller_is_admin": True}
+        "set_verified",
+        {"org_id": "org-1", "verified": True, "caller_uid": ADMIN.uid, "caller_is_admin": True},
     )
 
 
@@ -1004,7 +1005,8 @@ def test_admin_set_provider_verified_calls_ops():
     resp = client.post("/api/v1/access/admin/providers/provider-1/verify", json={"verified": True})
     assert resp.status_code == 200
     assert pro_ops.calls[0] == (
-        "set_verified", {"provider_id": "provider-1", "verified": True, "caller_uid": ADMIN.uid, "caller_is_admin": True}
+        "set_verified",
+        {"provider_id": "provider-1", "verified": True, "caller_uid": ADMIN.uid, "caller_is_admin": True},
     )
 
 

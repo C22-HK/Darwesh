@@ -175,7 +175,9 @@ async def test_set_verified_admin_writes_flag_and_audit(db, ops):
     assert provider.get("verified") is True
 
     entries = _audit_entries(db, target_id=provider_id)
-    assert any(e["action"] == "provider_verified" and e["adminUid"] == admin and e["newValue"] is True for e in entries)
+    assert any(
+        e["action"] == "provider_verified" and e["adminUid"] == admin and e["newValue"] is True for e in entries
+    )
 
 
 async def test_set_verified_missing_provider_raises_not_found(ops):

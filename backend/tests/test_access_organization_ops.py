@@ -1040,7 +1040,9 @@ async def test_set_status_clears_reason_on_reactivation(db, ops):
     owner = _uid("owner")
     admin = _uid("admin")
     org_id = await ops.create_organization(caller_uid=owner, org_type="furniture_store", name="Store")
-    await ops.set_status(org_id=org_id, new_status="suspended", reason="Reported abuse.", caller_uid=admin, caller_is_admin=True)
+    await ops.set_status(
+        org_id=org_id, new_status="suspended", reason="Reported abuse.", caller_uid=admin, caller_is_admin=True
+    )
 
     await ops.set_status(org_id=org_id, new_status="active", reason=None, caller_uid=admin, caller_is_admin=True)
 
@@ -1062,7 +1064,11 @@ async def test_set_status_rejects_unknown_status(db, ops):
 async def test_set_status_missing_organization_raises_not_found(ops):
     with pytest.raises(NotFoundError):
         await ops.set_status(
-            org_id=_uid("missing"), new_status="active", reason=None, caller_uid=_uid("admin"), caller_is_admin=True
+            org_id=_uid("missing"),
+            new_status="active",
+            reason=None,
+            caller_uid=_uid("admin"),
+            caller_is_admin=True,
         )
 
 
@@ -1097,6 +1103,8 @@ async def test_set_verified_admin_writes_flag_and_audit(db, ops):
 async def test_create_organization_accepts_contractor_and_moving_company_types(ops):
     # Admin Panel Phase 2: additive types filling the two organization
     # categories that had no home in this collection before.
-    contractor_id = await ops.create_organization(caller_uid=_uid("owner"), org_type="contractor", name="Builders Co")
+    contractor_id = await ops.create_organization(
+        caller_uid=_uid("owner"), org_type="contractor", name="Builders Co"
+    )
     mover_id = await ops.create_organization(caller_uid=_uid("owner"), org_type="moving_company", name="Movers Co")
     assert contractor_id and mover_id

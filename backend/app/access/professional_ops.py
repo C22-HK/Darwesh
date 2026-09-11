@@ -118,7 +118,9 @@ class ProfessionalOps:
 
         await asyncio.to_thread(_op)
 
-    async def set_verified(self, *, provider_id: str, verified: bool, caller_uid: str, caller_is_admin: bool) -> None:
+    async def set_verified(
+        self, *, provider_id: str, verified: bool, caller_uid: str, caller_is_admin: bool
+    ) -> None:
         """No self-verification path exists anywhere in this method --
         `caller_is_admin` is required, not merely preferred, satisfying
         'professionals must not approve/verify themselves' structurally."""

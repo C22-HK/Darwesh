@@ -264,7 +264,9 @@ class CompanyOps:
 
         await asyncio.to_thread(_op)
 
-    async def set_verified(self, *, company_id: str, verified: bool, caller_uid: str, caller_is_admin: bool) -> None:
+    async def set_verified(
+        self, *, company_id: str, verified: bool, caller_uid: str, caller_is_admin: bool
+    ) -> None:
         company_ref = self._db.collection("companies").document(company_id)
 
         def _op() -> None:
