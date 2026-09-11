@@ -202,7 +202,11 @@ document.getElementById('notifyOfficeBtn').addEventListener('click', () => {
   const log = loadScanLog();
   const last = log[log.length - 1];
   if (!last) return;
-  const message = `Darwesh Group discount check-in: Agent ${last.name} (${last.id}) verified a customer for the DARWESH10 offer at ${last.time}.`;
+  // Read the code out of the DOM rather than repeating the literal: when a
+  // live offer is published the reveal box below is rewritten from it, and
+  // the office notification has to name the code the customer was shown.
+  const code = document.getElementById('couponCode').textContent.trim();
+  const message = `Darwesh Group discount check-in: Agent ${last.name} (${last.id}) verified a customer for the ${code} offer at ${last.time}.`;
   const url = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank');
 });
@@ -224,6 +228,64 @@ document.getElementById('copyBtn').addEventListener('click', async () => {
 
 renderScanLog();
 </script>
+
+<!-- One source of truth for the percentage (Offers & Discounts, brief §3).
+     This page's agent check-in gate, its reveal flow and its device log are
+     untouched -- only the numbers it shows are bound to whatever offer an
+     admin currently has published, so a change from 10% to 15% in Admin
+     cannot leave this page contradicting the rest of the site. With no
+     live offer the page keeps exactly the static copy it has always had. -->
+<script type="module">
+  import { fillTemplate } from './js/offers.js';
+
+  function tpl(key, fallback, percent) {
+    const s = (window.t && window.t(key)) || fallback;
+    return fillTemplate(s, percent);
+  }
+
+  function applyOffer(offer) {
+    if (!offer) return;
+    const percent = offer.discountPercent;
+    const h1 = document.querySelector('[data-i18n="promo.unlocked"]');
+    const sub = document.querySelector('[data-i18n="promo.subtitle"]');
+    const term1 = document.querySelector('[data-i18n="promo.term1"]');
+    if (h1) h1.textContent = tpl('promo.unlockedTpl', "You've Unlocked {percent}% Off", percent);
+    if (sub) {
+      sub.textContent = tpl('promo.subtitleTpl',
+        'Verified in person by a Darwesh Group agent, worth {percent}% off brokerage fees on your next Buy or Sell.',
+        percent);
+    }
+    if (term1) {
+      term1.textContent = tpl('promo.term1Tpl',
+        '{percent}% off Darwesh Group brokerage fees on Buy or Sell transactions', percent);
+    }
+    if (offer.promoCode) {
+      document.getElementById('couponCode').textContent = offer.promoCode;
+    }
+  }
+
+  let current = null;
+  try {
+    const [{ db }, store, offers] = await Promise.all([
+      import('./js/firebase-init.js'),
+      import('https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js'),
+      import('./js/offers.js'),
+    ]);
+    const { collection, query, where, limit, onSnapshot } = store;
+    offers.watchPublicOffer({ collection, query, where, limit, onSnapshot }, db, (offer) => {
+      current = offer;
+      applyOffer(offer);
+    }, { type: 'brokerage_fee' });
+  } catch (_) {
+    // Offline or Firestore unavailable: the static copy above already
+    // reads correctly, so there is nothing to repair here.
+  }
+
+  // i18n re-renders from data-i18n on a language switch, which would put
+  // the static text back. Re-apply the live numbers after it.
+  document.addEventListener('darwesh:langchange', () => applyOffer(current));
+</script>
+
 <script type="module" src="./js/nav-auth.js"></script>
 <script type="module" src="./js/notification-bell.js"></script>
 <script src="./js/i18n.js"></script>

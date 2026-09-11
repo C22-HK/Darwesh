@@ -2292,6 +2292,90 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ---- Offers & Discounts (admin-managed public promotions) ----
+    // One document per promotional offer (first type: brokerage fee
+    // discount). Admin edits these in the Admin Panel; the public site
+    // renders whichever one is live.
+    //
+    // READ BOUNDARY. The public may read ONLY offers whose stored status
+    // is 'active'. A draft or paused offer is not merely hidden by the
+    // UI -- it is unreadable, including via a direct REST call, so
+    // unannounced campaign copy and percentages stay private until
+    // Publish. Because the condition is on resource.data.status, a
+    // client LIST query must itself carry where('status','==','active')
+    // for Firestore to allow it, which is exactly what
+    // js/offers.js#watchPublicOffer issues.
+    //
+    // "Scheduled" and "Expired" are deliberately NOT stored states (see
+    // js/offers.js): they are derived from startAt/endAt at render time.
+    // A consequence worth stating plainly: an offer that has passed its
+    // endAt still has status 'active' and so remains publicly READABLE,
+    // though every surface stops DISPLAYING it. That is acceptable --
+    // the copy was already public while it ran, and nothing private
+    // lives on this document. The internal admin note is the one field
+    // that must never be public, which is why it is not a field here at
+    // all but a separate admin-only subcollection below.
+    function offerPercentValid(p) {
+      return p is int && p >= 0 && p <= 100;
+    }
+    function offerCommonValid(d) {
+      return d.keys().hasOnly([
+               'type', 'title', 'description', 'discountPercent', 'status',
+               'startAt', 'endAt', 'ctaLabel', 'ctaUrl', 'qrUrl',
+               'promoCode', 'terms', 'createdAt', 'updatedAt',
+               'createdBy', 'updatedBy'
+             ])
+             && d.type in ['brokerage_fee']
+             && d.status in ['draft', 'active', 'paused', 'archived']
+             && offerPercentValid(d.discountPercent)
+             && d.title is string && d.title.size() > 0 && d.title.size() <= 160
+             && d.description is string && d.description.size() <= 480
+             && d.ctaLabel is string && d.ctaLabel.size() <= 60
+             && d.ctaUrl is string && d.ctaUrl.size() <= 500
+             && d.qrUrl is string && d.qrUrl.size() <= 500
+             && d.promoCode is string && d.promoCode.size() <= 40
+             && d.terms is string && d.terms.size() <= 2000
+             && (d.startAt == null || d.startAt is timestamp)
+             && (d.endAt == null || d.endAt is timestamp)
+             // A window that ends before it begins would make the
+             // derived state nonsense, so it is refused at the source.
+             && (d.startAt == null || d.endAt == null || d.startAt < d.endAt);
+    }
+    match /offers/{offerId} {
+      allow read: if resource.data.status == 'active' || isAdmin();
+      // createdBy/updatedBy are taken from the verified token, never
+      // from whatever the client typed -- "do not trust client-supplied
+      // admin identity fields". Same for the timestamps: they must be
+      // the server's request.time, so an admin cannot backdate or
+      // forward-date an audit trail.
+      allow create: if isAdmin()
+                    && offerCommonValid(request.resource.data)
+                    && request.resource.data.createdBy == request.auth.uid
+                    && request.resource.data.updatedBy == request.auth.uid
+                    && request.resource.data.createdAt == request.time
+                    && request.resource.data.updatedAt == request.time;
+      allow update: if isAdmin()
+                    && offerCommonValid(request.resource.data)
+                    // Authorship is immutable once set; only the
+                    // "who touched it last" pointer moves.
+                    && request.resource.data.createdBy == resource.data.createdBy
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && request.resource.data.updatedBy == request.auth.uid
+                    && request.resource.data.updatedAt == request.time;
+      // Archive (a status change) is the normal retire path and keeps
+      // the audit trail; hard delete stays available to admins for
+      // genuine mistakes.
+      allow delete: if isAdmin();
+
+      // Internal admin note. Lives here rather than on the offer
+      // document precisely because that document is publicly readable
+      // whenever the offer is active -- an "internal" field on a public
+      // document would not be internal at all.
+      match /private/{docId} {
+        allow read, write: if isAdmin();
+      }
+    }
+
     // ---- Home goods / furniture catalog ----
     // Explicitly NOT an order/payment system this phase (plan §2.4) --
     // publish/browse/manage only.

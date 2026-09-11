@@ -54,6 +54,9 @@
     { key: 'requests', labelKey: 'admin.nav.groupRequests', labelText: 'Requests', items: [
       { tab: 'services', icon: 'support_agent', labelKey: 'admin.nav.serviceRequests', labelText: 'Service Requests' }
     ] },
+    { key: 'marketing', labelKey: 'admin.nav.groupMarketing', labelText: 'Marketing', items: [
+      { tab: 'offers', icon: 'sell', labelKey: 'admin.nav.offers', labelText: 'Offers & Discounts' }
+    ] },
     { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance & Reports', items: [
       { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true },
       { tab: 'reports', icon: 'monitoring', labelKey: 'admin.nav.reports', labelText: 'Reports', soon: true }
@@ -120,10 +123,27 @@
           '<span class="ash-nav-label" data-i18n="admin.shell.collapseSidebar">Collapse</span>' +
         '</button>' +
       '</div>' +
-    '</nav>' +
-    '<div class="ash-drawer-scrim" id="ashDrawerScrim"></div>';
+    '</nav>';
 
   var adminContent = document.getElementById('adminContent');
+
+  // The mobile drawer scrim is a sibling of the sidebar mount, NOT a child
+  // of it. #adminSidebarMount is position:fixed with a transform at phone
+  // width, and a transformed element becomes the containing block *and* a
+  // stacking context for its fixed descendants -- so a scrim inside it
+  // resolved `inset: 0` to the sidebar rather than the viewport and, at
+  // z-index 75 against the nav's auto, painted straight over every nav
+  // item. Measured at 390px: the scrim was 300x844 sitting exactly on the
+  // drawer, elementFromPoint() at a nav item returned the scrim, and no
+  // section could be opened on a phone at all. Mounted here it is a real
+  // full-viewport overlay that dims the page and sits behind the drawer.
+  var scrimEl = document.getElementById('ashDrawerScrim');
+  if (!scrimEl) {
+    scrimEl = document.createElement('div');
+    scrimEl.className = 'ash-drawer-scrim';
+    scrimEl.id = 'ashDrawerScrim';
+    adminContent.appendChild(scrimEl);
+  }
 
   // ---- Collapse (desktop) --------------------------------------------
   var COLLAPSE_KEY = 'darwesh_admin_sidebar_collapsed';
@@ -138,7 +158,7 @@
   });
 
   // ---- Mobile drawer ---------------------------------------------------
-  var scrim = document.getElementById('ashDrawerScrim');
+  var scrim = scrimEl;
   function openDrawer() { adminContent.classList.add('ash-drawer-open'); }
   function closeDrawer() { adminContent.classList.remove('ash-drawer-open'); }
   scrim.addEventListener('click', closeDrawer);

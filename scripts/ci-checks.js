@@ -576,6 +576,62 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
   if (hunted === 0) ok('bug-hunt regressions guarded: admin gate .hidden specificity, Active Listings KPI filters by status, map modes keep separate filter state');
 }
 
+// --- 11. Regressions found while building Offers & Discounts ------------
+// Two more defects that were well-formed source and only failed in a real
+// browser.
+{
+  let offersBugs = 0;
+
+  // (a) js/escape-html.js is a CLASSIC script that defines a global. An ES
+  // module that `import`s a named binding from it throws at load time and
+  // takes the whole module graph with it -- which is how the offer banner
+  // silently failed to render at all. Nothing under js/ may import it.
+  const moduleFiles = fs.readdirSync(path.join(ROOT, 'js'))
+    .filter((f) => f.endsWith('.js'));
+  moduleFiles.forEach((f) => {
+    const src = fs.readFileSync(path.join(ROOT, 'js', f), 'utf8');
+    if (/^\s*import\s[\s\S]*?from\s+['"][^'"]*escape-html\.js['"]/m.test(src)) {
+      fail(`js/${f}: imports from js/escape-html.js, which is a classic script with no ES exports -- the import throws at load and kills the whole module`);
+      offersBugs++;
+    }
+  });
+
+  // (b) The admin mobile drawer scrim must NOT live inside
+  // #adminSidebarMount. That element is position:fixed with a transform at
+  // phone width, so it becomes both the containing block and a stacking
+  // context for a fixed child: the scrim resolved `inset: 0` to the
+  // sidebar instead of the viewport and, at z-index 75 against the nav's
+  // auto, painted over every nav item. Measured at 390px: the scrim was
+  // 300x844 sitting exactly on the drawer and no section could be opened.
+  const shellJs = fs.readFileSync(path.join(ROOT, 'js/admin-shell.js'), 'utf8');
+  // Bounded to the innerHTML assignment statement itself -- the scrim is
+  // legitimately named later, where it is created and appended to
+  // #adminContent instead.
+  const mountAssign = shellJs.match(/mount\.innerHTML\s*=[\s\S]*?';\s*\n/);
+  if (mountAssign && /ash-drawer-scrim/.test(mountAssign[0])) {
+    fail('js/admin-shell.js: the drawer scrim is rendered inside #adminSidebarMount -- that element is transformed at phone width, so the scrim covers the sidebar instead of the page and every admin nav item becomes untappable on mobile. Append it to #adminContent instead.');
+    offersBugs++;
+  }
+
+  // (c) The offer percentage must have exactly one home. A template that
+  // hardcodes a number instead of {percent} is the whole failure mode the
+  // feature exists to prevent.
+  const offersJs = fs.readFileSync(path.join(ROOT, 'js/offers.js'), 'utf8');
+  if (!/\{percent\}/.test(offersJs)) {
+    fail('js/offers.js: no {percent} placeholder found -- the default offer copy must template the percentage, never hardcode it');
+    offersBugs++;
+  }
+  const indexSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  if (/class="w-figure"/.test(indexSrc)) {
+    fail('index.html: the hardcoded .w-figure offer percentage is back -- Home must mount the shared live component ([data-darwesh-offer]) so the number comes from the admin-configured offer');
+    offersBugs++;
+  }
+
+  if (offersBugs === 0) {
+    ok('offers regressions guarded: no ES import of the classic escape-html.js, admin drawer scrim is outside the transformed sidebar, offer percentage stays templated');
+  }
+}
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log('');
