@@ -242,15 +242,24 @@ if (!circleFn) {
 
 // The halo communicates that the pin is approximate. It must not be
 // clickable, or it would swallow clicks meant for the marker beneath it.
-// Scoped to addApproxHalo's own body: `interactive: false` now appears on
-// the search circle and the draw-centre dot too, so a whole-file match
-// would pass even after the halo itself lost the option.
-const haloFn = mapHtml.match(/function addApproxHalo\([\s\S]*?\n\}/);
-if (!haloFn) {
+// map.html's own addApproxHalo() is now a thin wrapper delegating to the
+// shared window.DarweshMarker.addApproxHalo (js/darwesh-marker.js) -- that
+// shared function is where interactive:false actually lives now, so it's
+// the one checked here. Scoped to the function's own body: `interactive:
+// false` also appears elsewhere (the search circle, the draw-centre dot),
+// so a whole-file match would pass even after the halo itself lost the
+// option.
+const markerJsSrc = fs.readFileSync(path.join(ROOT, 'js/darwesh-marker.js'), 'utf8');
+if (!/function addApproxHalo\(/.test(mapHtml)) {
   fail('map.html: expected an addApproxHalo() function for the approximate-location halo');
   mapChecks = true;
+}
+const haloFn = markerJsSrc.match(/function addApproxHalo\([\s\S]*?\n  \}/);
+if (!haloFn) {
+  fail('js/darwesh-marker.js: expected an addApproxHalo() function for the approximate-location halo');
+  mapChecks = true;
 } else if (!/interactive:\s*false/.test(haloFn[0])) {
-  fail('map.html: the approximate-location halo must be created with interactive: false, or it swallows clicks meant for the marker beneath it');
+  fail('js/darwesh-marker.js: the approximate-location halo must be created with interactive: false, or it swallows clicks meant for the marker beneath it');
   mapChecks = true;
 }
 // LOC-01: no public page may read the private coordinate document.

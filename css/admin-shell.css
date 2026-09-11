@@ -504,6 +504,81 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 .ash-detail-timeline-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--ash-accent); margin-top: 5px; }
 .ash-detail-timeline-time { color: var(--ash-text-secondary); font-size: 11.5px; }
 
+/* ---- Admin Panel: Map Management tab --------------------------------
+ * Consolidates the old #adminPinMap / #estateIntelMap / #dashRequestsMap
+ * into one map + docked detail panel. Deliberately NOT the
+ * .ash-detail-backdrop modal Organizations/Professionals use: this tab's
+ * whole point is that the map stays live and clickable while the panel
+ * is open (Edit Location places its pin directly on the map behind/
+ * beside the panel), so a full-screen click-blocking backdrop would
+ * break the tab's own core feature. Every INNER element still reuses the
+ * exact .ash-detail-* component family (section titles, kv rows,
+ * buttons, notes) -- only the outer positioning differs, and only
+ * because it has to. */
+.ash-map-shell {
+  display: flex; height: min(78vh, 720px); min-height: 440px;
+  border: 1px solid var(--ash-border); border-radius: 16px; overflow: hidden;
+  background: var(--ash-surface); position: relative;
+}
+.ash-map-canvas-wrap { flex: 1; position: relative; min-width: 0; }
+.ash-map-canvas { width: 100%; height: 100%; background: #e5e8ee; }
+.ash-map-toolbar {
+  position: absolute; top: 10px; inset-inline-start: 10px; inset-inline-end: 10px; z-index: 650;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  background: var(--ash-surface); border: 1px solid var(--ash-border); border-radius: 12px;
+  padding: 8px; box-shadow: 0 4px 16px rgba(27,29,31,.14);
+}
+.ash-map-toolbar .ash-entity-search { flex: 1 1 180px; min-width: 140px; }
+.ash-map-toolbar-row {
+  display: none; flex-wrap: wrap; gap: 8px; width: 100%; padding-top: 8px;
+  border-top: 1px solid var(--ash-border); margin-top: 2px;
+}
+.ash-map-toolbar-row.open { display: flex; }
+.ash-map-filter-toggle {
+  flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 7px 10px;
+  border-radius: 8px; border: 1px solid var(--ash-border); background: var(--ash-surface);
+  color: var(--ash-text); font: 600 12px/1 'Inter', sans-serif; cursor: pointer;
+}
+.ash-map-filter-toggle.active { background: var(--ash-accent-wash); border-color: var(--ash-accent); color: var(--ash-accent-strong); }
+.ash-map-legend {
+  position: absolute; bottom: 10px; inset-inline-start: 10px; z-index: 640;
+  display: flex; flex-wrap: wrap; gap: 10px; background: rgba(255,255,255,.94);
+  border: 1px solid var(--ash-border); border-radius: 10px; padding: 6px 10px;
+  font: 500 11px/1.3 'Inter', sans-serif; color: var(--ash-text); max-width: calc(100% - 20px);
+}
+.ash-map-legend-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.ash-map-legend-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: #2e7d32; }
+.ash-map-legend-dot.unverified { background: #c62828; }
+.ash-map-legend-line { width: 14px; height: 0; border-top: 2.5px dashed #8b0000; flex: none; }
+.ash-map-status-overlay {
+  position: absolute; inset: 0; z-index: 700; display: flex; align-items: center; justify-content: center;
+  background: rgba(250,248,244,.9); text-align: center; padding: 24px;
+}
+.ash-map-detail {
+  width: 400px; max-width: 42vw; flex: none; border-inline-start: 1px solid var(--ash-border);
+  overflow-y: auto; background: var(--ash-surface); display: flex; flex-direction: column;
+}
+.ash-map-detail-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px;
+  text-align: center; color: var(--ash-text-secondary); font: 500 13px/1.5 'Inter', sans-serif;
+}
+@media (max-width: 900px) {
+  .ash-map-shell { flex-direction: column; height: min(86vh, 680px); }
+  .ash-map-canvas-wrap { flex: 1; min-height: 220px; }
+  .ash-map-detail {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1200;
+    width: auto; max-width: none; max-height: 60vh;
+    border-inline-start: none; border-radius: 18px 18px 0 0;
+    box-shadow: 0 -10px 30px rgba(27,29,31,.25);
+  }
+  .ash-map-toolbar-row.open {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1150;
+    max-height: 60vh; overflow-y: auto; background: var(--ash-surface);
+    border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(27,29,31,.25);
+    padding: 14px; border-top: none; margin-top: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   body.admin-shell #adminContent,
   body.admin-shell #adminSidebarMount,

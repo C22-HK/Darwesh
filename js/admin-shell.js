@@ -34,7 +34,12 @@
       { tab: 'projects', icon: 'apartment', labelKey: 'admin.projectsTab', labelText: 'Projects' },
       { tab: 'projects', icon: 'fact_check', labelKey: 'admin.nav.approvals', labelText: 'Approvals', alias: true },
       { tab: 'market', icon: 'insights', labelKey: 'admin.marketOverviewTab', labelText: 'Market Overview' },
-      { tab: 'estateintel', icon: 'map', labelKey: 'admin.estateIntelTab', labelText: 'Estate Intelligence Map' },
+      // Replaces the old estateintel ("Estate Intelligence Map") and
+      // requestsmap ("Requests Map") entries -- both tabs are gone,
+      // consolidated into this one shared-map-foundation tab (see the
+      // removal notes in admin.html around #tab-estateintel/#tab-map and
+      // js/admin-map.js's own header comment).
+      { tab: 'map', icon: 'map', labelKey: 'admin.nav.mapManagement', labelText: 'Map Management' },
       { tab: 'estatedata', icon: 'storage', labelKey: 'admin.estateDataTab', labelText: 'Estate Data' }
     ] },
     { key: 'people', labelKey: 'admin.nav.groupPeople', labelText: 'People & Organizations', items: [
@@ -47,8 +52,7 @@
       { tab: 'leaderboard', icon: 'leaderboard', labelKey: 'admin.leaderboardTab', labelText: 'Leaderboard' }
     ] },
     { key: 'requests', labelKey: 'admin.nav.groupRequests', labelText: 'Requests', items: [
-      { tab: 'services', icon: 'support_agent', labelKey: 'admin.nav.serviceRequests', labelText: 'Service Requests' },
-      { tab: 'requestsmap', icon: 'pin_drop', labelKey: 'admin.requestsMapTab', labelText: 'Requests Map' }
+      { tab: 'services', icon: 'support_agent', labelKey: 'admin.nav.serviceRequests', labelText: 'Service Requests' }
     ] },
     { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance & Reports', items: [
       { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true },

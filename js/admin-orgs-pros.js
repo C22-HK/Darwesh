@@ -76,8 +76,21 @@ async function withBusyButton(btn, fn) {
   try { return await fn(); } finally { btn.disabled = false; btn.textContent = prevText; }
 }
 
+// A 404 here means the client called a real, correctly-wired route that
+// simply doesn't exist on the currently-deployed Cloud Run backend yet
+// (this admin panel's own /api/v1/access/admin/... moderation endpoints
+// are written and tested but not yet redeployed to production as of this
+// change) -- distinct from every other BackendResponseError, which means
+// the request reached real server logic and that logic rejected it for a
+// real reason. Surfacing this distinctly rather than a generic "Request
+// failed." is what makes the UI honest about *why* nothing happened,
+// and needs no future edit to become stale: the moment the backend is
+// redeployed, this branch simply stops firing on its own.
 function describeError(err) {
-  if (err instanceof BackendResponseError) return err.message;
+  if (err instanceof BackendResponseError) {
+    if (err.status === 404) return tr('admin.entity.actionUnavailableBackend', "This feature isn't live in production yet.");
+    return err.message;
+  }
   return tr('admin.entity.actionFailed', 'Could not complete this action right now.');
 }
 

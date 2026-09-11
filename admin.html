@@ -46,14 +46,13 @@ this can never leak the API key). -->
 <script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
 <script src="./js/icon-fallback.js"></script>
 <script src="./js/currency.js"></script>
-<!-- Sets window.DARWESH_MAPS_CONFIG for js/maps-core.js, loaded here so
-it runs before any script on this page that imports maps-core.js.
-Gitignored, generated at deploy time (see js/maps-config.local.example.js
-and .github/workflows/deploy-pages.yml) -- absent locally until you copy
-the example, in which case the Estate Intelligence Map shows its "map
-unavailable" panel gracefully (see ensureEstateIntelEngine() below). -->
-<script src="./js/maps-config.js"></script>
-
+<!-- Shared with map.html -- escapeHtml()/isSafeHttpUrl() (js/escape-html.js)
+     and the one "which photo belongs to this listing" resolver
+     (js/listing-image.js), both classic scripts, so the new Map
+     Management tab (js/admin-map.js) can read window.listingImageUrl for
+     an honest primary-image pick instead of a second image resolver. -->
+<script src="./js/escape-html.js"></script>
+<script src="./js/listing-image.js"></script>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
      (images/brand/darwesh-mark.png); geometry unmodified. Root-relative
@@ -83,15 +82,27 @@ real, wide-reaching visual change (89+ uses on this page alone) this
 change is not meant to make. -->
 <link href="css/cinematic.css" rel="stylesheet"/>
 <link href="css/admin-shell.css" rel="stylesheet"/>
+<!-- The one marker/pin visual language for every map surface (public
+     Explore, My Properties, and this page's own Map Management tab) --
+     see css/darwesh-marker.css's own header comment. -->
+<link href="css/darwesh-marker.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+<!-- Shared map modules -- same four classic scripts map.html loads,
+     same order (marker/icon system, then Leaflet plumbing, then listing-
+     access/query rules, then the location-edit interaction). Consumed by
+     both this page's own inline type="module" script (window globals
+     read directly, no import) and js/admin-map.js. -->
+<script src="./js/darwesh-marker.js"></script>
+<script src="./js/leaflet-map-helpers.js"></script>
+<script src="./js/darwesh-listing-access.js"></script>
+<script src="./js/darwesh-location-edit.js"></script>
 <style>
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
-    #adminPinMap { background: #e5e8ee; }
     /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
        well-documented conflict with Google Maps' own internally-rendered
        <img> tiles/UI assets under .gm-style (Estate Intelligence map, once
@@ -325,67 +336,6 @@ change is not meant to make. -->
     .amenity-row-chip .material-symbols-outlined { font-size: 15px; flex: none; }
     .amenity-row-chip .name { flex: 1; color: #d2e4fb; }
     .amenity-row-chip .km { font-family: 'Inter', sans-serif; font-weight: 700; color: #ffffff; flex: none; }
-    .team-map-legend { display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #031d39; }
-    .team-map-legend .dot { width: 10px; height: 10px; border-radius: 999px; flex: none; }
-    .team-map-legend .line { width: 16px; height: 0; border-top: 2.5px dashed #8b0000; flex: none; }
-
-    /* Requests Map — full-access admin version of the public map's price
-       pins: same verified/unverified color coding, plus a violet "full
-       access" ring on private listings (shown at their real coordinates
-       here, never hidden the way the public map hides them). */
-    .req-pin {
-      font-family: 'Inter', sans-serif;
-      font-weight: 700;
-      font-size: 12px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1.5px solid transparent;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-      white-space: nowrap;
-      color: #ffffff;
-      cursor: pointer;
-    }
-    .req-pin.pin-unverified { background: #c62828; border-color: #8f1c1c; }
-    .req-pin.pin-verified { background: #2e7d32; border-color: #1e5620; }
-    .req-pin.pin-private { box-shadow: 0 0 0 2.5px #9c6ade, 0 2px 6px rgba(0,0,0,0.4); }
-    .req-pin:hover { transform: scale(1.08); }
-    .req-request-pin {
-      width: 26px; height: 26px; border-radius: 999px; background: #d9b76a;
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.35); border: 2px solid #fff; cursor: pointer;
-    }
-    .req-nbhd-pin { width: 14px; height: 14px; border-radius: 999px; background: #1565c0; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(7,27,47,0.35); }
-    .req-nbhd-label {
-      background: rgba(255,255,255,0.92); color: #0d3c78; font-family: 'IBM Plex Sans', sans-serif;
-      font-weight: 600; font-size: 10px; letter-spacing: 0.02em; padding: 2px 6px; border-radius: 6px;
-      border: 1px solid #bcd1ee; white-space: nowrap; pointer-events: none;
-    }
-    .req-boundary-label {
-      background: rgba(139,0,0,0.92); color: #ffffff; font-family: 'IBM Plex Sans', sans-serif;
-      font-weight: 700; font-size: 10.5px; letter-spacing: 0.03em; text-transform: uppercase;
-      padding: 3px 8px; border-radius: 999px; white-space: nowrap; pointer-events: none;
-    }
-    .req-map-popup .leaflet-popup-content-wrapper { background: #ffffff; color: #181c20; border-radius: 10px; }
-    .req-map-popup .leaflet-popup-content { margin: 10px 12px; font-family: 'Inter', sans-serif; }
-    .req-map-popup .leaflet-popup-tip { background: #ffffff; }
-    .req-map-popup a.leaflet-popup-close-button { color: #44474c; }
-    .req-map-btn {
-      display: inline-flex; align-items: center; gap: 4px; margin-top: 6px;
-      background: #d9b76a; color: #071b2f; font-weight: 700; font-size: 11.5px;
-      padding: 5px 10px; border-radius: 999px; cursor: pointer; border: none;
-      font-family: 'Inter', sans-serif;
-    }
-    .req-layer-toggle { display: flex; align-items: center; gap: 5px; font-family: 'Inter', sans-serif; font-size: 12px; color: #d2e4fb; cursor: pointer; user-select: none; }
-    .req-layer-toggle input { accent-color: #d9b76a; }
-    .req-filter-select {
-      background: #071b2f; border: 1px solid #2d4155; color: #d2e4fb; border-radius: 999px;
-      padding: 6px 10px; font-family: 'Inter', sans-serif; font-size: 12px;
-    }
-    .req-filter-input {
-      background: #071b2f; border: 1px solid #2d4155; color: #ffffff; border-radius: 999px;
-      padding: 6px 12px; font-family: 'Inter', sans-serif; font-size: 12px; width: 180px;
-    }
-    .req-filter-input::placeholder { color: #4f6073; }
   </style>
 </head>
 <body class="admin-shell bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
@@ -493,14 +443,13 @@ change is not meant to make. -->
       <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
       <button class="admin-tab" data-tab="projects" type="button" data-i18n="admin.projectsTab">Projects</button>
       <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
-      <button class="admin-tab" data-tab="requestsmap" type="button" data-i18n="admin.requestsMapTab">Requests Map</button>
       <button class="admin-tab" data-tab="branches" type="button" data-i18n="admin.branchesTab">Branches</button>
       <button class="admin-tab" data-tab="agents" type="button" data-i18n="admin.agentsTab">Agents</button>
       <button class="admin-tab" data-tab="network" type="button" data-i18n="admin.networkTab">Network</button>
       <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
-      <button class="admin-tab" data-tab="estateintel" type="button" data-i18n="admin.estateIntelTab">Estate Intelligence Map</button>
+      <button class="admin-tab" data-tab="map" type="button" data-i18n="admin.nav.mapManagement">Map Management</button>
       <button class="admin-tab" data-tab="estatedata" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
     </div>
 
@@ -585,46 +534,10 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- TAB: Requests Map -->
-    <section id="tab-requestsmap" class="admin-tab-panel">
-      <div class="rounded-2xl p-5 md:p-6" style="background:#ffffff; border:1px solid #e7ded0;">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <p class="dash-panel-title" data-i18n="admin.requestsMapTitle">Listings &amp; Requests Map</p>
-            <p class="font-body-md text-[12px] mt-1 mb-3" style="color:#756e65;" data-i18n="admin.requestsMapNote">Every agent listing and every customer request (Sell submission or Viewing Request), shown at their real location — including private listings, which stay hidden on the public map. Click a pin to draw lines to the nearest hospital, market, school, and mosque.</p>
-          </div>
-          <span class="font-data-mono text-[9.5px] tracking-wide px-2 py-0.5 rounded" style="color:#9c6ade; border:1px solid rgba(156,106,222,0.4);" data-i18n="admin.fullAccessBadge">FULL ACCESS — EXACT LOCATIONS</span>
-        </div>
-
-        <!-- Filters -->
-        <div class="flex items-center gap-3 mb-3 flex-wrap">
-          <input id="reqMapSearch" type="text" class="req-filter-input" data-i18n-placeholder="admin.requestsMapSearchPlaceholder" placeholder="Search city or address..."/>
-          <select id="reqMapVerifiedFilter" class="req-filter-select">
-            <option value="all" data-i18n="admin.filterAll">All</option>
-            <option value="verified" data-i18n="common.verified">Verified</option>
-            <option value="unverified" data-i18n="admin.filterUnverified">Unverified</option>
-          </select>
-          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerListings" checked/><span data-i18n="admin.legendAgentListings">Agent Listings</span></label>
-          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerRequests" checked/><span data-i18n="admin.legendCustomerRequests">Customer Requests</span></label>
-          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerNbhd" checked/><span data-i18n="map.legendNeighborhood">Neighborhood</span></label>
-          <label class="req-layer-toggle"><input type="checkbox" id="reqLayerBoundaries" checked/><span data-i18n="map.legendAdminArea">Administrative Area</span></label>
-          <span id="reqMapResultCount" class="font-data-mono text-[11px] ml-auto" style="color:#756e65;"></span>
-        </div>
-
-        <!-- Legend -->
-        <div class="flex items-center gap-5 mb-3 flex-wrap">
-          <div class="team-map-legend"><span class="dot" style="background:#c62828;"></span><span data-i18n="map.legendAgentListing">Agent Listing</span></div>
-          <div class="team-map-legend"><span class="dot" style="background:#2e7d32;"></span><span data-i18n="map.legendVerifiedListing">Verified &amp; Registered</span></div>
-          <div class="team-map-legend"><span class="dot" style="background:#2e7d32; box-shadow:0 0 0 2.5px #9c6ade;"></span><span data-i18n="admin.legendPrivateListing">Private (full access)</span></div>
-          <div class="team-map-legend"><span class="dot" style="background:#d9b76a;"></span><span data-i18n="admin.legendCustomerRequests">Customer Requests</span></div>
-          <div class="team-map-legend"><span class="dot" style="background:#1565c0;"></span><span data-i18n="map.legendNeighborhood">Neighborhood</span></div>
-          <div class="team-map-legend"><span class="line"></span><span data-i18n="map.legendAdminArea">Administrative Area</span></div>
-        </div>
-
-        <div class="rounded-lg overflow-hidden border" style="border-color:#e7ded0; height:560px;" id="dashRequestsMap"></div>
-        <div id="dashRequestsMapStatus" class="hidden mt-2 space-y-1"></div>
-      </div>
-    </section>
+<!-- #dashRequestsMap (Requests Map tab) removed -- folded into the new
+     Map Management tab (#tab-map, js/admin-map.js), which fixes this
+     tab's privacy-architecture outlier (full precise coordinates plotted
+     in bulk with no treatment at all) instead of carrying it forward. -->
 
     <!-- TAB: Users & Roles -->
     <section id="tab-users" class="admin-tab-panel">
@@ -694,57 +607,20 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- TAB: Estate Intelligence Map (Production Rebuild Phase 1 of 3, Part G).
-         Uses the shared js/maps-core.js Google Maps boundary -- shows the
-         "map unavailable" fallback when no key is configured, same as
-         buy-rent-map.html. Real Firestore data only: estates + their
-         current Listing + publicTransactionSummary, never fabricated
-         values. -->
-    <section id="tab-estateintel" class="admin-tab-panel">
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <select id="eiLayerFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
-          <option value="all" data-i18n="admin.ei.allListings">All Listings</option>
-          <option value="sale" data-i18n="buy.buyTab">Buy</option>
-          <option value="rent" data-i18n="nav.rent">Rent</option>
-        </select>
-        <select id="eiVerifiedFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
-          <option value="all" data-i18n="map.any">Any</option>
-          <option value="verified" data-i18n="common.verified">Verified</option>
-          <option value="unverified" data-i18n="admin.ei.unverified">Unverified</option>
-        </select>
-        <select id="eiTypeFilter" class="bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps">
-          <option value="all" data-i18n="map.allTypes">All Types</option>
-          <option value="apartment" data-i18n="map.apartment">Apartment</option>
-          <option value="villa" data-i18n="map.villa">Villa</option>
-          <option value="house" data-i18n="map.house">House</option>
-          <option value="land" data-i18n="map.land">Land</option>
-          <option value="office" data-i18n="map.office">Office</option>
-          <option value="shop" data-i18n="map.shop">Shop</option>
-        </select>
-        <p id="eiResultCount" class="font-data-mono text-data-mono text-on-surface-variant ml-auto"></p>
-      </div>
-      <div class="flex gap-4" style="height:600px;">
-        <div class="relative flex-1 rounded-xl overflow-hidden border border-outline-variant">
-          <div id="estateIntelMap" class="w-full h-full" style="background:#101111;"></div>
-          <div id="eiMapUnavailable" class="hidden absolute inset-0 flex items-center justify-center bg-surface-container-lowest p-6 text-center"></div>
-          <div class="absolute top-3 left-3 flex flex-col gap-2 z-20">
-            <button id="eiSearchAreaBtn" type="button" class="drm-map-btn" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">travel_explore</span><span data-i18n="drm.searchThisArea">Search This Area</span></button>
-            <button id="eiDrawAreaBtn" type="button" class="drm-map-btn" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">draw</span><span data-i18n="map.drawArea">Draw Area</span></button>
-            <button id="eiResetAreaBtn" type="button" class="hidden" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px 10px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:6px;"><span class="material-symbols-outlined text-[16px]">restart_alt</span><span data-i18n="drm.resetArea">Reset Area</span></button>
-          </div>
-          <div class="absolute top-3 right-3 flex flex-col gap-2 z-20">
-            <button id="eiMyLocationBtn" type="button" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px;"><span class="material-symbols-outlined text-[16px]">my_location</span></button>
-            <button id="eiFullscreenBtn" type="button" style="background:#17150Fcc;color:#F2EEE5;border:1px solid #5D482B;border-radius:10px;padding:8px;"><span class="material-symbols-outlined text-[16px]">fullscreen</span></button>
-            <div class="inline-flex bg-[#17150Fcc] rounded-lg border border-[#5D482B] overflow-hidden">
-              <button id="eiTypeRoadmap" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype active" data-i18n="drm.roadmap">Roadmap</button>
-              <button id="eiTypeSatellite" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype" data-i18n="drm.satellite">Satellite</button>
-              <button id="eiTypeHybrid" type="button" style="color:#F2EEE5;padding:6px 8px;font-size:11px;" class="ei-maptype" data-i18n="drm.hybrid">Hybrid</button>
-            </div>
-          </div>
-        </div>
-        <div id="eiSidePanel" class="hidden w-[340px] flex-none overflow-y-auto bg-surface-container-lowest border border-outline-variant rounded-xl p-4"></div>
-      </div>
-    </section>
+    <!-- TAB: Map Management -- replaces the old #estateIntelMap (Google
+         Maps "Estate Intelligence" tab, deleted outright -- Google-Maps-
+         specific, not ported) and #dashRequestsMap (see the removal note
+         above the Users &amp; Roles tab). One shared foundation with
+         map.html's Explore/My Properties modes (window.DarweshMarker /
+         DarweshLeafletHelpers / DarweshListingAccess / DarweshLocationEdit),
+         plus the admin-only capability layer: bulk view at approximate
+         coordinates only, precise coordinates fetched on demand for the
+         one listing open in the detail panel, cross-account visibility,
+         and the estate/transaction-history section ported from the old
+         tab's renderEiSidePanel() (real Firestore data only). Built by
+         js/admin-map.js the same lazy-init-on-first-click way as
+         Organizations/Professionals (js/admin-orgs-pros.js). -->
+    <section id="tab-map" class="admin-tab-panel"></section>
 
     <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
          Reads only -- every write this page can trigger still goes
@@ -818,9 +694,17 @@ change is not meant to make. -->
 
           <div class="mb-3">
             <label class="admin-label" data-i18n="agentDash.pinLocation">Pin exact location (click the map)</label>
-            <div class="rounded-lg overflow-hidden border border-outline-variant h-56" id="adminPinMap"></div>
-            <p class="font-data-mono text-data-mono text-[11px] text-on-surface-variant mt-1" id="pinReadout" data-i18n="agentDash.noPinYet">No location pinned yet</p>
-            <div id="nearbyAmenitiesStatus" class="hidden mt-2 space-y-1"></div>
+            <!-- #adminPinMap (a permanently-mounted Leaflet instance inside
+                 this form) is gone -- a second, ephemeral map now mounts
+                 only while #pinLocationBackdrop is open (see
+                 ensurePinLocationModal() below), the same
+                 window.DarweshLocationEdit interaction the Map Management
+                 tab and map.html's My Properties mode use. pinLat/pinLng
+                 stay module state either way (see setPinState()). -->
+            <button type="button" id="pinLocationBtn" class="w-full flex items-center justify-between gap-2 border border-outline-variant rounded-lg px-3 py-2.5 hover:bg-surface-container transition-colors text-left">
+              <span id="pinReadout" class="font-data-mono text-data-mono text-[11px] text-on-surface-variant" data-i18n="agentDash.noPinYet">No location pinned yet</span>
+              <span class="font-label-caps text-label-caps text-secondary flex-none" data-i18n="map.editLocation">Edit Location</span>
+            </button>
           </div>
 
           <div class="grid grid-cols-2 gap-3 mb-3">
@@ -1288,7 +1172,6 @@ import { compressImage, LISTING_IMAGE, createUploadGate } from './js/image-compr
 // Blocks a second pick while an upload is in flight -- each attempt mints
 // its own Storage path, so overlapping runs orphan an object.
 const adminListingImgGate = createUploadGate();
-import { isConfigured as mapsConfigured, initMap as initGoogleMap, createMarker as createGoogleMarker } from './js/maps-core.js';
 import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './js/listing-location.js';
 // Role permission defaults panel (launch-readiness fix C2): reads
 // rolePermissionDefaults with the client SDK (admin-readable per rules),
@@ -1301,10 +1184,15 @@ import { SELF_ACCOUNT_TYPES, PERMISSION_GROUPS, RECOMMENDED_ROLE_DEFAULTS } from
 // own state/rendering for two full tabs; it imports firebase-init.js and
 // backend-api.js directly rather than depending on this file's closures.
 import { renderOrgsTab, renderProsTab } from './js/admin-orgs-pros.js';
+// Admin Map Management tab -- the consolidated replacement for the old
+// #estateIntelMap/#dashRequestsMap, built on the same shared map
+// foundation map.html's Explore/My Properties modes use. Same
+// separate-module, lazy-init-on-first-click pattern as the import above.
+import { renderMapTab } from './js/admin-map.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
-// Bulk views (intelligence map, requests map — hundreds of listings at a
-// time) deliberately use the ~1.1 km public pair rather than fetching each
+// Bulk views (the Map Management tab, hundreds of listings at a time)
+// deliberately use the ~1.1 km public pair rather than fetching each
 // listing's precise sub-document, which would be an N+1 read per render.
 // At market-overview zoom that is visually identical; where the exact pin
 // actually matters — opening one property, or re-seeding the edit form —
@@ -1333,17 +1221,15 @@ function listingCoordLabel(l) {
 
 function trAdmin(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
-// CartoDB's free basemaps (no key needed) — "Positron" (silver/minimal)
-// for maps sitting on light panels, "Dark Matter" (midnight) for maps
-// sitting on the dashboard's dark panels — matching the design system's
-// "Custom Silver or Midnight map styles to reduce visual noise" spec,
-// instead of the busy default OpenStreetMap tile style.
-const TILE_LIGHT = { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' };
-const TILE_DARK = { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attribution: '&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' };
-function addBaseTiles(map, style) {
-  const t = style === 'dark' ? TILE_DARK : TILE_LIGHT;
-  L.tileLayer(t.url, { attribution: t.attribution, maxZoom: 19, subdomains: 'abcd' }).addTo(map);
-}
+// addBaseTiles()/POI-category constants/loadNearbyAmenities()/
+// clearAmenityLayers() used to be defined here (an inline copy for
+// #adminPinMap, #dashRequestsMap and #requestDetailMap alike). Now that
+// #adminPinMap and #dashRequestsMap are gone, the one remaining consumer
+// on this page (#requestDetailMap, in the Customer Services request-
+// detail overlay) calls window.DarweshLeafletHelpers.addBaseTiles/
+// loadNearbyAmenities/clearAmenityLayers directly (js/leaflet-map-helpers.js)
+// -- the same shared implementation js/admin-map.js's Map Management tab
+// uses, not a second copy.
 let currentUid = null;
 let currentAdminName = '';
 
@@ -1436,234 +1322,24 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ---------------------------------------------------------------------
-// Estate Intelligence Map (Production Rebuild Phase 1 of 3, Part G).
-// Real Firestore data only -- listings (admin has full list/get access
-// per firestore.rules' isListingOwnerOrAdmin()), plus each marker's
-// linked Estate/transaction data when a listing actually carries an
-// estateId (still rare today -- Estate linkage is new and no publish
-// flow sets it automatically). Never invents a value for a field that
-// has no real data behind it; the side panel simply omits what it
-// doesn't have (see renderEiSidePanel below).
+// The old Google-Maps-based Estate Intelligence Map (makeGoogleEiEngine/
+// ensureEstateIntelEngine/renderEiMarkers/renderEstateIntelTab and its
+// eiLayerFilter/eiDrawAreaBtn/etc listeners) is gone -- deleted outright,
+// not ported, since js/maps-core.js (Google Maps) is out of scope for
+// this consolidation (it stays in place for sell.html/agent-dashboard.html,
+// which still use it). Its one real-data side panel, renderEiSidePanel(),
+// is ported into js/admin-map.js's own estate/transaction-history
+// section (real estates/{id} + transactionHistory reads, shown only when
+// a listing actually carries an estateId -- see loadEstateSection()
+// there). window.jumpToEstateData stays here: the Estate Data tab below
+// is unaffected by this consolidation, and the Map Management tab's own
+// "View Estate Record" quick action calls this exact function.
 // ---------------------------------------------------------------------
-window.estateIntelEngine = null;
-let eiAllListings = [];
-let eiAreaFilter = null;
-let eiDrawingManager = null;
-let eiDrawnCircle = null;
-
-async function makeGoogleEiEngine() {
-  const map = await initGoogleMap(document.getElementById('estateIntelMap'), { center: { lat: 36.19, lng: 44.01 }, zoom: 8, mapTypeControl: false });
-  if (!map) return null;
-  const google = window.google;
-  let overlays = [];
-  map.addListener('idle', () => renderEiMarkers());
-  if (google.maps.drawing) {
-    eiDrawingManager = new google.maps.drawing.DrawingManager({
-      drawingMode: null, drawingControl: false,
-      circleOptions: { fillColor: '#C89A4A', fillOpacity: 0.15, strokeColor: '#C89A4A', strokeWeight: 2, clickable: false, editable: true },
-    });
-    eiDrawingManager.setMap(map);
-    google.maps.event.addListener(eiDrawingManager, 'circlecomplete', (circle) => {
-      if (eiDrawnCircle) eiDrawnCircle.setMap(null);
-      eiDrawnCircle = circle;
-      eiDrawingManager.setDrawingMode(null);
-      const center = circle.getCenter(), radius = circle.getRadius();
-      eiAreaFilter = (l) => { const c = listingMapCoords(l); return !!c && google.maps.geometry?.spherical?.computeDistanceBetween(new google.maps.LatLng(c.lat, c.lng), center) <= radius; };
-      document.getElementById('eiResetAreaBtn').classList.remove('hidden');
-      renderEiMarkers();
-    });
-  }
-  return {
-    map,
-    invalidate() { google.maps.event.trigger(map, 'resize'); },
-    clearMarkers() { overlays.forEach((o) => o.setMap(null)); overlays = []; },
-    addMarker(l) {
-      const el = document.createElement('div');
-      el.textContent = '$' + Number(l.price || 0).toLocaleString();
-      el.style.cssText = 'font-family:Inter,sans-serif;font-weight:700;font-size:12px;padding:6px 10px;border-radius:999px;background:#17150F;color:#F2EEE5;border:1.5px solid ' + (l.verified ? '#2e7d32' : (l.status === 'active' ? '#8a6a38' : '#8a93a3')) + ';box-shadow:0 2px 8px rgba(0,0,0,.35);white-space:nowrap;cursor:pointer;transform:translate(-50%,-100%);';
-      el.addEventListener('click', () => renderEiSidePanel(l));
-      class Overlay extends google.maps.OverlayView {
-        onAdd() { this.getPanes().overlayMouseTarget.appendChild(el); }
-        draw() {
-          const proj = this.getProjection();
-          if (!proj) return;
-          const c = listingMapCoords(l);
-          const point = c && proj.fromLatLngToDivPixel(new google.maps.LatLng(c.lat, c.lng));
-          if (point) { el.style.position = 'absolute'; el.style.left = point.x + 'px'; el.style.top = point.y + 'px'; }
-        }
-        onRemove() { el.remove(); }
-      }
-      const overlay = new Overlay();
-      overlay.setMap(map);
-      overlays.push(overlay);
-    },
-  };
-}
-
-async function ensureEstateIntelEngine() {
-  if (window.estateIntelEngine) return window.estateIntelEngine;
-  const unavailableEl = document.getElementById('eiMapUnavailable');
-  if (!mapsConfigured()) {
-    unavailableEl.classList.remove('hidden');
-    unavailableEl.innerHTML = `<div><span class="material-symbols-outlined text-4xl text-outline mb-2 block">map</span><p class="font-headline-md text-on-surface mb-1">${trAdmin('drm.mapNotConfigured','Map view is not configured yet')}</p><p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.ei.notConfiguredHint','Configure the Google Maps key to enable this map (see docs/GOOGLE_MAPS_CONFIGURATION.md). The listing data below is unaffected.')}</p></div>`;
-    return null;
-  }
-  const engine = await makeGoogleEiEngine();
-  if (!engine) {
-    // Same distinct-failure-mode fix as buy-rent-map.html's
-    // initDrmMap(): a key IS configured here (mapsConfigured() passed
-    // above), but the Google Maps script itself failed -- this used to
-    // reveal unavailableEl with no content ever written into it, a
-    // blank box giving no information. See the browser console for
-    // [darwesh-maps-core] googleLoaderStarted/googleLoaderError.
-    unavailableEl.classList.remove('hidden');
-    unavailableEl.innerHTML = `<div><span class="material-symbols-outlined text-4xl text-outline mb-2 block">error_outline</span><p class="font-headline-md text-on-surface mb-1">${trAdmin('drm.mapLoadFailed','Map failed to load')}</p><p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('drm.mapLoadFailedHint','The property list still works fully -- an administrator should check the browser console for [darwesh-maps-core] diagnostic lines, and the Google Cloud project\'s billing status and API key restrictions (see docs/GOOGLE_MAPS_CONFIGURATION.md).')}</p></div>`;
-    return null;
-  }
-  unavailableEl.classList.add('hidden');
-  window.estateIntelEngine = engine;
-  return engine;
-}
-
-function eiPassesFilters(l) {
-  const layer = document.getElementById('eiLayerFilter').value;
-  const verified = document.getElementById('eiVerifiedFilter').value;
-  const type = document.getElementById('eiTypeFilter').value;
-  if (layer !== 'all' && l.dealType !== layer) return false;
-  if (verified === 'verified' && !l.verified) return false;
-  if (verified === 'unverified' && l.verified) return false;
-  if (type !== 'all' && l.propertyType !== type) return false;
-  if (eiAreaFilter && !eiAreaFilter(l)) return false;
-  return true;
-}
-
-async function renderEiMarkers() {
-  const engine = window.estateIntelEngine;
-  if (!engine) return;
-  engine.clearMarkers();
-  const visible = eiAllListings.filter((l) => !!listingMapCoords(l) && eiPassesFilters(l));
-  visible.forEach((l) => engine.addMarker(l));
-  document.getElementById('eiResultCount').textContent = visible.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
-}
-
-async function renderEstateIntelTab() {
-  const engine = await ensureEstateIntelEngine();
-  if (eiAllListings.length === 0) {
-    try {
-      const snap = await getDocs(query(collection(db, 'listings'), limit(500)));
-      eiAllListings = [];
-      snap.forEach((d) => eiAllListings.push({ id: d.id, ...d.data() }));
-    } catch (err) {
-      console.error('[admin] estate intelligence map: failed to load listings', err);
-      eiAllListings = [];
-    }
-  }
-  if (engine) renderEiMarkers();
-  else document.getElementById('eiResultCount').textContent = eiAllListings.length + ' ' + trAdmin('admin.ei.listingsShown', 'listings shown');
-}
-
-// Side panel -- real fields only. Last Verified Sale / transaction count
-// are populated ONLY when this listing actually carries a real estateId
-// AND that Estate has real transactionHistory documents (admin-readable,
-// see firestore.rules) -- never fabricated when absent, which is the
-// common case today since no publish flow sets estateId automatically yet.
-async function renderEiSidePanel(l) {
-  const panel = document.getElementById('eiSidePanel');
-  panel.classList.remove('hidden');
-  panel.innerHTML = `<p class="font-body-md text-[13px] text-on-surface-variant">${trAdmin('admin.loading','Loading...')}</p>`;
-
-  let estate = null, txCount = null, lastTx = null;
-  if (l.estateId) {
-    try {
-      const estateSnap = await getDoc(doc(db, 'estates', l.estateId));
-      if (estateSnap.exists()) estate = { id: estateSnap.id, ...estateSnap.data() };
-      const txSnap = await getDocs(collection(db, 'estates', l.estateId, 'transactionHistory'));
-      txCount = txSnap.size;
-      let latest = null;
-      txSnap.forEach((d) => { const data = d.data(); if (!latest || (data.createdAt || 0) > (latest.createdAt || 0)) latest = data; });
-      lastTx = latest;
-    } catch (err) {
-      // Admin-only subcollections -- a permission error here just means
-      // this admin session's own auth state is stale; degrade to "no
-      // transaction data" rather than breaking the whole panel.
-      console.error('[admin] estate intelligence: failed to load Estate/transaction data', err);
-    }
-  }
-
-  const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
-  const rows = [
-    [trAdmin('admin.ei.estateId','Estate ID'), l.estateId ? escapeAdmin(l.estateId) : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noEstateLinked','No Estate linked')}</span>`],
-    [trAdmin('admin.ei.currentAsking','Current Asking'), escapeAdmin(priceLabel)],
-    [trAdmin('admin.ei.status','Status'), escapeAdmin(l.status || '—')],
-    [trAdmin('map.homeType','Property Type'), escapeAdmin(l.propertyType || '—')],
-    [trAdmin('drm.minArea','Area').replace(' (m²)',''), l.sqft ? escapeAdmin(l.sqft + ' m²') : '—'],
-    [trAdmin('admin.ei.office','Office'), escapeAdmin(l.companyId || l.publisherOrgId || '—')],
-    [trAdmin('admin.ei.agent','Agent'), escapeAdmin(l.agentName || l.agentId || '—')],
-  ];
-  if (estate) {
-    rows.push([trAdmin('admin.ei.lastVerifiedSale','Last Verified Sale'), lastTx ? escapeAdmin('$' + Number(lastTx.priceAmount).toLocaleString() + ' (' + lastTx.transactionDate + ')') : `<span class="text-on-surface-variant">${trAdmin('admin.ei.noVerifiedSale','No verified transaction on record')}</span>`]);
-    rows.push([trAdmin('admin.ei.priorTxCount','Previous Verified Transactions'), String(txCount ?? 0)]);
-  }
-
-  panel.innerHTML = `
-    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">${escapeAdmin(l.title || l.address || 'Listing')}</h3>
-    <p class="font-body-md text-[13px] text-on-surface-variant mb-3">${escapeAdmin(l.address || '')}, ${escapeAdmin(l.city || '')}</p>
-    ${l.verified ? `<span class="badge badge-verified mb-3 inline-block">${trAdmin('common.verified','Verified')}</span>` : ''}
-    <div class="space-y-2 mb-4">
-      ${rows.map(([k, v]) => `<div class="flex justify-between gap-2 text-[13px]"><span class="text-on-surface-variant">${k}</span><span class="text-on-surface text-right">${v}</span></div>`).join('')}
-    </div>
-    <div class="flex flex-col gap-2">
-      ${l.estateId ? `<button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewEstateRecord','View Estate Record')}</button>` : ''}
-      <a href="listing.html?id=${encodeURIComponent(l.id)}" target="_blank" rel="noopener" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps text-center">${trAdmin('admin.ei.viewCurrentListing','View Current Listing')}</a>
-      ${l.estateId ? `<button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewListingHistory','View Listing History')}</button>
-      <button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps" onclick="jumpToEstateData('${escapeAdmin(l.estateId)}')">${trAdmin('admin.ei.viewTransactionHistory','View Transaction History')}</button>` : ''}
-      <button type="button" class="border border-outline-variant rounded-lg py-2 font-label-caps text-label-caps text-secondary" onclick="alert('${trAdmin('admin.ei.verifyLocationHint','Location verification is a manual field-check step -- mark it done once confirmed on site.').replace(/'/g,"\\'")}')">${trAdmin('admin.ei.verifyLocation','Verify Location')}</button>
-    </div>
-  `;
-}
 window.jumpToEstateData = function (estateId) {
   document.querySelector('.admin-tab[data-tab="estatedata"]').click();
   document.getElementById('edSearchInput').value = estateId;
   document.getElementById('edSearchBtn').click();
 };
-
-document.getElementById('eiLayerFilter')?.addEventListener('change', renderEiMarkers);
-document.getElementById('eiVerifiedFilter')?.addEventListener('change', renderEiMarkers);
-document.getElementById('eiTypeFilter')?.addEventListener('change', renderEiMarkers);
-document.getElementById('eiSearchAreaBtn')?.addEventListener('click', () => {
-  const engine = window.estateIntelEngine;
-  if (!engine) return;
-  const bounds = engine.map.getBounds();
-  if (!bounds) return;
-  eiAreaFilter = (l) => { const c = listingMapCoords(l); return !!c && bounds.contains({ lat: c.lat, lng: c.lng }); };
-  document.getElementById('eiResetAreaBtn').classList.remove('hidden');
-  renderEiMarkers();
-});
-document.getElementById('eiDrawAreaBtn')?.addEventListener('click', () => {
-  if (eiDrawingManager) eiDrawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.CIRCLE);
-});
-document.getElementById('eiResetAreaBtn')?.addEventListener('click', () => {
-  eiAreaFilter = null;
-  if (eiDrawnCircle) { eiDrawnCircle.setMap(null); eiDrawnCircle = null; }
-  document.getElementById('eiResetAreaBtn').classList.add('hidden');
-  renderEiMarkers();
-});
-document.getElementById('eiMyLocationBtn')?.addEventListener('click', () => {
-  const engine = window.estateIntelEngine;
-  if (!engine || !navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition((pos) => { engine.map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude }); engine.map.setZoom(14); });
-});
-document.getElementById('eiFullscreenBtn')?.addEventListener('click', () => {
-  const el = document.getElementById('estateIntelMap').parentElement;
-  if (!document.fullscreenElement) el.requestFullscreen?.(); else document.exitFullscreen?.();
-});
-function eiSetMapType(type, btnId) {
-  if (window.estateIntelEngine) window.estateIntelEngine.map.setMapTypeId(type);
-  document.querySelectorAll('.ei-maptype').forEach((b) => b.classList.toggle('active', b.id === btnId));
-}
-document.getElementById('eiTypeRoadmap')?.addEventListener('click', () => eiSetMapType('roadmap', 'eiTypeRoadmap'));
-document.getElementById('eiTypeSatellite')?.addEventListener('click', () => eiSetMapType('satellite', 'eiTypeSatellite'));
-document.getElementById('eiTypeHybrid')?.addEventListener('click', () => eiSetMapType('hybrid', 'eiTypeHybrid'));
 
 // ---------------------------------------------------------------------
 // Admin Estate Data (Production Rebuild Phase 1 of 3, Part H). Read-only
@@ -1855,26 +1531,19 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'listings') {
-      setTimeout(() => { if (window.adminPinMap) window.adminPinMap.invalidateSize(); }, 50);
-      renderListingsTable();
-    }
+    if (tab.dataset.tab === 'listings') renderListingsTable();
     if (tab.dataset.tab === 'users') renderUsers();
     if (tab.dataset.tab === 'projects') renderProjectsTab();
     if (tab.dataset.tab === 'services') { renderServicesTab(); renderProviderRequestsTab(); }
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
-    if (tab.dataset.tab === 'requestsmap') {
-      setTimeout(() => { if (dashRequestsMap) dashRequestsMap.invalidateSize(); }, 50);
-      renderRequestsMapTab();
-    }
     if (tab.dataset.tab === 'branches') renderBranchesTab();
     if (tab.dataset.tab === 'agents') renderAgentsTab();
     if (tab.dataset.tab === 'network') renderNetworkTab();
     if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
-    if (tab.dataset.tab === 'estateintel') { setTimeout(() => { if (window.estateIntelEngine) window.estateIntelEngine.invalidate(); }, 50); renderEstateIntelTab(); }
     if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
     if (tab.dataset.tab === 'organizations') renderOrgsTab();
     if (tab.dataset.tab === 'professionals') renderProsTab();
+    if (tab.dataset.tab === 'map') renderMapTab();
   });
 });
 
@@ -1890,7 +1559,7 @@ document.querySelectorAll('.filter-chip').forEach(chip => {
 function initDashboard() {
   if (dashboardInited) {
     renderUsers(); renderListingsTable(); renderServicesTab(); renderProviderRequestsTab(); renderProjectsTab();
-    renderDashboardTab(); renderRequestsMapTab(); renderBranchesTab(); renderAgentsTab(); renderNetworkTab(); renderLeaderboardTab();
+    renderDashboardTab(); renderBranchesTab(); renderAgentsTab(); renderNetworkTab(); renderLeaderboardTab();
     return;
   }
   dashboardInited = true;
@@ -1901,7 +1570,6 @@ function initDashboard() {
   renderServicesTab();
   renderProviderRequestsTab();
   renderDashboardTab();
-  renderRequestsMapTab();
   renderBranchesTab();
   renderAgentsTab();
   renderNetworkTab();
@@ -1911,7 +1579,6 @@ function initDashboard() {
     renderListingsTable();
     renderServicesRows();
     renderDashboardTab();
-    renderRequestsMapTab();
     renderBranchesTab();
     renderAgentsTab();
     renderNetworkTab();
@@ -2282,33 +1949,122 @@ async function renderMarketOverview() {
 // "only your own listing" restriction agents have).
 // ---------------------------------------------------------------------
 let allListingsCache = [];
-let adminPinMap, adminPinMarker, pinLat = null, pinLng = null;
+let pinLat = null, pinLng = null;
 
 function initListingsTab() {
-  adminPinMap = L.map('adminPinMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-  window.adminPinMap = adminPinMap;
-  L.control.zoom({ position: 'bottomright' }).addTo(adminPinMap);
-  addBaseTiles(adminPinMap, 'light');
-  adminPinMap.on('click', (e) => setAdminPin(e.latlng.lat, e.latlng.lng));
-  setTimeout(() => adminPinMap.invalidateSize(), 100);
-
   document.getElementById('fDealType').addEventListener('change', (e) => {
     document.getElementById('priceLabel').textContent = e.target.value === 'rent' ? trAdmin('agentDash.monthlyRentLabel','Monthly rent') : trAdmin('agentDash.priceLabel','Price');
   });
 
   document.getElementById('listingForm').addEventListener('submit', onListingFormSubmit);
   document.getElementById('formCancelBtn').addEventListener('click', resetListingForm);
+  document.getElementById('pinLocationBtn').addEventListener('click', openPinLocationModal);
 
   renderListingsTable();
 }
 
-function setAdminPin(lat, lng) {
+// setPinState() replaces setAdminPin() -- the ONE place pinLat/pinLng
+// (this form's module state, unchanged) and the compact readout button
+// get updated. Never mounts a map itself; see ensurePinLocationModal()/
+// openPinLocationModal() below for the (ephemeral, on-demand) map that
+// actually places the pin.
+function setPinState(lat, lng) {
   pinLat = lat; pinLng = lng;
-  if (adminPinMarker) { adminPinMarker.setLatLng([lat, lng]); }
-  else { adminPinMarker = L.marker([lat, lng]).addTo(adminPinMap); }
-  document.getElementById('pinReadout').textContent = `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  if (adminPinMap.getZoom() < 14) adminPinMap.setView([lat, lng], 14);
-  loadNearbyAmenities(lat, lng);
+  document.getElementById('pinReadout').textContent = lat != null
+    ? `Pinned: ${lat.toFixed(5)}, ${lng.toFixed(5)}`
+    : trAdmin('agentDash.noPinYet', 'No location pinned yet');
+}
+
+// ---------------------------------------------------------------------
+// Precise-location picker -- replaces #adminPinMap (a Leaflet instance
+// permanently mounted inside the form) with a compact button that opens
+// a small modal, itself only mounting Leaflet while open. Reuses the
+// exact same window.DarweshLocationEdit interaction (js/darwesh-location-
+// edit.js) the Map Management tab's own "Edit Location" action and
+// map.html's My Properties mode use -- one implementation, three
+// callers, never a second/third copy of the pin-placing logic. Base
+// tiles and nearby-amenities both come from window.DarweshLeafletHelpers
+// too, for the same reason.
+// ---------------------------------------------------------------------
+let pinLocationMap = null;
+let pinLocationHandle = null;
+let pinLocationAmenityLayers = [];
+
+function ensurePinLocationModal() {
+  if (document.getElementById('pinLocationBackdrop')) return;
+  const wrap = document.createElement('div');
+  // Every string below is set via trAdmin() directly, not left to a
+  // later document-wide applyTranslations() sweep: this modal is built
+  // lazily, well after page load and any language-switch sweep, on the
+  // first "Edit Location" click.
+  wrap.innerHTML = `
+    <div class="ash-detail-backdrop" id="pinLocationBackdrop" style="display:none;">
+      <div class="ash-detail-panel" style="width:min(640px,100%);">
+        <div class="ash-detail-head">
+          <div class="ash-detail-title" data-i18n="map.editLocation">${trAdmin('map.editLocation', 'Edit Location')}</div>
+          <button type="button" class="ash-detail-close" id="pinLocationCloseBtn" aria-label="Close"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+        </div>
+        <div class="ash-detail-body">
+          <p class="ash-detail-note-text" data-i18n="map.editLocationInstruction">${trAdmin('map.editLocationInstruction', 'Tap the map to place the pin, then drag to fine-tune.')}</p>
+          <div id="pinLocationMapHost" style="height:340px; border-radius:12px; overflow:hidden;"></div>
+          <p class="ash-detail-note-text" id="pinLocationReadout" style="font-family:'Inter',monospace;"></p>
+          <div id="pinLocationAmenities" class="hidden"></div>
+          <div class="ash-detail-actions">
+            <button type="button" class="ash-detail-btn" id="pinLocationCancelBtn" data-i18n="map.cancelEdit">${trAdmin('map.cancelEdit', 'Cancel')}</button>
+            <button type="button" class="ash-detail-btn ash-detail-btn-primary" id="pinLocationSaveBtn" disabled data-i18n="map.saveLocation">${trAdmin('map.saveLocation', 'Save Location')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(wrap.firstElementChild);
+  document.getElementById('pinLocationCloseBtn').addEventListener('click', closePinLocationModal);
+  document.getElementById('pinLocationCancelBtn').addEventListener('click', closePinLocationModal);
+  document.getElementById('pinLocationBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'pinLocationBackdrop') closePinLocationModal();
+  });
+  document.getElementById('pinLocationSaveBtn').addEventListener('click', () => {
+    const ll = pinLocationHandle && pinLocationHandle.getLatLng();
+    if (!ll) return;
+    setPinState(ll.lat, ll.lng);
+    closePinLocationModal();
+  });
+}
+
+function openPinLocationModal() {
+  ensurePinLocationModal();
+  document.getElementById('pinLocationBackdrop').style.display = 'flex';
+  document.getElementById('pinLocationSaveBtn').disabled = pinLat === null;
+  document.getElementById('pinLocationReadout').textContent = pinLat != null ? `${pinLat.toFixed(5)}, ${pinLng.toFixed(5)}` : '';
+  setTimeout(() => {
+    if (!pinLocationMap) {
+      pinLocationMap = L.map('pinLocationMapHost', { zoomControl: false }).setView([36.35, 44.3], 8);
+      L.control.zoom({ position: 'bottomright' }).addTo(pinLocationMap);
+      window.DarweshLeafletHelpers.addBaseTiles(L, pinLocationMap, 'light');
+    }
+    pinLocationMap.invalidateSize();
+    if (pinLocationHandle) { pinLocationHandle.stop(); pinLocationHandle = null; }
+    pinLocationHandle = window.DarweshLocationEdit.start(L, pinLocationMap, {
+      initialLatLng: pinLat != null ? [pinLat, pinLng] : null,
+      onChange: (lat, lng) => {
+        document.getElementById('pinLocationReadout').textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        document.getElementById('pinLocationSaveBtn').disabled = false;
+        document.getElementById('pinLocationAmenities').classList.remove('hidden');
+        window.DarweshLeafletHelpers.loadNearbyAmenities(L, pinLocationMap, lat, lng, {
+          layers: pinLocationAmenityLayers,
+          statusEl: document.getElementById('pinLocationAmenities'),
+          translate: trAdmin
+        });
+      }
+    });
+    if (pinLat != null) pinLocationMap.setView([pinLat, pinLng], 15);
+  }, 30);
+}
+
+function closePinLocationModal() {
+  if (pinLocationHandle) { pinLocationHandle.stop(); pinLocationHandle = null; }
+  const backdrop = document.getElementById('pinLocationBackdrop');
+  if (backdrop) backdrop.style.display = 'none';
 }
 
 function resetListingForm() {
@@ -2320,11 +2076,7 @@ function resetListingForm() {
   document.getElementById('formCancelBtn').classList.add('hidden');
   document.getElementById('formError').classList.add('hidden');
   document.getElementById('priceLabel').textContent = trAdmin('agentDash.priceLabel','Price');
-  pinLat = null; pinLng = null;
-  document.getElementById('pinReadout').textContent = trAdmin('agentDash.noPinYet','No location pinned yet');
-  if (adminPinMarker) { adminPinMap.removeLayer(adminPinMarker); adminPinMarker = null; }
-  clearAmenityLayers();
-  document.getElementById('nearbyAmenitiesStatus').classList.add('hidden');
+  setPinState(null, null);
   updateImgPreview();
 }
 
@@ -2381,152 +2133,16 @@ document.getElementById('fImgUpload').addEventListener('change', async function 
 });
 
 // ---------------------------------------------------------------------
-// Nearby amenities — after pinning a listing, draw a line from the pin
-// to the nearest hospital/clinic, market, school, and mosque, each
-// labeled with distance. Data comes live from OpenStreetMap's public
-// Overpass API (no key needed); nothing is stored, it's just a visual
-// aid for admins when writing up or pricing a listing.
+// Nearby amenities -- the POI-category constants, classifyPOI(),
+// clearAmenityLayers() and loadNearbyAmenities() that used to live here
+// (an inline copy shared by #adminPinMap, #dashRequestsMap and
+// #requestDetailMap) now live in window.DarweshLeafletHelpers
+// (js/leaflet-map-helpers.js) -- the pin-location modal above and
+// #requestDetailMap below (Customer Services request-detail overlay,
+// the one map surface that's neither removed nor rebuilt in this
+// consolidation) both call it directly instead of each keeping a copy.
 // ---------------------------------------------------------------------
-const POI_CATEGORIES = {
-  hospital: { labelKey: 'admin.catHospital', label: 'Hospital', icon: 'local_hospital', color: '#ba1a1a' },
-  market:   { labelKey: 'admin.catMarket',   label: 'Market',   icon: 'storefront',     color: '#8a6a38' },
-  school:   { labelKey: 'admin.catSchool',   label: 'School',   icon: 'school',         color: '#0b1d2d' },
-  mosque:   { labelKey: 'admin.catMosque',   label: 'Mosque',   icon: 'mosque',         color: '#00a656' }
-};
-const AMENITY_RADIUS_M = 3000;
-
-function classifyPOI(tags) {
-  if (!tags) return null;
-  if (['hospital', 'clinic', 'pharmacy'].includes(tags.amenity)) return 'hospital';
-  if (['supermarket', 'mall', 'convenience', 'greengrocer'].includes(tags.shop) || tags.amenity === 'marketplace') return 'market';
-  if (['school', 'university', 'college', 'kindergarten'].includes(tags.amenity)) return 'school';
-  if (tags.amenity === 'place_of_worship' && tags.religion === 'muslim') return 'mosque';
-  return null;
-}
-
-let amenityLayers = [];
 let requestDetailMap = null, requestDetailMarker = null, requestDetailAmenityLayers = [];
-function clearAmenityLayers(map = adminPinMap, layers = amenityLayers) {
-  layers.forEach(layer => map.removeLayer(layer));
-  layers.length = 0;
-}
-
-let amenityRequestId = 0;
-
-// Shared by the Listings tab's pin map and the Customer Services request
-// detail map — pass the target Leaflet map, the status element's id, and
-// the layers array to draw into (each caller keeps its own so the two
-// maps never clear each other's lines).
-async function loadNearbyAmenities(lat, lng, map = adminPinMap, statusElId = 'nearbyAmenitiesStatus', layers = amenityLayers) {
-  const myRequestId = ++amenityRequestId;
-  const statusEl = document.getElementById(statusElId);
-  clearAmenityLayers(map, layers);
-  statusEl.classList.remove('hidden');
-  statusEl.innerHTML = `<div class="amenity-row-chip"><span class="material-symbols-outlined" style="color:#d9b76a;">explore</span><span class="name">${trAdmin('admin.nearbyFinding', 'Finding nearby important places...')}</span></div>`;
-
-  const query = `[out:json][timeout:15];(` +
-    `node["amenity"~"^(hospital|clinic|pharmacy)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
-    `node["shop"~"^(supermarket|mall|convenience|greengrocer)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
-    `node["amenity"="marketplace"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
-    `node["amenity"~"^(school|university|college|kindergarten)$"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
-    `node["amenity"="place_of_worship"]["religion"="muslim"](around:${AMENITY_RADIUS_M},${lat},${lng});` +
-    `);out body;`;
-
-  let elements;
-  try {
-    const res = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(query)
-    });
-    if (!res.ok) throw new Error('bad response');
-    const data = await res.json();
-    elements = data.elements || [];
-  } catch (err) {
-    if (myRequestId !== amenityRequestId) return;
-    statusEl.innerHTML = `<div class="amenity-row-chip"><span class="material-symbols-outlined" style="color:#ffb4ab;">error</span><span class="name">${trAdmin('admin.nearbyFailed', "Couldn't load nearby places — try again.")}</span></div>`;
-    return;
-  }
-  if (myRequestId !== amenityRequestId) return;
-
-  const origin = L.latLng(lat, lng);
-  const nearest = {};
-  elements.forEach(el => {
-    const cat = classifyPOI(el.tags);
-    if (!cat || el.lat == null || el.lon == null) return;
-    const dist = origin.distanceTo(L.latLng(el.lat, el.lon));
-    if (!nearest[cat] || dist < nearest[cat].dist) {
-      nearest[cat] = { dist, name: (el.tags && el.tags.name) || POI_CATEGORIES[cat].label, lat: el.lat, lon: el.lon };
-    }
-  });
-
-  const cats = Object.keys(POI_CATEGORIES).filter(c => nearest[c]);
-  if (cats.length === 0) {
-    statusEl.innerHTML = `<div class="amenity-row-chip"><span class="material-symbols-outlined" style="color:#8192a7;">info</span><span class="name">${trAdmin('admin.nearbyNone', 'No important places found within 3 km.')}</span></div>`;
-    return;
-  }
-
-  statusEl.innerHTML = `<div class="flex flex-col gap-1.5">` + cats.map(cat => {
-    const cfg = POI_CATEGORIES[cat];
-    const poi = nearest[cat];
-    const km = (poi.dist / 1000).toFixed(2);
-    return `<div class="amenity-row-chip">
-      <span class="material-symbols-outlined" style="color:${cfg.color};">${cfg.icon}</span>
-      <strong>${trAdmin(cfg.labelKey, cfg.label)}</strong>
-      <span class="name">${poi.name}</span>
-      <span class="km">${km} km</span>
-    </div>`;
-  }).join('') + `</div>`;
-
-  const originPulse = L.marker(origin, {
-    icon: L.divIcon({ className: '', html: `<div class="amenity-origin-pulse"></div>`, iconSize: [16, 16], iconAnchor: [8, 8] }),
-    interactive: false, zIndexOffset: 500
-  }).addTo(map);
-  layers.push(originPulse);
-
-  cats.forEach(cat => {
-    const cfg = POI_CATEGORIES[cat];
-    const poi = nearest[cat];
-    const poiLatLng = L.latLng(poi.lat, poi.lon);
-
-    // Glow line: a soft wide translucent stroke under a crisp thin one,
-    // both solid with round caps — reads as a clean "connection" rather
-    // than a dashed ruler line, and holds up on both light and dark tiles.
-    const glow = L.polyline([origin, poiLatLng], {
-      color: cfg.color, weight: 7, opacity: 0.16, lineCap: 'round'
-    }).addTo(map);
-    layers.push(glow);
-    const line = L.polyline([origin, poiLatLng], {
-      color: cfg.color, weight: 2.5, opacity: 0.9, lineCap: 'round'
-    }).addTo(map);
-    layers.push(line);
-
-    const marker = L.marker(poiLatLng, {
-      icon: L.divIcon({
-        className: '',
-        html: `<div style="width:24px;height:24px;border-radius:999px;background:${cfg.color};display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(7,27,47,0.45);border:2px solid #ffffff;"><span class="material-symbols-outlined" style="font-size:14px;color:#fff;">${cfg.icon}</span></div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
-      })
-    }).addTo(map);
-    // poi.name comes from Overpass/OpenStreetMap -- third-party data any
-    // OSM contributor can edit -- and a STRING tooltip is rendered by
-    // Leaflet via innerHTML, so it is escaped like any other untrusted
-    // string this page displays.
-    marker.bindTooltip(`${escapeAdmin(poi.name)} — ${(poi.dist / 1000).toFixed(2)} km`);
-    layers.push(marker);
-
-    const label = L.marker([(origin.lat + poiLatLng.lat) / 2, (origin.lng + poiLatLng.lng) / 2], {
-      icon: L.divIcon({
-        className: '',
-        html: `<div class="amenity-dist-chip"><span class="dot" style="background:${cfg.color};"></span>${(poi.dist / 1000).toFixed(2)} km</div>`,
-        iconSize: null
-      }),
-      interactive: false
-    }).addTo(map);
-    layers.push(label);
-  });
-}
-
 async function onListingFormSubmit(e) {
   e.preventDefault();
   const errEl = document.getElementById('formError');
@@ -2661,13 +2277,11 @@ window.editListing = function (id) {
   // public point. Falls back to the public pair for any listing whose
   // precise document is missing (e.g. not yet backfilled).
   const approxLat = l.publicLat ?? null, approxLng = l.publicLng ?? null;
-  setAdminPin(approxLat, approxLng);
-  if (approxLat != null) adminPinMap.setView([approxLat, approxLng], 13);
+  setPinState(approxLat, approxLng);
   fetchPreciseLocation({ doc, getDoc }, db, l.id).then((precise) => {
     if (!precise) return;
     if (document.getElementById('editingId').value !== l.id) return; // form moved on
-    setAdminPin(precise.lat, precise.lng);
-    adminPinMap.setView([precise.lat, precise.lng], 15);
+    setPinState(precise.lat, precise.lng);
   });
 
   document.getElementById('formTitle').textContent = trAdmin('agentDash.editListing','Edit Listing');
@@ -3074,6 +2688,7 @@ function renderServicesRows() {
       select.appendChild(opt);
     });
     select.addEventListener('change', async () => {
+      const prevValue = s.status;
       select.disabled = true;
       try {
         await updateDoc(doc(db, 'submissions', s.id), { status: select.value });
@@ -3082,6 +2697,11 @@ function renderServicesRows() {
         document.getElementById('statInProgressRequests').textContent = allSubmissionsCache.filter(x => x.status === 'in-progress').length;
         document.getElementById('statResolvedRequests').textContent = allSubmissionsCache.filter(x => x.status === 'resolved').length;
         if (servicesFilter !== 'all' && servicesFilter !== select.value) renderServicesRows();
+      } catch (err) {
+        select.value = prevValue;
+        const msg = trAdmin('admin.statusUpdateFailedPrefix', 'Could not update status: ') + err.message;
+        if (window.AdminShellToast) window.AdminShellToast(msg, 'error');
+        else alert(msg);
       } finally {
         select.disabled = false;
       }
@@ -3429,14 +3049,22 @@ function openRequestDetail(id) {
     setTimeout(() => {
       if (!requestDetailMap) {
         requestDetailMap = L.map('requestDetailMap', { zoomControl: false }).setView(latLng, 14);
-        addBaseTiles(requestDetailMap, 'light');
+        window.DarweshLeafletHelpers.addBaseTiles(L, requestDetailMap, 'light');
       } else {
         requestDetailMap.setView(latLng, 14);
       }
       requestDetailMap.invalidateSize();
       if (requestDetailMarker) requestDetailMarker.setLatLng(latLng);
       else requestDetailMarker = L.marker(latLng).addTo(requestDetailMap);
-      loadNearbyAmenities(latLng[0], latLng[1], requestDetailMap, 'requestDetailAmenitiesStatus', requestDetailAmenityLayers);
+      // The shared helper only writes into statusEl -- showing it is the
+      // caller's own job (map.html's location-edit bar and this page's
+      // pin-location modal both do the same).
+      document.getElementById('requestDetailAmenitiesStatus').classList.remove('hidden');
+      window.DarweshLeafletHelpers.loadNearbyAmenities(L, requestDetailMap, latLng[0], latLng[1], {
+        layers: requestDetailAmenityLayers,
+        statusEl: document.getElementById('requestDetailAmenitiesStatus'),
+        translate: trAdmin
+      });
     }, 50);
   } else {
     mapWrap.classList.add('hidden');
@@ -3546,18 +3174,17 @@ function createListingFromSubmission(id) {
   updateImgPreview();
 
   setTimeout(() => {
-    if (window.adminPinMap) window.adminPinMap.invalidateSize();
     if (s.pinLat && s.pinLng) {
-      setAdminPin(parseFloat(s.pinLat), parseFloat(s.pinLng));
+      setPinState(parseFloat(s.pinLat), parseFloat(s.pinLng));
     } else if (s.address || s.city) {
       const readout = document.getElementById('pinReadout');
       readout.textContent = trAdmin('admin.lookingUpLocation', 'Looking up location from address…');
       geocodeAddress([s.address, s.city, 'Iraq'].filter(Boolean).join(', ')).then(loc => {
         if (pinLat !== null && pinLng !== null) return; // already pinned manually while this was in flight
         if (loc) {
-          setAdminPin(loc.lat, loc.lng);
+          setPinState(loc.lat, loc.lng);
         } else {
-          readout.textContent = trAdmin('admin.geocodeFailed', "Couldn't find this address automatically — click the map to set the location.");
+          readout.textContent = trAdmin('admin.geocodeFailed', "Couldn't find this address automatically — use Edit Location to set it manually.");
         }
       });
     }
@@ -3786,83 +3413,28 @@ function renderDashPriceTrends(cities, listings) {
   }).join('');
 }
 
-async function renderRequestsMapTab() {
-  const [submissionsSnap, listingsSnap] = await Promise.all([
-    getDocs(collection(db, 'submissions')),
-    getDocs(collection(db, 'listings'))
-  ]);
-  reqMapSubmissions = [];
-  submissionsSnap.forEach(d => reqMapSubmissions.push({ id: d.id, ...d.data() }));
-  reqMapListings = [];
-  listingsSnap.forEach(d => reqMapListings.push({ id: d.id, ...d.data() }));
-  renderDashRequestsMap();
-  loadReqMapBoundaries();
-}
-
 // ---------------------------------------------------------------------
-// Requests Map tab — the admin, full-access counterpart to the public
-// map.html. Reuses that page's marker language (red/green price pins,
-// blue neighborhood markers, dark-red administrative boundaries, a
-// legend) so staff read the same visual system — but with nothing held
-// back: private listings show at their REAL coordinates with a violet
-// "full access" ring instead of being rolled into a hidden city badge,
-// and there's no zoom cap. Search/verified/layer filters and click-to-
-// edit / click-to-manage actions are admin-only additions on top.
+// #dashRequestsMap (renderRequestsMapTab/renderDashRequestsMap/
+// reqMapFiltered/reqMapListingPopup/reqMapSubmissionPopup/
+// reqMapNeighborhoodIcon/buildReqMapNeighborhoods/loadReqMapBoundaries/
+// reqMapSetBoundariesVisible, plus the reqMapListings/reqMapSubmissions/
+// reqMapBoundaryLayers state) is gone -- it was the privacy-architecture
+// outlier this whole consolidation exists to fix: it plotted every
+// listing's FULL PRECISE coordinate in bulk, with no approximate-by-
+// default treatment at all. The new Map Management tab (js/admin-map.js)
+// replaces it with the same privacy-consistent behavior Explore/My
+// Properties use: approximate coordinates in bulk, precise coordinates
+// fetched only for the one listing open in its detail panel.
+//
+// jumpToListingFromMap/jumpToSubmissionFromMap are PORTED, not
+// discarded -- the Map Management tab's detail panel calls these same
+// two functions for its own "Edit Listing"/"View Source Submission"
+// quick actions (window.jumpToListingFromMap/window.jumpToSubmissionFromMap
+// stay global for that reason). The old dashRequestsMap.closePopup()
+// call is gone since there is no Leaflet popup calling into these
+// anymore.
 // ---------------------------------------------------------------------
-let dashRequestsMap = null;
-let dashRequestsPinMarkers = [];
-let dashRequestsAmenityLayers = [];
-let reqMapListings = [];
-let reqMapSubmissions = [];
-let reqMapBoundaryLayers = [];
-let reqMapBoundariesLoaded = false;
-
-function reqMapFiltered() {
-  const q = (document.getElementById('reqMapSearch').value || '').trim().toLowerCase();
-  const verifiedFilter = document.getElementById('reqMapVerifiedFilter').value;
-  const listings = reqMapListings.filter(l => {
-    if (!listingMapCoords(l)) return false;
-    if (q && !((l.city || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
-    if (verifiedFilter === 'verified' && !l.verified) return false;
-    if (verifiedFilter === 'unverified' && l.verified) return false;
-    return true;
-  });
-  const submissions = reqMapSubmissions.filter(s => {
-    const latLng = getRequestLatLng(s);
-    if (!latLng) return false;
-    if (q && !((s.city || '').toLowerCase().includes(q) || (s.address || '').toLowerCase().includes(q) || (s.title || '').toLowerCase().includes(q))) return false;
-    return true;
-  });
-  return { listings, submissions };
-}
-
-function reqMapListingPopup(l) {
-  const badges = [
-    l.verified ? `<span class="badge badge-verified">${trAdmin('common.verified', 'Verified')}</span>` : `<span class="badge badge-rent">${trAdmin('admin.filterUnverified', 'Unverified')}</span>`,
-    l.private ? `<span class="badge" style="background:rgba(156,106,222,0.18); color:#c9a6f5;">${trAdmin('map.privateListing', 'Private')}</span>` : ''
-  ].filter(Boolean).join(' ');
-  return `<div style="min-width:190px;">
-    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${escapeAdmin(l.title || l.address)}</p>
-    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
-    <p style="font-size:12.5px; margin-bottom:4px;">$${Number(l.price || 0).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''} &middot; ${l.beds || 0}bd &middot; ${l.baths || 0}ba</p>
-    <div style="margin-bottom:2px;">${badges}</div>
-    <button class="req-map-btn" onclick="jumpToListingFromMap('${escapeAdmin(l.id)}')">${trAdmin('common.edit', 'Edit')}</button>
-  </div>`;
-}
-
-function reqMapSubmissionPopup(s) {
-  const isSell = s.type === 'sell';
-  return `<div style="min-width:190px;">
-    <p style="font-weight:700; font-size:13.5px; margin-bottom:2px;">${isSell ? trAdmin('admin.typeSell', 'Property Submission') : trAdmin('admin.typeViewing', 'Viewing Request')}</p>
-    <p style="font-size:11.5px; color:#44474c; margin-bottom:5px;">${escapeAdmin(s.title || s.address)}${s.city ? ', ' + escapeAdmin(s.city) : ''}</p>
-    ${s.name ? `<p style="font-size:12.5px; margin-bottom:2px;">${escapeAdmin(s.name)}</p>` : ''}
-    ${s.phone ? `<p style="font-size:12.5px; color:#44474c; margin-bottom:2px;">${escapeAdmin(s.phone)}</p>` : ''}
-    <button class="req-map-btn" onclick="jumpToSubmissionFromMap('${escapeAdmin(s.id)}')">${trAdmin('admin.manage', 'Manage')}</button>
-  </div>`;
-}
-
 window.jumpToListingFromMap = function (id) {
-  dashRequestsMap.closePopup();
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
@@ -3874,177 +3446,8 @@ window.jumpToListingFromMap = function (id) {
 };
 
 window.jumpToSubmissionFromMap = function (id) {
-  dashRequestsMap.closePopup();
   openRequestDetail(id);
 };
-
-function reqMapNeighborhoodIcon() {
-  return L.divIcon({ className: '', html: `<div class="req-nbhd-pin"></div>`, iconSize: [14, 14], iconAnchor: [7, 7] });
-}
-
-function buildReqMapNeighborhoods(visibleListings) {
-  const groups = {};
-  visibleListings.forEach(l => {
-    if (!l.address) return;
-    const c = listingMapCoords(l);
-    if (!c) return;
-    const key = l.address + '|' + l.city;
-    if (!groups[key]) groups[key] = { name: l.address, lats: [], lngs: [] };
-    groups[key].lats.push(c.lat);
-    groups[key].lngs.push(c.lng);
-  });
-  Object.values(groups).forEach(g => {
-    const lat = g.lats.reduce((a, b) => a + b, 0) / g.lats.length;
-    const lng = g.lngs.reduce((a, b) => a + b, 0) / g.lngs.length;
-    const marker = L.marker([lat, lng], { icon: reqMapNeighborhoodIcon(), zIndexOffset: -500, interactive: false });
-    // Escaped for the same reason as every other Firestore-sourced string
-    // on this page: Leaflet renders a STRING tooltip through innerHTML
-    // (DivOverlay._updateContent), so g.name -- a listing's agent-written
-    // address -- is an HTML sink, not plain text.
-    marker.bindTooltip(escapeAdmin(g.name), { permanent: true, direction: 'top', offset: [0, -5], className: 'req-nbhd-label' });
-    marker.addTo(dashRequestsMap);
-    dashRequestsPinMarkers.push(marker);
-  });
-}
-
-// Same real-OSM administrative boundary overlay as the public map, loaded
-// once and left in place across refreshes/filters (it doesn't depend on
-// listing data, so there's no need to redraw it every time).
-async function loadReqMapBoundaries() {
-  if (reqMapBoundariesLoaded) return;
-  reqMapBoundariesLoaded = true;
-  const cityCenters = { Erbil: 1, Sulaymaniyah: 1, Duhok: 1, Zakho: 1, Soran: 1, Koya: 1, Kirkuk: 1 };
-  const bbox = '34.9,42.0,37.5,46.2';
-  const query = `[out:json][timeout:25];(way["boundary"="administrative"]["admin_level"="8"](${bbox});relation["boundary"="administrative"]["admin_level"="8"](${bbox}););out geom;`;
-  try {
-    const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(query) });
-    if (!res.ok) return;
-    const data = await res.json();
-    const ring = (geometry) => (geometry || []).map(pt => [pt.lat, pt.lon]);
-    const draw = (coords, label, labelLatLng) => {
-      if (coords.length < 2) return;
-      const closed = coords.length > 2 && Math.abs(coords[0][0] - coords[coords.length - 1][0]) < 1e-6 && Math.abs(coords[0][1] - coords[coords.length - 1][1]) < 1e-6;
-      const shape = closed
-        ? L.polygon(coords, { color: '#8b0000', weight: 2, opacity: 0.8, fillColor: '#8b0000', fillOpacity: 0.04 })
-        : L.polyline(coords, { color: '#8b0000', weight: 2, opacity: 0.8, dashArray: '6 4' });
-      shape.addTo(dashRequestsMap);
-      reqMapBoundaryLayers.push(shape);
-      if (label && labelLatLng) {
-        const lm = L.marker(labelLatLng, { icon: L.divIcon({ className: '', html: `<div class="req-boundary-label">${label}</div>`, iconSize: null, iconAnchor: [0, 0] }), interactive: false });
-        lm.addTo(dashRequestsMap);
-        reqMapBoundaryLayers.push(lm);
-      }
-    };
-    (data.elements || []).forEach(el => {
-      const name = (el.tags && (el.tags.name || el.tags['name:en'])) || '';
-      if (!Object.keys(cityCenters).some(c => name.toLowerCase() === c.toLowerCase())) return;
-      if (el.type === 'way' && el.geometry) {
-        const coords = ring(el.geometry);
-        draw(coords, name, coords[Math.floor(coords.length / 2)]);
-      } else if (el.type === 'relation' && el.members) {
-        let labelPlaced = false;
-        el.members.forEach(m => {
-          if (m.type !== 'way' || m.role !== 'outer' || !m.geometry) return;
-          const coords = ring(m.geometry);
-          draw(coords, labelPlaced ? null : name, labelPlaced ? null : coords[Math.floor(coords.length / 2)]);
-          labelPlaced = true;
-        });
-      }
-    });
-    reqMapSetBoundariesVisible(document.getElementById('reqLayerBoundaries').checked);
-  } catch (e) {
-    // Overpass unreachable — boundaries are a decorative overlay, so the
-    // rest of the map (listings, requests) still works without them.
-  }
-}
-
-function reqMapSetBoundariesVisible(visible) {
-  reqMapBoundaryLayers.forEach(layer => {
-    if (visible) { if (!dashRequestsMap.hasLayer(layer)) layer.addTo(dashRequestsMap); }
-    else { dashRequestsMap.removeLayer(layer); }
-  });
-}
-
-function renderDashRequestsMap() {
-  if (!dashRequestsMap) {
-    dashRequestsMap = L.map('dashRequestsMap', { zoomControl: false }).setView([36.35, 44.3], 8);
-    L.control.zoom({ position: 'bottomright' }).addTo(dashRequestsMap);
-    addBaseTiles(dashRequestsMap, 'light');
-  }
-  dashRequestsMap.invalidateSize();
-
-  dashRequestsPinMarkers.forEach(m => dashRequestsMap.removeLayer(m));
-  dashRequestsPinMarkers = [];
-  clearAmenityLayers(dashRequestsMap, dashRequestsAmenityLayers);
-  document.getElementById('dashRequestsMapStatus').classList.add('hidden');
-
-  const { listings, submissions } = reqMapFiltered();
-  const allBounds = [];
-
-  if (document.getElementById('reqLayerListings').checked) {
-    listings.forEach(l => {
-      const c = listingMapCoords(l); if (!c) return;
-      const latLng = [c.lat, c.lng];
-      const statusClass = l.verified ? 'pin-verified' : 'pin-unverified';
-      const priceLabel = '$' + Number(l.price || 0).toLocaleString() + (l.dealType === 'rent' ? '/mo' : '');
-      const marker = L.marker(latLng, {
-        icon: L.divIcon({
-          className: '',
-          html: `<div class="req-pin ${statusClass}${l.private ? ' pin-private' : ''}">${priceLabel}</div>`,
-          iconSize: null,
-          iconAnchor: [30, 15]
-        })
-      }).addTo(dashRequestsMap);
-      marker.bindPopup(reqMapListingPopup(l), { className: 'req-map-popup', maxWidth: 240 });
-      marker.on('click', () => {
-        loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
-      });
-      dashRequestsPinMarkers.push(marker);
-      allBounds.push(latLng);
-    });
-    if (document.getElementById('reqLayerNbhd').checked) {
-      buildReqMapNeighborhoods(listings);
-    }
-  }
-
-  if (document.getElementById('reqLayerRequests').checked) {
-    submissions.forEach(s => {
-      const latLng = getRequestLatLng(s);
-      const isSell = s.type === 'sell';
-      const marker = L.marker(latLng, {
-        icon: L.divIcon({
-          className: '',
-          html: `<div class="req-request-pin"><span class="material-symbols-outlined" style="font-size:14px;color:#071b2f;">${isSell ? 'sell' : 'event_available'}</span></div>`,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13]
-        })
-      }).addTo(dashRequestsMap);
-      marker.bindPopup(reqMapSubmissionPopup(s), { className: 'req-map-popup', maxWidth: 240 });
-      marker.on('click', () => {
-        loadNearbyAmenities(latLng[0], latLng[1], dashRequestsMap, 'dashRequestsMapStatus', dashRequestsAmenityLayers);
-      });
-      dashRequestsPinMarkers.push(marker);
-      allBounds.push(latLng);
-    });
-  }
-
-  document.getElementById('reqMapResultCount').textContent =
-    `${listings.length} ${trAdmin('admin.legendAgentListings', 'Agent Listings')} · ${submissions.length} ${trAdmin('admin.legendCustomerRequests', 'Customer Requests')}`;
-
-  if (allBounds.length) {
-    dashRequestsMap.fitBounds(L.latLngBounds(allBounds).pad(0.3), { maxZoom: 14 });
-  }
-}
-
-['reqMapSearch', 'reqMapVerifiedFilter'].forEach(id => {
-  document.getElementById(id).addEventListener('input', renderDashRequestsMap);
-});
-['reqLayerListings', 'reqLayerRequests', 'reqLayerNbhd'].forEach(id => {
-  document.getElementById(id).addEventListener('change', renderDashRequestsMap);
-});
-document.getElementById('reqLayerBoundaries').addEventListener('change', (e) => {
-  reqMapSetBoundariesVisible(e.target.checked);
-});
 
 // U1: every user's private email/phone/commissionRate lives in
 // users/{uid}/privateProfile/main (owner/admin-only), not on the public
