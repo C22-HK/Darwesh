@@ -1,0 +1,223 @@
+name: Deploy Firebase Rules
+
+# Deploys firestore.rules and storage.rules to production, on demand.
+#
+# MANUAL ONLY, DELIBERATELY. There is no push trigger. Rules are the
+# authorization boundary for the whole product -- a regression here is not
+# a broken page, it is data exposed or every write refused -- so shipping
+# them is a decision someone makes, not a side effect of merging.
+#
+# WHAT THIS PROTECTS AGAINST
+# --------------------------
+# `firebase deploy --only firestore:rules` REPLACES the live ruleset
+# entirely. It does not merge, and its output does not mention what it
+# overwrote. So before deploying, this workflow:
+#
+#   1. runs the full emulator rules suite against the files about to ship
+#      -- a ruleset that fails its own tests never reaches production;
+#   2. downloads what is CURRENTLY live and diffs it against the repo,
+#      printed into the run summary, so a Console edit that exists only
+#      in production is visible rather than silently lost;
+#   3. uploads that live ruleset as an artifact, so the previous state is
+#      recoverable for 90 days even if the diff went unread.
+#
+# SETUP (once)
+# ------------
+#   1. In Google Cloud IAM for project darwesh-group, create a service
+#      account (e.g. github-rules-deployer) and grant it:
+#        - Firebase Rules Admin  (roles/firebaserules.admin)
+#      That role alone is enough: it can read and write rulesets and
+#      nothing else. Do NOT grant Editor or Owner.
+#   2. Create a JSON key for it.
+#   3. Repository -> Settings -> Secrets and variables -> Actions ->
+#      New repository secret, named FIREBASE_SERVICE_ACCOUNT, with the
+#      whole JSON file as the value.
+#
+# Optional but recommended: Settings -> Environments -> `production`, add
+# yourself as a required reviewer. This workflow already targets that
+# environment, so a reviewer requirement takes effect with no edit here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which rules to deploy'
+        type: choice
+        default: both
+        options: [both, firestore, storage]
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        type: string
+        required: true
+
+# Only actions/checkout's own read is needed. No token writes anywhere:
+# the Firebase credential is a secret, not this workflow's GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Two rules deploys racing each other would make "what is live" a
+# coin toss. Queue instead of cancelling -- a half-finished deploy is
+# worse than a delayed one.
+concurrency:
+  group: deploy-firebase-rules
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy rules to darwesh-group
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FIREBASE_PROJECT: darwesh-group
+
+    steps:
+      - name: Confirm intent
+        run: |
+          if [ "${{ inputs.confirm }}" != "DEPLOY" ]; then
+            echo "::error::Type DEPLOY in the confirm field to run this workflow. Got: '${{ inputs.confirm }}'"
+            exit 1
+          fi
+          # Not fatal -- a hotfix from another branch is legitimate -- but
+          # which ref reached production should never be a mystery later.
+          if [ "${{ github.ref_name }}" != "claude/web-project-hqdo8o" ]; then
+            echo "::warning::Deploying rules from '${{ github.ref_name }}', not the production branch."
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # The emulator is a Java process. Pinned rather than relying on
+      # whatever the runner image ships this month.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ---- Gate 1: the rules must pass their own tests ----------------
+      # This is the step that makes the whole workflow safe. It runs the
+      # same suites a developer runs locally, against the exact files
+      # about to be deployed.
+      - name: Test Firestore rules
+        if: inputs.target == 'both' || inputs.target == 'firestore'
+        run: npm run test:rules
+
+      - name: Test Storage rules
+        if: inputs.target == 'both' || inputs.target == 'storage'
+        run: npm run test:storage-rules
+
+      # ---- Gate 2: know what is being overwritten ---------------------
+      - name: Write service-account credential
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not set. See this file's SETUP section."
+            exit 1
+          fi
+          # RUNNER_TEMP, not the workspace: nothing under the checkout can
+          # then sweep it into an artifact or a commit.
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          chmod 600 "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+
+      - name: Capture the currently-live rules
+        id: live
+        run: node scripts/fetch-live-rules.mjs --project "$FIREBASE_PROJECT" --out .live-rules
+
+      - name: Report what this deploy changes
+        run: |
+          {
+            echo "## Rules deploy — \`$FIREBASE_PROJECT\`"
+            echo
+            echo "Ref \`${{ github.ref_name }}\` at \`${{ github.sha }}\` · target: \`${{ inputs.target }}\`"
+            echo
+            echo "Below, \`-\` is what is **live now** and \`+\` is what **this deploy will make live**."
+            echo "A \`-\` line that is not in the repository means someone edited rules in the"
+            echo "Firebase Console; deploying discards it."
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for f in firestore.rules storage.rules; do
+            case "${{ inputs.target }}" in
+              firestore) [ "$f" = "storage.rules" ] && continue ;;
+              storage)   [ "$f" = "firestore.rules" ] && continue ;;
+            esac
+            echo "### $f" >> "$GITHUB_STEP_SUMMARY"
+            if [ ! -f ".live-rules/$f" ]; then
+              echo "_No live ruleset — this is the first deploy, nothing is overwritten._" >> "$GITHUB_STEP_SUMMARY"
+            elif diff -q ".live-rules/$f" "$f" >/dev/null; then
+              echo "_Identical to what is already live. This deploy changes nothing._" >> "$GITHUB_STEP_SUMMARY"
+            else
+              {
+                echo '```diff'
+                # `|| true` is load-bearing. Steps run under `bash -eo
+                # pipefail`, and `diff` exits 1 whenever files differ --
+                # which is the normal case here. Without it this step dies
+                # after writing a partial summary and the deploy never
+                # runs, which is exactly what happened the first time.
+                diff -u ".live-rules/$f" "$f" | head -c 60000 || true
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Keep the previous rules for rollback
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-rules-before-deploy-${{ github.run_id }}
+          path: .live-rules/
+          retention-days: 90
+          if-no-files-found: warn
+
+      # ---- Deploy -----------------------------------------------------
+      - name: Deploy
+        run: |
+          case "${{ inputs.target }}" in
+            both)      ONLY="firestore:rules,storage:rules" ;;
+            firestore) ONLY="firestore:rules" ;;
+            storage)   ONLY="storage:rules" ;;
+          esac
+          echo "Deploying --only $ONLY"
+          # --no-install: the firebase-tools from npm ci, the exact binary
+          # that just ran the emulator suite against these files. Fetching
+          # a fresh copy here would mean validating with one version and
+          # deploying with another.
+          npx --no-install firebase deploy \
+            --only "$ONLY" \
+            --project "$FIREBASE_PROJECT" \
+            --non-interactive
+
+      # ---- Confirm it took --------------------------------------------
+      # The deploy command reporting success is not the same as the live
+      # ruleset matching the file. Re-read it and compare.
+      - name: Verify the live rules now match the repository
+        run: |
+          node scripts/fetch-live-rules.mjs --project "$FIREBASE_PROJECT" --out .after-rules
+          status=0
+          for f in firestore.rules storage.rules; do
+            case "${{ inputs.target }}" in
+              firestore) [ "$f" = "storage.rules" ] && continue ;;
+              storage)   [ "$f" = "firestore.rules" ] && continue ;;
+            esac
+            if diff -q ".after-rules/$f" "$f" >/dev/null 2>&1; then
+              echo "OK: live $f matches the repository"
+              echo "- ✅ \`$f\` is live and matches this commit" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::live $f does NOT match the repository after deploy"
+              echo "- ❌ \`$f\` does not match after deploy" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Remove the credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/sa.json"
