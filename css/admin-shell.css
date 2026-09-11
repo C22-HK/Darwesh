@@ -172,6 +172,18 @@ body.admin-shell #adminContent {
   min-height: 100vh;
   transition: grid-template-columns .2s ease;
 }
+/* The rule above is `body.admin-shell #adminContent` (specificity 0-1-2),
+   which silently outweighs Tailwind's `.hidden` (0-1-0) -- so the shell's
+   own `display: grid` beat the `hidden` class that admin.html's auth gate
+   adds, and every signed-out visitor, customer and agent was shown the
+   whole admin frame: sidebar, all 24 tab buttons, dashboard scaffolding,
+   with only an "Admins only" panel layered over it. No admin DATA was
+   exposed (the gate still blocks loading, and firestore.rules enforce the
+   real boundary server-side -- the KPIs read 0 for a non-admin and 6 for an
+   admin on identical fixtures), but the admin surface must not be presented
+   to people who have no access to it. Restated at matching specificity so
+   the class does what every reader of admin.html assumes it does. */
+body.admin-shell #adminContent.hidden { display: none; }
 body.admin-shell #adminContent.ash-collapsed { grid-template-columns: var(--ash-sidebar-w-collapsed) 1fr; }
 body.admin-shell #adminSidebarMount {
   grid-column: 1; grid-row: 1 / -1;

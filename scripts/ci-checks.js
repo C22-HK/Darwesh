@@ -520,6 +520,62 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
   if (parityFailures === 0) ok(`accountType/permission vocabulary in parity: constants.py, firestore.rules, js/permission-catalog.js, js/professional-roles.js (${roleTypes.length} roles), signup-professional.html (${wizardTypes.length} wizard types)`);
 }
 
+// --- 10. Regressions found by the browser-driven bug hunt ---------------
+// Three defects that were each invisible to every other check here: they
+// were real in a browser but perfectly well-formed as source. Guarded
+// statically so they cannot come back unnoticed.
+{
+  let hunted = 0;
+
+  // (a) The admin auth gate. `body.admin-shell #adminContent` (0-1-2)
+  // outweighs Tailwind's `.hidden` (0-1-0), so the shell's own
+  // `display: grid` silently beat the class admin.html's gate relies on,
+  // and every signed-out visitor, customer and agent was shown the whole
+  // admin frame. Any rule that sets display on #adminContent must be
+  // accompanied by a .hidden override at matching-or-higher specificity.
+  const shellCss = fs.readFileSync(path.join(ROOT, 'css/admin-shell.css'), 'utf8');
+  if (/#adminContent\s*\{[^}]*display\s*:/.test(shellCss)
+      && !/#adminContent\.hidden\s*\{[^}]*display\s*:\s*none/.test(shellCss)) {
+    fail('css/admin-shell.css: a rule sets `display` on #adminContent but nothing restores `.hidden` at equal-or-higher specificity -- admin.html\'s auth gate toggles that class, so non-admins would be shown the admin shell');
+    hunted++;
+  }
+
+  // (b) The Dashboard KPI labelled "Active Listings" must actually filter
+  // by status. It once used the whole unfiltered collection, disagreeing
+  // with Market Overview and the Map tab on the same data.
+  const adminHtmlSrc = fs.readFileSync(path.join(ROOT, 'admin.html'), 'utf8');
+  const kpiAssign = adminHtmlSrc.match(/getElementById\('kpiActiveListings'\)\.textContent\s*=\s*([^;]+);/);
+  if (!kpiAssign) {
+    fail('admin.html: could not find the #kpiActiveListings assignment (renamed?) -- this check guards it against counting non-active listings');
+    hunted++;
+  } else if (/\blistings\.length\b/.test(kpiAssign[1])) {
+    fail('admin.html: #kpiActiveListings is assigned from the unfiltered `listings` array -- it is labelled "Active Listings" and must count only status === \'active\', as Market Overview and the Map tab do');
+    hunted++;
+  }
+
+  // (c) map.html's two map modes must not share one filter state. Explore's
+  // filters are a discovery tool; My Properties is a management view, and
+  // carrying one into the other silently hid the user's own listings (the
+  // default "Buy" deal type alone hid every rental they own).
+  const mapSrc = fs.readFileSync(path.join(ROOT, 'map.html'), 'utf8');
+  const switchFn = mapSrc.match(/function switchMapMode\([\s\S]*?\n\}/);
+  if (!switchFn) {
+    fail('map.html: expected a switchMapMode() function');
+    hunted++;
+  } else {
+    if (!/readUrlStateIntoFilters\(/.test(switchFn[0])) {
+      fail('map.html: switchMapMode() must apply the target mode\'s own filter state (readUrlStateIntoFilters) -- otherwise Explore\'s filters stay applied in My Properties and silently hide the user\'s own listings');
+      hunted++;
+    }
+    if (!/clearSpatialFilter\(/.test(switchFn[0])) {
+      fail('map.html: switchMapMode() must clear the spatial (drawn-area / search-this-area) filter -- it would otherwise hide owned properties outside an area drawn in the other mode');
+      hunted++;
+    }
+  }
+
+  if (hunted === 0) ok('bug-hunt regressions guarded: admin gate .hidden specificity, Active Listings KPI filters by status, map modes keep separate filter state');
+}
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log('');
