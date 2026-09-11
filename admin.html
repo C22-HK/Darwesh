@@ -567,9 +567,16 @@ change is not meant to make. -->
         <p class="font-headline-md text-[16px] text-on-surface font-bold" data-i18n="admin.rd.title">Role permission defaults</p>
         <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1 mb-4" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
         <div class="flex flex-wrap items-end gap-3 mb-4">
-          <label class="block">
+          <!-- flex-basis 260px keeps the roomy width this control wants on a
+               normal screen, but `width:auto` previously let the <select>
+               grow to its LONGEST option instead (436px in English, 421px in
+               Kurdish, 388px in Arabic), and as an unshrinkable flex item it
+               dragged the whole Users tab past the viewport on a phone. The
+               basis expresses the same preference while still allowing the
+               control to shrink when there isn't room. -->
+          <label class="block" style="flex:1 1 260px;min-width:0;">
             <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
-            <select id="rdAccountType" class="admin-input" style="width:auto;min-width:260px;"></select>
+            <select id="rdAccountType" class="admin-input" style="width:100%;"></select>
           </label>
           <button type="button" id="rdApplyRecommended" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
           <button type="button" id="rdClearAll" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.clearAll">Clear all</button>
@@ -3219,8 +3226,19 @@ async function renderDashboardTab() {
   const weekAgoSec = nowSec - 7 * 86400;
   const isThisWeek = (seconds) => seconds && seconds >= weekAgoSec;
 
-  document.getElementById('kpiActiveListings').textContent = listings.length.toLocaleString();
-  const newListings = listings.filter(l => isThisWeek(l.createdAt?.seconds)).length;
+  // "Active Listings" must mean what it says, and what the rest of the
+  // platform means by it: status == 'active'. This previously counted the
+  // whole collection, so every listing an agent closed or admin.html
+  // converted to 'sold'/'rented' kept inflating the headline figure --
+  // the exact bug the Portfolio Value comment below describes, left
+  // unfixed on the KPI whose label actually says "Active". Market
+  // Overview (renderMarketOverview) and the Map tab already filter this
+  // way, so the dashboard disagreed with both.
+  const activeListings = listings.filter(l => l.status === 'active');
+  document.getElementById('kpiActiveListings').textContent = activeListings.length.toLocaleString();
+  // Counted from the same active set, so the "+N this week" delta can
+  // never exceed or contradict the headline number it sits under.
+  const newListings = activeListings.filter(l => isThisWeek(l.createdAt?.seconds)).length;
   document.getElementById('kpiActiveListingsSub').innerHTML = newListings
     ? `<span class="material-symbols-outlined" style="font-size:12px;vertical-align:-2px;">trending_up</span> ${trAdmin('admin.newThisWeek', '+{n} this week').replace('{n}', newListings)}`
     : '';

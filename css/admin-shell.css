@@ -188,6 +188,25 @@ body.admin-shell #adminSidebarMount ~ main { grid-row: 2; }
 @media (max-width: 1023px) {
   body.admin-shell #adminContent,
   body.admin-shell #adminContent.ash-collapsed { grid-template-columns: 1fr; }
+  /* The sidebar leaves the grid here (it becomes the fixed drawer styled
+     below), so the single declared track is column 1. Without this reset,
+     header and main kept the desktop `grid-column: 2` and were placed in an
+     IMPLICIT second track while the declared 1fr track sat empty at 0px --
+     a layout that only ever worked by accident. */
+  body.admin-shell #adminSidebarMount ~ header,
+  body.admin-shell #adminSidebarMount ~ main { grid-column: 1; }
+  /* THE overflow fix. <main> carries `mx-auto` (margin-inline: auto), and
+     auto inline margins opt a grid item out of stretch-sizing into
+     shrink-to-fit -- so it took its MAX-CONTENT width and a single wide
+     admin table dragged the whole page sideways with it. `min-width: 0`
+     cannot prevent that (it governs shrinking, not this), and neither can
+     minmax(0, 1fr) on the track -- both were measured doing nothing here.
+     Capping the item at its grid area is what actually holds it, and it is
+     also what lets the tables' existing `.overflow-x-auto` wrapper finally
+     do its job: before this, the wrapper was itself wider than the screen,
+     so it never scrolled and the right-hand columns of the Users / Agents /
+     Branches / Service Requests tables were unreachable on a phone. */
+  body.admin-shell #adminSidebarMount ~ main { max-width: 100%; }
   body.admin-shell #adminSidebarMount {
     position: fixed; inset: 0 auto 0 0; width: min(84vw, 300px); height: 100dvh;
     transform: translateX(-101%); transition: transform .22s ease; z-index: 80;

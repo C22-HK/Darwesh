@@ -1099,7 +1099,30 @@ async function loadMyPropertiesListings() {
 }
 
 function saveMapViewState(mode) {
-  modeViewState[mode] = { center: map.getCenter(), zoom: map.getZoom() };
+  // Filters travel with the view, not just the camera. Explore's filters
+  // are a DISCOVERY tool ("show me 3-bed villas for sale under $300k");
+  // My Properties is a MANAGEMENT view of everything you own. Carrying one
+  // mode's filters into the other silently hid the user's own listings --
+  // the default "Buy" deal type alone made every rental property they own
+  // invisible in My Properties, with the header still reporting only the
+  // surviving count and nothing saying anything had been filtered out.
+  // `listing` is stripped: the open card is per-visit, and switchMapMode
+  // deliberately clears activeId.
+  const filterParams = buildStateParams();
+  filterParams.delete('listing');
+  modeViewState[mode] = {
+    center: map.getCenter(),
+    zoom: map.getZoom(),
+    filters: filterParams.toString(),
+  };
+}
+
+// A mode's filters the first time it is opened. Explore keeps the page's
+// own URL-derived defaults; My Properties starts unfiltered ('type=all',
+// since buildStateParams omits the param entirely for its 'sale' default)
+// so a management view opens showing everything you own.
+function defaultFilterStateFor(mode) {
+  return mode === 'myProperties' ? 'type=all' : '';
 }
 
 function switchMapMode(mode) {
@@ -1107,6 +1130,13 @@ function switchMapMode(mode) {
   saveMapViewState(currentMapMode);
   currentMapMode = mode;
   activeId = null;
+  // A drawn area / "search this area" box belongs to the view it was drawn
+  // on, and would otherwise hide owned properties outside it just as
+  // invisibly as the deal-type filter did.
+  clearSpatialFilter();
+  const restoring = modeViewState[mode];
+  readUrlStateIntoFilters(new URLSearchParams(
+    restoring ? restoring.filters : defaultFilterStateFor(mode)));
   document.getElementById('mapModeExploreBtn').setAttribute('aria-pressed', String(mode === 'explore'));
   document.getElementById('mapModeExploreBtn').classList.toggle('bg-primary', mode === 'explore');
   document.getElementById('mapModeExploreBtn').classList.toggle('text-on-primary', mode === 'explore');
@@ -3078,12 +3108,20 @@ function finishGesture(e, { cancelled } = {}) {
 mapEl.addEventListener('pointerup', (e) => finishGesture(e));
 mapEl.addEventListener('pointercancel', (e) => finishGesture(e, { cancelled: true }));
 
-clearSearchAreaBtn.addEventListener('click', () => {
+// Drops any active spatial filter (a drawn circle or a "search this area"
+// viewport snapshot) and its layers. Extracted so mode switching clears it
+// through the exact same path the Clear button uses, instead of a second
+// copy that could miss a layer and leave an invisible filter applied.
+function clearSpatialFilter() {
   removeCircleLayers();
   searchCircle = null;
   viewportSearchBounds = null;
   lastFilteredBounds = null;
   updateAreaControls();
+}
+
+clearSearchAreaBtn.addEventListener('click', () => {
+  clearSpatialFilter();
   showToast(tr('map.searchAreaCleared', 'Search area cleared'), 'close');
   updateUrlState(true);
   refresh();
@@ -3264,11 +3302,22 @@ function updateUrlState(push) {
   if (push) history.pushState(null, '', newUrl);
   else history.replaceState(null, '', newUrl);
 }
-function readUrlStateIntoFilters() {
-  const p = new URLSearchParams(window.location.search);
+// Reads a full filter state (deal type, city, price, beds/baths, property
+// types, verified/area, sort) into both the state variables and the filter
+// controls' visible state. Defaults to the page URL -- that is still its
+// main job -- but takes an explicit URLSearchParams so the same, already-
+// exercised mapping can restore a REMEMBERED state too, rather than a
+// second copy of it drifting out of sync (switchMapMode's per-mode filter
+// state is the one other caller).
+function readUrlStateIntoFilters(params) {
+  const p = params || new URLSearchParams(window.location.search);
   const urlCity = p.get('city');
   const urlType = p.get('type');
-  if (urlCity) document.getElementById('citySearch').value = urlCity;
+  // Assigned unconditionally: filteredListings() reads this input's live
+  // value, so leaving a previous city in the box when the state being
+  // applied has none kept a filter active that the state says is off --
+  // visible as Back/Forward not actually clearing a city search.
+  document.getElementById('citySearch').value = urlCity || '';
   updateCityTriggerLabel();
   if (urlType === 'all' || (urlCity && !urlType)) setActiveTypeFromUrl('all');
   else if (urlType === 'rent') setActiveTypeFromUrl('rent');
