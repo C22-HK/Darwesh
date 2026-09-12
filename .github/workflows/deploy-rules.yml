@@ -180,6 +180,14 @@ jobs:
           name: live-rules-before-deploy-${{ github.run_id }}
           path: .live-rules/
           retention-days: 90
+          # `.live-rules` starts with a dot, and upload-artifact excludes
+          # hidden paths by default. So this step reported "No files were
+          # found with the provided path: .live-rules/" and uploaded
+          # nothing -- while the step before it had just fetched the live
+          # ruleset successfully and printed a correct diff. The rollback
+          # copy is the only thing that makes a bad deploy recoverable,
+          # and it was silently empty precisely when it mattered.
+          include-hidden-files: true
           if-no-files-found: warn
 
       # ---- Deploy -----------------------------------------------------
