@@ -1,257 +1,394 @@
-/* The identity verification journey (verify.html).
+/* The identity verification journey (verify.html) and its camera.
  *
  * Deliberately quiet. Handing over a national ID is an act of trust, and
- * the page it happens on should feel like a bank counter, not a game:
- * one instruction at a time, generous whitespace, no progress
- * gamification, no scores.
+ * the surface it happens on should feel like a private bank counter, not
+ * a web form: one instruction at a time, one primary action per screen,
+ * no progress gamification, no scores.
  *
- * Self-contained brand tokens, matching css/verification-rewards.css, so
- * the two read as one system.
+ * COLOUR (§19). Five roles, and each one earns its place:
+ *   ground     a very deep warm charcoal, never neutral black
+ *   text       warm cream
+ *   guidance   muted gold -- restrained. ONE gold control per screen, so
+ *              "the gold thing" always means "the thing to press next".
+ *              Everything else is an outline or a ghost.
+ *   ready      a subtle premium green, used only for a state that is
+ *              genuinely settled -- never for "verified"
+ *   error      a muted warm red that belongs to this palette, not a
+ *              browser-default alarm red
+ *
+ * Self-contained tokens, matching css/verification-rewards.css, so the
+ * two read as one system.
  */
 
 .vj {
-  --vj-bg: #17150F;
-  --vj-bg-2: #100e0a;
-  --vj-panel: rgba(255, 255, 255, .035);
+  --vj-bg: #14120D;
+  --vj-bg-2: #0C0B07;
+  --vj-panel: rgba(255, 255, 255, .032);
+  --vj-panel-line: rgba(255, 255, 255, .075);
   --vj-cream: #F4EFE7;
-  --vj-muted: #B8B0A5;
-  --vj-gold: #c69a4b;
-  --vj-gold-bright: #d4af60;
-  --vj-rule: rgba(198, 154, 75, .28);
-  --vj-ok: #74c69d;
-  --vj-warn: #e0b563;
-  --vj-err: #e5787a;
+  --vj-muted: #ADA598;
+  --vj-faint: rgba(173, 165, 152, .7);
+  --vj-gold: #C9A45C;
+  --vj-gold-bright: #D8B978;
+  --vj-rule: rgba(201, 164, 92, .24);
+  --vj-ok: #6FB98A;
+  --vj-warn: #D9AE62;
+  --vj-err: #C8736B;
 
   box-sizing: border-box;
   min-height: 100dvh;
-  background: radial-gradient(120% 90% at 50% 0%, #201d15 0%, var(--vj-bg) 46%, var(--vj-bg-2) 100%);
+  background: radial-gradient(125% 85% at 50% -6%, #1E1A12 0%, var(--vj-bg) 44%, var(--vj-bg-2) 100%);
   color: var(--vj-cream);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 .vj *, .vj *::before, .vj *::after { box-sizing: inherit; }
 
+/* §18: one continuous flow, not a stack of boxes inside a page. The
+   shell is narrow enough that each step reads as the whole screen. */
 .vj-shell {
-  max-width: 620px;
+  max-width: 560px;
   margin: 0 auto;
-  padding: clamp(20px, 5vw, 48px) 16px clamp(48px, 8vw, 88px);
+  padding: max(18px, env(safe-area-inset-top)) 18px
+           calc(clamp(40px, 8vw, 72px) + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---- Header ---------------------------------------------------------- */
 .vj-top {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; margin-bottom: clamp(20px, 4vw, 34px);
+  gap: 16px; margin-bottom: clamp(18px, 4vw, 30px);
 }
 .vj-brand {
   font-family: 'IBM Plex Sans', sans-serif;
-  font-weight: 600; font-size: 15px; color: var(--vj-cream); text-decoration: none;
+  font-weight: 600; font-size: 14px; letter-spacing: .01em;
+  color: var(--vj-cream); text-decoration: none;
 }
-.vj-exit { font-size: 13px; color: var(--vj-muted); text-decoration: none; }
+.vj-exit { font-size: 12.5px; color: var(--vj-muted); text-decoration: none; }
 .vj-exit:hover { color: var(--vj-gold-bright); }
 
-.vj-hero { text-align: center; margin-bottom: clamp(22px, 4vw, 34px); }
-.vj-hero h1 {
+/* ---- Intro (§18: smaller, not a marketing hero) ---------------------- */
+.vj-intro { text-align: center; margin-bottom: clamp(18px, 4vw, 28px); }
+.vj-intro[hidden] { display: none !important; }
+.vj-intro h1 {
   margin: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
-  font-size: clamp(24px, 5.5vw, 34px);
-  line-height: 1.2;
+  font-size: clamp(21px, 4.4vw, 26px);
+  line-height: 1.22;
+  letter-spacing: -.012em;
   text-wrap: balance;
 }
-.vj-hero p {
-  margin: .65em auto 0; max-width: 46ch;
-  font-size: 13.5px; line-height: 1.6; color: var(--vj-muted);
+.vj-intro p {
+  margin: .6em auto 0; max-width: 40ch;
+  font-size: 13px; line-height: 1.6; color: var(--vj-muted);
 }
 .vj-reward {
   display: inline-flex; align-items: center; gap: 7px;
-  margin-top: 14px; padding: 6px 14px;
+  margin-top: 13px; padding: 5px 13px;
   border: 1px solid var(--vj-rule); border-radius: 999px;
-  background: rgba(198, 154, 75, .08);
-  font-size: 12.5px; font-weight: 600; color: var(--vj-gold-bright);
-  /* Deliberately NOT nowrap: this is a whole translated sentence, and
-     at 320px the Kurdish version is 362px wide -- it pushed 58px past
-     the viewport and made the page scroll sideways. "3.5%" has no break
-     opportunity inside it anyway, so wrapping the sentence is safe. */
-  text-align: center;
-  max-width: 100%;
+  background: rgba(201, 164, 92, .07);
+  font-size: 12px; font-weight: 600; color: var(--vj-gold-bright);
+  /* Deliberately NOT nowrap: this is a whole translated sentence, and at
+     320px the Kurdish version is wider than the viewport. "3.5%" has no
+     break opportunity inside it anyway, so wrapping is safe. */
+  text-align: center; max-width: 100%;
 }
 
-/* ---- Stepper --------------------------------------------------------- */
-.vj-steps {
-  display: grid; grid-template-columns: repeat(4, 1fr);
-  gap: 6px; list-style: none; margin: 0 0 clamp(20px, 4vw, 30px); padding: 0;
+/* ---- Compact progress (§17) ------------------------------------------
+ * The old version was four full-width uppercase labels over four bars --
+ * on a 320px screen it was the loudest thing on the page and it said
+ * nothing the person did not already know. This is a mark, a word, and a
+ * hairline between them: done is a tick, current is filled, ahead is an
+ * empty ring. */
+.vj-track {
+  display: flex; align-items: center;
+  gap: 0; list-style: none; margin: 0 0 clamp(16px, 3.6vw, 24px); padding: 0;
 }
-.vj-step { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.vj-step-bar { height: 3px; border-radius: 99px; background: rgba(255,255,255,.1); }
-.vj-step.is-done .vj-step-bar { background: var(--vj-ok); }
-.vj-step.is-current .vj-step-bar { background: var(--vj-gold-bright); }
-.vj-step-label {
-  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--vj-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.vj-track-step {
+  display: flex; align-items: center; gap: 7px; min-width: 0;
 }
-.vj-step.is-current .vj-step-label { color: var(--vj-cream); font-weight: 600; }
-[dir="rtl"] .vj-step-label { letter-spacing: 0; text-transform: none; }
+.vj-track-step + .vj-track-step { flex: 1 1 auto; }
+/* The connector belongs to the step that FOLLOWS it, so the first step
+   has nothing dangling to its start side in either writing direction. */
+.vj-track-step + .vj-track-step::before {
+  content: ''; flex: 1 1 auto; min-width: 8px;
+  height: 1px; background: rgba(255, 255, 255, .12);
+}
+.vj-track-step.is-done + .vj-track-step::before,
+.vj-track-step.is-current + .vj-track-step::before { background: rgba(111, 185, 138, .42); }
+.vj-track-mark {
+  flex: 0 0 auto;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, .22);
+  display: grid; place-items: center;
+  color: transparent;
+  transition: border-color .22s ease, background .22s ease, color .22s ease;
+}
+.vj-track-mark svg { width: 9px; height: 9px; display: block; }
+.vj-track-step.is-done .vj-track-mark {
+  border-color: var(--vj-ok); background: rgba(111, 185, 138, .18); color: var(--vj-ok);
+}
+.vj-track-step.is-current .vj-track-mark {
+  border-color: var(--vj-gold-bright);
+  box-shadow: inset 0 0 0 3px var(--vj-gold-bright);
+}
+.vj-track-label {
+  font-size: 11.5px; letter-spacing: .01em; color: var(--vj-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.vj-track-step.is-current .vj-track-label { color: var(--vj-cream); font-weight: 600; }
+.vj-track-step.is-done .vj-track-label { color: var(--vj-muted); }
+/* Only the current step keeps its word at phone width; the rest are
+   marks. Four labels at 320px is what made the old stepper shout. */
+@media (max-width: 430px) {
+  .vj-track-step:not(.is-current) .vj-track-label { display: none; }
+  .vj-track-step { gap: 0; }
+  .vj-track-step.is-current { gap: 7px; }
+}
 
 /* ---- Panels ---------------------------------------------------------- */
 .vj-panel {
-  border: 1px solid rgba(255,255,255,.09);
-  border-radius: 16px;
+  border: 1px solid var(--vj-panel-line);
+  border-radius: 18px;
   background: var(--vj-panel);
-  padding: clamp(18px, 4vw, 28px);
+  padding: clamp(18px, 4vw, 26px);
 }
 .vj-panel[hidden] { display: none !important; }
 .vj-panel h2 {
-  margin: 0 0 .45em;
+  margin: 0 0 .4em;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 18px; font-weight: 700;
+  font-size: 17.5px; font-weight: 700; letter-spacing: -.008em;
 }
-.vj-panel .vj-body { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--vj-muted); }
+.vj-panel .vj-body { margin: 0; font-size: 13px; line-height: 1.62; color: var(--vj-muted); }
 
 .vj-consent {
-  margin-top: 18px; padding: 16px;
-  border: 1px solid var(--vj-rule); border-radius: 12px;
-  background: rgba(198, 154, 75, .05);
+  margin-top: 16px; padding: 15px;
+  border: 1px solid var(--vj-rule); border-radius: 14px;
+  background: rgba(201, 164, 92, .045);
 }
-.vj-consent h3 { margin: 0 0 .5em; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--vj-gold); }
+.vj-consent h3 {
+  margin: 0 0 .5em; font-size: 11px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--vj-gold);
+}
 [dir="rtl"] .vj-consent h3 { letter-spacing: .03em; text-transform: none; }
-.vj-consent p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--vj-muted); }
+.vj-consent p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--vj-muted); }
 
-/* ---- Capture slots --------------------------------------------------- */
-.vj-slots { display: grid; gap: 14px; margin-top: 18px; }
-.vj-slot {
-  border: 1px dashed rgba(255,255,255,.16);
-  border-radius: 12px;
-  padding: 14px;
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
+/* ---- ID tiles (§11) -------------------------------------------------
+ * The old version was a web form row: a thumbnail, the literal filename
+ * "id-front.jpg", and a "Change photo" button. The filename is an
+ * internal detail -- the person never named that file and it tells them
+ * nothing -- and three stacked form rows is exactly the "ordinary
+ * website" feeling this step should not have. Two image tiles, a word,
+ * and a state. */
+.vj-tiles {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-top: 16px;
 }
-.vj-slot.is-filled { border-style: solid; border-color: var(--vj-rule); background: rgba(198,154,75,.05); }
-.vj-slot-preview {
-  width: 96px; aspect-ratio: 3 / 2;
-  border-radius: 8px; overflow: hidden;
-  background: rgba(0,0,0,.35);
+.vj-tile { min-width: 0; }
+.vj-tile-hit {
+  appearance: none; cursor: pointer; width: 100%;
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 10px; border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, .17);
+  background: rgba(255, 255, 255, .018);
+  color: inherit; font: inherit; text-align: start;
+  transition: border-color .2s ease, background .2s ease;
+}
+.vj-tile-hit:hover { border-color: var(--vj-rule); background: rgba(201, 164, 92, .05); }
+.vj-tile.is-filled .vj-tile-hit {
+  border-style: solid; border-color: rgba(111, 185, 138, .34);
+  background: rgba(111, 185, 138, .045);
+}
+.vj-tile-img {
+  width: 100%; aspect-ratio: 1.586;
+  border-radius: 9px; overflow: hidden;
+  background: rgba(0, 0, 0, .32);
   display: grid; place-items: center;
-  color: rgba(184,176,165,.6);
+  color: rgba(173, 165, 152, .5);
 }
-.vj-slot-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.vj-slot-main { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.vj-slot-title { font-size: 14px; font-weight: 600; }
-.vj-slot-meta { font-size: 12px; color: var(--vj-muted); }
-.vj-slot-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.vj-tile-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vj-tile-name { font-size: 13px; font-weight: 600; display: block; }
+.vj-tile-state {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11.5px; color: var(--vj-faint);
+}
+.vj-tile.is-filled .vj-tile-state { color: var(--vj-ok); font-weight: 600; }
+.vj-tile-state svg { width: 11px; height: 11px; display: none; }
+.vj-tile.is-filled .vj-tile-state svg { display: block; }
+.vj-tile-alt {
+  display: inline-block; margin-top: 8px; cursor: pointer;
+  font-size: 11.5px; color: var(--vj-gold-bright);
+  text-decoration: underline; text-underline-offset: 3px;
+}
 /* Shown only when the camera could not be used, so the gallery is never
  * the default route to an identity photo. */
 .vj-upload-fallback[hidden] { display: none !important; }
 
-.vj-file { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.vj-file {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 
-/* ---- Camera ---------------------------------------------------------- */
-.vj-camera {
-  position: relative;
-  margin-top: 18px;
-  border-radius: 14px;
-  overflow: hidden;
+/* ---- Accepted photo + Ready mark ------------------------------------- */
+.vj-shotwrap {
+  position: relative; margin-top: 16px;
+  border-radius: 16px; overflow: hidden;
   background: #000;
-  aspect-ratio: 3 / 4;
-  max-width: 340px;
-  max-height: 60vh;
+  aspect-ratio: 3 / 4; max-width: 300px; max-height: 52vh;
   margin-inline: auto;
+  border: 1px solid rgba(111, 185, 138, .28);
 }
-.vj-camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vj-shotwrap[hidden] { display: none !important; }
+.vj-shotwrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vj-ready-mark {
+  position: absolute; inset-block-end: 10px; inset-inline-start: 10px;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 999px;
+  background: rgba(10, 9, 7, .62);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border: 1px solid rgba(111, 185, 138, .45);
+  font-size: 11.5px; font-weight: 600; color: #C4E7D2;
+}
+.vj-ready-mark svg { width: 11px; height: 11px; }
 
-/* ---- Quality notice -------------------------------------------------- */
-.vj-notice {
-  margin-top: 14px; padding: 12px 14px;
-  border-radius: 10px;
-  font-size: 12.5px; line-height: 1.55;
+/* ---- Review step (§13) ----------------------------------------------- */
+.vj-review { display: grid; gap: 10px; margin-top: 16px; }
+.vj-review-row {
+  display: grid; grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center; gap: 13px;
+  padding: 10px; border-radius: 13px;
+  border: 1px solid var(--vj-panel-line);
+  background: rgba(255, 255, 255, .018);
 }
-.vj-notice-warn { background: rgba(224, 181, 99, .12); border: 1px solid rgba(224, 181, 99, .35); color: #f0d9a8; }
-.vj-notice-err { background: rgba(229, 120, 122, .12); border: 1px solid rgba(229, 120, 122, .38); color: #f3b8b9; }
-.vj-notice-ok { background: rgba(116, 198, 157, .12); border: 1px solid rgba(116, 198, 157, .35); color: #a9e0c5; }
+.vj-review-thumb {
+  width: 62px; aspect-ratio: 1; border-radius: 9px; overflow: hidden;
+  background: rgba(0, 0, 0, .32);
+}
+.vj-review-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Both block: they are two stacked lines, and as inline spans they ran
+   together into "National IDFront". */
+.vj-review-name { display: block; font-size: 13px; font-weight: 600; }
+.vj-review-sub { display: block; font-size: 11.5px; color: var(--vj-faint); margin-top: 2px; }
+.vj-review-ok { color: var(--vj-ok); display: grid; place-items: center; }
+.vj-review-ok svg { width: 15px; height: 15px; }
+.vj-review-privacy {
+  margin: 14px 0 0; text-align: center;
+  font-size: 11.5px; color: var(--vj-faint);
+}
+/* display is explicit because css/tailwind.css's preflight sets
+   `svg { display: block }` globally, which drops this lock onto its own
+   line above the sentence it belongs to. */
+.vj-review-privacy svg {
+  display: inline-block;
+  width: 11px; height: 11px; vertical-align: -1px;
+  margin-inline-end: 5px; opacity: .8;
+}
+
+/* ---- Notices --------------------------------------------------------- */
+.vj-notice {
+  margin-top: 14px; padding: 11px 13px;
+  border-radius: 11px; font-size: 12.5px; line-height: 1.55;
+}
+.vj-notice-warn { background: rgba(217, 174, 98, .1); border: 1px solid rgba(217, 174, 98, .3); color: #EDD5A6; }
+.vj-notice-err { background: rgba(200, 115, 107, .1); border: 1px solid rgba(200, 115, 107, .32); color: #EBB6B1; }
+.vj-notice-ok { background: rgba(111, 185, 138, .1); border: 1px solid rgba(111, 185, 138, .3); color: #B6DFC6; }
 .vj-notice ul { margin: .5em 0 0; padding-inline-start: 1.2em; }
 
 /* ---- Buttons --------------------------------------------------------- */
-.vj-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
-.vj-actions-end { justify-content: flex-end; }
+.vj-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+/* display:flex would otherwise beat the hidden attribute. */
+.vj-actions[hidden] { display: none !important; }
 .vj-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 12px 22px; border-radius: 10px;
-  border: 1px solid var(--vj-rule);
+  padding: 12px 20px; border-radius: 12px;
+  border: 1px solid var(--vj-panel-line);
   background: transparent; color: var(--vj-cream);
   font: inherit; font-size: 13.5px; font-weight: 600;
+  min-height: 46px;
   text-decoration: none; cursor: pointer;
-  transition: background .18s ease, border-color .18s ease;
+  transition: background .18s ease, border-color .18s ease, transform .12s ease;
 }
-.vj-btn:hover:not(:disabled) { border-color: var(--vj-gold); background: rgba(198,154,75,.1); }
+.vj-btn:hover:not(:disabled) { border-color: var(--vj-rule); background: rgba(255, 255, 255, .05); }
+.vj-btn:active:not(:disabled) { transform: translateY(1px); }
 .vj-btn:focus-visible { outline: 2px solid var(--vj-gold-bright); outline-offset: 2px; }
-.vj-btn-primary { background: var(--vj-gold-bright); border-color: transparent; color: #17150F; }
-.vj-btn-primary:hover:not(:disabled) { background: #e0bd72; }
-.vj-btn:disabled { opacity: .5; cursor: not-allowed; }
+/* The ONE gold control on a screen. */
+.vj-btn-primary {
+  background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold));
+  border-color: transparent; color: #17150F;
+}
+.vj-btn-primary:hover:not(:disabled) { filter: brightness(1.05); }
+.vj-btn:disabled { opacity: .45; cursor: not-allowed; }
 .vj-btn-ghost { border-color: transparent; color: var(--vj-muted); }
-.vj-btn-ghost:hover { color: var(--vj-cream); background: rgba(255,255,255,.05); }
+.vj-btn-ghost:hover { color: var(--vj-cream); background: rgba(255, 255, 255, .045); }
 .vj-grow { flex: 1 1 auto; }
 
-.vj-spinner {
-  width: 15px; height: 15px; border-radius: 50%;
-  border: 2px solid currentColor; border-top-color: transparent;
-  animation: vjSpin .8s linear infinite;
-}
-@keyframes vjSpin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .vj-spinner { animation-duration: 2.4s; } }
-
 .vj-privacy {
-  margin: 18px 0 0; font-size: 11.5px; line-height: 1.6;
-  color: rgba(184,176,165,.75); text-align: center;
+  margin: 16px 0 0; font-size: 11px; line-height: 1.6;
+  color: var(--vj-faint); text-align: center;
 }
 
 /* ---- Terminal states -------------------------------------------------- */
-.vj-done { text-align: center; padding-block: clamp(16px, 4vw, 28px); }
+.vj-done { text-align: center; padding-block: clamp(18px, 4vw, 30px); }
 .vj-done-mark {
-  width: 58px; height: 58px; margin: 0 auto 18px;
+  width: 56px; height: 56px; margin: 0 auto 18px;
   border-radius: 50%; display: grid; place-items: center;
-  background: rgba(116,198,157,.15); color: var(--vj-ok);
-  border: 1px solid rgba(116,198,157,.4);
+  background: rgba(111, 185, 138, .13); color: var(--vj-ok);
+  border: 1px solid rgba(111, 185, 138, .36);
 }
 .vj-done h2 { margin: 0 0 .5em; }
-.vj-done .vj-body { max-width: 42ch; margin-inline: auto; }
+.vj-done .vj-body { max-width: 40ch; margin-inline: auto; }
 .vj-done .vj-actions { justify-content: center; }
 
-/* ---- Mobile (§BH: 320 / 375 / 390 / 430) ------------------------------ */
+/* ---- Mobile (§21: 320 / 375 / 390 / 430) ------------------------------ */
 @media (max-width: 560px) {
-  .vj-shell { padding-inline: 16px; }
-  .vj-panel { padding: 16px 14px; border-radius: 14px; }
-  .vj-slot { grid-template-columns: 72px minmax(0, 1fr); gap: 12px; padding: 12px; }
-  .vj-slot-preview { width: 72px; }
+  .vj-shell { padding-inline: 14px; }
+  .vj-panel { padding: 16px 14px; border-radius: 16px; }
   .vj-actions .vj-btn { flex: 1 1 auto; }
-  .vj-steps { gap: 4px; }
-  .vj-step-label { font-size: 10px; }
+}
+@media (max-width: 360px) {
+  /* Two ID tiles side by side stop working once each is under ~130px. */
+  .vj-tiles { grid-template-columns: 1fr; }
 }
 
-/* ---- In-page camera (js/verify-camera.js) ------------------------------
- * A full-screen capture surface rather than a panel: on a phone, framing a
- * national ID needs the whole screen, and anything less encourages people
- * to shoot from too far away. Same dark/gold palette as the journey, so it
- * reads as one product and not a browser dialog dropped on top.
+/* ======================================================================
+ * IN-PAGE CAMERA (js/verify-camera.js)
+ * ======================================================================
+ * A full-screen capture surface rather than a panel: on a phone, framing
+ * a national ID needs the whole screen, and anything less encourages
+ * people to shoot from too far away.
+ *
+ * TWO RULES THIS SECTION EXISTS TO KEEP
+ * -------------------------------------
+ * 1. NOTHING DIMS OR TINTS THE PICTURE. There is no mask, no scrim and
+ *    no overlay across the preview. Every guide effect below lives within
+ *    a few pixels of an EDGE; the interior of the guide has no background
+ *    at all. A dimmed preview looks underexposed and, worse, makes it
+ *    genuinely harder to judge whether the real lighting is good enough.
+ * 2. NOTHING IS MIRRORED. There is no `scaleX(-1)` in this file, for
+ *    either camera, in any writing direction. RTL mirrors the LAYOUT --
+ *    header, controls, text -- and never the camera image.
  *
  * Tokens are re-declared on .vjc because this element is appended to
  * <body>, outside the .vj subtree that defines them.
  */
 .vjc {
   --vj-cream: #F4EFE7;
-  --vj-muted: #B8B0A5;
-  --vj-gold: #c69a4b;
-  --vj-gold-bright: #d4af60;
-  --vj-rule: rgba(198, 154, 75, .28);
+  --vj-muted: #ADA598;
+  --vj-gold: #C9A45C;
+  --vj-gold-bright: #D8B978;
+  --vj-rule: rgba(201, 164, 92, .24);
+  --vj-ok: #6FB98A;
+
+  /* Guide state, set by data-vjc-state on .vjc-stage. */
+  --vjc-line: rgba(214, 180, 112, .88);
+  --vjc-glow: rgba(201, 164, 92, .3);
+  --vjc-accent: rgba(214, 180, 112, .9);
 
   position: fixed; inset: 0; z-index: 200;
   display: flex; align-items: stretch; justify-content: center;
-  background: rgba(9, 8, 6, .92);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: #0A0906;
   color: var(--vj-cream);
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  animation: vjc-in .18s ease-out;
+  animation: vjc-in .2s ease-out;
 }
 @keyframes vjc-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .vjc { animation: none; } }
@@ -259,161 +396,272 @@
 /* Stops the page behind from scrolling under the camera on iOS. */
 body.vjc-open { overflow: hidden; }
 
+/* §21: safe areas on every side. On a notched phone the close button must
+   not sit under the notch and the shutter must not sit under the home
+   indicator. */
 .vjc-sheet {
   width: 100%; max-width: 520px;
   display: flex; flex-direction: column;
-  padding: max(14px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  padding: calc(12px + env(safe-area-inset-top, 0px))
+           calc(14px + env(safe-area-inset-right, 0px))
+           calc(14px + env(safe-area-inset-bottom, 0px))
+           calc(14px + env(safe-area-inset-left, 0px));
   gap: 12px;
 }
 
 .vjc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .vjc-ident { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .vjc-brand {
-  font-size: 10.5px; font-weight: 600;
-  letter-spacing: .14em; text-transform: uppercase;
+  font-size: 10px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase;
   color: var(--vj-gold);
 }
+[dir="rtl"] .vjc-brand { letter-spacing: .04em; text-transform: none; }
 .vjc-title {
   margin: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-size: 16px; font-weight: 700;
+  font-size: 16px; font-weight: 700; letter-spacing: -.008em;
 }
 .vjc-close {
-  appearance: none; flex: 0 0 auto; border: 1px solid var(--vj-rule);
-  background: rgba(255,255,255,.04); color: var(--vj-cream);
+  appearance: none; flex: 0 0 auto; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .05); color: var(--vj-cream);
   width: 40px; height: 40px; border-radius: 50%;
-  display: grid; place-items: center; cursor: pointer;
+  display: grid; place-items: center;
 }
-.vjc-close:hover { background: rgba(198,154,75,.12); }
+.vjc-close:hover { background: rgba(255, 255, 255, .1); }
 
 /* The preview fills the space left between header and controls. */
 .vjc-stage {
   position: relative; flex: 1 1 auto; min-height: 0;
-  border-radius: 16px; overflow: hidden;
+  border-radius: 20px; overflow: hidden;
   background: #000;
-  border: 1px solid var(--vj-rule);
+  border: 1px solid rgba(255, 255, 255, .08);
 }
 .vjc-video, .vjc-shot { width: 100%; height: 100%; object-fit: cover; display: block; }
 .vjc-video[hidden], .vjc-shot[hidden] { display: none; }
-/* Preview only. The captured frame is never mirrored -- see verify-camera.js. */
-.vjc-video.is-mirrored { transform: scaleX(-1); }
 
-/* Guidance drawn over the preview; the full frame is always captured. */
-.vjc-frame { position: absolute; inset: 0; pointer-events: none; }
+/* ---- The guide ------------------------------------------------------- */
+/* .vjc-frame IS the guide box: positioned to the true proportions of the
+   thing being photographed. Its children draw the plate, so they are free
+   to use transform for the spatial nudges without fighting the centring. */
+.vjc-frame { position: absolute; pointer-events: none; }
 .vjc-frame[hidden] { display: none; }
-/* NO DARK MASK. The previous `box-shadow: 0 0 0 100vmax rgba(0,0,0,.34)`
-   dimmed everything outside the guide, which made the preview look
-   underexposed and, worse, made it genuinely harder to tell whether the
-   real lighting was good enough. The guide is a thin outline over an
-   untouched picture: the camera image is exactly what the sensor sees. */
-.vjc-frame::after {
-  content: ''; position: absolute;
-  border: 1.5px solid var(--vjc-guide, rgba(212, 175, 96, .9));
-  transition: border-color .18s ease, box-shadow .18s ease;
-  /* A hairline scrim on the outline itself, never over the picture --
-     it keeps a pale guide readable against a white card. */
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(0, 0, 0, .18);
-}
 
-/* Three states, each with its own colour AND its own sentence in
-   .vjc-hint -- colour is never the only signal (WCAG 1.4.1). */
-.vjc-stage { --vjc-guide: rgba(212, 175, 96, .9); }          /* looking */
-.vjc-stage[data-vjc-state="adjust"] { --vjc-guide: rgba(232, 170, 62, .96); }  /* amber: fix one thing */
-.vjc-stage[data-vjc-state="ready"]  { --vjc-guide: rgba(106, 190, 130, .98); } /* soft green: hold steady */
-
-/* Auto-capture progress: the outline fills over the stability window.
-   Deliberately not a 3-2-1 countdown -- a bank scanner recognises a card,
-   it does not count at you. */
-.vjc-progress {
-  position: absolute; inset: 0; pointer-events: none;
-  opacity: 0; transition: opacity .15s ease;
-}
-.vjc-progress.is-active { opacity: 1; }
-.vjc-progress::after {
-  content: ''; position: absolute; inset: -1.5px;
-  border-radius: inherit;
-  background: conic-gradient(rgba(106,190,130,.95) calc(var(--vjc-progress, 0) * 360deg), transparent 0);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  padding: 2px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .vjc-frame::after, .vjc-progress { transition: none; }
-}
 /* ID-1 card is 85.6 x 54 mm; 1.586 keeps the guide true to the real card. */
-.vjc-stage-card .vjc-frame::after,
-.vjc-stage-card .vjc-progress {
-  left: 5%; right: 5%; top: 50%;
-  transform: translateY(-50%);
-  aspect-ratio: 1.586;
-  border-radius: 12px;
+.vjc-stage-card .vjc-frame {
+  inset-inline: 6%; top: 50%; transform: translateY(-50%);
+  aspect-ratio: 1.586; border-radius: 14px;
 }
-.vjc-stage-face .vjc-frame::after,
-.vjc-stage-face .vjc-progress {
-  left: 18%; right: 18%; top: 50%;
-  transform: translateY(-50%);
-  aspect-ratio: .78;
-  border-radius: 50%;
+/* A portrait contour for a face -- an oval only. A face is never put
+   through rectangle detection and is never framed as a card. */
+.vjc-stage-face .vjc-frame {
+  inset-inline: 17%; top: 48%; transform: translateY(-50%);
+  aspect-ratio: .76; border-radius: 50%;
 }
-/* The progress ring is positioned by the rules above, so it needs the
-   same box model as the outline rather than filling the stage. */
-.vjc-stage-card .vjc-progress, .vjc-stage-face .vjc-progress { inset: auto; }
 
-.vjc-hint { margin: 0; text-align: center; font-size: 13px; line-height: 1.5; color: var(--vj-muted); }
-.vjc-hint[hidden] { display: none; }
+/* The plate. Depth from four effects that all live at the edge:
+   a highlight along the inside top, a shade along the inside bottom, a
+   hairline of separation so a pale guide survives against a white card,
+   and one soft ambient glow just outside. No fill, ever. */
+.vjc-guide {
+  position: absolute; inset: 0; border-radius: inherit;
+  border: 1.25px solid var(--vjc-line);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255, 255, 255, .26),
+    inset 0 -1.5px 0 rgba(0, 0, 0, .3),
+    0 0 0 1px rgba(0, 0, 0, .24),
+    0 6px 16px -8px var(--vjc-glow);
+  transition: border-color .22s ease, box-shadow .22s ease,
+              transform .3s cubic-bezier(.22, .61, .36, 1);
+}
+/* §7 spatial feedback. A separate layer so a direction can be added and
+   removed without restating the plate's whole shadow stack. The value is
+   where the person should MOVE, so the emphasised edge is the one to move
+   toward -- a face sitting left of centre lights up the right edge. */
+.vjc-guide::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  opacity: 0; transition: opacity .24s ease, box-shadow .24s ease;
+}
+.vjc-stage[data-vjc-nudge="right"] .vjc-guide::after { opacity: 1; box-shadow: inset -20px 0 24px -16px var(--vjc-accent); }
+.vjc-stage[data-vjc-nudge="left"]  .vjc-guide::after { opacity: 1; box-shadow: inset 20px 0 24px -16px var(--vjc-accent); }
+.vjc-stage[data-vjc-nudge="down"]  .vjc-guide::after { opacity: 1; box-shadow: inset 0 -20px 24px -16px var(--vjc-accent); }
+.vjc-stage[data-vjc-nudge="up"]    .vjc-guide::after { opacity: 1; box-shadow: inset 0 20px 24px -16px var(--vjc-accent); }
+/* Too far -> the guide draws itself in; too close -> it opens out. */
+.vjc-stage[data-vjc-nudge="in"]  .vjc-guide { transform: scale(.962); }
+.vjc-stage[data-vjc-nudge="out"] .vjc-guide { transform: scale(1.038); }
+
+/* One element, two personalities: scanner corner brackets on the card,
+   a soft outer contour on the face. */
+.vjc-corners {
+  position: absolute; inset: -3px; border-radius: inherit;
+  --c: var(--vjc-line); --len: 17px; --t: 2px;
+  background:
+    linear-gradient(var(--c), var(--c)) left 0 top 0 / var(--len) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) left 0 top 0 / var(--t) var(--len) no-repeat,
+    linear-gradient(var(--c), var(--c)) right 0 top 0 / var(--len) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) right 0 top 0 / var(--t) var(--len) no-repeat,
+    linear-gradient(var(--c), var(--c)) left 0 bottom 0 / var(--len) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) left 0 bottom 0 / var(--t) var(--len) no-repeat,
+    linear-gradient(var(--c), var(--c)) right 0 bottom 0 / var(--len) var(--t) no-repeat,
+    linear-gradient(var(--c), var(--c)) right 0 bottom 0 / var(--t) var(--len) no-repeat;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, .5));
+  transition: opacity .22s ease;
+}
+.vjc-stage-face .vjc-corners {
+  inset: -10px; background: none; filter: none;
+  border: 1px dashed var(--vjc-line); opacity: .3;
+}
+
+/* ---- Auto-capture edge + countdown ----------------------------------- */
+/* The edge fills around the guide over the hold window and its glow grows
+   with it. Not a 3-2-1 countdown: a scanner recognises a card, it does
+   not count at you. The number is the quiet half -- centred, low
+   contrast, present only during the hold (§6). */
+.vjc-ring {
+  position: absolute; inset: -2px; border-radius: inherit;
+  opacity: 0; transition: opacity .18s ease;
+}
+.vjc-ring.is-active { opacity: 1; }
+.vjc-ring::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  padding: 2.5px;
+  background: conic-gradient(from -90deg,
+    var(--vj-ok) calc(var(--vjc-progress, 0) * 360deg), transparent 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  filter: drop-shadow(0 0 calc(var(--vjc-progress, 0) * 9px) rgba(111, 185, 138, .55));
+}
+.vjc-count {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  /* Subtle on purpose (§6): it sits over the thing being photographed,
+     so it reassures without competing with it. */
+  font-size: clamp(22px, 6vw, 29px); font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(244, 239, 231, .66);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, .7);
+  opacity: 0; transition: opacity .18s ease;
+}
+.vjc-count.is-active { opacity: 1; }
+
+/* ---- The one in-frame status (§3, §5) -------------------------------- */
+/* There is no instructional paragraph under the camera any more. This
+   pill is the whole guidance channel, it is short by construction, and
+   it is the assistive channel too -- colour never carries a state alone.
+   It is small and translucent, not a scrim: it covers a strip of the
+   preview the guide does not use. */
+.vjc-state {
+  /* `left`, not `inset-inline-start`. Centring is not a directional
+     property: under RTL the logical version resolves to `right: 50%`,
+     which combined with translateX(-50%) pushed the pill off-centre and
+     partly outside the stage in Kurdish and Arabic. */
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: 6.5%; max-width: 84%;
+  padding: 7px 15px; border-radius: 999px;
+  background: rgba(10, 9, 6, .5);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, .1);
+  font-size: 13.5px; font-weight: 600; line-height: 1.25;
+  text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  transition: color .22s ease, border-color .22s ease;
+}
+.vjc-state[hidden] { display: none; }
+
+/* Three states. Each has its own colour AND its own words -- neither is
+   ever shown alone (WCAG 1.4.1). */
+.vjc-stage[data-vjc-state="adjust"] {
+  --vjc-line: rgba(226, 172, 74, .95);
+  --vjc-glow: rgba(226, 172, 74, .34);
+  --vjc-accent: rgba(226, 172, 74, .95);
+}
+.vjc-stage[data-vjc-state="ready"] {
+  --vjc-line: rgba(111, 185, 138, .97);
+  --vjc-glow: rgba(111, 185, 138, .4);
+  --vjc-accent: rgba(111, 185, 138, .95);
+}
+.vjc-stage[data-vjc-state="ready"] .vjc-state {
+  color: #C4E7D2; border-color: rgba(111, 185, 138, .48);
+}
+.vjc-stage[data-vjc-state="ready"] .vjc-corners { opacity: 0; }
+
+/* ---- Capture acknowledgement ---------------------------------------- */
+.vjc-flash {
+  position: absolute; inset: 0; background: #fff;
+  opacity: 0; pointer-events: none;
+}
+.vjc-flash.is-firing { animation: vjc-flash .26s ease-out; }
+@keyframes vjc-flash { 0% { opacity: 0; } 16% { opacity: .48; } 100% { opacity: 0; } }
+
+/* ---- After capture (§10) -------------------------------------------- */
+/* The still is the screen. Two choices float over its foot; there is no
+   caption, no "readable and in focus?", nothing else. */
+.vjc-review {
+  position: absolute; inset-inline: 0; bottom: 0;
+  display: flex; gap: 11px; justify-content: center; flex-wrap: wrap;
+  padding: 16px 14px calc(15px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(8, 7, 5, .82), rgba(8, 7, 5, 0));
+  animation: vjc-rise .24s cubic-bezier(.22, .61, .36, 1);
+}
+.vjc-review[hidden] { display: none; }
+@keyframes vjc-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 .vjc-status {
-  margin: 0; padding: 12px 14px; border-radius: 10px;
+  margin: 0; padding: 12px 14px; border-radius: 12px;
   font-size: 12.5px; line-height: 1.55; text-align: center;
-  background: rgba(224, 181, 99, .12);
-  border: 1px solid rgba(224, 181, 99, .35);
-  color: #f0d9a8;
+  background: rgba(217, 174, 98, .1);
+  border: 1px solid rgba(217, 174, 98, .3);
+  color: #EDD5A6;
 }
 .vjc-status[hidden] { display: none; }
 
 .vjc-actions {
   display: flex; align-items: center; justify-content: center;
-  gap: 14px; min-height: 76px;
+  gap: 14px; min-height: 74px;
 }
 .vjc-actions > [hidden] { display: none; }
 
 /* A camera shutter, not a form button: it is the one thing to press. */
 .vjc-shutter {
   appearance: none; cursor: pointer;
-  width: 70px; height: 70px; border-radius: 50%;
-  border: 2px solid rgba(255,255,255,.85);
+  width: 66px; height: 66px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .8);
   background: transparent;
   display: grid; place-items: center;
   flex: 0 0 auto;
   transition: transform .12s ease;
 }
 .vjc-shutter:active { transform: scale(.94); }
-@media (prefers-reduced-motion: reduce) { .vjc-shutter { transition: none; } }
 .vjc-shutter-ring {
-  width: 56px; height: 56px; border-radius: 50%;
+  width: 52px; height: 52px; border-radius: 50%;
   background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold));
   display: block;
 }
 
 .vjc-btn {
   appearance: none; cursor: pointer;
-  padding: 12px 20px; border-radius: 999px;
-  border: 1px solid var(--vj-rule);
-  background: rgba(255,255,255,.05); color: var(--vj-cream);
+  padding: 12px 22px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(20, 18, 13, .62);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  color: var(--vj-cream);
   font: inherit; font-size: 14px; font-weight: 600;
   min-height: 46px;
 }
-.vjc-btn:hover { background: rgba(198,154,75,.14); }
+.vjc-btn:hover { background: rgba(40, 36, 27, .74); }
 .vjc-btn-primary {
   border-color: transparent;
   background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold));
-  color: #1a1710;
+  color: #17150F;
 }
-.vjc-btn-primary:hover { filter: brightness(1.06); background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold)); }
+.vjc-btn-primary:hover { filter: brightness(1.05); background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold)); }
 
 .vjc-fallback {
   appearance: none; cursor: pointer;
-  background: none; border: 0; padding: 6px;
+  background: none; border: 0; padding: 8px;
   color: var(--vj-gold-bright); font: inherit; font-size: 13px;
   text-decoration: underline; text-underline-offset: 3px;
 }
@@ -421,73 +669,155 @@ body.vjc-open { overflow: hidden; }
 
 .vjc :focus-visible { outline: 2px solid var(--vj-gold-bright); outline-offset: 2px; }
 
-/* Landscape phones: the stage would otherwise squeeze to nothing. */
+/* §20: respect the setting, but never remove the information. Progress,
+   state colour and the countdown all still work -- only the movement
+   goes. */
+@media (prefers-reduced-motion: reduce) {
+  .vjc-guide, .vjc-guide::after, .vjc-ring, .vjc-count, .vjc-state, .vjc-corners { transition: none; }
+  .vjc-review { animation: none; }
+  .vjc-flash.is-firing { animation-duration: .1s; }
+  .vjc-stage[data-vjc-nudge="in"] .vjc-guide,
+  .vjc-stage[data-vjc-nudge="out"] .vjc-guide { transform: none; }
+  .vjc-shutter { transition: none; }
+}
+
+/* Landscape phones (§26): the stage would otherwise squeeze to nothing.
+   The in-frame status stays -- it is the only guidance there is now. */
 @media (max-height: 520px) {
-  .vjc-sheet { max-width: 100%; }
-  .vjc-actions { min-height: 62px; }
-  .vjc-shutter { width: 56px; height: 56px; }
-  .vjc-shutter-ring { width: 44px; height: 44px; }
-  .vjc-hint { display: none; }
+  /* THE GUIDE IS SIZED BY THE OTHER AXIS HERE. In portrait the stage is
+     tall and width binds, so the guide is a share of the width. In
+     landscape the stage is ~250px tall and a guide 88% of the width would
+     be 417px high -- it hung well outside the preview, so the outline the
+     person framed against was partly off-screen and the rectangle the
+     detector measured was not the one they could see. Height binds
+     instead, and the aspect ratio still fixes the width. */
+  .vjc-stage-card .vjc-frame,
+  .vjc-stage-face .vjc-frame {
+    inset-inline: auto; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: auto;
+  }
+  .vjc-stage-card .vjc-frame { height: 74%; }
+  .vjc-stage-face .vjc-frame { height: 84%; }
+
+  .vjc-sheet { max-width: 100%; gap: 8px; }
+  .vjc-actions { min-height: 56px; }
+  .vjc-shutter { width: 52px; height: 52px; }
+  .vjc-shutter-ring { width: 40px; height: 40px; }
+  .vjc-brand { display: none; }
+  .vjc-state { bottom: 4%; font-size: 12.5px; padding: 5px 12px; }
+  .vjc-count { font-size: 22px; }
 }
 
-/* ---- Secure send: real step progress ------------------------------- */
-/* Four named steps, not a percentage. Nothing on this page knows how many
-   bytes have landed, so a progress bar here would be invented -- and an
-   invented bar that crawls then jumps reads as broken. */
-.vj-sending {
-  margin: 14px 0 0;
-  padding: 14px 16px;
-  border: 1px solid var(--vj-rule, rgba(198,154,75,.28));
-  border-radius: 14px;
-  background: rgba(198, 154, 75, .05);
+/* Every control the camera exposes stays a real touch target. */
+@media (max-width: 480px) {
+  .vjc-close, .vjc-btn { min-height: 44px; min-width: 44px; }
 }
-.vj-sending[hidden] { display: none; }
-.vj-sending-title { margin: 0 0 10px; font-size: 13.5px; font-weight: 600; }
-.vj-sending-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
-.vj-sending-step {
+
+/* ======================================================================
+ * SECURE SEND (§14)
+ * ======================================================================
+ * After "Send securely" the page gets out of the way: one focused
+ * transfer screen with a Darwesh mark and the REAL steps.
+ *
+ * Four named steps and a true file count -- never a percentage. Nothing
+ * on this page knows how many bytes have landed, so a bar here would be
+ * invented, and an invented bar that crawls then jumps reads as broken.
+ */
+.vj-secure {
+  position: fixed; inset: 0; z-index: 190;
+  display: grid; place-items: center;
+  padding: 24px;
+  background: radial-gradient(90% 70% at 50% 40%, #1B1810 0%, #100E09 60%, #0A0906 100%);
+  animation: vjc-in .22s ease-out;
+}
+.vj-secure[hidden] { display: none !important; }
+.vj-secure-inner { width: 100%; max-width: 320px; text-align: center; }
+
+/* The mark: a shield outline with one arc travelling around it. Restrained
+   on purpose -- it is a reassurance that work is happening, not a
+   loading spectacle. */
+.vj-secure-mark {
+  position: relative; width: 76px; height: 76px; margin: 0 auto 20px;
+  display: grid; place-items: center;
+}
+.vj-secure-mark svg { width: 32px; height: 32px; color: var(--vj-gold-bright); }
+.vj-secure-mark::before {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  border: 1px solid rgba(201, 164, 92, .22);
+}
+.vj-secure-mark::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  padding: 1.5px;
+  background: conic-gradient(from 0deg, transparent 0 62%, var(--vj-gold-bright) 88%, transparent 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: vj-orbit 1.9s linear infinite;
+}
+@keyframes vj-orbit { to { transform: rotate(360deg); } }
+
+.vj-secure-title {
+  margin: 0 0 18px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 17px; font-weight: 700; color: var(--vj-cream);
+}
+.vj-secure-steps {
+  margin: 0; padding: 0; list-style: none;
+  display: grid; gap: 9px; text-align: start;
+}
+.vj-secure-step {
   font-size: 12.5px; line-height: 1.5;
-  padding-inline-start: 20px; position: relative;
-  color: var(--vj-muted, #8b8378);
-  transition: color .18s ease;
+  padding-inline-start: 22px; position: relative;
+  color: rgba(173, 165, 152, .8);
+  transition: color .2s ease;
 }
-/* Logical inset-inline-start, so the marker sits on the correct side in
-   Kurdish and Arabic without a separate RTL rule. */
-.vj-sending-step::before {
-  content: ''; position: absolute; inset-inline-start: 4px; top: .55em;
-  width: 7px; height: 7px; border-radius: 50%;
-  background: currentColor; opacity: .45;
+/* inset-inline-start, so the marker sits on the correct side in Kurdish
+   and Arabic without a separate RTL rule. */
+.vj-secure-step::before {
+  content: ''; position: absolute; inset-inline-start: 4px; top: .5em;
+  width: 8px; height: 8px; border-radius: 50%;
+  border: 1.5px solid currentColor;
 }
-.vj-sending-step.is-active { color: var(--vj-gold, #c69a4b); font-weight: 600; }
-.vj-sending-step.is-active::before { opacity: 1; }
-.vj-sending-step.is-done { color: #5f9c72; }
-.vj-sending-step.is-done::before { opacity: 1; }
-.vj-sending-count {
-  margin: 10px 0 0; font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--vj-muted, #8b8378);
+.vj-secure-step.is-active { color: var(--vj-gold-bright); font-weight: 600; }
+.vj-secure-step.is-active::before { background: currentColor; }
+.vj-secure-step.is-done { color: var(--vj-ok); }
+.vj-secure-step.is-done::before { background: currentColor; border-color: currentColor; }
+.vj-secure-count {
+  margin: 16px 0 0; font-size: 12px;
+  font-variant-numeric: tabular-nums; color: var(--vj-faint, rgba(173,165,152,.7));
+}
+@media (prefers-reduced-motion: reduce) {
+  .vj-secure { animation: none; }
+  .vj-secure-mark::after { animation-duration: 6s; }
 }
 
-/* ---- Recoverable upload failure ------------------------------------ */
-/* The accepted photos are still in memory. This panel exists so the
-   person can see that and press Retry, instead of being sent back to
-   retake three photographs over a problem that was never theirs. */
+/* ======================================================================
+ * RECOVERABLE UPLOAD FAILURE (§15)
+ * ======================================================================
+ * The accepted photos are still in memory. This sheet exists so the
+ * person can see that and press Retry, instead of being sent back to
+ * retake three photographs over a problem that was never theirs.
+ *
+ * A calm card, not a red technical box: a Storage refusal is our
+ * problem, and shouting about it at the person holding the ID is both
+ * inaccurate and unkind. No Firebase code, message or path is ever
+ * rendered here -- the code is logged, and only the code.
+ */
 .vj-recover {
-  margin: 14px 0 0;
-  padding: 16px;
-  border: 1px solid rgba(198, 92, 78, .34);
-  border-radius: 14px;
-  background: rgba(198, 92, 78, .06);
+  margin: 16px 0 0; padding: 16px;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .03);
 }
 .vj-recover[hidden] { display: none; }
-.vj-recover-title { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
-.vj-recover-body { margin: 0 0 8px; font-size: 12.5px; line-height: 1.6; }
+.vj-recover-head {
+  display: flex; align-items: center; gap: 9px; margin-bottom: 8px;
+}
+.vj-recover-head svg { width: 17px; height: 17px; color: var(--vj-err); flex: 0 0 auto; }
+.vj-recover-title { margin: 0; font-size: 14px; font-weight: 700; }
+.vj-recover-body { margin: 0 0 8px; font-size: 12.5px; line-height: 1.6; color: var(--vj-muted); }
 .vj-recover-kept {
-  margin: 0 0 12px; font-size: 12.5px; font-weight: 600;
-  color: #5f9c72;
+  margin: 0; font-size: 12.5px; font-weight: 600; color: var(--vj-ok);
 }
-
-/* Every control the camera and these panels expose stays a real touch
-   target at phone size. */
-@media (max-width: 480px) {
-  .vjc-close, .vjc-btn, .vj-recover .vj-btn { min-height: 44px; min-width: 44px; }
-}
+.vj-recover .vj-actions { margin-top: 14px; }

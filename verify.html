@@ -56,28 +56,31 @@ violation reporting. -->
   </div>
 
   <div id="vjMain" hidden>
-    <div class="vj-hero">
+    <!-- Shown on the first screen only. After that the step IS the page,
+         and repeating the title above every panel is noise. -->
+    <div class="vj-intro" id="vjIntro">
       <h1 data-i18n="verify.heroTitle">Verify your account</h1>
       <p data-i18n="verify.heroBody">Two steps: your national ID, then a short face photo. Your documents stay private and are used only for review.</p>
       <p class="vj-reward" id="vjReward" hidden></p>
     </div>
 
-    <ol class="vj-steps" id="vjSteps">
-      <li class="vj-step" data-step="start">
-        <span class="vj-step-bar"></span>
-        <span class="vj-step-label" data-i18n="verify.stepStart">Start</span>
+    <!-- Compact progress (§17). A mark, a word, a hairline. -->
+    <ol class="vj-track" id="vjTrack">
+      <li class="vj-track-step" data-track="id">
+        <span class="vj-track-mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="vj-track-label" data-i18n="verify.stepIdentity">Identity</span>
       </li>
-      <li class="vj-step" data-step="id">
-        <span class="vj-step-bar"></span>
-        <span class="vj-step-label" data-i18n="verify.stepId">National ID</span>
+      <li class="vj-track-step" data-track="face">
+        <span class="vj-track-mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="vj-track-label" data-i18n="verify.stepFace">Face</span>
       </li>
-      <li class="vj-step" data-step="face">
-        <span class="vj-step-bar"></span>
-        <span class="vj-step-label" data-i18n="verify.stepFace">Face</span>
+      <li class="vj-track-step" data-track="review">
+        <span class="vj-track-mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="vj-track-label" data-i18n="verify.stepReview">Review</span>
       </li>
-      <li class="vj-step" data-step="done">
-        <span class="vj-step-bar"></span>
-        <span class="vj-step-label" data-i18n="verify.stepDone">Submitted</span>
+      <li class="vj-track-step" data-track="done">
+        <span class="vj-track-mark" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <span class="vj-track-label" data-i18n="verify.stepDone">Done</span>
       </li>
     </ol>
 
@@ -95,43 +98,41 @@ violation reporting. -->
       <p class="vj-privacy" data-i18n="verify.privacyNote">Your photos never appear on your public profile and are never sent to any outside party.</p>
     </section>
 
-    <!-- 2. National ID -->
+    <!-- 2. National ID. Image tiles, not form rows, and no filenames:
+         the person never named that file and it tells them nothing. -->
     <section class="vj-panel" id="vjPanelId" hidden>
       <h2 data-i18n="verify.idTitle">National ID</h2>
       <p class="vj-body" data-i18n="verify.idBody">Photograph the front of your ID. Make sure all four corners are visible.</p>
 
-      <div class="vj-slots">
-        <div class="vj-slot" data-slot="id_front">
-          <div class="vj-slot-preview" data-preview>
-            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
-          </div>
-          <div class="vj-slot-main">
-            <span class="vj-slot-title" data-i18n="verify.idFront">Front</span>
-            <span class="vj-slot-meta" data-meta></span>
-            <div class="vj-slot-actions">
-              <!-- Camera first. The file input stays as a real fallback but
-                   is revealed only when the camera cannot be used, so the
-                   gallery is never the default answer for an ID photo. -->
-              <button type="button" class="vj-btn vj-btn-primary" data-vj-camera="id_front" data-i18n="verify.idCapture">Take photo</button>
-              <label class="vj-btn vj-upload-fallback" for="vjFileFront" hidden data-i18n="verify.idUpload">Upload instead</label>
-              <input class="vj-file" type="file" id="vjFileFront" accept="image/jpeg,image/png,image/webp" capture="environment"/>
-            </div>
-          </div>
+      <div class="vj-tiles">
+        <div class="vj-tile" data-slot="id_front">
+          <button type="button" class="vj-tile-hit" data-vj-camera="id_front">
+            <span class="vj-tile-img" data-preview>
+              <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+            </span>
+            <span class="vj-tile-name" data-i18n="verify.idFront">Front</span>
+            <span class="vj-tile-state" data-state>
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span data-state-text data-i18n="verify.tileAdd">Take photo</span>
+            </span>
+          </button>
+          <label class="vj-tile-alt vj-upload-fallback" for="vjFileFront" hidden data-i18n="verify.idUpload">Upload instead</label>
+          <input class="vj-file" type="file" id="vjFileFront" accept="image/jpeg,image/png,image/webp" capture="environment"/>
         </div>
 
-        <div class="vj-slot" data-slot="id_back">
-          <div class="vj-slot-preview" data-preview>
-            <span class="material-symbols-outlined" aria-hidden="true">badge</span>
-          </div>
-          <div class="vj-slot-main">
-            <span class="vj-slot-title" data-i18n="verify.idBack">Back (optional)</span>
-            <span class="vj-slot-meta" data-meta></span>
-            <div class="vj-slot-actions">
-              <button type="button" class="vj-btn" data-vj-camera="id_back" data-i18n="verify.idCapture">Take photo</button>
-              <label class="vj-btn vj-upload-fallback" for="vjFileBack" hidden data-i18n="verify.idUpload">Upload instead</label>
-              <input class="vj-file" type="file" id="vjFileBack" accept="image/jpeg,image/png,image/webp" capture="environment"/>
-            </div>
-          </div>
+        <div class="vj-tile" data-slot="id_back">
+          <button type="button" class="vj-tile-hit" data-vj-camera="id_back">
+            <span class="vj-tile-img" data-preview>
+              <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+            </span>
+            <span class="vj-tile-name" data-i18n="verify.idBack">Back (optional)</span>
+            <span class="vj-tile-state" data-state>
+              <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span data-state-text data-i18n="verify.tileAdd">Take photo</span>
+            </span>
+          </button>
+          <label class="vj-tile-alt vj-upload-fallback" for="vjFileBack" hidden data-i18n="verify.idUpload">Upload instead</label>
+          <input class="vj-file" type="file" id="vjFileBack" accept="image/jpeg,image/png,image/webp" capture="environment"/>
         </div>
       </div>
 
@@ -143,8 +144,9 @@ violation reporting. -->
       </div>
     </section>
 
-    <!-- 3. Face / liveness. A capture here is EVIDENCE, never a result:
-         nothing on this page decides whether the face matched. -->
+    <!-- 3. Face. A capture here is EVIDENCE, never a result: nothing on
+         this page decides whether the face matched, and the word
+         "liveness" appears nowhere. -->
     <section class="vj-panel" id="vjPanelFace" hidden>
       <h2 data-i18n="verify.faceTitle">Face photo</h2>
       <p class="vj-body" data-i18n="verify.faceBody">Look straight at the camera. Remove a mask or sunglasses.</p>
@@ -152,51 +154,71 @@ violation reporting. -->
       <!-- Capture happens in the shared camera modal (js/verify-camera.js);
            this only shows what was kept, so there is one camera
            implementation on the page rather than two. -->
-      <div class="vj-camera" id="vjShot" hidden>
+      <div class="vj-shotwrap" id="vjShot" hidden>
         <img id="vjShotImg" alt=""/>
+        <span class="vj-ready-mark">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span data-i18n="verify.tileReady">Ready</span>
+        </span>
       </div>
 
       <div id="vjFaceNotice"></div>
 
-      <!-- Real step progress. Not a percentage: nothing here knows how
-           many bytes have landed, and inventing a number that crawls and
-           then jumps is worse than naming the step honestly. -->
-      <div class="vj-sending" id="vjSending" hidden aria-live="polite">
-        <p class="vj-sending-title" data-i18n="verify.sendingTitle">Sending your documents securely</p>
-        <ol class="vj-sending-steps" id="vjSendingSteps"></ol>
-        <p class="vj-sending-count" id="vjSendingCount"></p>
+      <div class="vj-actions">
+        <button type="button" class="vj-btn vj-btn-ghost" data-vj-back="id" data-i18n="verify.back">Back</button>
+        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjCaptureBtn" data-vj-camera="selfie" data-i18n="verify.faceCapture">Take photo</button>
+        <button type="button" class="vj-btn" id="vjRetakeBtn" hidden data-i18n="verify.faceRetake">Retake</button>
+        <label class="vj-btn vj-upload-fallback" for="vjFileFace" id="vjFaceUploadLabel" hidden data-i18n="verify.faceUpload">Choose a photo</label>
+        <input class="vj-file" type="file" id="vjFileFace" accept="image/jpeg,image/png,image/webp" capture="user"/>
+        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjFaceNext" hidden data-i18n="verify.toReview">Continue to review</button>
       </div>
+      <p class="vj-privacy" data-i18n="verify.privacyNote">Your photos never appear on your public profile and are never sent to any outside party.</p>
+    </section>
+
+    <!-- 4. Review (§13). A real step: nothing is uploaded until the
+         person has seen exactly what is about to leave their phone. -->
+    <section class="vj-panel" id="vjPanelReview" hidden>
+      <h2 data-i18n="verify.reviewTitle">Ready to send</h2>
+
+      <div class="vj-review" id="vjReviewList"></div>
+
+      <p class="vj-review-privacy">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 5.2V3.8a3 3 0 0 1 6 0v1.4M2.6 5.2h6.8v4.4H2.6z" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+        <span data-i18n="verify.reviewPrivacy">Private verification documents</span>
+      </p>
+
+      <div id="vjReviewNotice"></div>
 
       <!-- Upload failure. The accepted photos are still in memory and
            stay there: a server or network problem must never cost
-           somebody three retakes. -->
+           somebody three retakes. No Firebase code, message or path is
+           ever rendered here. -->
       <div class="vj-recover" id="vjRecover" hidden>
-        <p class="vj-recover-title" data-i18n="verify.failTitle">We couldn't send your documents yet.</p>
+        <div class="vj-recover-head">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4.4v4M8 11.2h.01M8 1.6 1.4 13.2h13.2z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p class="vj-recover-title" data-i18n="verify.failTitle">Couldn't send yet</p>
+        </div>
         <p class="vj-recover-body" id="vjRecoverWhy"></p>
-        <p class="vj-recover-kept" data-i18n="verify.failKept">Your photos are still here.</p>
+        <p class="vj-recover-kept" data-i18n="verify.failKept">Your photos are safe on this page.</p>
         <div class="vj-actions">
           <button type="button" class="vj-btn vj-btn-primary" id="vjRetrySend" data-i18n="verify.retrySend">Retry</button>
           <button type="button" class="vj-btn" id="vjReviewPhotos" data-i18n="verify.reviewPhotos">Review photos</button>
         </div>
       </div>
 
-      <div class="vj-actions">
-        <button type="button" class="vj-btn vj-btn-ghost" data-vj-back="id" data-i18n="verify.back">Back</button>
-        <button type="button" class="vj-btn vj-btn-primary" id="vjCaptureBtn" data-vj-camera="selfie" data-i18n="verify.faceCapture">Take photo</button>
-        <button type="button" class="vj-btn" id="vjRetakeBtn" hidden data-i18n="verify.faceRetake">Retake</button>
-        <label class="vj-btn vj-upload-fallback" for="vjFileFace" id="vjFaceUploadLabel" hidden data-i18n="verify.faceUpload">Choose a photo</label>
-        <input class="vj-file" type="file" id="vjFileFace" accept="image/jpeg,image/png,image/webp" capture="user"/>
-        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjSubmitBtn" disabled>
-          <span class="vj-spinner" id="vjSubmitSpinner" hidden></span>
-          <span id="vjSubmitLabel" data-i18n="verify.submit">Send for review</span>
-        </button>
+      <!-- Hidden while the recovery sheet is up: Retry IS the send, and
+           two gold buttons on one screen breaks the rule that the gold
+           control is always "the thing to press next". -->
+      <div class="vj-actions" id="vjSendActions">
+        <button type="button" class="vj-btn vj-btn-ghost" id="vjEditPhotos" data-i18n="verify.editPhotos">Edit photos</button>
+        <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjSendBtn" data-i18n="verify.sendSecurely">Send securely</button>
       </div>
-      <p class="vj-privacy" data-i18n="verify.privacyNote">Your photos never appear on your public profile and are never sent to any outside party.</p>
     </section>
 
-    <!-- 4. Submitted / already-in-review / verified. One panel, three
+    <!-- 5. Submitted / already-in-review / verified. One panel, three
          honest messages -- never "Success" for something that did not
-         reach the server. -->
+         reach the server, and never "Verified" for something the
+         backend has not approved. -->
     <section class="vj-panel vj-done" id="vjPanelDone" hidden>
       <div class="vj-done-mark">
         <span class="material-symbols-outlined" aria-hidden="true" id="vjDoneIcon">check</span>
@@ -207,6 +229,20 @@ violation reporting. -->
         <a class="vj-btn vj-btn-primary" href="account.html" data-i18n="verify.doneCta">Back to my account</a>
       </div>
     </section>
+  </div>
+</div>
+
+<!-- Secure send (§14). The page gets out of the way: one focused
+     transfer screen with the REAL steps and a true file count. Never a
+     percentage -- nothing here knows how many bytes have landed. -->
+<div class="vj-secure" id="vjSecure" hidden role="status" aria-live="polite">
+  <div class="vj-secure-inner">
+    <div class="vj-secure-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M12 2.6 4.6 5.6v6.1c0 4.4 3 8.3 7.4 9.7 4.4-1.4 7.4-5.3 7.4-9.7V5.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m8.9 12.1 2.2 2.2 4.1-4.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <p class="vj-secure-title" data-i18n="verify.sendingTitle">Sending securely</p>
+    <ol class="vj-secure-steps" id="vjSendingSteps"></ol>
+    <p class="vj-secure-count" id="vjSendingCount"></p>
   </div>
 </div>
 
@@ -229,27 +265,42 @@ violation reporting. -->
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
   const $ = (id) => document.getElementById(id);
 
+  const CHECK_SVG = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M1.6 6.3 4.6 9.2 10.4 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   const storageApi = { ref, uploadBytes };
   // Files chosen but not yet uploaded. Bytes leave the browser only when
-  // the person presses "Send for review" -- picking a photo is not a
-  // submission, and backing out of the flow uploads nothing.
+  // the person presses "Send securely" on the review screen -- picking a
+  // photo is not a submission, and backing out of the flow uploads
+  // nothing.
   const picked = { id_front: null, id_back: null, selfie: null };
   let currentUser = null;
 
   // ---- Step chrome ----------------------------------------------------
-  const ORDER = ['start', 'id', 'face', 'done'];
-  const PANELS = { start: 'vjPanelStart', id: 'vjPanelId', face: 'vjPanelFace', done: 'vjPanelDone' };
+  // Five states, four visible marks: consent belongs to Identity rather
+  // than earning a step of its own, because "Start" was never something
+  // the person had to do -- it was something the page had to ask.
+  const ORDER = ['start', 'id', 'face', 'review', 'done'];
+  const PANELS = {
+    start: 'vjPanelStart', id: 'vjPanelId', face: 'vjPanelFace',
+    review: 'vjPanelReview', done: 'vjPanelDone',
+  };
+  const TRACK_OF = { start: 'id', id: 'id', face: 'face', review: 'review', done: 'done' };
+  const TRACK_ORDER = ['id', 'face', 'review', 'done'];
   let step = 'start';
 
   function goto(next) {
     step = next;
     ORDER.forEach((name) => { $(PANELS[name]).hidden = name !== next; });
-    const index = ORDER.indexOf(next);
-    document.querySelectorAll('#vjSteps .vj-step').forEach((li) => {
-      const i = ORDER.indexOf(li.dataset.step);
-      li.classList.toggle('is-done', i < index);
-      li.classList.toggle('is-current', i === index);
+    // The intro is the first screen's own copy, not a permanent header.
+    $('vjIntro').hidden = next !== 'start';
+
+    const here = TRACK_ORDER.indexOf(TRACK_OF[next]);
+    document.querySelectorAll('#vjTrack .vj-track-step').forEach((li) => {
+      const i = TRACK_ORDER.indexOf(li.dataset.track);
+      li.classList.toggle('is-done', i < here);
+      li.classList.toggle('is-current', i === here);
     });
+    if (next === 'review') renderReview();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -279,36 +330,35 @@ violation reporting. -->
   // File and the submit logic below never learns the difference.
   const CAMERA = {
     id_front: { facing: 'environment', guide: 'card', detect: true, filename: 'id-front.jpg', noticeId: 'vjIdNotice',
-      titleKey: 'verify.camIdFrontTitle', titleEn: 'Front of your ID',
-      hintKey: 'verify.camCardHint', hintEn: 'Fill the frame with your ID. Keep all four corners inside it.' },
+      titleKey: 'verify.camIdFrontTitle', titleEn: 'Front of your ID' },
     id_back: { facing: 'environment', guide: 'card', detect: true, filename: 'id-back.jpg', noticeId: 'vjIdNotice',
-      titleKey: 'verify.camIdBackTitle', titleEn: 'Back of your ID',
-      hintKey: 'verify.camCardHint', hintEn: 'Fill the frame with your ID. Keep all four corners inside it.' },
-    selfie: { facing: 'user', guide: 'face', filename: 'selfie.jpg', noticeId: 'vjFaceNotice',
-      titleKey: 'verify.camFaceTitle', titleEn: 'Your face',
-      hintKey: 'verify.camFaceHint', hintEn: 'Put your face inside the oval. Good light, no mask or sunglasses.' },
+      titleKey: 'verify.camIdBackTitle', titleEn: 'Back of your ID' },
+    selfie: { facing: 'user', guide: 'face', faceDetect: true, filename: 'selfie.jpg', noticeId: 'vjFaceNotice',
+      titleKey: 'verify.camFaceTitle', titleEn: 'Face verification' },
   };
 
   function cameraLabels(config) {
     return {
       brand: tr('verify.brand', 'Darwesh Group'),
       title: tr(config.titleKey, config.titleEn),
-      // Smart-guide states. Exactly one of these is shown at a time, and
-      // each is the TEXT half of a state whose other half is the guide
-      // colour -- neither is ever shown alone.
-      gPlace: tr('verify.gPlace', 'Place your ID inside the frame.'),
-      gCloser: tr('verify.gCloser', 'Move closer.'),
-      gFarther: tr('verify.gFarther', 'Move slightly farther away.'),
-      gCorners: tr('verify.gCorners', 'Keep all four corners visible.'),
-      gStraighter: tr('verify.gStraighter', 'Hold the card straighter.'),
-      gLight: tr('verify.gLight', 'More light needed.'),
-      gStill: tr('verify.gStill', 'Hold still.'),
-      holdSteady: tr('verify.gHoldSteady', 'Hold steady'),
-      hint: tr(config.hintKey, config.hintEn),
-      reviewHint: tr('verify.camReviewHint', 'Readable and in focus? Keep it, or take another.'),
+      // The guide states (§5). Two or three words each: this label sits
+      // INSIDE the camera viewport now, and a sentence there either
+      // covers the thing being photographed or wraps to three lines on a
+      // 320px screen. Exactly one is shown at a time, and each is the
+      // TEXT half of a state whose other half is the guide colour --
+      // neither is ever shown alone.
+      sPlace: tr('verify.sPlace', 'Place card'),
+      sCenter: tr('verify.sCenter', 'Center your face'),
+      sCloser: tr('verify.sCloser', 'Move closer'),
+      sBack: tr('verify.sBack', 'Move back'),
+      sCorners: tr('verify.sCorners', 'Show all corners'),
+      sStraight: tr('verify.sStraight', 'Hold straight'),
+      sLight: tr('verify.sLight', 'More light'),
+      sSteady: tr('verify.sSteady', 'Hold steady'),
+      sReady: tr('verify.sReady', 'Ready'),
       capture: tr('verify.faceCapture', 'Take photo'),
       retake: tr('verify.faceRetake', 'Retake'),
-      confirm: tr('verify.camUse', 'Use this photo'),
+      confirm: tr('verify.camUse', 'Use photo'),
       close: tr('verify.camClose', 'Close camera'),
       fallback: tr('verify.camFallback', 'Choose a photo instead'),
       errDenied: tr('verify.cameraDenied', 'Camera access was not allowed. You can choose a photo instead.'),
@@ -325,7 +375,7 @@ violation reporting. -->
   function revealFallback(kind) {
     const scope = kind === 'selfie'
       ? document.getElementById('vjPanelFace')
-      : document.querySelector(`.vj-slot[data-slot="${kind}"]`);
+      : document.querySelector(`.vj-tile[data-slot="${kind}"]`);
     const label = scope && scope.querySelector('.vj-upload-fallback');
     if (label) label.hidden = false;
   }
@@ -342,8 +392,10 @@ violation reporting. -->
       facing: config.facing,
       guide: config.guide,
       // Rectangular document detection only where there IS a document.
-      // A face is not a card and must never be judged as one.
+      // A face is not a card and is never judged as one: it gets the
+      // oval and its own framing-readiness check instead.
       detect: config.detect === true,
+      faceDetect: config.faceDetect === true,
       filename: config.filename,
       labels: cameraLabels(config),
     });
@@ -367,21 +419,33 @@ violation reporting. -->
     notice(noticeId, null, '');
     picked[kind] = file;
     if (kind === 'selfie') renderSelfie(file);
-    else renderSlot(kind, file);
+    else renderTile(kind, file);
     return true;
   }
 
-  function renderSlot(kind, file) {
-    const slot = document.querySelector(`.vj-slot[data-slot="${kind}"]`);
-    const preview = slot.querySelector('[data-preview]');
-    const url = URL.createObjectURL(file);
+  /** Object URLs held per slot so each can be revoked when it is
+   *  replaced. Without this, retaking a photo five times leaks five
+   *  decoded bitmaps for as long as the tab is open. */
+  const previewUrls = {};
+  function previewUrl(kind, file) {
+    if (previewUrls[kind]) URL.revokeObjectURL(previewUrls[kind]);
+    previewUrls[kind] = URL.createObjectURL(file);
+    return previewUrls[kind];
+  }
+
+  function renderTile(kind, file) {
+    const tile = document.querySelector(`.vj-tile[data-slot="${kind}"]`);
+    const preview = tile.querySelector('[data-preview]');
     preview.innerHTML = '<img alt=""/>';
-    const img = preview.querySelector('img');
-    img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
-    img.src = url;
-    slot.classList.add('is-filled');
-    slot.querySelector('[data-meta]').textContent = file.name.slice(0, 40);
-    slot.querySelector('[data-vj-camera]').textContent = tr('verify.idRetake', 'Change photo');
+    preview.querySelector('img').src = previewUrl(kind, file);
+    tile.classList.add('is-filled');
+    // The state, not the filename. "id-front.jpg" is an internal detail
+    // the person never chose and cannot act on.
+    tile.querySelector('[data-state-text]').textContent = tr('verify.tileReady', 'Ready');
+    const hit = tile.querySelector('.vj-tile-hit');
+    hit.setAttribute('aria-label', kind === 'id_back'
+      ? tr('verify.retakeBack', 'Retake back of ID')
+      : tr('verify.retakeFront', 'Retake front of ID'));
 
     // Only the front is required -- plenty of IDs carry everything on
     // one side, and demanding a second photo would fail those people.
@@ -389,14 +453,11 @@ violation reporting. -->
   }
 
   function renderSelfie(file) {
-    const url = URL.createObjectURL(file);
-    const img = $('vjShotImg');
-    img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
-    img.src = url;
+    $('vjShotImg').src = previewUrl('selfie', file);
     $('vjShot').hidden = false;
     $('vjCaptureBtn').hidden = true;
     $('vjRetakeBtn').hidden = false;
-    $('vjSubmitBtn').disabled = false;
+    $('vjFaceNext').hidden = false;
   }
 
   function bindUploadFallback(kind, inputId, noticeId) {
@@ -423,6 +484,7 @@ violation reporting. -->
   bindUploadFallback('selfie', 'vjFileFace', 'vjFaceNotice');
 
   $('vjIdNext').addEventListener('click', () => goto('face'));
+  $('vjFaceNext').addEventListener('click', () => goto('review'));
 
   // ---- Face step ------------------------------------------------------
   // Retake clears the kept photo first, so a half-finished retake can never
@@ -434,8 +496,8 @@ violation reporting. -->
     picked.selfie = null;
     $('vjShot').hidden = true;
     $('vjRetakeBtn').hidden = true;
+    $('vjFaceNext').hidden = true;
     $('vjCaptureBtn').hidden = false;
-    $('vjSubmitBtn').disabled = true;
     captureFor('selfie');
   });
 
@@ -443,15 +505,46 @@ violation reporting. -->
     btn.addEventListener('click', () => goto(btn.dataset.vjBack));
   });
 
-  // ---- Submit ---------------------------------------------------------
-  function setSubmitting(busy) {
-    $('vjSubmitBtn').disabled = busy || !picked.selfie;
-    $('vjSubmitSpinner').hidden = !busy;
-    $('vjSubmitLabel').textContent = busy
-      ? tr('verify.submitting', 'Sending…')
-      : tr('verify.submit', 'Send for review');
+  // ---- Review step ------------------------------------------------------
+  /** Everything the person has accepted, in submission order. Held in
+   *  memory and NEVER cleared by a failure -- retry reuses these exact
+   *  files, so a network or server problem costs no retakes. */
+  function acceptedEvidence() {
+    const kinds = [['id_front', picked.id_front], ['selfie', picked.selfie]];
+    if (picked.id_back) kinds.splice(1, 0, ['id_back', picked.id_back]);
+    return kinds;
   }
 
+  const REVIEW_ROWS = [
+    ['id_front', 'verify.reviewId', 'National ID', 'verify.reviewIdSub', 'Front'],
+    ['id_back', 'verify.reviewIdBack', 'National ID', 'verify.reviewIdBackSub', 'Back'],
+    ['selfie', 'verify.reviewFace', 'Face photo', 'verify.reviewFaceSub', 'Ready to send'],
+  ];
+
+  function renderReview() {
+    const host = $('vjReviewList');
+    host.innerHTML = '';
+    REVIEW_ROWS.forEach(([kind, nameKey, nameEn, subKey, subEn]) => {
+      const file = picked[kind];
+      if (!file) return;
+      const row = document.createElement('div');
+      row.className = 'vj-review-row';
+      row.dataset.kind = kind;
+      row.innerHTML =
+        `<span class="vj-review-thumb"><img alt=""/></span>` +
+        `<span><span class="vj-review-name">${escapeText(tr(nameKey, nameEn))}</span>` +
+        `<span class="vj-review-sub">${escapeText(tr(subKey, subEn))}</span></span>` +
+        `<span class="vj-review-ok">${CHECK_SVG}</span>`;
+      // Reuses the object URL the tile already holds, so entering review
+      // does not decode a second copy of every photo.
+      row.querySelector('img').src = previewUrls[kind] || previewUrl(kind, file);
+      host.appendChild(row);
+    });
+  }
+
+  $('vjEditPhotos').addEventListener('click', () => goto('id'));
+
+  // ---- Send ------------------------------------------------------------
   function qualityList(items) {
     const names = items.map((i) => tr(`verify.quality.${i}`, i));
     return `<ul>${names.map((n) => `<li>${escapeText(n)}</li>`).join('')}</ul>`;
@@ -463,41 +556,42 @@ violation reporting. -->
    * The rule this exists to keep: never blame the person's photo for a
    * problem that is ours. "Your photo is invalid" for what is really a
    * Storage permission refusal sends someone off to retake a perfectly
-   * good ID three times, and they still cannot get through.
+   * good ID three times, and they still cannot get through. No Firebase
+   * code, message or object path ever appears on screen.
    */
   function uploadFailureMessage(code) {
     switch (code) {
       case 'storage/unauthorized':
       case 'storage/unauthenticated':
         return tr('verify.failUnauthorized',
-          'Verification uploads are not available right now. Your photos are still here — please try again.');
+          'Verification uploads are not available right now. Please try again.');
       case 'storage/retry-limit-exceeded':
         return tr('verify.failNetwork',
-          'The connection dropped while sending. Your photos are still here — please try again.');
+          'The connection dropped while sending. Please try again.');
       case 'storage/quota-exceeded':
         return tr('verify.failQuota',
-          "We couldn't store your documents right now. Your photos are still here — please try again shortly.");
+          "We couldn't store your documents right now. Please try again shortly.");
       case 'storage/canceled':
-        return tr('verify.failCanceled', 'Sending was interrupted. Your photos are still here.');
+        return tr('verify.failCanceled', 'Sending was interrupted.');
       default:
         return tr('verify.failGeneric',
-          "We couldn't send your documents just now. Your photos are still here — please try again.");
+          "We couldn't send your documents just now. Please try again.");
     }
   }
 
   const SEND_STEPS = [
-    ['prepare', 'verify.sendPrepare', 'Preparing files'],
-    ['id', 'verify.sendId', 'Uploading ID'],
-    ['face', 'verify.sendFace', 'Uploading face photo'],
-    ['submit', 'verify.sendSubmit', 'Submitting for review'],
+    ['prepare', 'verify.sendPrepare', 'Preparing'],
+    ['id', 'verify.sendId', 'ID uploaded'],
+    ['face', 'verify.sendFace', 'Face uploaded'],
+    ['submit', 'verify.sendSubmit', 'Submitting'],
   ];
 
   function renderSending(activeKey, done, total) {
     const host = $('vjSendingSteps');
     const activeIndex = SEND_STEPS.findIndex(([k]) => k === activeKey);
-    host.innerHTML = SEND_STEPS.map(([key, k, en], i) => {
+    host.innerHTML = SEND_STEPS.map(([, k, en], i) => {
       const state = i < activeIndex ? 'done' : i === activeIndex ? 'active' : 'todo';
-      return `<li class="vj-sending-step is-${state}">${escapeText(tr(k, en))}</li>`;
+      return `<li class="vj-secure-step is-${state}">${escapeText(tr(k, en))}</li>`;
     }).join('');
     // Only shown when there is more than one file, and always the real
     // count of files actually finished.
@@ -505,24 +599,28 @@ violation reporting. -->
   }
 
   function showSending(on) {
-    $('vjSending').hidden = !on;
-    if (on) $('vjRecover').hidden = true;
+    $('vjSecure').hidden = !on;
+    document.body.classList.toggle('vjc-open', on);
+    if (on) showRecover(false);
   }
 
-  /** Everything the person has accepted, in submission order. Held in
-   *  memory and NEVER cleared by a failure -- retry reuses these exact
-   *  files, so a network or server problem costs no retakes. */
-  function acceptedEvidence() {
-    const kinds = [['id_front', picked.id_front], ['selfie', picked.selfie]];
-    if (picked.id_back) kinds.splice(1, 0, ['id_back', picked.id_back]);
-    return kinds;
+  /** The recovery sheet and the send row are mutually exclusive: while
+   *  the sheet is up, Retry is the send, so leaving "Send securely"
+   *  underneath would put two primary actions -- and two gold buttons --
+   *  on one screen for the same job. */
+  function showRecover(on) {
+    $('vjRecover').hidden = !on;
+    $('vjSendActions').hidden = on;
   }
+
+  let sending = false;
 
   async function sendForReview() {
-    if (!currentUser || !picked.selfie || !picked.id_front) return;
-    setSubmitting(true);
-    notice('vjFaceNotice', null, '');
-    $('vjRecover').hidden = true;
+    if (sending || !currentUser || !picked.selfie || !picked.id_front) return;
+    sending = true;
+    $('vjSendBtn').disabled = true;
+    notice('vjReviewNotice', null, '');
+    showRecover(false);
     showSending(true);
 
     const kinds = acceptedEvidence();
@@ -546,9 +644,10 @@ violation reporting. -->
       console.error('[verify] evidence upload refused', code || '(no storage code)');
       showSending(false);
       $('vjRecoverWhy').textContent = uploadFailureMessage(code);
-      $('vjRecover').hidden = false;
+      showRecover(true);
       // picked.* is deliberately untouched.
-      setSubmitting(false);
+      sending = false;
+      $('vjSendBtn').disabled = false;
       return;
     }
 
@@ -557,7 +656,8 @@ violation reporting. -->
     const issues = [...new Set(evidence.flatMap((e) => e.quality.issues))];
 
     const result = await submitCase(currentUser, evidence, null);
-    setSubmitting(false);
+    sending = false;
+    $('vjSendBtn').disabled = false;
     showSending(false);
 
     if (result.ok) {
@@ -567,7 +667,7 @@ violation reporting. -->
     if (result.unavailable) {
       // §BI: the endpoint is not live. Say exactly that, stay on this
       // screen, and never render the success state.
-      notice('vjFaceNotice', 'err', escapeText(tr('verify.errUnavailable',
+      notice('vjReviewNotice', 'err', escapeText(tr('verify.errUnavailable',
         "Verification isn't switched on yet. Nothing was submitted — please try again later.")));
       return;
     }
@@ -576,16 +676,16 @@ violation reporting. -->
     // one moment they most need to understand what happened. The shared
     // map in backend-api.js translates the cases a person can really
     // hit and falls back to a translated generic for the rest.
-    notice('vjFaceNotice', 'err', escapeText(localizeBackendError(
+    notice('vjReviewNotice', 'err', escapeText(localizeBackendError(
       result.error, tr, 'verify.errGeneric',
       "We couldn't finish that just now. Please try again.")));
   }
 
-  $('vjSubmitBtn').addEventListener('click', sendForReview);
+  $('vjSendBtn').addEventListener('click', sendForReview);
   // Retry reuses the files already in memory. No recapture, no reselect.
   $('vjRetrySend').addEventListener('click', sendForReview);
   $('vjReviewPhotos').addEventListener('click', () => {
-    $('vjRecover').hidden = true;
+    showRecover(false);
     goto('id');
   });
 
@@ -593,6 +693,9 @@ violation reporting. -->
     const icon = $('vjDoneIcon');
     const title = $('vjDoneTitle');
     const body = $('vjDoneBody');
+    // "Verified" is rendered ONLY from what the backend says (§16, §19).
+    // Nothing the camera, the detector or this page decides can reach
+    // this branch.
     if (mode === 'verified') {
       icon.textContent = 'verified';
       title.textContent = tr('verify.statusVerifiedTitle', 'Your account is verified');

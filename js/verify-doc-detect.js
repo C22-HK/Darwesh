@@ -74,6 +74,14 @@ const MIN_EDGE_SEPARATION = 0.22;
 // phantom card edge.
 const MIN_PEAK_RATIO = 0.32;
 
+// One physical edge is not one bin. A Sobel response is 3px wide and a rho
+// bin is ~2.9px at the analysis size, so a single card border lands across
+// two or three bins and, when the profile dips slightly between them,
+// registers as two or three separate local maxima. Candidates this close
+// together are therefore treated as ONE edge and collapsed to their
+// vote-weighted centroid. See topTwoPeaks for what this fixes.
+const PEAK_MERGE_BINS = 2;
+
 // --- Acceptance thresholds -------------------------------------------
 // ID-1 (the physical national-ID card format) is 85.6 x 54 mm = 1.586.
 // Perspective, the person's hand angle and honest framing all move the
@@ -518,7 +526,7 @@ function topTwoPeaks(acc, rhoBins, thetaBins, diag, rhoScale, span) {
     if (s > peak) peak = s;
   }
 
-  // STEP 3 -- local maxima only, so one thick edge is one candidate.
+  // STEP 3 -- local maxima above the credibility floor.
   const floor = peak * MIN_PEAK_RATIO;
   const candidates = [];
   for (let r = 1; r < rhoBins - 1; r++) {
@@ -528,15 +536,55 @@ function topTwoPeaks(acc, rhoBins, thetaBins, diag, rhoScale, span) {
   }
   if (candidates.length < 2) return null;
 
-  // STEP 4 -- the OUTERMOST credible pair, not the strongest.
+  // STEP 4 -- collapse each PHYSICAL edge to one position.
+  //
+  // A single card border is wider than a rho bin, so it arrives as two or
+  // three neighbouring local maxima with a shallow dip between them, and
+  // the outermost of those sits a couple of pixels beyond the real edge.
+  // With the outermost-pair rule below, that error lands on BOTH sides and
+  // doubles: measured against a still test card the height came back 58.1
+  // analysis pixels against a true 53, and the aspect read 1.33 against a
+  // true 1.586 -- enough to over-report coverage by about 12% and to tell
+  // a correctly-held card to move back early.
+  //
+  // The vote-weighted centroid of the neighbours is the sub-bin position
+  // of the edge itself: the same card then measures 52.2 against 53, and
+  // 1.55 against 1.586. Merging only reaches PEAK_MERGE_BINS, so printed
+  // rows inside the card stay separate candidates and the outermost rule
+  // below still has real interior peaks to reject.
+  //
+  // The span is measured from the START of the cluster, never from its
+  // last member. Chaining "within 2 bins of the previous one" instead
+  // swallows a whole card: printed rows on a small card sit about 2 bins
+  // apart, so every row links to the next and the top border, the photo
+  // box and all five text rows collapse into one cluster -- at which
+  // point there is no second cluster and the card reports as no document
+  // at all. Capping the span keeps a cluster to one edge's real width.
+  const clusters = [];
+  let group = [candidates[0]];
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i] - group[0] <= PEAK_MERGE_BINS) group.push(candidates[i]);
+    else { clusters.push(group); group = [candidates[i]]; }
+  }
+  clusters.push(group);
+  if (clusters.length < 2) return null;
+
+  const centre = (bins) => {
+    let wSum = 0;
+    let rSum = 0;
+    bins.forEach((r) => { wSum += profile[r]; rSum += r * profile[r]; });
+    return wSum > 0 ? rSum / wSum : bins[0];
+  };
+
+  // STEP 5 -- the OUTERMOST credible pair, not the strongest.
   //
   // A real ID card is covered in print: a dark photo box and rows of text
   // put strong, clean, straight edges INSIDE the card. The strongest
   // peaks are often those, and the card then measures too short. The
   // border is the outermost pair.
   const minGap = MIN_EDGE_SEPARATION * span * rhoScale;
-  const lo = candidates[0];
-  const hi = candidates[candidates.length - 1];
+  const lo = centre(clusters[0]);
+  const hi = centre(clusters[clusters.length - 1]);
   if (hi - lo < minGap) return null;
 
   const toRho = (r) => (r + 0.5) / rhoScale - diag;

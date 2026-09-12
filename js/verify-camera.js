@@ -9,16 +9,30 @@
 // or an old photo of someone else's card, a reviewer rejects it, and the
 // person has to start over without understanding why.
 //
-// So the primary path is getUserMedia: a live preview with a frame to line
+// So the primary path is getUserMedia: a live preview with a guide to line
 // the document up inside, a shutter, and an explicit confirm. The file
 // input stays as a genuine fallback (it keeps its own `capture` hint), but
 // it is no longer the first thing offered.
 //
+// THE CAMERA IS NEVER MIRRORED
+// ----------------------------
+// Not the rear preview, not the FRONT preview, not the captured still, in
+// any language. An earlier build flipped the selfie preview with
+// `transform: scaleX(-1)` on the theory that an unmirrored selfie "feels
+// broken". In an identity flow it is worse than broken: the preview and
+// the photo disagree, so the person frames against one image and submits
+// another, and any text in shot -- a card held up to the camera, a badge,
+// a shirt logo -- reads backwards to the reviewer. There is now no mirror
+// anywhere in this module or its stylesheet. RTL is a LAYOUT direction,
+// and the guide, the controls and the text mirror for it; the camera
+// image never does.
+//
 // WHAT THIS MODULE DOES NOT DO
 // ----------------------------
 // It does not decide anything. It returns a File and nothing else -- no
-// scoring, no "looks good", no auto-accept. Whether a document is
-// acceptable is a reviewer's judgement, never this page's (§AA).
+// scoring, no "looks good", no auto-accept. A ready guide means
+// CAPTURE-READY. Whether a document is acceptable, and whether a person
+// is verified, is a reviewer's judgement, never this page's (§AA).
 //
 //   const file = await openCamera({ facing: 'environment', guide: 'card' });
 //   if (file) picked.id_front = file;   // straight into the existing flow
@@ -28,12 +42,18 @@
 // fallback -- no camera must never mean no verification.
 
 import { createDocumentDetector, REASONS } from './verify-doc-detect.js';
+import { createFaceReadiness, FACE_REASONS } from './verify-face-detect.js';
 
-// How long the card must stay continuously capture-ready before the
+// How long the document must stay continuously capture-ready before the
 // camera takes the photo itself. Long enough that a hand passing through
 // a good position does not trigger it, short enough that someone holding
 // a card steady is not left waiting and wondering.
 const AUTO_CAPTURE_MS = 2500;
+
+// The face window is shorter on purpose. A person holding their own face
+// still is doing something much easier than holding a card flat and
+// square, so the same 2.5s reads as hesitation rather than care.
+const FACE_AUTO_CAPTURE_MS = 2200;
 
 // Detection cadence. Every frame is wasted work -- a person cannot move a
 // card meaningfully in 16ms -- and on a mid-range phone it competes with
@@ -76,6 +96,9 @@ function toBlob(canvas, quality) {
 
 /**
  * Draws the frame scaled to fit `edge` on its longest side.
+ *
+ * No transform is applied. The canvas receives the sensor's own
+ * orientation, which is why the accepted still always matches the preview.
  *
  * `source` is the live <video>, or an ImageBitmap decoded from a file the
  * person picked. Anything else drawable works too, which is how the tests
@@ -169,25 +192,38 @@ export function cameraSupported() {
 }
 
 /**
- * Turns a detector verdict into the ONE sentence to show.
+ * Turns a detector verdict into the ONE short label to show inside the
+ * guide.
  *
  * Exactly one, never a list: someone handed six corrections at once fixes
- * none of them. The detector already ranked them, so this is a plain
+ * none of them. Both detectors already ranked them, so this is a plain
  * lookup with no logic of its own -- and every state has TEXT, because
  * the guide colour alone is not a message a colour-blind person, or a
  * screen reader, can read.
+ *
+ * Two or three words. This label sits INSIDE the camera viewport now, and
+ * a sentence there either covers the thing being photographed or wraps to
+ * three lines on a 320px screen.
  */
 function guidanceFor(reason, labels) {
   switch (reason) {
-    case REASONS.CLIPPED: return labels.gCorners;
-    case REASONS.TOO_FAR: return labels.gCloser;
-    case REASONS.TOO_CLOSE: return labels.gFarther;
-    case REASONS.NOT_STRAIGHT: return labels.gStraighter;
-    case REASONS.TOO_DARK: return labels.gLight;
-    case REASONS.BLURRY: return labels.gStill;
-    case REASONS.MOVING: return labels.gStill;
-    case REASONS.READY: return labels.holdSteady;
-    default: return labels.gPlace;
+    // Shared by both detectors -- identical instruction either way.
+    case REASONS.TOO_FAR: return labels.sCloser;
+    case REASONS.TOO_CLOSE: return labels.sBack;
+    case REASONS.TOO_DARK: return labels.sLight;
+    case REASONS.BLURRY:
+    case REASONS.MOVING: return labels.sSteady;
+    case REASONS.READY: return labels.sReady;
+    // Document only.
+    case REASONS.CLIPPED: return labels.sCorners;
+    case REASONS.NOT_STRAIGHT: return labels.sStraight;
+    case REASONS.NO_DOCUMENT: return labels.sPlace;
+    // Face only. A missing face and an off-centre one get the same line:
+    // the framing path cannot tell them apart, and "centre your face" is
+    // the right instruction for both.
+    case FACE_REASONS.NO_FACE:
+    case FACE_REASONS.OFF_CENTER: return labels.sCenter;
+    default: return labels.sPlace;
   }
 }
 
@@ -233,26 +269,58 @@ function buildModal(labels, guide) {
   const shot = el('img', 'vjc-shot');
   shot.alt = '';
   shot.hidden = true;
+
+  // THE GUIDE. Positioned to the real shape of the thing being
+  // photographed -- ID-1 proportions for a card, a portrait oval for a
+  // face -- and drawn as a plate with depth rather than a flat CSS border:
+  // a hairline edge, a highlight along its top, a shadow under its
+  // bottom, and a soft ambient glow just outside it. Every one of those
+  // effects lives within a few pixels of the EDGE. The interior is
+  // deliberately empty, with no background, no tint and no scrim, because
+  // the picture inside the guide has to be the picture the sensor sees --
+  // that was the whole point of removing the dark mask.
+  //
   // The frame is guidance drawn OVER the preview, never a crop: the whole
   // frame is captured, so a document slightly outside the guide is still
   // in the photo rather than silently cut in half.
   const frame = el('div', 'vjc-frame');
   frame.setAttribute('aria-hidden', 'true');
-  // The auto-capture progress ring. An outline that fills over the
-  // stability window, not a 3-2-1 countdown: the brief asks for a bank
-  // scanner recognising a card, and a scanner does not count at you.
-  const progress = el('div', 'vjc-progress');
-  progress.setAttribute('aria-hidden', 'true');
-  frame.append(progress);
+  const plate = el('div', 'vjc-guide');
+  const corners = el('div', 'vjc-corners');
+  // The auto-capture edge. It fills around the guide over the stability
+  // window and its glow grows with it -- not a 3-2-1 countdown: a bank
+  // scanner recognises a card, it does not count at you.
+  const ring = el('div', 'vjc-ring');
+  // The number is the quiet half of that: centred, low contrast, and only
+  // present during the hold. §6 asks for it "subtly in the center".
+  const count = el('div', 'vjc-count');
+  frame.append(plate, corners, ring, count);
 
-  const hint = el('p', 'vjc-hint', labels.hint);
-  // The guidance text is the assistive channel too: colour alone never
-  // carries a state (WCAG 1.4.1), and a screen reader gets the same one
-  // sentence a sighted person reads.
-  hint.setAttribute('role', 'status');
-  hint.setAttribute('aria-live', 'polite');
+  // ONE short status, INSIDE the viewport (§3, §5). There is no
+  // instructional paragraph under the camera any more: the guide and this
+  // label are the whole channel. It is also the assistive channel --
+  // colour alone never carries a state (WCAG 1.4.1), and a screen reader
+  // gets the same words a sighted person reads.
+  const state = el('div', 'vjc-state');
+  state.setAttribute('role', 'status');
+  state.setAttribute('aria-live', 'polite');
 
-  stage.append(video, shot, frame);
+  // Capture acknowledgement: a single soft flash. Physical, brief, and
+  // gone -- the shutter equivalent of a receipt.
+  const flash = el('div', 'vjc-flash');
+  flash.setAttribute('aria-hidden', 'true');
+
+  // Review controls float over the still itself, so after capture the
+  // photo is the screen and the two choices sit on top of it.
+  const review = el('div', 'vjc-review');
+  review.hidden = true;
+  const retake = el('button', 'vjc-btn', labels.retake);
+  retake.type = 'button';
+  const confirm = el('button', 'vjc-btn vjc-btn-primary', labels.confirm);
+  confirm.type = 'button';
+  review.append(retake, confirm);
+
+  stage.append(video, shot, frame, state, flash, review);
 
   const status = el('p', 'vjc-status');
   status.setAttribute('role', 'status');
@@ -263,23 +331,16 @@ function buildModal(labels, guide) {
   shutter.type = 'button';
   shutter.setAttribute('aria-label', labels.capture);
   shutter.innerHTML = '<span class="vjc-shutter-ring" aria-hidden="true"></span>';
-
-  const retake = el('button', 'vjc-btn', labels.retake);
-  retake.type = 'button';
-  retake.hidden = true;
-  const confirm = el('button', 'vjc-btn vjc-btn-primary', labels.confirm);
-  confirm.type = 'button';
-  confirm.hidden = true;
-
-  actions.append(retake, shutter, confirm);
+  actions.append(shutter);
 
   const fallback = el('button', 'vjc-fallback', labels.fallback);
   fallback.type = 'button';
   fallback.hidden = true;
 
-  sheet.append(head, stage, hint, status, actions, fallback);
+  sheet.append(head, stage, status, actions, fallback);
   root.append(sheet);
-  return { root, sheet, stage, video, shot, frame, progress, hint, status, shutter, retake, confirm, close, fallback };
+  return { root, sheet, stage, video, shot, frame, ring, count, state, flash,
+           review, status, shutter, retake, confirm, close, fallback };
 }
 
 /**
@@ -287,55 +348,108 @@ function buildModal(labels, guide) {
  *
  * @param {object} options
  * @param {'environment'|'user'} options.facing  rear for documents, front for a face
- * @param {'card'|'face'} options.guide          shape of the framing outline
+ * @param {'card'|'face'} options.guide          shape of the framing guide
  * @param {object} options.labels                all user-facing strings, already translated
  * @param {string} options.filename              name for the produced File
+ * @param {boolean} options.detect               run document detection (cards only)
+ * @param {boolean} options.faceDetect           run face-framing readiness (faces only)
  * @returns {Promise<File|null>}
  */
-export function openCamera({ facing = 'environment', guide = 'card', labels, filename = 'capture.jpg', detect = false }) {
+export function openCamera({ facing = 'environment', guide = 'card', labels,
+                             filename = 'capture.jpg', detect = false, faceDetect = false }) {
   return new Promise((resolve) => {
     const ui = buildModal(labels, guide);
     let stream = null;
     let blobUrl = null;
     let settled = false;
 
-    // Mirror the PREVIEW for the front camera, because an unmirrored
-    // selfie preview feels broken to use. The captured frame is never
-    // mirrored: a reviewer comparing a face to an ID should see the face
-    // the right way round, and text in shot must stay readable.
-    if (facing === 'user') ui.video.classList.add('is-mirrored');
-
-    // --- Smart document detection -------------------------------------
-    // Entirely local. Frames are read into a canvas, reduced to a verdict,
-    // and dropped; nothing here is uploaded, logged or measured remotely.
-    // A ready verdict means CAPTURE-READY, never "this ID is genuine".
-    const detector = detect ? createDocumentDetector() : null;
+    // --- Smart local readiness ----------------------------------------
+    // Entirely on-device. Frames are read into a canvas, reduced to a
+    // verdict, and dropped; nothing here is uploaded, logged or measured
+    // remotely. A ready verdict means CAPTURE-READY, never "this ID is
+    // genuine" and never "this person is verified".
+    //
+    // Two detectors, one loop. A card is judged as a rectangle by
+    // verify-doc-detect.js; a face is judged only on framing, light,
+    // focus and stillness by verify-face-detect.js -- it is never put
+    // through rectangle detection, and nothing about it is liveness.
+    const docDetector = detect ? createDocumentDetector() : null;
+    const faceDetector = faceDetect ? createFaceReadiness() : null;
+    const detector = docDetector || faceDetector;
+    const holdWindow = faceDetector ? FACE_AUTO_CAPTURE_MS : AUTO_CAPTURE_MS;
     let detectTimer = 0;
     let readySince = 0;
+    // The face detector is async, so a slow frame must not have a second
+    // analysis started on top of it.
+    let analysing = false;
 
-    // The guide rectangle in normalised coordinates, matching what
-    // css/verify.css draws, so the detector judges the card against the
-    // outline the person can actually see.
+    // The drawn guide, in normalised coordinates OF THE VIDEO FRAME,
+    // read from the element itself so both detectors judge against the
+    // outline the person can actually see rather than a hidden rectangle
+    // that might disagree with it after a CSS change.
+    //
+    // The `object-fit: cover` conversion is not cosmetic. The preview is
+    // a portrait box showing a landscape sensor, so the browser scales
+    // the frame up and CROPS its sides -- on a 390px phone roughly half
+    // the frame's width is off-screen. Reporting the guide as a plain
+    // fraction of the STAGE therefore hands the detector a rectangle far
+    // wider than the one on screen, and every measurement taken inside it
+    // is wrong in the same direction: the guide area is overstated, so
+    // coverage reads low and a correctly-held card is told to "move
+    // closer" indefinitely and never reaches auto-capture. Mapping stage
+    // pixels through the displayed image is what makes the guide the
+    // person sees and the guide the detector measures the same rectangle.
     function guideBox() {
       const stage = ui.stage.getBoundingClientRect();
       const box = ui.frame.getBoundingClientRect();
+      const vw = ui.video.videoWidth;
+      const vh = ui.video.videoHeight;
       if (!stage.width || !stage.height) return { x: 0.05, y: 0.2, w: 0.9, h: 0.6 };
+      if (!vw || !vh) {
+        return {
+          x: (box.left - stage.left) / stage.width,
+          y: (box.top - stage.top) / stage.height,
+          w: box.width / stage.width,
+          h: box.height / stage.height,
+        };
+      }
+      // cover: scale until both axes are filled, then centre and crop.
+      const scale = Math.max(stage.width / vw, stage.height / vh);
+      const dispW = vw * scale;
+      const dispH = vh * scale;
+      const offX = (stage.width - dispW) / 2;   // negative once cropped
+      const offY = (stage.height - dispH) / 2;
       return {
-        x: (box.left - stage.left) / stage.width,
-        y: (box.top - stage.top) / stage.height,
-        w: box.width / stage.width,
-        h: box.height / stage.height,
+        x: ((box.left - stage.left) - offX) / dispW,
+        y: ((box.top - stage.top) - offY) / dispH,
+        w: box.width / dispW,
+        h: box.height / dispH,
       };
     }
 
-    function setGuideState(state, message) {
+    function setGuideState(state, message, nudge) {
       ui.stage.dataset.vjcState = state;
-      if (message != null && ui.hint.textContent !== message) ui.hint.textContent = message;
+      // Purely visual: the guide leans toward the correction. No depth
+      // sensing is involved and none is implied.
+      if (nudge) ui.stage.dataset.vjcNudge = nudge;
+      else delete ui.stage.dataset.vjcNudge;
+      if (message != null && ui.state.textContent !== message) ui.state.textContent = message;
     }
 
     function setProgress(fraction) {
-      ui.progress.style.setProperty('--vjc-progress', String(Math.max(0, Math.min(1, fraction))));
-      ui.progress.classList.toggle('is-active', fraction > 0);
+      const f = Math.max(0, Math.min(1, fraction));
+      ui.ring.style.setProperty('--vjc-progress', String(f));
+      ui.ring.classList.toggle('is-active', f > 0);
+      if (f > 0) {
+        // Counts down in halves: 2.5, 2.0, 1.5, 1.0, 0.5. Never 0.0 --
+        // the photo is already taken by then.
+        const remain = Math.max(0, holdWindow - f * holdWindow) / 1000;
+        ui.count.textContent = (Math.max(0.5, Math.ceil(remain * 2) / 2)).toFixed(1);
+        ui.count.classList.add('is-active');
+      } else {
+        ui.count.textContent = '';
+        ui.count.classList.remove('is-active');
+      }
     }
 
     function stopDetecting() {
@@ -346,37 +460,44 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
 
     function startDetecting() {
       if (!detector || detectTimer) return;
-      detectTimer = setInterval(() => {
-        if (settled || capturing || !ui.video.videoWidth || ui.video.hidden) return;
+      detectTimer = setInterval(async () => {
+        if (settled || capturing || analysing || !ui.video.videoWidth || ui.video.hidden) return;
+        analysing = true;
         let verdict;
         try {
-          verdict = detector.analyse(ui.video, guideBox());
+          verdict = await detector.analyse(ui.video, guideBox());
         } catch {
-          // Detection is an ASSIST. If it throws for any reason, stop it
+          // Readiness is an ASSIST. If it throws for any reason, stop it
           // and leave the person with a working manual shutter rather
           // than a camera that has died around a helper feature.
+          analysing = false;
           stopDetecting();
-          setGuideState('idle', labels.hint);
+          setGuideState('idle', labels.sPlace);
           return;
         }
+        analysing = false;
+        // The sheet can close, or a capture can start, while an async
+        // analysis is in flight.
+        if (settled || capturing || !detectTimer) return;
 
         if (verdict.ready) {
           if (!readySince) readySince = Date.now();
           const held = Date.now() - readySince;
-          setGuideState('ready', labels.holdSteady);
-          setProgress(held / AUTO_CAPTURE_MS);
-          if (held >= AUTO_CAPTURE_MS) {
+          setGuideState('ready', labels.sReady, null);
+          setProgress(held / holdWindow);
+          if (held >= holdWindow) {
             stopDetecting();
-            capture();               // the bank scanner "recognised the card"
+            capture();               // the scanner "recognised it"
           }
           return;
         }
 
-        // Any drop in quality resets the timer immediately: the 2.5s must
-        // be 2.5s of CONTINUOUS readiness, not 2.5s of mostly-ready.
+        // Any drop resets the timer immediately: the hold must be a
+        // window of CONTINUOUS readiness, not one of mostly-ready.
         readySince = 0;
         setProgress(0);
-        setGuideState(verdict.found ? 'adjust' : 'idle', guidanceFor(verdict.reason, labels));
+        setGuideState(verdict.found ? 'adjust' : 'idle',
+          guidanceFor(verdict.reason, labels), verdict.nudge);
       }, DETECT_INTERVAL_MS);
     }
 
@@ -412,7 +533,8 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       ui.status.textContent = message;
       ui.status.hidden = false;
       ui.shutter.hidden = true;
-      ui.hint.hidden = true;
+      ui.frame.hidden = true;
+      ui.state.hidden = true;
       ui.fallback.hidden = false;
     }
 
@@ -428,9 +550,23 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
     // replaces the photo the person is already looking at.
     let capturing = false;
 
+    /** A soft flash plus, where the device has one, the shortest possible
+     *  tap. Both are acknowledgements, not decoration: something happened
+     *  and it happened now. Vibration is best-effort -- iOS Safari has no
+     *  Vibration API and some browsers gate it behind a user gesture,
+     *  which auto-capture is not. */
+    function acknowledge() {
+      ui.flash.classList.remove('is-firing');
+      // Force a reflow so the class re-triggers the animation when two
+      // captures happen in quick succession.
+      void ui.flash.offsetWidth;
+      ui.flash.classList.add('is-firing');
+      try { navigator.vibrate?.(12); } catch { /* unsupported or blocked */ }
+    }
+
     // ONE capture path for both the shutter and auto-capture. They must
     // not drift: an auto-captured photo is the same photo, reviewed the
-    // same way, and nothing downstream can tell which button pressed it.
+    // same way, and nothing downstream can tell which one fired.
     async function capture() {
       if (capturing) return;
       const v = ui.video;
@@ -438,6 +574,7 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       capturing = true;
       ui.shutter.disabled = true;
       stopDetecting();
+      acknowledge();
 
       let blob = null;
       try {
@@ -457,17 +594,20 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       ui.shot.src = blobUrl;
       ui.shot.hidden = false;
       ui.video.hidden = true;
-      // The guide exists to help aim. Over a still it is just clutter
-      // between the person and the photo they are judging.
+      // Everything that existed to help aim is gone now: the guide, the
+      // status label, the ring. Over a still they are clutter between the
+      // person and the photo they are judging -- and there is no "readable
+      // and in focus?" caption either. The detector already judged that;
+      // all that is left is a look and a choice.
       ui.frame.hidden = true;
+      ui.state.hidden = true;
       ui.shutter.hidden = true;
-      ui.retake.hidden = false;
-      ui.confirm.hidden = false;
-      ui.hint.textContent = labels.reviewHint;
-      ui.confirm.dataset.blob = '1';
+      ui.review.hidden = false;
+      ui.stage.dataset.vjcState = 'shot';
       ui.confirm.onclick = () => {
         finish(new File([blob], filename, { type: 'image/jpeg' }));
       };
+      ui.confirm.focus();
     }
 
     // Manual capture always exists. Auto-capture is an assist for the
@@ -480,18 +620,19 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       ui.shot.hidden = true;
       ui.video.hidden = false;
       ui.frame.hidden = false;
-      ui.retake.hidden = true;
-      ui.confirm.hidden = true;
+      ui.state.hidden = false;
+      ui.review.hidden = true;
       ui.shutter.hidden = false;
-      ui.hint.textContent = labels.hint;
       if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
       if (detector) detector.reset();
-      setGuideState('idle', labels.hint);
+      setGuideState('idle', guide === 'face' ? labels.sCenter : labels.sPlace, null);
       startDetecting();
+      ui.shutter.focus();
     });
 
     document.body.classList.add('vjc-open');
     document.body.appendChild(ui.root);
+    setGuideState('idle', guide === 'face' ? labels.sCenter : labels.sPlace, null);
     ui.close.focus();
 
     if (!cameraSupported()) {
