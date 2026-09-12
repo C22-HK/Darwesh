@@ -466,17 +466,57 @@ jobs:
           BASE="$2"
           status=0
 
-          health=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE/healthz" || echo 000)
+          # Wait for the URL to start serving before judging it.
+          #
+          # `gcloud run deploy --no-traffic --tag` returns once the
+          # revision is created; the tagged hostname it prints can still
+          # 404 at Cloud Run's edge for a few seconds while the tag
+          # becomes routable. Run #8 caught exactly that and nothing
+          # else: same host, half a second apart,
+          #   21:51:55.088  /healthz -> 404
+          #   21:51:55.518  verification route -> 401
+          # /healthz is registered unconditionally in create_app, in the
+          # same function and before the verification routes, and it
+          # returns a flat 200. An app that answers one of those cannot
+          # be missing the other -- so the 404 was the edge, not the
+          # service, on a tag URL four seconds old.
+          #
+          # This waits, it does not forgive. 200 is still the only
+          # accepted answer; if the deadline passes without one the
+          # check fails exactly as it did before. Only the answers that
+          # a not-yet-routable URL actually gives (404, 503, no
+          # connection) are retried -- any other status is a definite
+          # answer from something that IS listening, and is judged
+          # immediately rather than waited out.
+          DEADLINE=$((SECONDS + 90))
+          attempts=0
+          while : ; do
+            attempts=$((attempts + 1))
+            health=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE/healthz" || echo 000)
+            [ "$health" = "200" ] && break
+            [ "$SECONDS" -ge "$DEADLINE" ] && break
+            case "$health" in
+              404|503|000) sleep 3 ;;
+              *) break ;;
+            esac
+          done
+
           if [ "$health" = "200" ]; then
-            echo "OK   [$LABEL] /healthz -> 200"
-            echo "- ✅ **$LABEL** \`/healthz\` -> \`200\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "OK   [$LABEL] /healthz -> 200 (after ${attempts} attempt(s), ${SECONDS}s)"
+            echo "- ✅ **$LABEL** \`/healthz\` -> \`200\` (${attempts} attempt(s), ${SECONDS}s)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error::[$LABEL] /healthz answered $health, expected 200"
-            echo "- ❌ **$LABEL** \`/healthz\` -> \`$health\` (expected 200)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::[$LABEL] /healthz answered $health, expected 200 (${attempts} attempt(s) over ${SECONDS}s)"
+            echo "- ❌ **$LABEL** \`/healthz\` -> \`$health\` (expected 200, ${attempts} attempt(s) over ${SECONDS}s)" >> "$GITHUB_STEP_SUMMARY"
             status=1
           fi
 
-          # The real check.
+          # The real check. Deliberately single-shot, unlike the wait
+          # above: we only get here once /healthz has answered 200, which
+          # proves the edge is routing to a running app. A 404 at that
+          # point is the app genuinely not having registered the route --
+          # the exact condition this check exists to catch -- so retrying
+          # it would risk waiting out a real failure instead of reporting
+          # it.
           #   401 -> route registered, auth active (handlers.py _UNAUTHENTICATED)
           #   404 -> build_verification_handlers returned None and server.py
           #          registered none of the thirteen verification routes --
