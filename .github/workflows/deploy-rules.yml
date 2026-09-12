@@ -188,7 +188,14 @@ jobs:
           # copy is the only thing that makes a bad deploy recoverable,
           # and it was silently empty precisely when it mattered.
           include-hidden-files: true
-          if-no-files-found: warn
+          # FAIL-CLOSED. `warn` is what let the empty-artifact bug above
+          # pass unnoticed: the rollback copy was missing and the deploy
+          # went ahead anyway. This step guards an operation that REPLACES
+          # the live ruleset outright, so no recoverable backup means no
+          # deploy. Note the consequence, which is intended: a genuine
+          # first-ever deploy, where there is no live ruleset to fetch,
+          # now stops here rather than proceeding unbacked.
+          if-no-files-found: error
 
       # ---- Deploy -----------------------------------------------------
       - name: Deploy
