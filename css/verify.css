@@ -140,6 +140,10 @@
 .vj-slot-title { font-size: 14px; font-weight: 600; }
 .vj-slot-meta { font-size: 12px; color: var(--vj-muted); }
 .vj-slot-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+/* Shown only when the camera could not be used, so the gallery is never
+ * the default route to an identity photo. */
+.vj-upload-fallback[hidden] { display: none !important; }
+
 .vj-file { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 /* ---- Camera ---------------------------------------------------------- */
@@ -154,14 +158,7 @@
   max-height: 60vh;
   margin-inline: auto;
 }
-.vj-camera video, .vj-camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* The oval is guidance, not a mask -- the full frame is captured. */
-.vj-camera-guide {
-  position: absolute; inset: 8%;
-  border: 2px solid rgba(212, 175, 96, .55);
-  border-radius: 50%;
-  pointer-events: none;
-}
+.vj-camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 /* ---- Quality notice -------------------------------------------------- */
 .vj-notice {
@@ -229,4 +226,161 @@
   .vj-actions .vj-btn { flex: 1 1 auto; }
   .vj-steps { gap: 4px; }
   .vj-step-label { font-size: 10px; }
+}
+
+/* ---- In-page camera (js/verify-camera.js) ------------------------------
+ * A full-screen capture surface rather than a panel: on a phone, framing a
+ * national ID needs the whole screen, and anything less encourages people
+ * to shoot from too far away. Same dark/gold palette as the journey, so it
+ * reads as one product and not a browser dialog dropped on top.
+ *
+ * Tokens are re-declared on .vjc because this element is appended to
+ * <body>, outside the .vj subtree that defines them.
+ */
+.vjc {
+  --vj-cream: #F4EFE7;
+  --vj-muted: #B8B0A5;
+  --vj-gold: #c69a4b;
+  --vj-gold-bright: #d4af60;
+  --vj-rule: rgba(198, 154, 75, .28);
+
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: stretch; justify-content: center;
+  background: rgba(9, 8, 6, .92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: var(--vj-cream);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  animation: vjc-in .18s ease-out;
+}
+@keyframes vjc-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .vjc { animation: none; } }
+
+/* Stops the page behind from scrolling under the camera on iOS. */
+body.vjc-open { overflow: hidden; }
+
+.vjc-sheet {
+  width: 100%; max-width: 520px;
+  display: flex; flex-direction: column;
+  padding: max(14px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  gap: 12px;
+}
+
+.vjc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vjc-title {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-size: 16px; font-weight: 700;
+}
+.vjc-close {
+  appearance: none; flex: 0 0 auto; border: 1px solid var(--vj-rule);
+  background: rgba(255,255,255,.04); color: var(--vj-cream);
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer;
+}
+.vjc-close:hover { background: rgba(198,154,75,.12); }
+
+/* The preview fills the space left between header and controls. */
+.vjc-stage {
+  position: relative; flex: 1 1 auto; min-height: 0;
+  border-radius: 16px; overflow: hidden;
+  background: #000;
+  border: 1px solid var(--vj-rule);
+}
+.vjc-video, .vjc-shot { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vjc-video[hidden], .vjc-shot[hidden] { display: none; }
+/* Preview only. The captured frame is never mirrored -- see verify-camera.js. */
+.vjc-video.is-mirrored { transform: scaleX(-1); }
+
+/* Guidance drawn over the preview; the full frame is always captured. */
+.vjc-frame { position: absolute; inset: 0; pointer-events: none; }
+.vjc-frame[hidden] { display: none; }
+.vjc-frame::after {
+  content: ''; position: absolute;
+  border: 2px solid rgba(212, 175, 96, .75);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .34);
+}
+/* ID-1 card is 85.6 x 54 mm; 1.586 keeps the guide true to the real card. */
+.vjc-stage-card .vjc-frame::after {
+  left: 5%; right: 5%; top: 50%;
+  transform: translateY(-50%);
+  aspect-ratio: 1.586;
+  border-radius: 12px;
+}
+.vjc-stage-face .vjc-frame::after {
+  left: 18%; right: 18%; top: 50%;
+  transform: translateY(-50%);
+  aspect-ratio: .78;
+  border-radius: 50%;
+}
+
+.vjc-hint { margin: 0; text-align: center; font-size: 13px; line-height: 1.5; color: var(--vj-muted); }
+.vjc-hint[hidden] { display: none; }
+
+.vjc-status {
+  margin: 0; padding: 12px 14px; border-radius: 10px;
+  font-size: 12.5px; line-height: 1.55; text-align: center;
+  background: rgba(224, 181, 99, .12);
+  border: 1px solid rgba(224, 181, 99, .35);
+  color: #f0d9a8;
+}
+.vjc-status[hidden] { display: none; }
+
+.vjc-actions {
+  display: flex; align-items: center; justify-content: center;
+  gap: 14px; min-height: 76px;
+}
+.vjc-actions > [hidden] { display: none; }
+
+/* A camera shutter, not a form button: it is the one thing to press. */
+.vjc-shutter {
+  appearance: none; cursor: pointer;
+  width: 70px; height: 70px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.85);
+  background: transparent;
+  display: grid; place-items: center;
+  flex: 0 0 auto;
+  transition: transform .12s ease;
+}
+.vjc-shutter:active { transform: scale(.94); }
+@media (prefers-reduced-motion: reduce) { .vjc-shutter { transition: none; } }
+.vjc-shutter-ring {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold));
+  display: block;
+}
+
+.vjc-btn {
+  appearance: none; cursor: pointer;
+  padding: 12px 20px; border-radius: 999px;
+  border: 1px solid var(--vj-rule);
+  background: rgba(255,255,255,.05); color: var(--vj-cream);
+  font: inherit; font-size: 14px; font-weight: 600;
+  min-height: 46px;
+}
+.vjc-btn:hover { background: rgba(198,154,75,.14); }
+.vjc-btn-primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold));
+  color: #1a1710;
+}
+.vjc-btn-primary:hover { filter: brightness(1.06); background: linear-gradient(180deg, var(--vj-gold-bright), var(--vj-gold)); }
+
+.vjc-fallback {
+  appearance: none; cursor: pointer;
+  background: none; border: 0; padding: 6px;
+  color: var(--vj-gold-bright); font: inherit; font-size: 13px;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.vjc-fallback[hidden] { display: none; }
+
+.vjc :focus-visible { outline: 2px solid var(--vj-gold-bright); outline-offset: 2px; }
+
+/* Landscape phones: the stage would otherwise squeeze to nothing. */
+@media (max-height: 520px) {
+  .vjc-sheet { max-width: 100%; }
+  .vjc-actions { min-height: 62px; }
+  .vjc-shutter { width: 56px; height: 56px; }
+  .vjc-shutter-ring { width: 44px; height: 44px; }
+  .vjc-hint { display: none; }
 }

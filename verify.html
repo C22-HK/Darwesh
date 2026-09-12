@@ -109,7 +109,11 @@ violation reporting. -->
             <span class="vj-slot-title" data-i18n="verify.idFront">Front</span>
             <span class="vj-slot-meta" data-meta></span>
             <div class="vj-slot-actions">
-              <label class="vj-btn" for="vjFileFront" data-i18n="verify.idChoose">Choose photo</label>
+              <!-- Camera first. The file input stays as a real fallback but
+                   is revealed only when the camera cannot be used, so the
+                   gallery is never the default answer for an ID photo. -->
+              <button type="button" class="vj-btn vj-btn-primary" data-vj-camera="id_front" data-i18n="verify.idCapture">Take photo</button>
+              <label class="vj-btn vj-upload-fallback" for="vjFileFront" hidden data-i18n="verify.idUpload">Upload instead</label>
               <input class="vj-file" type="file" id="vjFileFront" accept="image/jpeg,image/png,image/webp" capture="environment"/>
             </div>
           </div>
@@ -123,7 +127,8 @@ violation reporting. -->
             <span class="vj-slot-title" data-i18n="verify.idBack">Back (optional)</span>
             <span class="vj-slot-meta" data-meta></span>
             <div class="vj-slot-actions">
-              <label class="vj-btn" for="vjFileBack" data-i18n="verify.idChoose">Choose photo</label>
+              <button type="button" class="vj-btn" data-vj-camera="id_back" data-i18n="verify.idCapture">Take photo</button>
+              <label class="vj-btn vj-upload-fallback" for="vjFileBack" hidden data-i18n="verify.idUpload">Upload instead</label>
               <input class="vj-file" type="file" id="vjFileBack" accept="image/jpeg,image/png,image/webp" capture="environment"/>
             </div>
           </div>
@@ -144,10 +149,9 @@ violation reporting. -->
       <h2 data-i18n="verify.faceTitle">Face photo</h2>
       <p class="vj-body" data-i18n="verify.faceBody">Look straight at the camera. Remove a mask or sunglasses.</p>
 
-      <div class="vj-camera" id="vjCamera" hidden>
-        <video id="vjVideo" playsinline muted autoplay></video>
-        <div class="vj-camera-guide"></div>
-      </div>
+      <!-- Capture happens in the shared camera modal (js/verify-camera.js);
+           this only shows what was kept, so there is one camera
+           implementation on the page rather than two. -->
       <div class="vj-camera" id="vjShot" hidden>
         <img id="vjShotImg" alt=""/>
       </div>
@@ -156,9 +160,9 @@ violation reporting. -->
 
       <div class="vj-actions">
         <button type="button" class="vj-btn vj-btn-ghost" data-vj-back="id" data-i18n="verify.back">Back</button>
-        <button type="button" class="vj-btn" id="vjCaptureBtn" hidden data-i18n="verify.faceCapture">Take photo</button>
+        <button type="button" class="vj-btn vj-btn-primary" id="vjCaptureBtn" data-vj-camera="selfie" data-i18n="verify.faceCapture">Take photo</button>
         <button type="button" class="vj-btn" id="vjRetakeBtn" hidden data-i18n="verify.faceRetake">Retake</button>
-        <label class="vj-btn" for="vjFileFace" id="vjFaceUploadLabel" data-i18n="verify.faceUpload">Choose a photo</label>
+        <label class="vj-btn vj-upload-fallback" for="vjFileFace" id="vjFaceUploadLabel" hidden data-i18n="verify.faceUpload">Choose a photo</label>
         <input class="vj-file" type="file" id="vjFileFace" accept="image/jpeg,image/png,image/webp" capture="user"/>
         <button type="button" class="vj-btn vj-btn-primary vj-grow" id="vjSubmitBtn" disabled>
           <span class="vj-spinner" id="vjSubmitSpinner" hidden></span>
@@ -196,6 +200,7 @@ violation reporting. -->
     validateFile,
     rewardBadgeText,
   } from './js/verify-journey.js';
+  import { openCamera, cameraSupported } from './js/verify-camera.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
   const $ = (id) => document.getElementById(id);
@@ -206,7 +211,6 @@ violation reporting. -->
   // submission, and backing out of the flow uploads nothing.
   const picked = { id_front: null, id_back: null, selfie: null };
   let currentUser = null;
-  let stream = null;
 
   // ---- Step chrome ----------------------------------------------------
   const ORDER = ['start', 'id', 'face', 'done'];
@@ -222,7 +226,6 @@ violation reporting. -->
       li.classList.toggle('is-done', i < index);
       li.classList.toggle('is-current', i === index);
     });
-    if (next !== 'face') stopCamera();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -244,116 +247,143 @@ violation reporting. -->
     return tr('verify.errGeneric', "We couldn't finish that just now. Please try again.");
   }
 
-  // ---- ID step --------------------------------------------------------
-  function bindSlot(kind, inputId) {
-    const input = $(inputId);
-    const slot = document.querySelector(`.vj-slot[data-slot="${kind}"]`);
-    input.addEventListener('change', () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
-      const problem = validateFile(file);
-      if (problem) {
-        notice('vjIdNotice', 'err', escapeText(fileErrorMessage(problem)));
-        input.value = '';
-        return;
-      }
-      notice('vjIdNotice', null, '');
-      picked[kind] = file;
+  // ---- Camera -----------------------------------------------------------
+  // One capture path for all three photos. Whether the bytes came from the
+  // live camera or the fallback file input, they land in picked[kind] as a
+  // File and the submit logic below never learns the difference.
+  const CAMERA = {
+    id_front: { facing: 'environment', guide: 'card', filename: 'id-front.jpg', noticeId: 'vjIdNotice',
+      titleKey: 'verify.camIdFrontTitle', titleEn: 'Front of your ID',
+      hintKey: 'verify.camCardHint', hintEn: 'Fill the frame with your ID. Keep all four corners inside it.' },
+    id_back: { facing: 'environment', guide: 'card', filename: 'id-back.jpg', noticeId: 'vjIdNotice',
+      titleKey: 'verify.camIdBackTitle', titleEn: 'Back of your ID',
+      hintKey: 'verify.camCardHint', hintEn: 'Fill the frame with your ID. Keep all four corners inside it.' },
+    selfie: { facing: 'user', guide: 'face', filename: 'selfie.jpg', noticeId: 'vjFaceNotice',
+      titleKey: 'verify.camFaceTitle', titleEn: 'Your face',
+      hintKey: 'verify.camFaceHint', hintEn: 'Put your face inside the oval. Good light, no mask or sunglasses.' },
+  };
 
-      const preview = slot.querySelector('[data-preview]');
-      const url = URL.createObjectURL(file);
-      preview.innerHTML = `<img alt="" src="${url}"/>`;
-      preview.querySelector('img').addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
-      slot.classList.add('is-filled');
-      slot.querySelector('[data-meta]').textContent = file.name.slice(0, 40);
-      slot.querySelector('label.vj-btn').textContent = tr('verify.idRetake', 'Change photo');
-
-      // Only the front is required -- plenty of IDs carry everything on
-      // one side, and demanding a second photo would fail those people.
-      $('vjIdNext').disabled = !picked.id_front;
-    });
+  function cameraLabels(config) {
+    return {
+      title: tr(config.titleKey, config.titleEn),
+      hint: tr(config.hintKey, config.hintEn),
+      reviewHint: tr('verify.camReviewHint', 'Readable and in focus? Keep it, or take another.'),
+      capture: tr('verify.faceCapture', 'Take photo'),
+      retake: tr('verify.faceRetake', 'Retake'),
+      confirm: tr('verify.camUse', 'Use this photo'),
+      close: tr('verify.camClose', 'Close camera'),
+      fallback: tr('verify.camFallback', 'Choose a photo instead'),
+      errDenied: tr('verify.cameraDenied', 'Camera access was not allowed. You can choose a photo instead.'),
+      errNoCamera: tr('verify.cameraUnavailable', 'No camera is available on this device. You can choose a photo instead.'),
+      errUnsupported: tr('verify.cameraUnavailable', 'No camera is available on this device. You can choose a photo instead.'),
+      errCapture: tr('verify.camFailed', "That photo couldn't be taken. Please try again."),
+      errGeneric: tr('verify.errGeneric', "We couldn't finish that just now. Please try again."),
+    };
   }
-  bindSlot('id_front', 'vjFileFront');
-  bindSlot('id_back', 'vjFileBack');
 
-  $('vjIdNext').addEventListener('click', () => { goto('face'); startCamera(); });
+  /** Reveals the file-input fallback for this photo. Called only when the
+   *  camera actually failed -- an unusable camera must never be a dead end. */
+  function revealFallback(kind) {
+    const scope = kind === 'selfie'
+      ? document.getElementById('vjPanelFace')
+      : document.querySelector(`.vj-slot[data-slot="${kind}"]`);
+    const label = scope && scope.querySelector('.vj-upload-fallback');
+    if (label) label.hidden = false;
+  }
 
-  // ---- Face step ------------------------------------------------------
-  async function startCamera() {
-    const media = navigator.mediaDevices;
-    if (!media || !media.getUserMedia) {
-      // Honest and non-blocking: the upload path is always available, so
-      // no camera never means no verification.
-      notice('vjFaceNotice', 'warn', escapeText(tr('verify.cameraUnavailable', 'No camera is available on this device. You can choose a photo instead.')));
+  async function captureFor(kind) {
+    const config = CAMERA[kind];
+    if (!cameraSupported()) {
+      revealFallback(kind);
+      notice(config.noticeId, 'warn', escapeText(tr('verify.cameraUnavailable',
+        'No camera is available on this device. You can choose a photo instead.')));
       return;
     }
-    try {
-      stream = await media.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false });
-      const video = $('vjVideo');
-      video.srcObject = stream;
-      $('vjCamera').hidden = false;
-      $('vjCaptureBtn').hidden = false;
-      $('vjFaceUploadLabel').hidden = true;
-      notice('vjFaceNotice', null, '');
-    } catch (_) {
-      notice('vjFaceNotice', 'warn', escapeText(tr('verify.cameraDenied', 'Camera access was not allowed. You can choose a photo instead.')));
-    }
+    const file = await openCamera({
+      facing: config.facing,
+      guide: config.guide,
+      filename: config.filename,
+      labels: cameraLabels(config),
+    });
+    // null means dismissed or the camera failed. Offering the upload route
+    // either way costs nothing and rescues the second case.
+    if (!file) { revealFallback(kind); return; }
+    acceptPhoto(kind, file, config.noticeId);
   }
 
-  function stopCamera() {
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      stream = null;
+  document.querySelectorAll('[data-vj-camera]').forEach((btn) => {
+    btn.addEventListener('click', () => captureFor(btn.dataset.vjCamera));
+  });
+
+  // ---- Accepting a photo (camera or upload) -----------------------------
+  function acceptPhoto(kind, file, noticeId) {
+    const problem = validateFile(file);
+    if (problem) {
+      notice(noticeId, 'err', escapeText(fileErrorMessage(problem)));
+      return false;
     }
-    $('vjCamera').hidden = true;
-    $('vjCaptureBtn').hidden = true;
+    notice(noticeId, null, '');
+    picked[kind] = file;
+    if (kind === 'selfie') renderSelfie(file);
+    else renderSlot(kind, file);
+    return true;
   }
 
-  function showShot(blob) {
-    const url = URL.createObjectURL(blob);
-    $('vjShotImg').src = url;
-    $('vjShotImg').addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+  function renderSlot(kind, file) {
+    const slot = document.querySelector(`.vj-slot[data-slot="${kind}"]`);
+    const preview = slot.querySelector('[data-preview]');
+    const url = URL.createObjectURL(file);
+    preview.innerHTML = '<img alt=""/>';
+    const img = preview.querySelector('img');
+    img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+    img.src = url;
+    slot.classList.add('is-filled');
+    slot.querySelector('[data-meta]').textContent = file.name.slice(0, 40);
+    slot.querySelector('[data-vj-camera]').textContent = tr('verify.idRetake', 'Change photo');
+
+    // Only the front is required -- plenty of IDs carry everything on
+    // one side, and demanding a second photo would fail those people.
+    $('vjIdNext').disabled = !picked.id_front;
+  }
+
+  function renderSelfie(file) {
+    const url = URL.createObjectURL(file);
+    const img = $('vjShotImg');
+    img.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+    img.src = url;
     $('vjShot').hidden = false;
+    $('vjCaptureBtn').hidden = true;
     $('vjRetakeBtn').hidden = false;
     $('vjSubmitBtn').disabled = false;
   }
 
-  $('vjCaptureBtn').addEventListener('click', () => {
-    const video = $('vjVideo');
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 960;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      picked.selfie = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
-      stopCamera();
-      showShot(blob);
-    }, 'image/jpeg', 0.92);
-  });
+  function bindUploadFallback(kind, inputId, noticeId) {
+    const input = $(inputId);
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      if (!acceptPhoto(kind, file, noticeId)) input.value = '';
+    });
+  }
+  bindUploadFallback('id_front', 'vjFileFront', 'vjIdNotice');
+  bindUploadFallback('id_back', 'vjFileBack', 'vjIdNotice');
+  bindUploadFallback('selfie', 'vjFileFace', 'vjFaceNotice');
 
+  $('vjIdNext').addEventListener('click', () => goto('face'));
+
+  // ---- Face step ------------------------------------------------------
+  // Retake clears the kept photo first, so a half-finished retake can never
+  // leave a stale selfie armed for submission.
   $('vjRetakeBtn').addEventListener('click', () => {
+    // Discard first, then reopen. If the person cancels the second capture
+    // they are back at "Take photo" with nothing armed, rather than
+    // silently still holding the photo they just rejected.
     picked.selfie = null;
     $('vjShot').hidden = true;
     $('vjRetakeBtn').hidden = true;
+    $('vjCaptureBtn').hidden = false;
     $('vjSubmitBtn').disabled = true;
-    $('vjFaceUploadLabel').hidden = false;
-    startCamera();
-  });
-
-  $('vjFileFace').addEventListener('change', () => {
-    const file = $('vjFileFace').files && $('vjFileFace').files[0];
-    if (!file) return;
-    const problem = validateFile(file);
-    if (problem) {
-      notice('vjFaceNotice', 'err', escapeText(fileErrorMessage(problem)));
-      $('vjFileFace').value = '';
-      return;
-    }
-    notice('vjFaceNotice', null, '');
-    picked.selfie = file;
-    stopCamera();
-    showShot(file);
+    captureFor('selfie');
   });
 
   document.querySelectorAll('[data-vj-back]').forEach((btn) => {
@@ -489,8 +519,6 @@ violation reporting. -->
   });
 
   $('vjConsentBtn').addEventListener('click', () => goto('id'));
-
-  window.addEventListener('pagehide', stopCamera);
 </script>
 <script type="module" src="./js/error-monitor.js"></script>
 </body></html>
