@@ -267,9 +267,18 @@ export async function mountVerificationRewards(el, uid) {
     ]);
     const { doc, getDoc, collection, query, where, limit, getDocs } = store;
 
+    // A document that DOESN'T EXIST and a read that FAILED are not the
+    // same thing, and the difference decides what this component claims.
+    // Swallowing both as null renders a brand-new-user card -- "Start
+    // Verification", no reward -- to someone who may well be verified
+    // and holding a reward. The case and reward state are load-bearing,
+    // so a failure on either becomes the honest "couldn't load" card
+    // below; the config and the referral code already have truthful
+    // absent-states of their own, so those stay best-effort.
+    const FAILED = Symbol('read-failed');
     const [caseSnap, rewardSnap, configSnap, codeSnap] = await Promise.all([
-      getDoc(doc(db, 'verificationCases', uid)).catch(() => null),
-      getDoc(doc(db, 'users', uid, 'private', 'rewardState')).catch(() => null),
+      getDoc(doc(db, 'verificationCases', uid)).catch(() => FAILED),
+      getDoc(doc(db, 'users', uid, 'private', 'rewardState')).catch(() => FAILED),
       getDoc(doc(db, 'rewardConfig', 'current')).catch(() => null),
       getDocs(query(
         collection(db, 'referralCodes'),
@@ -278,6 +287,10 @@ export async function mountVerificationRewards(el, uid) {
         limit(1),
       )).catch(() => null),
     ]);
+
+    if (caseSnap === FAILED || rewardSnap === FAILED) {
+      throw new Error('verification state unreadable');
+    }
 
     let referralCode = '';
     if (codeSnap && !codeSnap.empty) {

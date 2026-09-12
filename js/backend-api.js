@@ -74,6 +74,11 @@ const KNOWN_BACKEND_ERROR_PATTERNS = [
   [/^Password must be at least \d+ characters\.$/, 'auth.err.passwordTooShort'],
   [/^Company name must be at most \d+ characters\.$/, 'auth.err.companyNameTooLong'],
   [/^An account with this .+ already exists\.$/, 'auth.err.accountExists'],
+  // Verification submit. The state name is interpolated by the backend,
+  // and the person does not need to read it -- they need to know their
+  // documents are already with a reviewer and nothing was lost.
+  [/^a case in '.+' cannot be submitted for review$/, 'verify.err.alreadySubmitted'],
+  [/^this account cannot submit verification$/, 'verify.err.accountBlocked'],
 ];
 
 export function localizeBackendError(err, tr, genericKey, genericFallback) {

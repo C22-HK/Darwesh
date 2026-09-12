@@ -201,6 +201,7 @@ violation reporting. -->
     rewardBadgeText,
   } from './js/verify-journey.js';
   import { openCamera, cameraSupported, prepareFile } from './js/verify-camera.js';
+  import { localizeBackendError } from './js/backend-api.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
   const $ = (id) => document.getElementById(id);
@@ -458,8 +459,14 @@ violation reporting. -->
         "Verification isn't switched on yet. Nothing was submitted — please try again later.")));
       return;
     }
-    const message = (result.error && result.error.message) || tr('verify.errGeneric', "We couldn't finish that just now. Please try again.");
-    notice('vjFaceNotice', 'err', escapeText(message));
+    // Never err.message: the backend writes in English only, so showing
+    // it raw hands a KU/AR/TR reader untranslated technical text at the
+    // one moment they most need to understand what happened. The shared
+    // map in backend-api.js translates the cases a person can really
+    // hit and falls back to a translated generic for the rest.
+    notice('vjFaceNotice', 'err', escapeText(localizeBackendError(
+      result.error, tr, 'verify.errGeneric',
+      "We couldn't finish that just now. Please try again.")));
   });
 
   function showDone(mode, issues) {
@@ -514,10 +521,19 @@ violation reporting. -->
     // Where someone already is decides what they see: re-submitting a
     // case that is already in review only wastes a reviewer's time.
     let kase = {};
+    let statusUnknown = false;
     try {
       const snap = await getDoc(doc(db, 'verificationCases', user.uid));
+      // No document is a real answer: this person has never submitted.
       kase = snap.exists() ? snap.data() : {};
-    } catch (_) { /* no case yet, or unreadable -- start the journey */ }
+    } catch (_) {
+      // A FAILED read is not that answer. Treating it as "no case" walks
+      // someone whose case is already in review back through three
+      // captures, only for the backend to refuse the duplicate at the
+      // very end. Let them proceed -- a read can fail for a person with
+      // no case at all -- but say that we could not check first.
+      statusUnknown = true;
+    }
 
     const status = kase.verificationStatus || 'unverified';
     if (status === 'verified' && kase.idVerified === true && kase.faceResult === 'passed') {
@@ -525,7 +541,10 @@ violation reporting. -->
     } else if (status === 'pending' || status === 'needs_review') {
       showDone('pending');
     } else {
-      if (status === 'needs_resubmission' && kase.reviewReason) {
+      if (statusUnknown) {
+        notice('vjIdNotice', 'warn', escapeText(tr('verify.statusUnknown',
+          "We couldn't check whether you've already sent your documents. If you have, there's no need to send them again.")));
+      } else if (status === 'needs_resubmission' && kase.reviewReason) {
         notice('vjIdNotice', 'warn', escapeText(kase.reviewReason));
       }
       goto('start');

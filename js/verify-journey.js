@@ -201,12 +201,21 @@ export async function submitCase(user, evidence, idName) {
       track: 'identity',
       consentVersion: CONSENT_VERSION,
       idName: idName || null,
-      evidence: evidence.map((e) => ({
-        kind: e.kind,
-        objectId: e.objectId,
-        contentHash: e.contentHash,
-        quality: { issues: e.quality.issues },
-      })),
+      evidence: evidence.map((e) => {
+        const item = {
+          kind: e.kind,
+          objectId: e.objectId,
+          quality: { issues: e.quality.issues },
+        };
+        // OMITTED, never sent empty. The backend validates contentHash as
+        // a sha256 hex digest and rejects the WHOLE submission for '',
+        // but accepts the field being absent. hashBytes() returns ''
+        // whenever SubtleCrypto is missing (any insecure context), so
+        // sending it would upload all three images and then fail the
+        // submit with an error no retry could ever clear.
+        if (e.contentHash) item.contentHash = e.contentHash;
+        return item;
+      }),
     });
     return { ok: true };
   } catch (err) {

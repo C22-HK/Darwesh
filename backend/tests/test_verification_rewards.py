@@ -546,3 +546,52 @@ class TestArchivePackage:
         ops = ArchiveOps(db=None, vault=_StubBucket(), key_provider=_StubKeys())
         pkg = ops.build_package("u1", {}, [EvidenceBlob("e1", "id_front", "p/e1", b"b")])
         assert pkg.manifest["retentionDays"] > 0
+
+
+class TestEvidenceContentHashContract:
+    """The exact shape js/verify-journey.js is allowed to put on the wire.
+
+    The browser can compute a sha256 only where SubtleCrypto exists --
+    that is, in a secure context. Where it does not, hashBytes() has
+    nothing to return, and what the client does with that nothing decides
+    whether a person can finish verification at all: the three images are
+    uploaded BEFORE this call, so a submission refused here is refused
+    after the uploads, with no retry that could ever succeed.
+    """
+
+    def _ops(self):
+        from app.verification.verification_ops import VerificationOps
+
+        return VerificationOps(db=None)
+
+    def _item(self, **extra):
+        item = {"kind": "id_front", "objectId": "id_front-a1.jpg", "quality": {"issues": []}}
+        item.update(extra)
+        return item
+
+    def test_absent_content_hash_is_accepted(self):
+        """Omitting the field is how the client says 'no hash available'."""
+        out = self._ops()._normalize_evidence([self._item()], "u-1")
+        assert out[0]["contentHash"] == ""
+        # And the path is still rebuilt from the uid, never from the body.
+        assert out[0]["storagePath"] == "verification-evidence/u-1/id_front-a1.jpg"
+
+    def test_empty_string_content_hash_is_refused(self):
+        """'' is not a digest. This test exists so that stays a deliberate
+        contract: if it ever starts passing, the client is free to send ''
+        again, and the failure it caused was invisible until upload."""
+        from app.access.errors import ValidationError
+
+        with pytest.raises(ValidationError):
+            self._ops()._normalize_evidence([self._item(contentHash="")], "u-1")
+
+    def test_real_digest_is_kept_verbatim(self):
+        digest = hashlib.sha256(b"evidence").hexdigest()
+        out = self._ops()._normalize_evidence([self._item(contentHash=digest)], "u-1")
+        assert out[0]["contentHash"] == digest
+
+    def test_non_hex_content_hash_is_refused(self):
+        from app.access.errors import ValidationError
+
+        with pytest.raises(ValidationError):
+            self._ops()._normalize_evidence([self._item(contentHash="z" * 64)], "u-1")
