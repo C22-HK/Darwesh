@@ -2410,6 +2410,7 @@ const translations = {
     'verify.uploadFailed': 'بارکردنی وێنەکە سەرکەوتوو نەبوو. دووبارە هەوڵ بدەرەوە.',
     'verify.fileTooLarge': 'قەبارەی وێنەکە زۆر گەورەیە (زۆرترین ١٢ مێگابایت).',
     'verify.fileType': 'تەنها JPEG، PNG یان WebP.',
+    'verify.fileUnreadable': 'ئەم فایلە وێنەیەک نییە بتوانین بیکەینەوە. تکایە یەکێکی تر هەڵبژێرە یان بگرە.',
     'verify.errUnavailable': 'خزمەتگوزاریی پشتڕاستکردنەوە لە ئێستادا چالاک نەکراوە. هیچ شتێک نەنێردراوە — تکایە دواتر هەوڵ بدەرەوە.',
     'verify.errGeneric': 'ناتوانین ئێستا ئەمە تەواو بکەین. تکایە دووبارە هەوڵ بدەرەوە.',
 
@@ -4894,6 +4895,7 @@ const translations = {
     'verify.uploadFailed': 'تعذّر رفع الصورة. حاول مرة أخرى.',
     'verify.fileTooLarge': 'حجم الصورة كبير جدًا (الحد الأقصى ١٢ ميجابايت).',
     'verify.fileType': 'JPEG أو PNG أو WebP فقط.',
+    'verify.fileUnreadable': 'هذا الملف ليس صورة يمكننا فتحها. يرجى اختيار صورة أخرى أو التقاط واحدة.',
     'verify.errUnavailable': 'خدمة التوثيق غير مفعّلة بعد. لم يتم إرسال أي شيء — يرجى المحاولة لاحقًا.',
     'verify.errGeneric': 'تعذّر إتمام ذلك الآن. يرجى المحاولة مرة أخرى.',
 
@@ -7332,6 +7334,7 @@ const translations = {
     'verify.uploadFailed': 'Görüntü yüklenemedi. Tekrar deneyin.',
     'verify.fileTooLarge': 'Görüntü çok büyük (en fazla 12 MB).',
     'verify.fileType': 'Yalnızca JPEG, PNG veya WebP.',
+    'verify.fileUnreadable': 'Bu dosya açabileceğimiz bir fotoğraf değil. Lütfen başka bir tane seçin veya çekin.',
     'verify.errUnavailable': 'Doğrulama servisi henüz etkin değil. Hiçbir şey gönderilmedi — lütfen daha sonra tekrar deneyin.',
     'verify.errGeneric': 'Bu işlem şu anda tamamlanamadı. Lütfen tekrar deneyin.',
 

@@ -244,6 +244,8 @@ violation reporting. -->
   function fileErrorMessage(code) {
     if (code === 'type') return tr('verify.fileType', 'JPEG, PNG or WebP only.');
     if (code === 'size') return tr('verify.fileTooLarge', 'That image is too large (12 MB maximum).');
+    if (code === 'unreadable') return tr('verify.fileUnreadable',
+      "That file isn't a photo we can open. Please choose or take another.");
     return tr('verify.errGeneric', "We couldn't finish that just now. Please try again.");
   }
 
@@ -309,7 +311,7 @@ violation reporting. -->
     // null means dismissed or the camera failed. Offering the upload route
     // either way costs nothing and rescues the second case.
     if (!file) { revealFallback(kind); return; }
-    acceptPhoto(kind, file, config.noticeId);
+    await acceptPhoto(kind, file, config.noticeId);
   }
 
   document.querySelectorAll('[data-vj-camera]').forEach((btn) => {
@@ -317,8 +319,8 @@ violation reporting. -->
   });
 
   // ---- Accepting a photo (camera or upload) -----------------------------
-  function acceptPhoto(kind, file, noticeId) {
-    const problem = validateFile(file);
+  async function acceptPhoto(kind, file, noticeId) {
+    const problem = await validateFile(file);
     if (problem) {
       notice(noticeId, 'err', escapeText(fileErrorMessage(problem)));
       return false;
@@ -374,7 +376,7 @@ violation reporting. -->
       } finally {
         input.disabled = false;
       }
-      if (!acceptPhoto(kind, file, noticeId)) input.value = '';
+      if (!(await acceptPhoto(kind, file, noticeId))) input.value = '';
     });
   }
   bindUploadFallback('id_front', 'vjFileFront', 'vjIdNotice');

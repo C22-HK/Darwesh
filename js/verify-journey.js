@@ -124,13 +124,43 @@ export async function measureImage(blob) {
   };
 }
 
-/** Validates one chosen file against the same limits storage.rules
- *  enforces, so a rejection is explained here rather than surfacing as
- *  an opaque upload failure. */
-export function validateFile(file) {
+/**
+ * Validates one chosen file against the same limits storage.rules
+ * enforces, so a rejection is explained here rather than surfacing as an
+ * opaque upload failure -- plus the one thing those limits cannot
+ * express: that the bytes are an image at all.
+ *
+ * The MIME type is only a label the file picker attached; nothing checks
+ * it against the contents. Anything at all named .jpg passed the old
+ * type-and-size test, uploaded cleanly, and reached a reviewer as a
+ * broken thumbnail -- a wasted review and a person left waiting on a
+ * submission that was never going to work. Decoding is the only way to
+ * know, so it happens here, at the moment the person can still fix it.
+ *
+ * This rejects a NON-IMAGE, never an unflattering one. Resolution,
+ * focus, lighting and glare stay advisory issues recorded at upload
+ * (assessCaptureQuality) for a human to weigh: whether a document is
+ * acceptable is a reviewer's judgement, never this page's.
+ *
+ * @returns {Promise<'missing'|'type'|'size'|'unreadable'|null>}
+ */
+export async function validateFile(file) {
   if (!file) return 'missing';
   if (!ACCEPTED_TYPES.includes(file.type)) return 'type';
   if (file.size > MAX_BYTES) return 'size';
+
+  // No decoder here means this check cannot run -- it must not therefore
+  // reject everything. The upload-time measurement and the reviewer are
+  // still downstream; failing closed would lock such a browser out of
+  // verification entirely over a check it simply cannot perform.
+  if (typeof createImageBitmap !== 'function') return null;
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    if (bitmap.close) bitmap.close();
+  } catch {
+    return 'unreadable';
+  }
   return null;
 }
 
