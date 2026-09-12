@@ -200,10 +200,21 @@ jobs:
       # ---- Deploy -----------------------------------------------------
       - name: Deploy
         run: |
+          # `storage`, NOT `storage:rules`. firebase-tools reads anything
+          # after `storage:` as a DEPLOY TARGET name (the `firebase
+          # target:apply storage <name> <bucket>` kind), not as a
+          # sub-resource the way `firestore:rules` works. With
+          # `storage:rules` it looked for a storage target literally named
+          # "rules", found none, and raised "Could not find rules for the
+          # following storage targets: rules"
+          # (node_modules/firebase-tools/lib/deploy/storage/prepare.js).
+          # That never surfaced before only because getDefaultBucket()
+          # threw earlier in the same function. `firestore:rules` stays as
+          # it is -- there it is a real sub-target.
           case "${{ inputs.target }}" in
-            both)      ONLY="firestore:rules,storage:rules" ;;
+            both)      ONLY="firestore:rules,storage" ;;
             firestore) ONLY="firestore:rules" ;;
-            storage)   ONLY="storage:rules" ;;
+            storage)   ONLY="storage" ;;
           esac
           echo "Deploying --only $ONLY"
           # --no-install: the firebase-tools from npm ci, the exact binary
