@@ -426,7 +426,28 @@ jobs:
 
       - name: Test
         working-directory: backend
-        run: pytest
+        run: |
+          # Run the unit tests without the deploy credential in scope.
+          #
+          # The auth step above exports GOOGLE_APPLICATION_CREDENTIALS
+          # (plus two aliases) pointing at a real service-account key,
+          # and it sits ahead of this gate on purpose so a missing IAM
+          # permission is caught in seconds rather than after a source
+          # upload. Run #7 showed the cost of that ordering: three tests
+          # assert that credential resolution degrades cleanly when no
+          # Application Default Credentials exist, ADC suddenly did
+          # exist, and they failed against a tree that was fine.
+          #
+          # backend/tests/conftest.py is the real fix -- it clears these
+          # per test, so the suite behaves the same wherever it runs.
+          # Unsetting them here as well means the pytest process never
+          # holds a production identity at all, conftest or no conftest:
+          # a test that tried to reach a live Google API would find
+          # nothing to authenticate with.
+          unset GOOGLE_APPLICATION_CREDENTIALS
+          unset CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+          unset GOOGLE_GHA_CREDS_PATH
+          pytest
 
       # ---- The one endpoint assertion, written once -------------------
       # The canary check and the post-shift check MUST be the same test,
