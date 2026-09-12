@@ -1,0 +1,299 @@
+name: Deploy Backend
+
+# Builds and deploys backend/ to Cloud Run, on demand.
+#
+# MANUAL ONLY, DELIBERATELY -- same posture as deploy-rules.yml. There is
+# no push trigger. This service holds the OTP secret, signs verification
+# evidence URLs and is the only thing that can mark an identity approved;
+# shipping it is a decision someone makes, not a side effect of merging.
+#
+# WHAT THIS PROTECTS AGAINST
+# --------------------------
+#   1. Shipping code that fails its own tests -- the ruff + pytest gate
+#      below runs first, and a red suite never reaches production.
+#   2. Losing the environment. `gcloud run deploy --set-env-vars` REPLACES
+#      the whole env map; it would silently drop OTP_HMAC_SECRET,
+#      RESEND_API_KEY and ALLOWED_ORIGINS, taking signup OTP, password
+#      reset and CORS down with it. This workflow uses --update-env-vars
+#      (merge) and sets exactly one variable. Every secret stays in Cloud
+#      Run / Secret Manager and is never read, printed or written here.
+#   3. Not knowing how to get back. Before deploying it records the
+#      currently-serving revision and the rollback command, as an
+#      artifact and in the run summary.
+#   4. A deploy that "succeeds" while the feature is still dead. The
+#      verification routes are registered only if the Firebase credential
+#      gate passes (app/main.py build_verification_handlers -> None, None
+#      and server.py skips all thirteen routes). The post-deploy step
+#      below asserts they answer 401 rather than 404, which is the exact
+#      difference between working and silently absent.
+#
+# WHY THE ROLLBACK ARTIFACT IS REDACTED
+# -------------------------------------
+# `gcloud run services describe --format=json` includes env var VALUES.
+# Uploading that verbatim would put OTP_HMAC_SECRET, RESEND_API_KEY and
+# the model provider keys into a downloadable 90-day artifact -- a
+# credential leak dressed as a safety feature. The capture step writes
+# variable NAMES and their kind (plain vs secretKeyRef) only; the raw JSON
+# stays in RUNNER_TEMP and is never uploaded.
+#
+# SETUP (once)
+# ------------
+#   1. In Google Cloud IAM for project darwesh-group, create a service
+#      account (e.g. github-backend-deployer) and grant it:
+#        - Cloud Run Admin              (roles/run.admin)
+#        - Cloud Build Editor           (roles/cloudbuild.builds.editor)
+#        - Artifact Registry Writer     (roles/artifactregistry.writer)
+#        - Storage Admin                (roles/storage.admin)
+#            -- Cloud Build's source staging bucket
+#        - Service Account User         (roles/iam.serviceAccountUser)
+#            -- required to deploy a revision that runs AS the service's
+#               runtime service account. Without it the deploy is
+#               rejected even with run.admin.
+#      Do NOT reuse github-rules-deployer: that one holds
+#      roles/firebaserules.admin and nothing else, on purpose.
+#   2. Create a JSON key for it.
+#   3. Repository -> Settings -> Secrets and variables -> Actions ->
+#      New repository secret, named GCP_DEPLOY_KEY, with the whole JSON
+#      file as the value.
+#
+# Stronger alternative, worth doing when there's time: Workload Identity
+# Federation, which removes the long-lived key entirely. It replaces
+# `credentials_json` below with `workload_identity_provider` +
+# `service_account` and needs `id-token: write` added to permissions.
+# One key is what this repo already does for rules, so this follows that
+# pattern rather than introducing a second auth model mid-incident.
+#
+# Optional but recommended: Settings -> Environments -> `production`, add
+# yourself as a required reviewer. This workflow already targets that
+# environment, so a reviewer requirement takes effect with no edit here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        type: string
+        required: true
+
+# Only actions/checkout's own read is needed. The Google credential is a
+# secret, not this workflow's GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Two backend deploys racing each other would make "which revision is
+# serving" a coin toss. Queue instead of cancelling.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend to Cloud Run
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GCP_PROJECT: darwesh-group
+      SERVICE: darwesh-backend
+      REGION: me-central1
+
+    steps:
+      - name: Confirm intent
+        run: |
+          if [ "${{ inputs.confirm }}" != "DEPLOY" ]; then
+            echo "::error::Type DEPLOY in the confirm field to run this workflow. Got: '${{ inputs.confirm }}'"
+            exit 1
+          fi
+          # Not fatal -- a hotfix from another branch is legitimate -- but
+          # which ref reached production should never be a mystery later.
+          if [ "${{ github.ref_name }}" != "claude/web-project-hqdo8o" ]; then
+            echo "::warning::Deploying the backend from '${{ github.ref_name }}', not the production branch."
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ---- Gate 1: the code must pass its own tests ------------------
+      # The same three commands ci.yml runs, in the same order, against
+      # the exact tree about to ship.
+      - name: Install dev dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Format check
+        working-directory: backend
+        run: ruff format --check app tests scripts
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check app tests scripts
+
+      - name: Test
+        working-directory: backend
+        run: pytest
+
+      # ---- Authenticate ----------------------------------------------
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # ---- Gate 2: know how to get back ------------------------------
+      - name: Record the currently-serving revision
+        run: |
+          mkdir -p rollback
+          # RUNNER_TEMP, not the workspace: the raw JSON carries env var
+          # VALUES, and nothing under the checkout can then sweep it into
+          # an artifact. Only the redacted summary below is uploaded.
+          if gcloud run services describe "$SERVICE" \
+                --region "$REGION" --project "$GCP_PROJECT" \
+                --format=json > "$RUNNER_TEMP/service-before.json" 2>/dev/null; then
+            python3 - "$RUNNER_TEMP/service-before.json" > rollback/before.txt <<'PY'
+          import json, sys
+
+          service = json.load(open(sys.argv[1]))
+          spec = service.get("spec", {}) or {}
+          status = service.get("status", {}) or {}
+          container = ((spec.get("template", {}) or {})
+                       .get("spec", {}) or {}).get("containers", [{}])[0]
+
+          print("service:", service.get("metadata", {}).get("name", "?"))
+          print("serving revision:", status.get("latestReadyRevisionName", "?"))
+          print("image:", container.get("image", "?"))
+          print()
+          print("traffic:")
+          for t in status.get("traffic", []) or []:
+              print(f"  {t.get('revisionName', '?')} -> {t.get('percent', 0)}%")
+          print()
+          # NAMES AND KIND ONLY. Never the values -- see this file's
+          # "WHY THE ROLLBACK ARTIFACT IS REDACTED".
+          print("environment variables (names only, values deliberately omitted):")
+          for var in container.get("env", []) or []:
+              kind = "secretKeyRef" if "valueFrom" in var else "plain"
+              print(f"  {var.get('name', '?')}  [{kind}]")
+          PY
+          else
+            echo "no existing '$SERVICE' service in $REGION -- this is a first deploy, nothing to roll back to" \
+              > rollback/before.txt
+          fi
+
+          PREV=$(gcloud run services describe "$SERVICE" \
+                   --region "$REGION" --project "$GCP_PROJECT" \
+                   --format='value(status.latestReadyRevisionName)' 2>/dev/null || true)
+          {
+            echo "## Backend deploy — \`$SERVICE\` (\`$GCP_PROJECT\` / \`$REGION\`)"
+            echo
+            echo "Ref \`${{ github.ref_name }}\` at \`${{ github.sha }}\`"
+            echo
+            echo '### Before this deploy'
+            echo '```'
+            cat rollback/before.txt
+            echo '```'
+            if [ -n "$PREV" ]; then
+              echo '### Rollback'
+              echo 'If this deploy misbehaves, shift traffic back:'
+              echo '```bash'
+              echo "gcloud run services update-traffic $SERVICE \\"
+              echo "  --region $REGION --project $GCP_PROJECT \\"
+              echo "  --to-revisions $PREV=100"
+              echo '```'
+            fi
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the pre-deploy state for rollback
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-before-deploy-${{ github.run_id }}
+          path: rollback/
+          retention-days: 90
+          # FAIL-CLOSED, same reasoning as deploy-rules.yml: this step is
+          # the record of what to roll back to, so if it is empty the
+          # deploy should stop rather than proceed unrecorded.
+          if-no-files-found: error
+
+      # ---- Deploy -----------------------------------------------------
+      - name: Deploy
+        working-directory: backend
+        run: |
+          # --update-env-vars, NEVER --set-env-vars. See this file's
+          # header: --set replaces the entire environment and would drop
+          # every secret this service needs.
+          #
+          # APP_ENV=production is the one variable this workflow owns, and
+          # it is load-bearing twice over: _has_firebase_credential()
+          # (app/main.py) returns false without it unless
+          # FIREBASE_SERVICE_ACCOUNT_JSON is set, which silently skips the
+          # verification, referral and reward routes; and cfg.is_production
+          # selects FirestoreRateLimiter over the in-memory one, so rate
+          # limits actually survive across instances.
+          #
+          # Everything else -- OTP_HMAC_SECRET, RESEND_API_KEY,
+          # ALLOWED_ORIGINS, the MAM provider keys,
+          # VERIFICATION_EVIDENCE_BUCKET -- is managed in Cloud Run and
+          # deliberately untouched here. A deploy workflow that also owned
+          # the secrets would be a second place they could leak from.
+          #
+          # --quiet: accept defaults rather than prompting. The service
+          # already exists, so unspecified settings (ingress, auth,
+          # concurrency, runtime service account) are preserved as-is.
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --region "$REGION" \
+            --project "$GCP_PROJECT" \
+            --update-env-vars APP_ENV=production \
+            --quiet
+
+      # ---- Confirm it took --------------------------------------------
+      # `gcloud run deploy` reporting success only means a revision is
+      # serving. It says nothing about whether the routes this deploy
+      # exists to ship are actually registered.
+      - name: Verify the deployed service
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" \
+                  --region "$REGION" --project "$GCP_PROJECT" \
+                  --format='value(status.url)')
+          REV=$(gcloud run services describe "$SERVICE" \
+                  --region "$REGION" --project "$GCP_PROJECT" \
+                  --format='value(status.latestReadyRevisionName)')
+          echo "serving: $REV at $URL"
+          status=0
+
+          health=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$URL/healthz" || echo 000)
+          if [ "$health" = "200" ]; then
+            echo "OK: /healthz -> 200"
+            echo "- ✅ \`/healthz\` answers 200" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::/healthz answered $health, expected 200"
+            echo "- ❌ \`/healthz\` answered $health" >> "$GITHUB_STEP_SUMMARY"
+            status=1
+          fi
+
+          # The real check. Unauthenticated, so it is a plain read that
+          # changes nothing:
+          #   401 -> the route is registered (handlers.py _UNAUTHENTICATED)
+          #   404 -> build_verification_handlers returned None and
+          #          server.py skipped all thirteen verification routes,
+          #          which is exactly the state that made verify.html say
+          #          "Verification isn't switched on yet"
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+                   "$URL/api/v1/access/me/verification" || echo 000)
+          if [ "$code" = "401" ]; then
+            echo "OK: verification routes registered (401 unauthenticated)"
+            echo "- ✅ verification routes registered (\`401\` unauthenticated)" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$code" = "404" ]; then
+            echo "::error::verification routes are NOT registered (404). The Firebase credential gate did not pass -- check the revision's startup log for 'Verification endpoints not configured, skipping' and confirm APP_ENV=production took effect."
+            echo "- ❌ verification routes NOT registered (\`404\`) — credential gate did not pass" >> "$GITHUB_STEP_SUMMARY"
+            status=1
+          else
+            echo "::error::unexpected $code from /api/v1/access/me/verification (expected 401)"
+            echo "- ❌ unexpected \`$code\` from the verification route" >> "$GITHUB_STEP_SUMMARY"
+            status=1
+          fi
+
+          echo "- serving revision \`$REV\`" >> "$GITHUB_STEP_SUMMARY"
+          exit $status
