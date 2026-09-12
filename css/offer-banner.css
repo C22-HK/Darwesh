@@ -1,0 +1,289 @@
+/* Offers & Discounts -- the public promotional banner.
+ *
+ * ONE stylesheet for ONE component. The Admin live preview renders the
+ * exact same markup and loads this exact file, so "what Admin sees" and
+ * "what a visitor sees" cannot drift apart -- there is no second copy of
+ * this design to keep in sync.
+ *
+ * Self-contained on purpose: every colour is a local custom property
+ * seeded from Darwesh's brand tokens (Bronzed Black #17150F, gold
+ * #c69a4b/#d4af60, Warm Ivory #F4EFE7), not inherited from whichever
+ * page mounts it. That is what lets the same banner sit on the dark home
+ * page and inside the light Admin shell and look correct in both.
+ */
+
+.dwo-banner {
+  --dwo-bg: #17150F;
+  --dwo-bg-2: #100e0a;
+  --dwo-cream: #F4EFE7;
+  --dwo-muted: #B8B0A5;
+  --dwo-gold: #c69a4b;
+  --dwo-gold-bright: #d4af60;
+  --dwo-rule: rgba(198, 154, 75, 0.35);
+
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  /* The banner sizes itself to ITS OWN width, not the viewport's. That
+     matters because the Admin live preview mounts this component in a
+     ~490px column on a 1440px screen: viewport-based clamps sized the
+     figure for the screen and the number wrapped across three lines
+     inside the preview. Every rule below that used to key off vw is
+     paired with a container-query equivalent further down. */
+  container-type: inline-size;
+  container-name: dwo;
+  /* A soft off-centre warm glow rather than a flat fill: at this size a
+     flat near-black reads as a dead rectangle, and the offer is meant to
+     feel like the premium end of the brand. */
+  background:
+    radial-gradient(120% 140% at 18% 0%, #201d15 0%, var(--dwo-bg) 46%, var(--dwo-bg-2) 100%);
+  color: var(--dwo-cream);
+  border-radius: 18px;
+  padding: clamp(28px, 5vw, 64px) clamp(20px, 4vw, 56px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 56px);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* The hairline gold rule down the left edge, as in the reference. It is
+   decorative, so it is drawn rather than marked up. */
+.dwo-banner::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: clamp(14px, 2.5vw, 34px);
+  top: clamp(18px, 4vw, 44px);
+  bottom: clamp(18px, 4vw, 44px);
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--dwo-rule) 22%, var(--dwo-rule) 78%, transparent);
+  pointer-events: none;
+}
+
+/* ---- Left: the number ------------------------------------------- */
+.dwo-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-width: 0;
+}
+
+.dwo-percent {
+  margin: 0;
+  font-weight: 800;
+  /* Scales with the viewport but never collapses to an unreadable size
+     on a 320px phone, where this number IS the message. */
+  font-size: clamp(64px, 11vw, 148px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  color: var(--dwo-cream);
+  font-variant-numeric: tabular-nums;
+  /* "100%" is four glyphs that mean one thing; breaking it across lines
+     is always wrong, so it stays on one line and the size below is what
+     adapts. */
+  white-space: nowrap;
+}
+
+.dwo-eyebrow {
+  margin: clamp(10px, 1.6vw, 18px) 0 0;
+  font-size: clamp(10px, 1.1vw, 12px);
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--dwo-gold);
+}
+/* Sorani/Arabic set uppercase+wide tracking poorly -- the letterforms
+   are cursive and joined, so tracking visibly breaks words apart. */
+[dir="rtl"] .dwo-eyebrow {
+  letter-spacing: 0.06em;
+  text-transform: none;
+}
+
+/* ---- Right: the offer ------------------------------------------- */
+.dwo-body { min-width: 0; }
+
+.dwo-title {
+  margin: 0;
+  font-size: clamp(24px, 3.4vw, 46px);
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--dwo-cream);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.dwo-desc {
+  margin: clamp(10px, 1.4vw, 16px) 0 0;
+  font-size: clamp(13px, 1.2vw, 16px);
+  line-height: 1.6;
+  color: var(--dwo-muted);
+  max-width: 56ch;
+  overflow-wrap: anywhere;
+}
+
+.dwo-actions {
+  margin-top: clamp(18px, 2.4vw, 30px);
+  display: flex;
+  align-items: center;
+  gap: clamp(14px, 2vw, 24px);
+  flex-wrap: wrap;
+}
+
+.dwo-qr {
+  flex: none;
+  width: clamp(104px, 11vw, 132px);
+  height: clamp(104px, 11vw, 132px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.dwo-qr svg { display: block; width: 100%; height: 100%; }
+/* Empty box while the encoder loads, rather than a fake placeholder
+   pattern that could be mistaken for a scannable code. */
+.dwo-qr:empty { background: rgba(255, 255, 255, 0.08); box-shadow: none; }
+
+.dwo-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 26px;
+  border-radius: 12px;
+  background: var(--dwo-gold-bright);
+  color: #17150F;
+  font-weight: 700;
+  font-size: clamp(13px, 1.2vw, 15px);
+  text-decoration: none;
+  border: 0;
+  cursor: pointer;
+  transition: background .18s ease, transform .18s ease;
+}
+.dwo-cta:hover { background: #e0bd72; }
+.dwo-cta:active { transform: translateY(1px); }
+.dwo-cta:focus-visible { outline: 3px solid var(--dwo-cream); outline-offset: 3px; }
+.dwo-cta svg { flex: none; }
+/* The arrow points "forward", which is leftward in RTL. */
+[dir="rtl"] .dwo-cta svg { transform: scaleX(-1); }
+
+.dwo-code {
+  margin-top: clamp(14px, 2vw, 20px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.dwo-code-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dwo-muted);
+}
+[dir="rtl"] .dwo-code-label { letter-spacing: 0.04em; text-transform: none; }
+.dwo-code-value {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(14px, 1.4vw, 17px);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--dwo-gold-bright);
+  background: rgba(198, 154, 75, 0.12);
+  border: 1px dashed var(--dwo-rule);
+  border-radius: 8px;
+  padding: 7px 14px;
+  /* A promo code is meant to be selected and copied. */
+  user-select: all;
+}
+.dwo-copy {
+  background: transparent;
+  border: 1px solid var(--dwo-rule);
+  color: var(--dwo-cream);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dwo-copy:hover { border-color: var(--dwo-gold); }
+.dwo-copy:focus-visible { outline: 2px solid var(--dwo-gold-bright); outline-offset: 2px; }
+
+.dwo-terms {
+  margin: clamp(14px, 2vw, 20px) 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: rgba(184, 176, 165, 0.78);
+  max-width: 62ch;
+  overflow-wrap: anywhere;
+}
+
+.dwo-dates {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: rgba(184, 176, 165, 0.7);
+}
+
+/* ---- Mobile ------------------------------------------------------ */
+/* Single column, number first. The QR keeps a fixed minimum so it stays
+   scannable -- a QR that shrinks with the layout eventually stops being
+   a QR, which would silently break the entire point of the offer. */
+@media (max-width: 760px) {
+  .dwo-banner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    padding: 28px 20px;
+    text-align: center;
+  }
+  .dwo-banner::before { display: none; }
+  .dwo-desc { margin-inline: auto; }
+  .dwo-actions { justify-content: center; flex-direction: column; align-items: stretch; }
+  .dwo-qr {
+    width: 156px;
+    height: 156px;
+    margin-inline: auto;
+  }
+  .dwo-cta { justify-content: center; width: 100%; padding: 16px 22px; }
+  .dwo-code { justify-content: center; }
+  .dwo-terms { margin-inline: auto; }
+}
+
+/* ---- Container-relative sizing ----------------------------------
+   The clamps above key off the viewport, which is wrong wherever this
+   component is not full-width: the Admin live preview mounts it in a
+   ~490px column on a 1440px screen, and the figure was sized for the
+   screen -- "30%" broke across three lines. These override the type
+   scale with the banner's OWN inline size. The viewport clamps stay as
+   the fallback where container queries are unsupported.
+
+   Only descendants are restyled here: a container query cannot style
+   the container itself, so the one/two-column decision stays in the
+   viewport media query below. At the preview's width the two-column
+   composition is the right one anyway -- it is the reference layout. */
+@supports (container-type: inline-size) {
+  .dwo-percent { font-size: clamp(52px, 15cqw, 148px); }
+  .dwo-title { font-size: clamp(24px, 5cqw, 46px); }
+  .dwo-desc { font-size: clamp(13px, 1.7cqw, 16px); }
+}
+
+/* ---- Unavailable state (offer page) ------------------------------ */
+.dwo-unavailable {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: clamp(40px, 8vw, 90px) 24px;
+  border-radius: 18px;
+  background: var(--dwo-bg, #17150F);
+  color: #F4EFE7;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.dwo-unavailable h2 { margin: 0; font-size: clamp(20px, 3vw, 28px); font-weight: 800; }
+.dwo-unavailable p { margin: 0; color: #B8B0A5; font-size: 14px; max-width: 46ch; }
+.dwo-unavailable .dwo-cta { margin-top: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dwo-cta { transition: none; }
+}

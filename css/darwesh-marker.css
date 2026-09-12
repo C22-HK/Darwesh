@@ -1,0 +1,202 @@
+/* Darwesh Marker System — the one marker/pin visual language for every
+ * map surface (public Explore, My Properties, Admin). Extracted verbatim
+ * from map.html's original inline styles (dark #17150F + gold #B89A63
+ * pill, inline-SVG property-type glyph, red/green verification ring,
+ * active-state halo/scale) so every consumer renders the identical
+ * marker instead of each page inventing its own -- map.html's own pin
+ * was already the on-brand one; this file just gives it a shared home
+ * so admin.html's Map Management tab (and any future consumer) draws
+ * from the same source instead of a fourth competing pin style.
+ *
+ * New in this file (not extracted, genuinely new): `.pin-private` (a
+ * composable ring modifier, not a competing pin family, replacing
+ * admin's old solid red/green `.req-pin` marker), `.darwesh-edit-pin`
+ * (the distinctive draggable location-edit-mode pin), and
+ * `.darwesh-locate-dot` (an animated current-location pulse halo --
+ * map.html's previous location dot had no animation at all).
+ */
+
+.price-pin {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: #17150F;
+  border: 1.5px solid #5D482B;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 14px -6px rgba(184,154,99,0.55);
+  white-space: nowrap;
+  transition: all .15s ease;
+  cursor: pointer;
+  color: #F2EEE5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.price-pin .price-pin-icon {
+  width: 20px; height: 20px; flex-shrink: 0;
+  border-radius: 999px; box-sizing: border-box; padding: 3px;
+  background: rgba(184,154,99,0.16); color: #D9C79A;
+}
+.price-pin .price-pin-label { line-height: 1; }
+.price-pin.pin-unverified .price-pin-icon { box-shadow: inset 0 0 0 1.5px #E5787A; }
+.price-pin.pin-verified .price-pin-icon { box-shadow: inset 0 0 0 1.5px #6FCB7F; }
+.price-pin:hover { transform: scale(1.08); z-index: 1000 !important; border-color: #B89A63; }
+
+/* Compact (zoomed-out) mode — icon only, no price text. */
+.price-pin.price-pin-compact {
+  width: 28px; height: 28px; padding: 0; justify-content: center;
+}
+.price-pin.price-pin-compact .price-pin-icon { width: 100%; height: 100%; padding: 5px; background: none; }
+
+.price-pin.active {
+  transform: scale(1.16);
+  border-color: #B89A63;
+  box-shadow: 0 0 0 3px rgba(184,154,99,0.35), 0 0 22px -2px rgba(184,154,99,0.85), 0 4px 12px rgba(0,0,0,0.5);
+  z-index: 1000 !important;
+}
+
+/* Private / full-access ring — a composable modifier (stacks with
+ * .pin-verified/.pin-unverified), not a separate pin family. Folds in
+ * the one useful idea from admin.html's old solid red/green/violet
+ * `.req-pin` marker (the "full access" violet ring) as a modifier on
+ * THIS marker instead of a competing visual language. */
+.price-pin.pin-private {
+  box-shadow: 0 0 0 2.5px #9c6ade, 0 2px 8px rgba(0,0,0,0.4), 0 0 14px -6px rgba(184,154,99,0.55);
+}
+.price-pin.pin-private.active {
+  box-shadow: 0 0 0 2.5px #9c6ade, 0 0 0 5.5px rgba(184,154,99,0.35), 0 0 22px -2px rgba(184,154,99,0.85), 0 4px 12px rgba(0,0,0,0.5);
+}
+
+/* Neighborhood markers — blue, distinct shape from price pins. */
+.neighborhood-pin {
+  width: 16px; height: 16px; border-radius: 999px;
+  background: #1565c0; border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(4,22,39,0.35);
+}
+.neighborhood-label {
+  background: rgba(16,17,17,0.92);
+  color: #F2EEE5;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #5D482B;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Administrative area boundaries — dark red outline label. */
+.admin-boundary-label {
+  background: rgba(139,0,0,0.92);
+  color: #ffffff;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+
+/* Marker clusters — lightweight, on-brand grid-cluster badge. */
+.price-cluster {
+  width: 40px; height: 40px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  background: #17150F; border: 2px solid #B89A63; color: #F2EEE5; font-family: 'Inter', sans-serif;
+  font-weight: 700; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); cursor: pointer;
+  transition: transform .12s ease;
+}
+.price-cluster:hover { transform: scale(1.08); }
+
+/* Private-listing city-rollup badge (Explore mode only). */
+.private-city-badge {
+  background: #17150F;
+  color: #F2EEE5;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #8E7448;
+  display: flex; align-items: center; gap: 5px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .15s ease;
+}
+.private-city-badge:hover { transform: scale(1.06); }
+
+/* ---- New: draggable precise-location-edit pin -----------------------
+ * Deliberately a different silhouette (a downward teardrop, not the
+ * pill) so it reads as "a pin being placed" rather than "a listing" --
+ * used only in location-edit mode (map.html My Properties, admin Map
+ * Management), never as a regular listing marker. */
+.darwesh-edit-pin {
+  width: 36px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+}
+.darwesh-edit-pin:active { cursor: grabbing; }
+.darwesh-edit-pin-body {
+  width: 34px; height: 34px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #C69A4B;
+  border: 2px solid #8E7448;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45), 0 0 0 3px rgba(198,154,75,0.25);
+  display: flex; align-items: center; justify-content: center;
+  animation: darwesh-edit-pin-drop 220ms cubic-bezier(.34,1.56,.64,1);
+}
+.darwesh-edit-pin-crosshair {
+  transform: rotate(45deg);
+  width: 12px; height: 12px;
+  color: #221807;
+}
+@keyframes darwesh-edit-pin-drop {
+  from { transform: rotate(-45deg) translateY(-10px) scale(0.6); opacity: 0; }
+  to { transform: rotate(-45deg) translateY(0) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .darwesh-edit-pin-body { animation: none; }
+}
+
+/* ---- New: animated current-location pulse dot ------------------------
+ * map.html's previous location marker was a static dot with a soft
+ * fixed-radius shadow ring and no animation at all -- this adds a real
+ * expanding/fading pulse, with a static ring (today's look) as the
+ * prefers-reduced-motion fallback. */
+.darwesh-locate-dot {
+  position: relative;
+  width: 16px; height: 16px;
+}
+.darwesh-locate-dot::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 999px;
+  background: #4f6073;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgba(79,96,115,0.3);
+  z-index: 1;
+}
+.darwesh-locate-dot::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 16px; height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 999px;
+  background: rgba(79,96,115,0.55);
+  animation: darwesh-locate-pulse 2s ease-out infinite;
+}
+@keyframes darwesh-locate-pulse {
+  0% { transform: scale(1); opacity: .55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .darwesh-locate-dot::after { animation: none; opacity: .3; transform: scale(1.8); }
+}

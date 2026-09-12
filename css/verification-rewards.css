@@ -1,0 +1,221 @@
+/* "Verification & Rewards" -- the shared settings component (§C, §S).
+ *
+ * Self-contained like css/offer-banner.css: every colour is a local
+ * custom property seeded from the Darwesh brand tokens, not inherited,
+ * so the same component reads correctly inside the light account
+ * settings panel and on a dark role profile page alike.
+ *
+ * Bank-grade in trust, Apple-like in simplicity: one big honest number,
+ * two calm steps, generous whitespace, no gauges or confetti.
+ */
+
+.vr-card {
+  --vr-bg: #17150F;
+  --vr-bg-2: #100e0a;
+  --vr-cream: #F4EFE7;
+  --vr-muted: #B8B0A5;
+  --vr-gold: #c69a4b;
+  --vr-gold-bright: #d4af60;
+  --vr-rule: rgba(198, 154, 75, 0.28);
+  --vr-ok: #74c69d;
+
+  box-sizing: border-box;
+  container-type: inline-size;
+  container-name: vr;
+  background: radial-gradient(120% 140% at 18% 0%, #201d15 0%, var(--vr-bg) 46%, var(--vr-bg-2) 100%);
+  color: var(--vr-cream);
+  border-radius: 18px;
+  padding: clamp(22px, 4vw, 38px);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.vr-skeleton {
+  min-height: 260px;
+  background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04));
+  background-size: 200% 100%;
+  animation: vrShimmer 1.4s linear infinite;
+}
+@keyframes vrShimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .vr-skeleton { animation: none; } }
+
+/* ---- The one number that matters ---------------------------------- */
+.vr-hero { text-align: center; padding-block: clamp(4px, 2vw, 14px) clamp(16px, 3vw, 26px); }
+.vr-hero-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--vr-gold);
+}
+[dir="rtl"] .vr-hero-label { letter-spacing: .05em; text-transform: none; }
+
+.vr-hero-figure {
+  margin: .32em 0 0;
+  font-weight: 800;
+  /* Sized to the CARD, not the viewport, so the component is correct in
+     a narrow settings column as well as full width. */
+  font-size: clamp(46px, 13vw, 84px);
+  line-height: .95;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  /* "6.5%" is one value -- it must never break across lines. */
+  white-space: nowrap;
+}
+@supports (container-type: inline-size) {
+  .vr-hero-figure { font-size: clamp(46px, 18cqw, 84px); }
+}
+
+.vr-hero-note {
+  margin: .7em auto 0;
+  max-width: 44ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--vr-muted);
+}
+.vr-hero-note.vr-complete { color: var(--vr-ok); font-weight: 600; }
+
+/* ---- The two steps ------------------------------------------------- */
+.vr-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+
+.vr-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, .09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .03);
+}
+.vr-step.is-done { border-color: var(--vr-rule); background: rgba(198, 154, 75, .08); }
+.vr-step.is-locked { opacity: .72; }
+
+.vr-step-icon {
+  display: grid;
+  place-items: center;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .16);
+  color: var(--vr-muted);
+}
+.vr-step.is-done .vr-step-icon {
+  border-color: transparent;
+  background: var(--vr-ok);
+  color: #10251b;
+}
+
+.vr-step-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vr-step-title { font-size: 14px; font-weight: 600; }
+.vr-step-meta { font-size: 12px; color: var(--vr-muted); }
+.vr-step-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--vr-gold-bright);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ---- Referral progress --------------------------------------------- */
+.vr-progress { margin-top: 18px; }
+.vr-progress-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12px; color: var(--vr-muted); margin-bottom: 8px;
+}
+.vr-progress-count { font-variant-numeric: tabular-nums; color: var(--vr-cream); font-weight: 600; }
+.vr-progress-track {
+  height: 6px; border-radius: 99px;
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden;
+}
+.vr-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--vr-gold), var(--vr-gold-bright));
+  transition: width .5s cubic-bezier(.22, .61, .36, 1);
+}
+@media (prefers-reduced-motion: reduce) { .vr-progress-fill { transition: none; } }
+[dir="rtl"] .vr-progress-track { transform: scaleX(-1); }
+
+/* ---- Referral code -------------------------------------------------- */
+.vr-referral {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--vr-rule);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.vr-referral.is-locked {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, .14);
+  justify-content: flex-start;
+}
+.vr-referral-lock { flex: none; color: var(--vr-muted); display: grid; place-items: center; }
+.vr-referral-main { min-width: 0; }
+.vr-referral-title { margin: 0; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--vr-gold); }
+[dir="rtl"] .vr-referral-title { letter-spacing: .04em; text-transform: none; }
+.vr-referral-note { margin: .45em 0 0; font-size: 12.5px; line-height: 1.5; color: var(--vr-muted); max-width: 48ch; }
+
+.vr-code {
+  margin: .35em 0 0;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(20px, 5vw, 26px);
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: var(--vr-gold-bright);
+  /* A referral code exists to be selected and copied. */
+  user-select: all;
+  /* Always read left-to-right: DW-M7K4P is a Latin identifier even on
+     an RTL page, and bidi reordering would make it unreadable. */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.vr-referral-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---- Buttons -------------------------------------------------------- */
+.vr-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--vr-rule);
+  background: transparent;
+  color: var(--vr-cream);
+  font: inherit; font-size: 13px; font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .18s ease, border-color .18s ease;
+}
+.vr-btn:hover { border-color: var(--vr-gold); background: rgba(198, 154, 75, .1); }
+.vr-btn:focus-visible { outline: 2px solid var(--vr-gold-bright); outline-offset: 2px; }
+.vr-btn-primary { background: var(--vr-gold-bright); border-color: transparent; color: #17150F; }
+.vr-btn-primary:hover { background: #e0bd72; }
+.vr-btn-lg { padding: 14px 26px; font-size: 14px; }
+.vr-btn.is-disabled { opacity: .5; pointer-events: none; }
+
+.vr-actions { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.vr-reason {
+  margin: 0; font-size: 12.5px; line-height: 1.55; text-align: center;
+  color: var(--vr-muted); max-width: 52ch;
+}
+
+.vr-terms {
+  margin: 20px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: rgba(184, 176, 165, .75);
+}
+
+/* ---- Mobile (§BH: 320/375/390/430) ---------------------------------- */
+@media (max-width: 560px) {
+  .vr-card { padding: 20px 16px; border-radius: 14px; }
+  .vr-referral { flex-direction: column; align-items: stretch; }
+  .vr-referral-actions { width: 100%; }
+  .vr-referral-actions .vr-btn { flex: 1 1 auto; }
+  .vr-step { grid-template-columns: 24px minmax(0, 1fr) auto; padding: 12px 13px; gap: 10px; }
+  .vr-actions .vr-btn-lg { width: 100%; }
+}

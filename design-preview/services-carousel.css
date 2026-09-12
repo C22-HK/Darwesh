@@ -1,0 +1,307 @@
+/*
+  Darwesh Group — Services Carousel (PREVIEW ONLY)
+  =================================================================
+  Real brand tokens copied verbatim from css/profile-tokens.css (same
+  values used throughout design-preview/ this session):
+    obsidian #0b0e12, warm ivory #f4efe7, Darwesh Gold #c69a4b,
+    soft gold #d4af60, surfaces #141619/#111315/#17191b,
+    focus ring: 2px ground + 4px gold (var(--ps-focus-ring) pattern).
+  Nothing here is loaded by any production page.
+*/
+
+:root {
+  --sc-obsidian: #0b0e12;
+  --sc-ivory: #f4efe7;
+  --sc-ivory-dim: #b8b0a5;
+  --sc-gold: #c69a4b;
+  --sc-gold-soft: #d4af60;
+  --sc-gold-ink: #0b0e12;
+  --sc-surface: #141619;
+  --sc-surface-low: #111315;
+  --sc-surface-lowest: #17191b;
+  --sc-outline: #2b2c2a;
+  --sc-focus-ring: 0 0 0 2px var(--sc-obsidian), 0 0 0 4px var(--sc-gold);
+
+  --sc-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --sc-press-fast: 120ms;
+  --sc-release: 220ms;
+  --sc-detail: 180ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --sc-press-fast: 1ms; --sc-release: 1ms; --sc-detail: 90ms; }
+}
+
+.sc-root { background: var(--sc-obsidian); color: var(--sc-ivory); }
+
+/* ---------------------------------------------------------------
+   Header
+   --------------------------------------------------------------- */
+.sc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 24px; border-bottom: 1px solid var(--sc-outline);
+  background: rgba(11,14,18,0.85); backdrop-filter: blur(6px);
+  position: sticky; top: 0; z-index: 20;
+}
+.sc-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; color: var(--sc-ivory); text-decoration: none; }
+.sc-brand-mark { width: 30px; height: 30px; border-radius: 50%; background: #fff; overflow: hidden; flex: none; display: flex; align-items: center; justify-content: center; }
+.sc-brand-mark img { width: 100%; height: 100%; object-fit: cover; }
+.sc-nav { display: flex; align-items: center; gap: 22px; }
+.sc-nav a { font-size: 14px; font-weight: 600; color: var(--sc-ivory-dim); text-decoration: none; padding: 4px 2px; border-bottom: 2px solid transparent; }
+.sc-nav a[aria-current="page"] { color: var(--sc-ivory); border-bottom-color: var(--sc-gold); }
+.sc-nav a:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); border-radius: 4px; }
+.sc-lang-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding-inline: 12px;
+  border-radius: 999px; border: 1px solid var(--sc-outline); background: var(--sc-surface-lowest);
+  color: var(--sc-ivory); font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: border-color var(--sc-press-fast) var(--sc-ease);
+}
+.sc-lang-btn:hover { border-color: var(--sc-gold); }
+.sc-lang-btn:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+@media (max-width: 700px) { .sc-nav a:not(.sc-lang-btn) { display: none; } }
+
+/* ---------------------------------------------------------------
+   Hero copy
+   --------------------------------------------------------------- */
+.sc-hero { text-align: center; padding: 28px 20px 6px; }
+@media (max-width: 700px) { .sc-hero { padding: 18px 20px 4px; } }
+.sc-hero h1 { font-size: clamp(28px, 5vw, 44px); margin: 0 0 8px; font-weight: 800; letter-spacing: -0.01em; }
+.sc-hero p { color: var(--sc-ivory-dim); font-size: 15.5px; margin: 0; }
+
+/* ---------------------------------------------------------------
+   Carousel stage
+   --------------------------------------------------------------- */
+/* Constrained + centered (not full page width) so the arrows below sit
+   just outside the actual card cluster, not stranded at the browser's
+   own edges on a wide desktop viewport. */
+.sc-stage-wrap { position: relative; max-width: 760px; margin: 0 auto; padding: 22px 0 4px; }
+.sc-stage {
+  position: relative; height: 400px; max-width: 100%; overflow: hidden;
+  perspective: 1400px; touch-action: pan-y;
+  outline: none;
+}
+.sc-stage:focus-visible { box-shadow: inset var(--sc-focus-ring); }
+/* Faint decorative ground ellipse under the cards, matching the
+   reference's subtle floor shadow -- low contrast, never intercepts
+   input. */
+.sc-stage::before {
+  content: ""; position: absolute; left: 50%; bottom: 22px;
+  width: 82%; height: 34px; transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(198,154,75,0.14), rgba(198,154,75,0) 72%);
+  pointer-events: none; z-index: 0;
+}
+.sc-card-layer { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; will-change: transform; }
+.sc-card {
+  position: absolute; top: 48%; left: 50%;
+  width: 232px; aspect-ratio: 2 / 3;
+  border-radius: 22px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  box-shadow: 0 12px 30px -14px rgba(0,0,0,0.65);
+  background: var(--sc-surface);
+  will-change: transform, opacity;
+  -webkit-tap-highlight-color: transparent;
+}
+.sc-card.is-selected {
+  border-color: rgba(198,154,75,0.6);
+  box-shadow: 0 16px 40px -16px rgba(198,154,75,0.4), 0 12px 30px -14px rgba(0,0,0,0.65);
+}
+.sc-card-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 38%;
+  pointer-events: none;
+}
+.sc-card-art {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.sc-card-art svg { width: 30%; height: 30%; color: rgba(244,239,231,0.85); position: relative; z-index: 1; }
+.sc-card-caption {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+  padding: 14px 16px 12px;
+  background: linear-gradient(to top, rgba(11,14,18,0.94), rgba(11,14,18,0.5) 65%, transparent);
+}
+.sc-card-caption span { font-weight: 700; font-size: 15px; color: var(--sc-ivory); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.sc-card:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+.sc-card-illustrative-tag {
+  position: absolute; top: 10px; left: 10px; z-index: 2;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--sc-ivory-dim); background: rgba(11,14,18,0.7); border: 1px solid rgba(255,255,255,0.12);
+  padding: 3px 7px; border-radius: 999px;
+}
+
+/* Arrows -- close to the card cluster's own edges (the constrained
+   .sc-stage-wrap above), not the far edges of the viewport. */
+.sc-arrow {
+  position: relative;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(23,25,27,0.85); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--sc-ivory); display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; backdrop-filter: blur(6px);
+  box-shadow: 0 1px 1px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06);
+  transition: border-color var(--sc-press-fast) var(--sc-ease), transform var(--sc-press-fast) var(--sc-ease), opacity var(--sc-press-fast) var(--sc-ease);
+}
+.sc-arrow:hover:not(:disabled) { border-color: rgba(198,154,75,.55); }
+.sc-arrow:active:not(:disabled) { transform: scale(0.92); }
+.sc-arrow:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+.sc-arrow:disabled { opacity: 0.35; cursor: default; }
+.sc-arrow svg { width: 19px; height: 19px; }
+.sc-arrow-left { position: absolute; left: -4px; top: 46%; transform: translateY(-50%); z-index: 5; }
+.sc-arrow-right { position: absolute; right: -4px; top: 46%; transform: translateY(-50%); z-index: 5; }
+@media (max-width: 700px) {
+  .sc-arrow-left, .sc-arrow-right { display: none; }
+}
+
+/* Position indicator */
+.sc-indicator-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 4px; }
+.sc-indicator-count { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--sc-ivory-dim); font-weight: 600; min-width: 52px; text-align: center; direction: ltr; unicode-bidi: isolate; }
+.sc-dots { display: flex; gap: 6px; }
+.sc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sc-outline); transition: background-color var(--sc-detail) var(--sc-ease), transform var(--sc-detail) var(--sc-ease); }
+.sc-dot.is-active { background: var(--sc-gold); transform: scale(1.3); }
+.sc-swipe-hint { text-align: center; font-size: 12px; color: var(--sc-ivory-dim); margin-top: 6px; }
+@media (max-width: 700px) {
+  .sc-indicator-row { margin-top: 14px; }
+}
+
+/* Mobile arrow row (shown below stage on small screens) */
+.sc-mobile-arrows { display: none; align-items: center; justify-content: center; gap: 18px; margin-top: 14px; }
+@media (max-width: 700px) { .sc-mobile-arrows { display: flex; } }
+
+/* ---------------------------------------------------------------
+   Detail block
+   --------------------------------------------------------------- */
+.sc-detail { max-width: 560px; margin: 26px auto 0; text-align: center; padding: 0 20px; min-height: 128px; }
+.sc-detail-title { font-size: 22px; font-weight: 800; margin: 0 0 6px; transition: opacity var(--sc-detail) ease, transform var(--sc-detail) ease; }
+.sc-detail-desc { font-size: 14.5px; color: var(--sc-ivory-dim); margin: 0 0 18px; line-height: 1.5; transition: opacity var(--sc-detail) ease, transform var(--sc-detail) ease; }
+.sc-detail.is-changing .sc-detail-title,
+.sc-detail.is-changing .sc-detail-desc { opacity: 0; transform: translateY(6px); }
+
+.sc-explore-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 48px; padding-inline: 28px; border-radius: 999px;
+  background: linear-gradient(180deg, var(--sc-gold-soft), var(--sc-gold));
+  color: var(--sc-gold-ink); font-weight: 700; font-size: 15px;
+  text-decoration: none; border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 8px 18px -8px rgba(198,154,75,.55), inset 0 1px 0 rgba(255,255,255,.25);
+  transition: transform var(--sc-press-fast) var(--sc-ease), box-shadow var(--sc-press-fast) var(--sc-ease);
+}
+.sc-explore-btn:hover { transform: translateY(-1px); }
+.sc-explore-btn:active { transform: scale(0.98); }
+.sc-explore-btn:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+
+/* ---------------------------------------------------------------
+   All-services chips
+   --------------------------------------------------------------- */
+.sc-allrow { max-width: 900px; margin: 34px auto 0; padding: 0 20px; text-align: center; }
+.sc-allrow-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sc-ivory-dim); font-weight: 700; margin-bottom: 14px; }
+.sc-chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+.sc-chip {
+  display: inline-flex; align-items: center; height: 40px; padding-inline: 18px;
+  border-radius: 999px; border: 1px solid var(--sc-outline); background: transparent;
+  color: var(--sc-ivory-dim); font-size: 13.5px; font-weight: 600; cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--sc-press-fast) var(--sc-ease), border-color var(--sc-press-fast) var(--sc-ease), color var(--sc-press-fast) var(--sc-ease);
+}
+.sc-chip:hover { border-color: rgba(198,154,75,.5); color: var(--sc-ivory); }
+.sc-chip:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+.sc-chip[aria-current="true"] { background: var(--sc-gold); color: var(--sc-gold-ink); border-color: var(--sc-gold); }
+@media (max-width: 700px) { .sc-chips { display: none; } }
+.sc-allservices-mobile-btn { display: none; }
+@media (max-width: 700px) {
+  .sc-allservices-mobile-btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 44px; padding-inline: 20px;
+    border-radius: 999px; border: 1px solid var(--sc-outline); background: var(--sc-surface-lowest);
+    color: var(--sc-ivory); font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .sc-allservices-mobile-btn:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+}
+
+/* ---------------------------------------------------------------
+   MAM AI panel
+   --------------------------------------------------------------- */
+.sc-mamrow { max-width: 900px; margin: 30px auto 60px; padding: 0 20px; }
+.sc-mam-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: var(--sc-surface); border: 1px solid var(--sc-outline); border-radius: 18px;
+  padding: 16px 20px;
+}
+.sc-mam-left { display: flex; align-items: center; gap: 12px; }
+.sc-mam-icon { width: 40px; height: 40px; border-radius: 12px; background: rgba(198,154,75,.14); display: flex; align-items: center; justify-content: center; flex: none; }
+.sc-mam-icon .material-symbols-outlined { color: var(--sc-gold); font-size: 22px; }
+.sc-mam-title { font-weight: 700; font-size: 14.5px; margin: 0; }
+.sc-mam-sub { font-size: 12.5px; color: var(--sc-ivory-dim); margin: 2px 0 0; }
+.sc-mam-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 42px; padding-inline: 18px;
+  border-radius: 999px; border: 1px solid rgba(198,154,75,.5); background: transparent;
+  color: var(--sc-gold); font-weight: 700; font-size: 13.5px; text-decoration: none;
+  transition: background-color var(--sc-press-fast) var(--sc-ease);
+}
+.sc-mam-btn:hover { background: rgba(198,154,75,.1); }
+.sc-mam-btn:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+
+.sc-preview-note {
+  max-width: 640px; margin: 18px auto 0; padding: 0 20px;
+  text-align: center; font-size: 11.5px; line-height: 1.6; color: var(--sc-ivory-dim);
+}
+
+/* Mobile bottom nav clearance placeholder (mimics real site's safe-area pattern) */
+.sc-bottomnav-spacer { height: 0; }
+@media (max-width: 700px) { .sc-bottomnav-spacer { height: calc(64px + env(safe-area-inset-bottom, 0px)); } }
+
+/* ---------------------------------------------------------------
+   All-services sheet (mobile)
+   --------------------------------------------------------------- */
+.sc-sheet-scrim {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 90;
+  opacity: 0; pointer-events: none; transition: opacity var(--sc-release) var(--sc-ease);
+}
+.sc-sheet-scrim.is-open { opacity: 1; pointer-events: auto; }
+.sc-sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 91;
+  background: var(--sc-surface-low); border-top: 1px solid var(--sc-outline);
+  border-radius: 20px 20px 0 0; padding: 10px 18px calc(24px + env(safe-area-inset-bottom, 0px));
+  transform: translateY(100%); transition: transform var(--sc-release) var(--sc-ease);
+  max-height: 72vh; overflow-y: auto;
+}
+.sc-sheet.is-open { transform: translateY(0); }
+.sc-sheet-handle { width: 36px; height: 4px; border-radius: 999px; background: var(--sc-outline); margin: 6px auto 14px; }
+.sc-sheet h2 { font-size: 15px; margin: 0 0 12px; }
+.sc-sheet-list { display: flex; flex-direction: column; gap: 2px; }
+.sc-sheet-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--sc-ivory); text-decoration: none;
+}
+.sc-sheet-item:last-child { border-bottom: none; }
+.sc-sheet-item .material-symbols-outlined { color: var(--sc-gold); font-size: 20px; }
+.sc-sheet-item:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); border-radius: 8px; }
+.sc-sheet-close {
+  position: absolute; top: 10px; right: 14px; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--sc-surface-lowest); border: 1px solid var(--sc-outline); color: var(--sc-ivory);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.sc-sheet-close:focus-visible { outline: none; box-shadow: var(--sc-focus-ring); }
+[dir="rtl"] .sc-sheet-close { right: auto; left: 14px; }
+
+/* ---------------------------------------------------------------
+   RTL
+   --------------------------------------------------------------- */
+[dir="rtl"] .sc-arrow-left { left: auto; right: 8px; }
+[dir="rtl"] .sc-arrow-right { right: auto; left: 8px; }
+[dir="rtl"] .sc-nav { flex-direction: row-reverse; }
+
+/* Live region kept visually hidden */
+.sc-visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Mobile stage sizing -- one large portrait selected card + narrow
+   previews on both sides, per the reference's mobile composition. */
+@media (max-width: 700px) {
+  .sc-stage { height: 380px; }
+  .sc-card { width: 76vw; max-width: 300px; aspect-ratio: 2 / 3; height: auto; }
+}
+@media (max-width: 400px) {
+  .sc-card { width: 78vw; }
+  .sc-stage { height: 360px; }
+}

@@ -1,0 +1,359 @@
+/* MAM's conversation surface -- Task B redesign. There is no permanent
+ * chat panel any more: at rest, only the Entity, a minimal state line and
+ * the composer below are visible (see js/mam-chat-panel.js's own header
+ * comment). Two pieces live here:
+ *
+ *   .mamcp-composer-root -- ALWAYS on screen (besides the Entity itself).
+ *   A small floating bar: ephemeral pre-interaction suggestions, an
+ *   ephemeral status/response line, and the actual input bar. Fixed,
+ *   bottom-centred, never grows into a panel of its own.
+ *
+ *   .mamcp-panel -- the HISTORY SHEET. Collapsed by default (off-screen,
+ *   below the viewport edge), opened only by explicit action (the
+ *   composer's history toggle, or the Entity). A capped-height bottom
+ *   sheet that floats just above the composer, never covering the Entity.
+ *
+ * Self-contained: uses the same --mamco-* custom properties (with literal
+ * fallback values) as css/mam-companion.css and css/mam-spatial-ui.css, so
+ * this file never requires another stylesheet to be present.
+ */
+
+:root {
+  --mamcp-safe-b: env(safe-area-inset-bottom, 0px);
+  /* Mobile: clears js/site-mobile-nav.js's fixed bottom nav (hidden at
+     the md breakpoint, where the desktop value below takes over). */
+  --mamcp-composer-b: calc(var(--mamcp-safe-b) + 84px);
+  --mamcp-bar-h: 56px;
+}
+@media (min-width: 768px) {
+  :root {
+    --mamcp-composer-b: calc(var(--mamcp-safe-b) + 24px);
+    --mamcp-bar-h: 62px;
+  }
+}
+
+/* =======================================================================
+   THE COMPOSER -- always visible
+   ======================================================================= */
+.mamcp-composer-root {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--mamcp-composer-b);
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(640px, calc(100vw - 32px));
+  font-family: 'Inter', sans-serif;
+  transition: bottom 200ms ease;
+}
+/* The on-screen keyboard: js/mam-chat-panel.js's visualViewport listener
+   sets --mamcp-vv-inset to the real covered height and toggles this class
+   -- the composer sits just above the keyboard rather than the (now
+   keyboard-covered) bottom-nav clearance used at rest. */
+.mamcp-composer-root.keyboard-open {
+  bottom: calc(var(--mamcp-vv-inset, 0px) + 10px);
+}
+
+/* Ephemeral pre-interaction suggestions -- gone for good the moment a
+   real conversation exists (js/mam-chat-panel.js's renderChips()), and
+   hidden while the history sheet is open so they never compete with it. */
+.mamcp-chips {
+  display: flex; flex-wrap: nowrap; gap: 6px;
+  max-width: 100%;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  padding: 0 2px;
+}
+.mamcp-chips::-webkit-scrollbar { display: none; }
+.mamcp-chips:empty { display: none; }
+.mamcp-chip {
+  font-size: 11.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 82%, transparent);
+  color: var(--mamco-glow, #F2EEE5);
+  border: 1px solid var(--mamco-outline, #5D482B);
+  border-radius: 999px; padding: 7px 13px; cursor: pointer;
+  white-space: nowrap; flex: none;
+  min-height: 32px;
+}
+.mamcp-chip:hover, .mamcp-chip:focus-visible { border-color: var(--mamco-accent, #B89A63); }
+
+/* The ONE ephemeral line: "Listening…" / "Thinking…" / a short glance at
+   the reply. Never a transcript -- the full reply always also lands in
+   the history sheet's log. Fades on its own (see setStatusLine's
+   RESPONSE_LINE_MS) or is cleared explicitly on a state change. */
+.mamcp-status {
+  max-width: 100%;
+  font-size: 12.5px; font-weight: 500;
+  color: var(--mamco-glow, #F2EEE5);
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mamco-accent, #B89A63) 30%, transparent);
+  border-radius: 12px;
+  padding: 7px 14px;
+  text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  animation: mamcp-status-in 220ms ease;
+}
+.mamcp-status[hidden] { display: none; }
+@keyframes mamcp-status-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+.mamcp-bar-wrap {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  min-height: var(--mamcp-bar-h);
+  padding: 0 8px 0 8px;
+  border-radius: 999px;
+  background: var(--mamco-surface, #17150F);
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 97%, transparent);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--mamco-outline, #5D482B);
+  box-shadow: 0 10px 32px rgba(0,0,0,.4), 0 0 0 1px rgba(0,0,0,.15);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+/* "Focused" state -- a slightly stronger gold edge and lift, never a
+   panel: the bar itself is the only thing that changes. */
+.mamcp-composer-root.is-focused .mamcp-bar-wrap {
+  border-color: var(--mamco-accent, #B89A63);
+  box-shadow: 0 12px 36px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 45%, transparent);
+}
+/* Entity-relationship decorative touch -- a faint particle drift toward
+   the composer on focus. CSS-only, decorative, never touching the entity
+   renderer/shaders (see js/mam-entity-shaders.js -- untouched by this
+   file). Kept subtle: a soft moving highlight along the top edge. */
+.mamcp-composer-root.is-focused .mamcp-bar-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--mamco-accent, #B89A63) 40%, transparent), transparent);
+  background-size: 200% 100%;
+  animation: mamcp-drift 2.4s linear infinite;
+  opacity: .5;
+}
+.mamcp-bar-wrap { position: relative; overflow: hidden; }
+@keyframes mamcp-drift { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+.mamcp-history-btn {
+  position: relative;
+  flex: none;
+}
+.mamcp-history-btn[aria-pressed="true"] { color: var(--mamco-accent, #B89A63); }
+
+.mamcp-bar { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.mamcp-input {
+  flex: 1; min-width: 0;
+  background: transparent; border: none; outline: none;
+  color: var(--mamco-glow, #F2EEE5);
+  -webkit-text-fill-color: var(--mamco-glow, #F2EEE5);
+  caret-color: var(--mamco-accent, #B89A63);
+  font-family: 'Inter', sans-serif; font-size: 14px;
+  min-height: 44px;
+  /* Kurdish/Arabic stays right-to-left and English left-to-right in the
+     SAME input, without the composer having to know the selected
+     language. */
+  unicode-bidi: plaintext;
+  text-align: start;
+}
+.mamcp-input::placeholder { color: #A79F91; -webkit-text-fill-color: #A79F91; opacity: 1; }
+.mamcp-input:disabled {
+  color: var(--mamco-glow, #F2EEE5);
+  -webkit-text-fill-color: var(--mamco-glow, #F2EEE5);
+  opacity: .7;
+}
+.mamcp-bar-btn {
+  flex: none; width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+  border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  border: none; cursor: pointer;
+}
+.mamcp-send { background: var(--mamco-accent, #B89A63); color: #090A0A; }
+.mamcp-send:disabled { opacity: .5; cursor: not-allowed; }
+.mamcp-mic { background: transparent; color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); }
+.mamcp-mic.mic-listening { background: var(--mamco-error, #E5787A); border-color: var(--mamco-error, #E5787A); color: #090A0A; }
+.mamcp-mic.is-wake:not(.mic-listening) {
+  border-color: rgba(184, 154, 99, 0.55);
+  color: var(--mamco-accent, #B89A63);
+  animation: mamcp-mic-wake-pulse 3.6s ease-in-out infinite;
+}
+@keyframes mamcp-mic-wake-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184, 154, 99, 0.28); }
+  50%      { box-shadow: 0 0 0 4px rgba(184, 154, 99, 0); }
+}
+.mamcp-mic[hidden] { display: none; }
+
+.mamcp-icon-btn {
+  background: none; border: none; color: #A79F91; cursor: pointer;
+  padding: 8px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  min-width: 44px; min-height: 44px;
+}
+.mamcp-icon-btn:hover, .mamcp-icon-btn:focus-visible { color: var(--mamco-glow, #F2EEE5); }
+.mamcp-icon-btn[aria-pressed="true"] { color: var(--mamco-accent, #B89A63); }
+.mamcp-icon { display: flex; }
+
+:is(.mamcp-chip, .mamcp-chat-btn, .mamcp-history-btn, .mamcp-icon-btn, .mamcp-bar-btn, .mamcp-mic, .mamcp-send):focus-visible {
+  outline: 2px solid var(--mamco-accent, #B89A63); outline-offset: 2px;
+}
+
+/* When the history sheet is open, the ephemeral layer above the bar
+   steps aside for it -- never shown at the same time (see the sheet's own
+   comment for why they'd otherwise overlap). */
+.mamcp-composer-root.history-open .mamcp-chips,
+.mamcp-composer-root.history-open .mamcp-status {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* =======================================================================
+   THE HISTORY SHEET -- collapsed by default, opened only on request
+   ======================================================================= */
+.mamcp-panel {
+  position: fixed;
+  left: 50%;
+  transform: translate(-50%, 12px);
+  bottom: calc(var(--mamcp-composer-b) + var(--mamcp-bar-h) + 14px);
+  z-index: 1250;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, calc(100vw - 24px));
+  max-height: 50vh;
+  background: var(--mamco-surface, #17150F);
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 97%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--mamco-outline, #5D482B);
+  border-top: 1px solid color-mix(in srgb, var(--mamco-accent, #B89A63) 55%, transparent);
+  border-radius: 18px;
+  box-shadow: 0 -16px 48px rgba(0,0,0,.5);
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: transform 240ms cubic-bezier(.22,.61,.36,1), opacity 180ms ease, visibility 0s linear 240ms;
+}
+@media (min-width: 768px) {
+  .mamcp-panel { max-height: 38vh; }
+}
+.mamcp-panel.is-open {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+  visibility: visible;
+  transition: transform 240ms cubic-bezier(.22,.61,.36,1), opacity 180ms ease, visibility 0s linear 0s;
+}
+
+.mamcp-grab-handle {
+  display: flex; justify-content: center;
+  padding: 10px 0 4px; flex: none;
+  cursor: grab; touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+.mamcp-grab-handle:active { cursor: grabbing; }
+.mamcp-grab-bar { width: 36px; height: 4px; border-radius: 999px; background: var(--mamco-outline, #5D482B); transition: background 150ms ease; }
+.mamcp-grab-handle:hover .mamcp-grab-bar,
+.mamcp-grab-handle:focus-visible .mamcp-grab-bar { background: var(--mamco-accent, #B89A63); }
+.mamcp-grab-handle:focus-visible { outline: 2px solid var(--mamco-accent, #B89A63); outline-offset: 2px; border-radius: 999px; }
+.mamcp-panel.is-collapsing { transition: none; }
+
+.mamcp-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 12px 10px; border-bottom: 1px solid var(--mamco-outline, #5D482B); flex: none; }
+.mamcp-sheet-label { font-weight: 600; font-size: 11px; color: color-mix(in srgb, var(--mamco-glow, #F2EEE5) 65%, transparent); letter-spacing: .06em; text-transform: uppercase; }
+.mamcp-header-actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.mamcp-collapse-btn { opacity: .55; }
+.mamcp-collapse-btn:hover { opacity: 1; }
+
+/* Editorial transcript -- no bubbles. A vertical stack of entries, each
+   marked by a small rule + dot rather than a filled, bordered box; the
+   assistant's rule carries the gold, the visitor's own words stay quiet.
+   border-inline-start/padding-inline-start mirror automatically under
+   RTL (ku/ar) without a second rule set. */
+.mamcp-log { flex: 1; overflow-y: auto; padding: 10px 14px 14px; display: flex; flex-direction: column; gap: 14px; min-height: 60px; }
+.mamcp-empty { font-size: 12.5px; color: #A79F91; line-height: 1.5; padding: 4px 2px; }
+
+.mamcp-entry {
+  position: relative;
+  padding-inline-start: 16px;
+  border-inline-start: 2px solid var(--mamco-outline, #5D482B);
+  font-size: 13.5px; line-height: 1.55;
+  color: var(--mamco-glow, #F2EEE5);
+}
+.mamcp-entry-marker {
+  position: absolute;
+  inset-inline-start: -4px;
+  top: 4px;
+  width: 6px; height: 6px; border-radius: 999px;
+  background: var(--mamco-outline, #5D482B);
+}
+.mamcp-entry-user { color: color-mix(in srgb, var(--mamco-glow, #F2EEE5) 78%, transparent); }
+.mamcp-entry-assistant {
+  border-inline-start-color: var(--mamco-accent, #B89A63);
+}
+.mamcp-entry-assistant .mamcp-entry-marker { background: var(--mamco-accent, #B89A63); }
+.mamcp-entry-error { border-inline-start-color: var(--mamco-error, #E5787A); }
+.mamcp-entry-error .mamcp-entry-marker { background: var(--mamco-error, #E5787A); }
+.mamcp-entry p { margin: 0; }
+.mamcp-entry p + p { margin-top: 6px; }
+
+.mamcp-retry { margin-top: 8px; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--mamco-accent, #B89A63); background: none; border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 5px 11px; cursor: pointer; min-height: 28px; }
+
+.mamcp-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.mamcp-action-chip { font-size: 11px; font-weight: 600; background: color-mix(in srgb, var(--mamco-surface, #17150F) 80%, transparent); color: var(--mamco-glow, #F2EEE5); border: 1px solid var(--mamco-outline, #5D482B); border-radius: 999px; padding: 6px 12px; cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block; }
+.mamcp-action-chip:hover { border-color: var(--mamco-accent, #B89A63); }
+
+.mamcp-ref-cards { display: flex; gap: 8px; overflow-x: auto; margin-top: 8px; padding-bottom: 2px; }
+.mamcp-ref-card { flex: none; width: 128px; border-radius: 12px; overflow: hidden; background: #1C1912; border: 1px solid var(--mamco-outline, #5D482B); text-align: start; cursor: pointer; text-decoration: none; display: block; }
+.mamcp-ref-card-media { height: 64px; background: var(--mamco-surface-high, #221E15); }
+.mamcp-ref-card-media img { width: 100%; height: 100%; object-fit: cover; }
+.mamcp-ref-card-body { padding: 6px 8px 8px; }
+.mamcp-ref-card-title { font-size: 10.5px; font-weight: 700; color: var(--mamco-glow, #F2EEE5); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.mamcp-ref-card-price { font-size: 10.5px; font-weight: 700; color: var(--mamco-accent, #B89A63); margin-top: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mamcp-mic.is-wake { animation: none; }
+  .mamcp-status { animation: none; }
+  .mamcp-bar-wrap::before { animation: none; opacity: .3; }
+  .mamcp-panel {
+    transition: opacity 120ms ease, visibility 0s linear 120ms;
+    transform: translate(-50%, 0) !important;
+  }
+  .mamcp-panel.is-open { transition: opacity 120ms ease; }
+  .mamcp-composer-root { transition: none; }
+}
+
+/* Narrow phones: the sheet loses its rounded floating margins and the
+   composer's ephemeral status line clips to the viewport width instead of
+   the (now smaller) 640px cap -- both already handled by the min()/vw
+   values above; this only tightens the sheet's own side margins further. */
+@media (max-width: 420px) {
+  .mamcp-panel { width: calc(100vw - 16px); max-height: 55vh; }
+}
+
+/* ---- Mobile composer polish (390 primary; verified 360-430) -----------
+   Desktop's own --mamcp-bar-h (62px) and button sizing above are
+   untouched -- this only raises the mobile bar enough to hold a
+   genuinely larger mic, per "mic should be the strongest control,
+   target 56-64px." ------------------------------------------------------ */
+@media (max-width: 640px) {
+  :root { --mamcp-bar-h: 66px; }
+  .mamcp-bar-wrap { padding-inline: 6px; gap: 6px; }
+  .mamcp-mic {
+    width: 58px; height: 58px; min-width: 58px; min-height: 58px;
+    /* A quiet, always-on gold ring (not the wake-pulse animation, which
+       stays reserved for actual wake-word listening) -- the resting mic
+       should already read as the primary control, not just when active. */
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 30%, transparent), 0 4px 16px -6px rgba(0, 0, 0, 0.5);
+  }
+  .mamcp-mic.mic-listening { box-shadow: 0 0 0 1px var(--mamco-error, #E5787A), 0 0 20px -2px color-mix(in srgb, var(--mamco-error, #E5787A) 55%, transparent); }
+  .mamcp-send { width: 48px; height: 48px; min-width: 48px; min-height: 48px; }
+  .mamcp-history-btn, .mamcp-icon-btn { min-width: 46px; min-height: 46px; }
+  /* A softer, more ambient bar at rest -- reads as part of the scene
+     rather than a chat app's footer bar, while staying within the same
+     restrained-blur, no-heavy-glassmorphism language the rest of MAM's
+     surfaces already use. */
+  .mamcp-bar-wrap {
+    background: color-mix(in srgb, var(--mamco-surface, #17150F) 90%, transparent);
+    backdrop-filter: blur(14px);
+  }
+}
+@media (prefers-reduced-motion: reduce) and (max-width: 640px) {
+  .mamcp-mic { transition: none; }
+}

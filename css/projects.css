@@ -1,0 +1,138 @@
+/*
+  Darwesh Group -- Projects (projects.html + project.html) styles.
+  =================================================================
+  Scoped to these two new pages only (linked from nowhere else), so
+  nothing here can alter Home or any unrelated page. Uses the site's
+  real design tokens (css/profile-tokens.css's --ps-color-*, already
+  loaded on every page that loads this file) rather than a parallel
+  token set.
+*/
+
+/* ---- Category tabs (projects.html) ------------------------------- */
+.proj-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.proj-tab {
+  padding: 9px 18px; border-radius: 999px; border: 1px solid var(--ps-color-outline-variant);
+  background: var(--ps-color-surface-container-lowest); color: var(--ps-color-on-surface-variant);
+  font-weight: 600; font-size: 13.5px; cursor: pointer; transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+  white-space: nowrap;
+}
+.proj-tab:hover { border-color: var(--ps-color-secondary); }
+.proj-tab.is-active { background: var(--ps-color-primary); color: var(--ps-color-on-primary); border-color: var(--ps-color-primary); }
+.proj-tab:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* ---- Project cards -------------------------------------------------- */
+.proj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+.proj-card {
+  display: flex; flex-direction: column; border-radius: 16px; overflow: hidden;
+  background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant);
+  text-decoration: none; color: inherit; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.proj-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px -18px rgba(0,0,0,.5); border-color: var(--ps-color-secondary); }
+.proj-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.proj-card-cover { position: relative; aspect-ratio: 4 / 3; background: var(--ps-color-surface-container); overflow: hidden; }
+.proj-card-cover img { width: 100%; height: 100%; object-fit: cover; }
+.proj-card-cover-fallback { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.proj-card-cover-fallback .material-symbols-outlined { font-size: 46px; color: var(--ps-color-on-surface-variant); opacity: .6; }
+.proj-card-badges { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; gap: 8px; }
+.proj-badge {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; letter-spacing: .02em; backdrop-filter: blur(6px);
+}
+.proj-badge-category { background: rgba(11,14,18,.72); color: #F4EFE7; }
+.proj-badge-status { background: rgba(198,154,75,.92); color: #17150F; }
+.proj-badge-verified { background: rgba(127,184,154,.92); color: #0B0E12; }
+.proj-card-body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.proj-card-name { font-weight: 700; font-size: 15.5px; color: var(--ps-color-on-surface, #F4EFE7); line-height: 1.3; }
+.proj-card-place { font-size: 12.5px; color: var(--ps-color-on-surface-variant); display: flex; align-items: center; gap: 4px; }
+.proj-card-price { font-weight: 700; font-size: 14.5px; color: var(--ps-color-secondary); margin-top: 2px; }
+.proj-card-dev { font-size: 12px; color: var(--ps-color-on-surface-variant); margin-top: auto; padding-top: 6px; }
+
+/* ---- Breadcrumb ------------------------------------------------------ */
+.proj-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ps-color-on-surface-variant); flex-wrap: wrap; }
+.proj-breadcrumb a { color: inherit; text-decoration: none; }
+.proj-breadcrumb a:hover { color: var(--ps-color-secondary); }
+.proj-breadcrumb span[aria-current] { color: var(--ps-color-on-surface, #F4EFE7); font-weight: 600; }
+
+/* ---- Gallery (project.html) ------------------------------------------ */
+.proj-gallery-main { position: relative; border-radius: 16px; overflow: hidden; background: var(--ps-color-surface-container); aspect-ratio: 16 / 10; cursor: zoom-in; }
+.proj-gallery-main img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.proj-gallery-arrow {
+  position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(11,14,18,.72); color: #F4EFE7; border: none; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; z-index: 2;
+}
+.proj-gallery-arrow:hover { background: rgba(11,14,18,.9); }
+.proj-gallery-arrow-prev { left: 12px; }
+.proj-gallery-arrow-next { right: 12px; }
+[dir="rtl"] .proj-gallery-arrow-prev { left: auto; right: 12px; }
+[dir="rtl"] .proj-gallery-arrow-next { right: auto; left: 12px; }
+.proj-gallery-thumbs { display: flex; gap: 8px; overflow-x: auto; margin-top: 10px; padding-bottom: 2px; scrollbar-width: thin; }
+.proj-gallery-thumb { flex: none; width: 76px; height: 56px; border-radius: 8px; overflow: hidden; border: 2px solid transparent; cursor: pointer; background: var(--ps-color-surface-container); padding: 0; }
+.proj-gallery-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.proj-gallery-thumb.is-active { border-color: var(--ps-color-secondary); }
+.proj-gallery-thumb:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* Lightbox -- display:flex lives on the :not(.hidden) compound selector,
+   not the bare class: both this rule and Tailwind's `.hidden{display:none}`
+   have equal (single-class) specificity, and this stylesheet loads AFTER
+   tailwind.css, so an unconditional `display:flex` here would win the
+   cascade and keep the lightbox visually covering (and intercepting
+   clicks on) the page even while the `hidden` class is present. Confirmed
+   via Playwright: earlier clicks on real page controls were silently
+   swallowed by this element until the guard was added. */
+.proj-lightbox { position: fixed; inset: 0; z-index: 200; background: rgba(4,5,6,.94); padding: 24px; }
+.proj-lightbox:not(.hidden) { display: flex; align-items: center; justify-content: center; }
+.proj-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.proj-lightbox-close { position: absolute; top: 18px; right: 18px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.08); color: #fff; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+[dir="rtl"] .proj-lightbox-close { right: auto; left: 18px; }
+
+/* ---- Detail section cards -------------------------------------------- */
+.proj-section { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: 16px; padding: 20px; }
+.proj-section-label { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ps-color-secondary); margin-bottom: 10px; display: block; }
+.proj-fact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.proj-fact dt { font-size: 11.5px; color: var(--ps-color-on-surface-variant); margin-bottom: 2px; }
+.proj-fact dd { font-size: 14px; font-weight: 600; color: var(--ps-color-on-surface, #F4EFE7); }
+
+/* Amenities */
+.proj-amenity-chip { background: rgba(198,154,75,.1); color: var(--ps-color-on-surface, #F4EFE7); font-size: 12.5px; font-weight: 500; padding: 6px 12px; border-radius: 999px; display: inline-flex; align-items: center; gap: 5px; }
+
+/* Unit type chips */
+.proj-unittype-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.proj-unittype-chip { padding: 8px 14px; border-radius: 10px; border: 1px solid var(--ps-color-outline-variant); background: var(--ps-color-surface-container); color: var(--ps-color-on-surface-variant); font-size: 13px; font-weight: 600; cursor: pointer; text-align: start; }
+.proj-unittype-chip.is-active { border-color: var(--ps-color-secondary); background: rgba(198,154,75,.12); color: var(--ps-color-on-surface, #F4EFE7); }
+.proj-unittype-chip:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.proj-floorplan-img { max-width: 220px; border-radius: 10px; cursor: zoom-in; border: 1px solid var(--ps-color-outline-variant); }
+
+/* Payment table */
+.proj-terms { display: flex; flex-direction: column; }
+.proj-term { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ps-color-outline-variant); font-size: 13.5px; }
+.proj-term:last-child { border-bottom: none; }
+.proj-term dt { color: var(--ps-color-on-surface-variant); }
+.proj-term dd { font-weight: 700; color: var(--ps-color-on-surface, #F4EFE7); font-variant-numeric: tabular-nums; }
+
+/* Map */
+#projMap { background: #101111; border-radius: 12px; overflow: hidden; }
+
+/* Contact card */
+.proj-contact-logo { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; background: var(--ps-color-surface-container); flex: none; }
+.proj-contact-btn-row { display: flex; gap: 10px; margin-top: 14px; }
+.proj-contact-btn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 11px 14px; border-radius: 10px; font-weight: 700; font-size: 13px; text-decoration: none; cursor: pointer; border: none;
+}
+.proj-contact-btn-call { background: var(--ps-color-primary); color: var(--ps-color-on-primary); }
+.proj-contact-btn-whatsapp { background: #25D366; color: #06210F; }
+.proj-contact-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* Available units list */
+.proj-unit-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--ps-color-outline-variant); border-radius: 10px; background: var(--ps-color-surface-container); }
+.proj-unit-card + .proj-unit-card { margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .proj-card { transition: none; }
+}
+
+@media (max-width: 640px) {
+  .proj-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .proj-gallery-main { aspect-ratio: 4 / 3; }
+}

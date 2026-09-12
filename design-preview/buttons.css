@@ -1,0 +1,257 @@
+/*
+  Darwesh Group — Apple-inspired BUTTON tokens (PREVIEW ONLY)
+  =============================================================
+  Scope: button-family controls only (action buttons, button-like links,
+  icon buttons, tabs/chips, segmented groups, carousel arrows, disclosure/
+  close/back). Does NOT restyle cards, inputs, layout, or typography.
+
+  All color/motion/radius/shadow base values below are copied VERBATIM from
+  the real production tokens so this preview stays anchored to the site's
+  actual dark-charcoal + gold + ivory identity:
+    - css/profile-tokens.css lines 34-50, 79-99, 111-142  (--ps-color-*,
+      --brand-*, --radius-*, --motion-*, --ease-*, --ps-shadow-*)
+    - css/cinematic.css lines 98-104                       (--cine-* aliases
+      of the same values, confirms these are the live palette)
+  New "--btn-*" custom properties are additive and scoped to this preview
+  file; nothing here overrides or is loaded by any production stylesheet.
+*/
+
+:root {
+  /* ---- Copied verbatim from production (see header comment) ---- */
+  --btn-obsidian:        #0b0e12;  /* --ps-color-primary / --brand-navy / --cine-bg-0 */
+  --btn-ivory:           #f4efe7;  /* --ps-color-on-primary / --brand-ivory / --cine-text-primary */
+  --btn-ivory-dim:       #b8b0a5;  /* --ps-color-on-surface-variant / --cine-text-secondary */
+  --btn-gold:            #c69a4b;  /* --ps-color-secondary / --brand-gold / --cine-gold-1 */
+  --btn-gold-soft:       #d4af60;  /* --ps-color-secondary-container / --cine-gold-2 */
+  --btn-gold-ink:        #0b0e12;  /* --ps-color-on-secondary (dark text on gold fill) */
+  --btn-surface:         #141619;  /* --ps-color-surface-container */
+  --btn-surface-low:     #111315;  /* --ps-color-surface-container-low */
+  --btn-surface-lowest:  #17191b;  /* --ps-color-surface-container-lowest */
+  --btn-outline:         #8f887c;  /* --ps-color-outline */
+  --btn-outline-variant: #2b2c2a;  /* --ps-color-outline-variant */
+  --btn-error:           #ff8a80;  /* --ps-color-error */
+  --btn-error-container: #5c1a1a;  /* --ps-color-error-container */
+  --btn-success:         #6bd99a;  /* --cine-success / --ps-color-on-tertiary-container */
+
+  /* Real production motion/easing (css/profile-tokens.css:137-141) */
+  --btn-motion-fast:     150ms;
+  --btn-motion-standard: 220ms;
+  --btn-ease-premium:    cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  /* Real production focus ring recipe, reused verbatim for consistency
+     (css/profile-tokens.css:117 --ps-focus-ring) — 2px ground offset +
+     4px gold ring, already meets the site's existing a11y contract. */
+  --btn-focus-ring: 0 0 0 2px var(--btn-obsidian), 0 0 0 4px var(--btn-gold);
+
+  /* ---- New, preview-only: softer button-specific geometry ----
+     Production's own --radius-* scale (3/5/7/9px, profile-tokens.css:111-114)
+     is very tight/sharp — intentional for cards and fields, but it reads as
+     hard-edged for tappable controls. This task asks buttons specifically
+     to feel soft/calm/Apple-like, so button radii are deliberately more
+     generous than the sitewide --radius-* tokens. Nothing else changes. */
+  --btn-radius-standard: 14px;   /* standard rectangular action buttons */
+  --btn-radius-compact:  10px;   /* icon buttons, compact toolbar controls */
+  --btn-radius-pill:     999px;  /* standalone hero/CTA actions, chips */
+
+  --btn-height-standard: 46px;   /* within the 44-48px target from the spec */
+  --btn-height-compact:  40px;
+  --btn-height-icon:     44px;   /* meets 44x44 minimum touch target */
+  --btn-pad-inline:      22px;
+  --btn-gap:             8px;
+  --btn-font-weight:     600;
+}
+
+/* Respect reduced motion: collapse all button transitions/scale to none. */
+@media (prefers-reduced-motion: reduce) {
+  .btn2, .btn2-icon, .btn2-chip, .btn2-tab, .btn2-seg-opt, .btn2-carousel-arrow {
+    transition: none !important;
+  }
+  .btn2:active, .btn2-icon:active { transform: none !important; }
+}
+
+/* =========================================================
+   1) PRIMARY / SECONDARY / GHOST — standalone action buttons
+   ========================================================= */
+.btn2 {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: var(--btn-gap);
+  height: var(--btn-height-standard);
+  padding-inline: var(--btn-pad-inline);
+  border-radius: var(--btn-radius-standard);
+  font-size: 15.5px; font-weight: var(--btn-font-weight);
+  font-family: inherit; /* preserves existing font stack + language support */
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color var(--btn-motion-fast) var(--btn-ease-premium),
+              border-color var(--btn-motion-fast) var(--btn-ease-premium),
+              box-shadow var(--btn-motion-fast) var(--btn-ease-premium),
+              color var(--btn-motion-fast) var(--btn-ease-premium),
+              transform var(--btn-motion-fast) var(--btn-ease-premium);
+}
+.btn2:focus-visible { outline: none; box-shadow: var(--btn-focus-ring); }
+.btn2.btn2-pill { border-radius: var(--btn-radius-pill); }
+.btn2.btn2-compact { height: var(--btn-height-compact); padding-inline: 16px; font-size: 14px; }
+
+/* Primary: original brand gold fill, dark readable text (contrast ~8.9:1) */
+.btn2-primary {
+  background: var(--btn-gold); color: var(--btn-gold-ink);
+  border-color: var(--btn-gold);
+  box-shadow: 0 1px 1px rgba(11,14,18,.05), 0 4px 10px -4px rgba(11,14,18,.15);
+}
+@media (hover: hover) {
+  .btn2-primary:hover { background: var(--btn-gold-soft); border-color: var(--btn-gold-soft); transform: translateY(-1px); }
+}
+.btn2-primary:active { transform: scale(0.98) translateY(0); box-shadow: 0 1px 1px rgba(11,14,18,.05); }
+.btn2-primary[disabled], .btn2-primary.is-disabled {
+  background: var(--btn-outline-variant); border-color: var(--btn-outline-variant);
+  color: var(--btn-ivory-dim); cursor: not-allowed; box-shadow: none;
+}
+
+/* Secondary: elevated charcoal surface, light text, fine low-emphasis border */
+.btn2-secondary {
+  background: var(--btn-surface-lowest); color: var(--btn-ivory);
+  border-color: var(--btn-outline-variant);
+}
+@media (hover: hover) {
+  .btn2-secondary:hover { background: var(--btn-surface); border-color: var(--btn-gold); transform: translateY(-1px); }
+}
+.btn2-secondary:active { transform: scale(0.98) translateY(0); }
+.btn2-secondary[disabled], .btn2-secondary.is-disabled {
+  color: var(--btn-ivory-dim); border-color: var(--btn-outline-variant); background: transparent; cursor: not-allowed;
+}
+
+/* Tertiary/Ghost: transparent resting surface, gentle hover highlight */
+.btn2-ghost {
+  background: transparent; color: var(--btn-ivory);
+  border-color: var(--btn-outline-variant);
+}
+@media (hover: hover) {
+  .btn2-ghost:hover { background: var(--btn-surface-lowest); border-color: var(--btn-gold); }
+}
+.btn2-ghost:active { transform: scale(0.98); }
+.btn2-ghost[disabled], .btn2-ghost.is-disabled { color: var(--btn-outline); cursor: not-allowed; }
+
+/* Destructive: preserves semantic red — never gold, never looks like confirm */
+.btn2-destructive {
+  background: transparent; color: var(--btn-error); border-color: rgba(255,138,128,.4);
+}
+@media (hover: hover) {
+  .btn2-destructive:hover { background: var(--btn-error-container); border-color: var(--btn-error); }
+}
+.btn2-destructive:active { transform: scale(0.98); }
+.btn2-destructive.btn2-destructive-solid { background: var(--btn-error); color: var(--btn-obsidian); border-color: var(--btn-error); }
+
+/* Loading state: keep width stable, no request-timing change (visual only) */
+.btn2.is-loading { color: transparent; pointer-events: none; position: relative; }
+.btn2.is-loading::after {
+  content: ""; position: absolute; inset: 0; margin: auto; width: 18px; height: 18px;
+  border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent;
+  color: inherit; opacity: .55;
+  animation: btn2-spin .7s linear infinite;
+}
+.btn2-primary.is-loading::after { color: var(--btn-gold-ink); }
+.btn2-secondary.is-loading::after, .btn2-ghost.is-loading::after { color: var(--btn-ivory); }
+@keyframes btn2-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn2.is-loading::after { animation-duration: 1.4s; } }
+
+/* =========================================================
+   2) ICON BUTTONS — circular or soft-rounded-square
+   ========================================================= */
+.btn2-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: var(--btn-height-icon); height: var(--btn-height-icon);
+  border-radius: 50%; /* circular default, e.g. close/back/disclosure */
+  background: transparent; color: var(--btn-ivory);
+  border: 1px solid var(--btn-outline-variant);
+  cursor: pointer;
+  transition: background-color var(--btn-motion-fast) var(--btn-ease-premium),
+              border-color var(--btn-motion-fast) var(--btn-ease-premium),
+              color var(--btn-motion-fast) var(--btn-ease-premium),
+              transform var(--btn-motion-fast) var(--btn-ease-premium);
+}
+.btn2-icon svg, .btn2-icon .material-symbols-outlined { width: 20px; height: 20px; font-size: 20px; }
+.btn2-icon.btn2-icon-square { border-radius: var(--btn-radius-compact); } /* map tools, toolbar icons */
+@media (hover: hover) {
+  .btn2-icon:hover { background: var(--btn-surface-lowest); border-color: var(--btn-gold); }
+}
+.btn2-icon:active { transform: scale(0.94); }
+.btn2-icon:focus-visible { outline: none; box-shadow: var(--btn-focus-ring); }
+.btn2-icon.is-active, .btn2-icon[aria-pressed="true"] {
+  background: var(--btn-gold); color: var(--btn-gold-ink); border-color: var(--btn-gold);
+}
+.btn2-icon[disabled], .btn2-icon.is-disabled { color: var(--btn-outline); border-color: var(--btn-outline-variant); cursor: not-allowed; opacity: .5; }
+/* RTL: only mirror genuinely directional icons (back/forward/carousel arrows) via [data-dir-flip] */
+[dir="rtl"] .btn2-icon[data-dir-flip] svg { transform: scaleX(-1); }
+
+/* Carousel prev/next — use class="btn2-icon btn2-carousel-arrow" together;
+   this class only adds the rail-end disabled treatment on top of btn2-icon. */
+.btn2-carousel-arrow[disabled] { opacity: .35; cursor: default; }
+
+/* =========================================================
+   3) TABS / FILTER CHIPS — compact rounded, clear selected state
+   ========================================================= */
+.btn2-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding-inline: 16px;
+  border-radius: var(--btn-radius-pill);
+  background: transparent; color: var(--btn-ivory-dim);
+  border: 1px solid var(--btn-outline-variant);
+  font-size: 13.5px; font-weight: 600; cursor: pointer;
+  transition: background-color var(--btn-motion-fast) var(--btn-ease-premium),
+              border-color var(--btn-motion-fast) var(--btn-ease-premium),
+              color var(--btn-motion-fast) var(--btn-ease-premium);
+}
+@media (hover: hover) {
+  .btn2-chip:hover { color: var(--btn-ivory); border-color: var(--btn-outline); }
+}
+.btn2-chip:focus-visible { outline: none; box-shadow: var(--btn-focus-ring); }
+/* Selected state is a distinct filled surface — never just a hover-strength tint */
+.btn2-chip.is-selected, .btn2-chip[aria-pressed="true"], .btn2-chip[aria-selected="true"] {
+  background: var(--btn-gold); color: var(--btn-gold-ink); border-color: var(--btn-gold);
+}
+.btn2-chip[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* Tab strip (role="tab" on a role="tablist"): underline-style, matches
+   existing production tab pattern (profile-tokens.css .prof-tab-btn family)
+   but with the softer motion/focus treatment. */
+.btn2-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 44px; padding-inline: 4px;
+  background: transparent; color: var(--btn-ivory-dim);
+  border: none; border-bottom: 2px solid transparent;
+  font-size: 14.5px; font-weight: 600; cursor: pointer;
+  transition: color var(--btn-motion-fast) var(--btn-ease-premium),
+              border-color var(--btn-motion-fast) var(--btn-ease-premium);
+}
+@media (hover: hover) { .btn2-tab:hover { color: var(--btn-ivory); } }
+.btn2-tab:focus-visible { outline: none; box-shadow: var(--btn-focus-ring); border-radius: 4px; }
+.btn2-tab[aria-selected="true"] { color: var(--btn-gold); border-bottom-color: var(--btn-gold); }
+
+/* =========================================================
+   4) SEGMENTED GROUPS — preserve structure, calm active surface
+   ========================================================= */
+.btn2-seg {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px; border-radius: var(--btn-radius-compact);
+  background: var(--btn-surface-low); border: 1px solid var(--btn-outline-variant);
+}
+.btn2-seg-opt {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 36px; padding-inline: 16px; border-radius: calc(var(--btn-radius-compact) - 3px);
+  background: transparent; color: var(--btn-ivory-dim);
+  border: none; font-size: 13.5px; font-weight: 600; cursor: pointer;
+  transition: background-color var(--btn-motion-standard) var(--btn-ease-premium),
+              color var(--btn-motion-standard) var(--btn-ease-premium);
+}
+@media (hover: hover) { .btn2-seg-opt:hover { color: var(--btn-ivory); } }
+.btn2-seg-opt:focus-visible { outline: none; box-shadow: var(--btn-focus-ring); }
+.btn2-seg-opt[aria-selected="true"] { background: var(--btn-gold); color: var(--btn-gold-ink); }
+
+/* =========================================================
+   5) Text links kept as text links (explicitly NOT restyled as buttons)
+   ========================================================= */
+.btn2-textlink { color: var(--btn-gold); text-decoration: none; font-weight: 600; }
+.btn2-textlink:hover { text-decoration: underline; }
+.btn2-textlink:focus-visible { outline: none; box-shadow: var(--btn-focus-ring); border-radius: 3px; }

@@ -1,0 +1,2227 @@
+// MAM's chat panel -- the ONE conversation surface (transcript, composer,
+// voice, suggested actions), driving on/anchored to whatever "dock"
+// element its mount point passes in. Originally mounted on every public
+// page next to a shared compact orb (js/mam-companion-launcher.js and
+// friends); that site-wide floating companion has since been removed in
+// favor of one dedicated destination, mam-ai.html, which is this panel's
+// only mount point today (see its own header comment). Nothing here
+// re-implements the conversation or voice pipeline a second time -- this
+// IS that one implementation. Opening the panel MORPHS its dock anchor
+// into the conversation (see computeAnchoredPosition() below), and
+// closing it shrinks back to exactly that spot -- never a detached panel
+// that pops up somewhere unrelated to its anchor.
+//
+// This module never implements a second AI backend: every reply comes
+// from the exact same endpoint
+// js/mam-api.js already calls (POST /api/v1/mam/chat), and every action
+// this panel performs is dispatched through a small, explicit allowlist
+// (see `dispatchSuggestedAction`) that only ever navigates to a real,
+// existing page with a real id -- never eval(), never a model-generated
+// selector, never an arbitrary URL.
+//
+// Like every other MAM surface in this codebase, rendering never inserts
+// backend/model text as HTML -- every dynamic value reaches the DOM via
+// textContent/element properties.
+import { auth } from './firebase-init.js';
+import { sendMamChat, BackendUnavailableError, BackendResponseError, fetchMamVoiceConfig, mamVoiceStt, mamVoiceTts } from './mam-api.js';
+import { detectDirectCommand, resolvePage, filtersToMapUrlParams, ACCOUNT_FAVORITES_URL, ACCOUNT_PROFILE_URL } from './mam-actions.js';
+import { mamNavigate, canNavigateInPlace, bindPopstate } from './mam-shell.js';
+import { VoiceEnergy } from './mam-voice-energy.js';
+import * as spatialFlows from './mam-spatial-flows.js';
+import { createSpatialChoice } from './mam-spatial-choice.js';
+
+// How far the grab handle must be dragged down before a release counts as
+// "collapse" rather than "snap back" -- see the grab-handle block below.
+const COLLAPSE_DRAG_PX = 70;
+
+// Inline SVG for every icon this panel's own chrome needs. Never
+// `material-symbols-outlined`: that glyph only exists once the Material
+// Symbols webfont has actually loaded, and a blocked/slow CDN (or, on the
+// map's own filter bar, exactly the same font) renders the literal
+// fallback text ("close", "mic", "send"...) instead of an icon. These
+// controls are core to using MAM at all, so they never depend on a
+// webfont loading in the first place.
+const ICON_CLOSE_SVG = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6"/></svg>';
+const ICON_MIC_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>';
+const ICON_SEND_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>';
+const ICON_VOLUME_ON_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+const ICON_VOLUME_OFF_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/></svg>';
+const ICON_HISTORY_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l4 2"/></svg>';
+
+const MAX_MESSAGE_LENGTH = 1000;
+const SESSION_KEY = 'darwesh_mam_companion_session_id';
+// Shared with the map's MAM dock voice-output toggle -- the same on/off
+// preference should follow the user across the legacy MAM chat and this
+// panel rather than resetting per surface.
+const VOICE_OUTPUT_KEY = 'darwesh_mamai_voice_output';
+
+// Professional service-provider profile pages this frontend actually
+// has -- the only real destinations an `open_professional` suggested
+// action can ever resolve to. This is now the single source of that
+// mapping: the map's own copy went with js/mam-properties-map.js, so
+// there is one place that decides where a serviceType's profile lives.
+// Exported so js/mam-command-registry.js's own openProfessional action
+// can reuse this exact mapping instead of keeping a second, driftable copy.
+export const PROFESSIONAL_PAGES = { engineer: 'engineer.html', designer: 'designer.html', lawyer: 'lawyer.html', landscaping: 'landscaping.html', cleaning: 'cleaning.html' };
+
+function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+function trf(key, fallback, vars) {
+  let s = tr(key, fallback);
+  if (vars) Object.keys(vars).forEach((k) => { s = s.split('{' + k + '}').join(String(vars[k])); });
+  return s;
+}
+function currentLangFactory(getLanguage) { return typeof getLanguage === 'function' ? getLanguage : () => (localStorage.getItem('darwesh_lang') || 'en'); }
+function fmtPrice(p, currency) {
+  if (typeof p !== 'number' || Number.isNaN(p)) return null;
+  const symbol = currency === 'IQD' ? 'IQD ' : '$';
+  return symbol + Math.round(p).toLocaleString();
+}
+function getSessionId() { return sessionStorage.getItem(SESSION_KEY) || ''; }
+function setSessionId(id) { if (id) sessionStorage.setItem(SESSION_KEY, id); }
+
+// ---- Conversation carried across page navigation ----------------------
+// The session id already survived a navigation, so the BACKEND kept the
+// history -- but the panel was rebuilt empty on every page, so the
+// conversation looked lost even though MAM still remembered it. Asking a
+// follow-up ("what about the second one?") worked while showing no trace
+// of what it referred to.
+//
+// sessionStorage, deliberately, not localStorage: the conversation belongs
+// to this tab and this visit, and should not reappear days later or in
+// another tab -- which matches where the session id itself lives.
+//
+// Only what is needed to redraw a turn is stored: the text and any
+// reference cards. No map action is kept, because replaying one on a later
+// page would silently re-filter a map the visitor never asked to change.
+const TRANSCRIPT_KEY = 'darwesh_mam_companion_transcript';
+const TRANSCRIPT_MAX_TURNS = 24;
+
+function readTranscript() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(TRANSCRIPT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }   // corrupt or storage disabled -- start clean
+}
+function recordTurn(turn) {
+  try {
+    const turns = readTranscript();
+    turns.push(turn);
+    sessionStorage.setItem(TRANSCRIPT_KEY, JSON.stringify(turns.slice(-TRANSCRIPT_MAX_TURNS)));
+  } catch { /* private mode or quota -- the conversation still works, it just won't carry over */ }
+}
+/** Drops the carried conversation AND the session id, so the next message starts fresh. */
+export function clearMamConversation() {
+  try { sessionStorage.removeItem(TRANSCRIPT_KEY); sessionStorage.removeItem(SESSION_KEY); } catch { /* nothing to clear */ }
+}
+
+// A suggested action is only ever rendered as a real link this frontend
+// already knows how to serve -- an action type/payload this build can't
+// resolve to a genuine, existing destination is silently skipped rather
+// than becoming a dead '#' link or, worse, an arbitrary navigation. This
+// is the explicit allowlist: five action names, all taken from
+// backend/app/mam/schemas.py's own SuggestedAction.action contract --
+// nothing invented client-side.
+function resolveActionHref(a) {
+  if (a.action === 'open_map') return 'map.html';
+  if (a.action === 'open_listing' && a.payload && a.payload.listingId) {
+    return 'listing.html?id=' + encodeURIComponent(a.payload.listingId);
+  }
+  if (a.action === 'open_professional' && a.payload && a.payload.professionalId) {
+    const page = PROFESSIONAL_PAGES[a.payload.serviceType];
+    return page ? page + '?id=' + encodeURIComponent(a.payload.professionalId) : null;
+  }
+  if (a.action === 'open_url' && a.payload && typeof a.payload.url === 'string') {
+    // Same-origin, relative destinations only -- never an absolute/
+    // external URL a model could fabricate.
+    if (/^https?:\/\//i.test(a.payload.url) || a.payload.url.startsWith('//')) return null;
+    return a.payload.url;
+  }
+  // 'save_property': no client-side save action is wired to MAM yet --
+  // deliberately unresolved (never a fabricated capability) rather than
+  // silently no-oping on a real button.
+  return null;
+}
+
+// Voice mode is an INTENT that outlives a page, even though the
+// microphone stream cannot. A full document navigation destroys the
+// MediaStream and the SpeechRecognition object with the document; nothing
+// can carry those across. What survives here is only the fact that the
+// visitor had voice mode on, so the next page can offer to resume it --
+// see the resume handling at the end of the voice block, and section J of
+// the requirements.
+const VOICE_INTENT_KEY = 'darwesh_mam_voice_intent';
+
+// One MAM per page, enforced rather than assumed. Two launchers would
+// mean two conversations, two recognition instances competing for one
+// microphone, and two voices reading the same reply.
+let mounted = false;
+export function isMamMounted() { return mounted; }
+
+/**
+ * @param {Object} opts
+ * @param {Element} opts.orbEl The orb itself -- this module wires its
+ *   click/keyboard activation to open/toggle the history sheet; the
+ *   caller never has to do that itself.
+ * @param {Element[]} [opts.micEls] Extra mic buttons outside the composer
+ *   to drive from the SAME voice state as the composer's own.
+ * @param {{root: Element, element: Element, setState: Function, setEnergy: Function, setFocus: Function, getState: Function, destroy: Function}} opts.companion
+ * @param {() => string} [opts.getLanguage]
+ * @param {(state: {handsFree: boolean, listening: boolean, wakeEnabled: boolean, wakeListening: boolean}) => void} [opts.onVoiceUi]
+ * @param {(text: string|null) => void} [opts.onResumeHint]
+ * @param {(isOpen: boolean) => void} [opts.onOpenState] Told whenever the
+ *   history sheet opens/closes.
+ * @param {Element} [opts.spatialChoiceHost] Empty container for the
+ *   adaptive spatial question/card flow (js/mam-spatial-choice.js). Omit
+ *   it on a page that hasn't adopted the flow yet -- every vague-need
+ *   detection below simply never fires and every turn behaves exactly as
+ *   it always has, unchanged.
+ * @param {Object} opts.pageContext Structured, ID-only context (never
+ *   scraped DOM) -- same shape as backend/app/mam/schemas.py's
+ *   PageContext: {page, listingId?, projectId?, professionalId?, serviceType?}.
+ * @param {(type: string, payload: Object) => void} [opts.onSpatialEvent]
+ *   Fired at real turn-lifecycle moments this function already reaches
+ *   for its own reasons -- never a second, parallel progress system.
+ *   Types: 'start' {text} when a turn is sent (thinking begins);
+ *   'result' {message, cards, mapAction, suggestedActions} once a REAL
+ *   backend reply has actually arrived; 'navigate' {href, mapAction}
+ *   when this reply is about to move the visitor (same href
+ *   speakThenNavigate itself uses); 'error' {message} on a failed turn.
+ *   Purely observational -- never changes what this function does.
+ */
+export function mountMamChatPanel({ orbEl, micEls = [], companion, getLanguage, pageContext, onVoiceUi, onResumeHint, onOpenState, onSpatialEvent, spatialChoiceHost }) {
+  if (mounted) {
+    console.warn('[mam-chat-panel] already mounted on this page -- ignoring the second mount');
+    return null;
+  }
+  mounted = true;
+  const currentLang = currentLangFactory(getLanguage);
+  ensureStylesheet();
+  function emitSpatial(type, payload) { if (typeof onSpatialEvent === 'function') onSpatialEvent(type, payload); }
+  const spatialChoice = spatialChoiceHost ? createSpatialChoice({ hostEl: spatialChoiceHost }) : null;
+
+  // ---- KurdishTTS Sorani voice capability -------------------------------
+  // Probed ONCE per page load, best-effort, never blocking anything --
+  // both STT and TTS stay off (kurdishVoice.*Available === false) until
+  // this resolves, and MAM's text chat and non-Sorani voice work exactly
+  // as before regardless of the outcome. No key is ever involved here:
+  // this only asks the backend which capabilities IT has configured (see
+  // backend/app/mam/voice.py's GET /api/v1/mam/voice/config).
+  const kurdishVoice = { sttAvailable: false, ttsAvailable: false };
+  fetchMamVoiceConfig().then((cfg) => { kurdishVoice.sttAvailable = cfg.sttAvailable; kurdishVoice.ttsAvailable = cfg.ttsAvailable; });
+  function soraniVoiceActive() { return currentLang() === 'ku'; }
+
+  // ---- one authoritative voice state machine (section 3) -----------------
+  // Lives at THIS outer scope, not inside the SpeechRecognition block
+  // further down, because showThinking()/speak() run for every turn --
+  // typed or spoken -- and need to update it regardless of whether this
+  // browser even has SpeechRecognition at all. Every place that used to
+  // call companion.setState(...) for a voice-related moment now goes
+  // through setVoiceState() instead, so there is exactly ONE place that
+  // decides what the visible state is and what side effects (starting/
+  // stopping the barge-in watch) a transition triggers.
+  const VOICE_STATES = ['IDLE', 'WAKE_LISTENING', 'LISTENING', 'PROCESSING', 'SPEAKING', 'INTERRUPTED', 'ERROR'];
+  const VOICE_STATE_TO_COMPANION = {
+    IDLE: 'idle', WAKE_LISTENING: 'wake-listening', LISTENING: 'listening',
+    PROCESSING: 'thinking', SPEAKING: 'speaking', INTERRUPTED: 'listening', ERROR: 'error'
+  };
+  let voiceState = 'IDLE';
+  // Shared with the SpeechRecognition block below, which is the only
+  // thing that ever sets this true -- an active, multi-turn conversation
+  // loop is running. Declared here (not there) for the same reason as
+  // the state machine itself: setVoiceState needs to read it regardless
+  // of whether recognition exists.
+  let handsFree = false;
+  // handleBargeIn genuinely needs startListening(), which only exists
+  // once SpeechRecognition is confirmed to exist -- starts as a no-op
+  // and is given its real body further down. On a browser without
+  // SpeechRecognition, handsFree can never become true (nothing ever
+  // sets it), so startBargeInWatch below never runs for lack of a caller
+  // with handsFree=true, and this placeholder is never invoked either.
+  let handleBargeIn = () => {};
+
+  // THE LIVE BODY. One channel, from MAM's real audio to the companion's
+  // --mam-energy. Nothing here invents a level: when MAM is silent this
+  // publishes 0 and the body is still, which is the observable difference
+  // between a companion that reacts and one that performs.
+  //
+  // Declared HERE, beside the state machine that uses it, rather than
+  // beside the <audio> element it taps 500 lines below -- setVoiceState()
+  // references it, and a `const` initialised after its first use would sit
+  // in the temporal dead zone and throw.
+  const voiceEnergy = new VoiceEnergy((level) => companion.setEnergy(level));
+
+  // Anyone who needs to stay in step with the one authoritative machine.
+  // js/mam-presence.js subscribes so the visible body and the conversation
+  // can never drift apart.
+  const voiceStateListeners = [];
+
+  function setVoiceState(next) {
+    if (!VOICE_STATES.includes(next)) return;
+    const prev = voiceState;
+    voiceState = next;
+    // The companion's own state is set by whoever owns presentation:
+    // js/mam-presence.js when it is mounted (it maps this machine onto the
+    // eight product states), and this line otherwise, so a page using the
+    // panel without the presence layer still gets a live body.
+    if (!voiceStateListeners.length) companion.setState(VOICE_STATE_TO_COMPANION[next]);
+    voiceStateListeners.forEach((fn) => { try { fn(next, prev); } catch (err) { console.warn('[mam] voice state listener failed', err); } });
+    // Only on an ACTUAL transition into/out of SPEAKING -- not on a
+    // same-state re-call -- so a second speak() while already SPEAKING
+    // (e.g. a KurdishTTS failure falling back to the browser voice
+    // within the same turn) never opens a second barge-in mic tap.
+    if (next === 'SPEAKING' && prev !== 'SPEAKING' && handsFree) {
+      startBargeInWatch(() => handleBargeIn());
+    } else if (prev === 'SPEAKING' && next !== 'SPEAKING') {
+      stopBargeInWatch();
+    }
+    // THE LIVE BODY, listening half. While LISTENING the companion answers
+    // the MICROPHONE, so the movement is the visitor's own voice rather
+    // than a timer -- a body that pulses rhythmically while you are silent
+    // is pretending to hear you. A denied or missing microphone simply
+    // means MAM listens without moving, which is honest.
+    if (next === 'LISTENING' && prev !== 'LISTENING') {
+      voiceEnergy.attachToMicrophone();
+    } else if (prev === 'LISTENING' && next !== 'LISTENING' && next !== 'SPEAKING') {
+      voiceEnergy.stop();
+    }
+    // The ephemeral composer status line's Listening half -- honest about
+    // what SpeechRecognition here actually delivers (interimResults is
+    // off; there is no live partial transcript to show, only this label
+    // while real capture is in progress). Thinking's own half lives in
+    // showThinking()/hideThinking() below, which know this is a REAL
+    // network wait rather than every incidental PROCESSING beat (e.g. the
+    // Kurdish greeting's acknowledgement pulse, which must not stomp on
+    // the greeting text addAssistantBubble just set).
+    if (next === 'LISTENING' && prev !== 'LISTENING') {
+      setStatusLine(tr('mamai.stateListening', 'Listening…'), { persist: true });
+    } else if (prev === 'LISTENING' && next !== 'LISTENING' && next !== 'PROCESSING') {
+      setStatusLine(null);
+    }
+  }
+
+  // ---- barge-in / interruption (section 8) --------------------------
+  // A SEPARATE, minimal microphone tap -- never a second SpeechRecognition
+  // or STT session -- that only ever runs while voiceState is SPEAKING.
+  // It looks at raw volume (RMS), not content: a sustained loud stretch
+  // is treated as "the visitor started talking over MAM", a single spike
+  // (a click, a cough) is not. This is a real, physical limitation on a
+  // device without echo cancellation between its own speakers and mic:
+  // the guard delay + sustain requirement below reduce false triggers
+  // from MAM's own voice bleeding back in, but cannot eliminate the
+  // possibility on every device -- see startBargeInWatch's own comment.
+  // Any environment missing AudioContext/getUserMedia simply never
+  // starts this at all; barge-in is an enhancement, never a requirement
+  // for the base conversation loop to work.
+  const BARGE_IN_RMS_THRESHOLD = 0.06;
+  const BARGE_IN_SUSTAIN_MS = 350;   // must stay loud this long -- rejects a single spike
+  const BARGE_IN_GUARD_MS = 450;     // ignored window right after TTS starts -- its own onset is the likeliest false-positive moment
+  let bargeInStream = null;
+  let bargeInAudioCtx = null;
+  let bargeInAnalyser = null;
+  let bargeInRAF = null;
+
+  function bargeInSupported() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) &&
+      !!(window.AudioContext || window.webkitAudioContext);
+  }
+
+  async function startBargeInWatch(onInterrupt) {
+    if (!bargeInSupported() || bargeInStream) return;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      return; // no permission / no device for this second consumer -- MAM just finishes speaking normally, uninterruptible
+    }
+    // The SPEAKING turn may have already ended (a fast reply) by the
+    // time permission resolves -- don't open a mic for a watch nobody
+    // needs any more.
+    if (voiceState !== 'SPEAKING') { stream.getTracks().forEach((t) => t.stop()); return; }
+    bargeInStream = stream;
+    try {
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      bargeInAudioCtx = new Ctor();
+      const source = bargeInAudioCtx.createMediaStreamSource(bargeInStream);
+      bargeInAnalyser = bargeInAudioCtx.createAnalyser();
+      bargeInAnalyser.fftSize = 512;
+      source.connect(bargeInAnalyser);
+    } catch {
+      stopBargeInWatch();
+      return;
+    }
+    const data = new Uint8Array(bargeInAnalyser.fftSize);
+    const startedAt = performance.now();
+    let sustainedMs = 0;
+    let lastTick = startedAt;
+    function tick() {
+      if (!bargeInAnalyser) return;
+      const now = performance.now();
+      const dt = now - lastTick;
+      lastTick = now;
+      bargeInAnalyser.getByteTimeDomainData(data);
+      let sumSquares = 0;
+      for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sumSquares += v * v; }
+      const rms = Math.sqrt(sumSquares / data.length);
+      if (now - startedAt < BARGE_IN_GUARD_MS) { bargeInRAF = requestAnimationFrame(tick); return; }
+      if (rms > BARGE_IN_RMS_THRESHOLD) {
+        sustainedMs += dt;
+        if (sustainedMs >= BARGE_IN_SUSTAIN_MS) { onInterrupt(); return; }
+      } else {
+        sustainedMs = 0;
+      }
+      bargeInRAF = requestAnimationFrame(tick);
+    }
+    bargeInRAF = requestAnimationFrame(tick);
+  }
+
+  function stopBargeInWatch() {
+    if (bargeInRAF) cancelAnimationFrame(bargeInRAF);
+    bargeInRAF = null;
+    if (bargeInAudioCtx) { try { bargeInAudioCtx.close(); } catch { /* already closed */ } }
+    bargeInAudioCtx = null;
+    bargeInAnalyser = null;
+    if (bargeInStream) { bargeInStream.getTracks().forEach((t) => t.stop()); bargeInStream = null; }
+  }
+
+  // ---- the history sheet -- collapsed by default, a fixed bottom sheet
+  // opened ONLY by explicit action (the history toggle below, the entity
+  // orb, or a voice/error moment that genuinely needs attention) -- never
+  // the surface a visitor lands on. The always-on composer further down
+  // is what's actually visible at rest. -----------------------------------
+  const panel = document.createElement('div');
+  panel.className = 'mamcp-panel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-modal', 'false');
+  panel.setAttribute('aria-label', tr('mam.historyLabel', 'Conversation history'));
+  // Closed by default. Visibility/interactivity/animation are all driven
+  // by the `.is-open` class (css/mam-chat-panel.css) rather than the
+  // `hidden` attribute -- `hidden` forces `display:none`, which cannot be
+  // transitioned, and this sheet slides up from the bottom edge.
+  panel.setAttribute('aria-hidden', 'true');
+
+  // ---- grab handle -- drag it down (or click, or Enter/Space) to collapse
+  const grabHandle = document.createElement('div');
+  grabHandle.className = 'mamcp-grab-handle';
+  grabHandle.setAttribute('role', 'button');
+  grabHandle.tabIndex = 0;
+  grabHandle.setAttribute('aria-label', tr('mam.collapseHandle', 'Collapse MAM'));
+  const grabBar = document.createElement('span');
+  grabBar.className = 'mamcp-grab-bar';
+  grabBar.setAttribute('aria-hidden', 'true');
+  grabHandle.appendChild(grabBar);
+  panel.appendChild(grabHandle);
+
+  // A small, quiet header -- no giant "MAM" title (the entity itself
+  // already carries that identity): a small label plus the two controls
+  // that genuinely belong at sheet level (voice replies, collapse).
+  const header = document.createElement('div');
+  header.className = 'mamcp-header';
+  const sheetLabel = document.createElement('span');
+  sheetLabel.className = 'mamcp-sheet-label';
+  sheetLabel.textContent = tr('mam.historyLabel', 'Conversation history');
+  header.appendChild(sheetLabel);
+
+  const headerActions = document.createElement('div');
+  headerActions.className = 'mamcp-header-actions';
+  const voiceToggleBtn = document.createElement('button');
+  voiceToggleBtn.type = 'button';
+  voiceToggleBtn.className = 'mamcp-icon-btn';
+  voiceToggleBtn.hidden = true;
+  voiceToggleBtn.title = tr('mam.voiceRepliesLabel', 'Voice replies');
+  voiceToggleBtn.setAttribute('aria-label', tr('mam.voiceRepliesLabel', 'Voice replies'));
+  const voiceToggleIcon = document.createElement('span');
+  voiceToggleIcon.className = 'mamcp-icon';
+  voiceToggleBtn.appendChild(voiceToggleIcon);
+  headerActions.appendChild(voiceToggleBtn);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'mamcp-icon-btn mamcp-collapse-btn';
+  closeBtn.setAttribute('aria-label', tr('mam.collapse', 'Collapse'));
+  closeBtn.innerHTML = ICON_CLOSE_SVG;
+  headerActions.appendChild(closeBtn);
+  header.appendChild(headerActions);
+  panel.appendChild(header);
+
+  const log = document.createElement('div');
+  log.className = 'mamcp-log';
+  log.setAttribute('role', 'log');
+  log.setAttribute('aria-live', 'polite');
+  panel.appendChild(log);
+
+  const emptyState = document.createElement('p');
+  emptyState.className = 'mamcp-empty';
+  emptyState.textContent = tr('mam.greeting', "Hi, I'm MAM AI. Ask me about Darwesh properties -- how can I help?");
+  log.appendChild(emptyState);
+
+  document.body.appendChild(panel);
+
+  // ---- the composer -- the one thing (besides the entity) that is
+  // always on screen. Fixed, bottom-centred, never grows into a panel of
+  // its own: focus/listening/thinking/response are CSS states toggled on
+  // composerRoot, and the full transcript always lives in the history
+  // sheet above -- never duplicated here. --------------------------------
+  const composerRoot = document.createElement('div');
+  composerRoot.className = 'mamcp-composer-root';
+
+  // Ephemeral pre-interaction suggestions -- renderChips() below already
+  // hides these the moment a real conversation exists.
+  const chipsEl = document.createElement('div');
+  chipsEl.className = 'mamcp-chips';
+  composerRoot.appendChild(chipsEl);
+
+  // One ephemeral line above the bar -- "Listening…" / "Thinking…" / a
+  // short reply. Never a transcript: the full reply is always also
+  // recorded into the history sheet's log; this is a fading glance at it.
+  const statusLine = document.createElement('div');
+  statusLine.className = 'mamcp-status';
+  statusLine.setAttribute('role', 'status');
+  statusLine.setAttribute('aria-live', 'polite');
+  statusLine.hidden = true;
+  composerRoot.appendChild(statusLine);
+
+  const barWrap = document.createElement('div');
+  barWrap.className = 'mamcp-bar-wrap';
+
+  const historyBtn = document.createElement('button');
+  historyBtn.type = 'button';
+  historyBtn.className = 'mamcp-icon-btn mamcp-history-btn';
+  historyBtn.setAttribute('aria-label', tr('mam.historyLabel', 'Conversation history'));
+  historyBtn.setAttribute('aria-pressed', 'false');
+  historyBtn.innerHTML = ICON_HISTORY_SVG;
+  barWrap.appendChild(historyBtn);
+
+  const form = document.createElement('form');
+  form.className = 'mamcp-bar';
+  const input = document.createElement('input');
+  input.className = 'mamcp-input';
+  input.type = 'text';
+  input.autocomplete = 'off';
+  input.maxLength = MAX_MESSAGE_LENGTH;
+  input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM anything…');
+  input.setAttribute('aria-label', tr('mam.askAriaLabel', 'Ask MAM'));
+  form.appendChild(input);
+
+  const micBtn = document.createElement('button');
+  micBtn.type = 'button';
+  micBtn.className = 'mamcp-bar-btn mamcp-mic';
+  micBtn.hidden = true;
+  micBtn.setAttribute('aria-label', tr('mam.micAriaLabel', 'Speak your question'));
+  micBtn.innerHTML = ICON_MIC_SVG;
+  form.appendChild(micBtn);
+
+  const sendBtn = document.createElement('button');
+  sendBtn.type = 'submit';
+  sendBtn.className = 'mamcp-bar-btn mamcp-send';
+  sendBtn.setAttribute('aria-label', tr('mam.sendAriaLabel', 'Send message'));
+  sendBtn.innerHTML = ICON_SEND_SVG;
+  form.appendChild(sendBtn);
+  barWrap.appendChild(form);
+  composerRoot.appendChild(barWrap);
+
+  // Appended to <body>, deliberately NOT inside orbRoot: an orb root that
+  // carries its own CSS `transform` would become the containing block for
+  // any `position: fixed` descendant and silently break fixed positioning.
+  document.body.appendChild(composerRoot);
+
+  // ---- open/close -- the HISTORY SHEET only. Never destroyed, only
+  // hidden; conversation/session survive close/reopen for the whole page
+  // visit. The composer above is unaffected either way -- it is always
+  // present regardless of whether the sheet is open. ----------------------
+  let isOpen = false;
+  function setOpenState(nextOpen) {
+    if (nextOpen === isOpen) return;
+    isOpen = nextOpen;
+    panel.classList.toggle('is-open', isOpen);
+    panel.setAttribute('aria-hidden', String(!isOpen));
+    historyBtn.setAttribute('aria-pressed', String(isOpen));
+    composerRoot.classList.toggle('history-open', isOpen);
+    if (isOpen) scrollLogToBottom();
+    if (onOpenState) onOpenState(isOpen);
+  }
+  function open() { setOpenState(true); }
+  function close() { setOpenState(false); }
+  function toggle() { if (!isOpen) open(); else close(); }
+  closeBtn.addEventListener('click', close);
+  historyBtn.addEventListener('click', toggle);
+  if (orbEl) orbEl.addEventListener('click', toggle);
+
+  // Escape collapses from anywhere in the panel -- a real keyboard path
+  // that needs no drag and no pointer at all. Also listened for on
+  // `document`, since a voice- or action-triggered open() never moves
+  // focus into the panel the way a manual tap-to-open does.
+  panel.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen) { e.stopPropagation(); close(); }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen && !panel.contains(document.activeElement)) close();
+  });
+  // Enter/Space on the grab handle itself does the same thing a click on
+  // it would (role="button" makes this expected, but is not automatic on
+  // a <div>).
+  grabHandle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); close(); }
+  });
+
+  // ---- drag-the-handle-down-to-collapse --------------------------------
+  // The primary gesture this surface offers instead of a popup's X: grab
+  // the handle, pull it down, let go. Short of the threshold, it springs
+  // back -- nothing closes on an accidental nudge. Horizontal movement is
+  // ignored entirely (this is a vertical dismiss gesture only).
+  let handleDrag = null;
+  grabHandle.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    handleDrag = { pointerId: e.pointerId, startY: e.clientY, dy: 0 };
+    try { grabHandle.setPointerCapture(e.pointerId); } catch { /* capture unsupported -- still works while over the handle */ }
+    panel.classList.add('is-collapsing');
+  });
+  grabHandle.addEventListener('pointermove', (e) => {
+    if (!handleDrag || e.pointerId !== handleDrag.pointerId) return;
+    const dy = Math.max(0, e.clientY - handleDrag.startY);   // downward only
+    handleDrag.dy = dy;
+    panel.style.transform = 'translateY(' + dy + 'px)';
+    panel.style.opacity = String(Math.max(0.4, 1 - dy / 500));
+  });
+  function endHandleDrag(e) {
+    if (!handleDrag || e.pointerId !== handleDrag.pointerId) return;
+    const dy = handleDrag.dy;
+    handleDrag = null;
+    panel.classList.remove('is-collapsing');
+    panel.style.transform = '';
+    panel.style.opacity = '';
+    if (dy > COLLAPSE_DRAG_PX) close();   // past the threshold: finish the dismiss
+    // otherwise: clearing the inline overrides above lets the panel's own
+    // (now re-enabled) transition spring it straight back to fully open.
+  }
+  grabHandle.addEventListener('pointerup', endHandleDrag);
+  grabHandle.addEventListener('pointercancel', endHandleDrag);
+
+  // ---- composer focus/blur -- its own small "Focused" expand state,
+  // entirely decoupled from the history sheet's open/close (no longer
+  // opens the sheet on focus -- that used to be the "permanent chatbot
+  // panel" behaviour this redesign specifically removes). -----------------
+  form.addEventListener('focusin', () => composerRoot.classList.add('is-focused'));
+  form.addEventListener('focusout', () => {
+    if (!form.contains(document.activeElement)) composerRoot.classList.remove('is-focused');
+  });
+
+  // ---- mobile on-screen keyboard: keep the composer above it instead of
+  // letting the keyboard cover it -- visualViewport is the only reliable
+  // signal a keyboard opened/closed on mobile Safari/Chrome. --------------
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    let vvTimer = null;
+    function syncViewportInset() {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      composerRoot.style.setProperty('--mamcp-vv-inset', inset + 'px');
+      composerRoot.classList.toggle('keyboard-open', inset > 80);
+    }
+    vv.addEventListener('resize', () => { clearTimeout(vvTimer); vvTimer = setTimeout(syncViewportInset, 60); });
+    vv.addEventListener('scroll', () => { clearTimeout(vvTimer); vvTimer = setTimeout(syncViewportInset, 60); });
+  }
+
+  function scrollLogToBottom() { log.scrollTop = log.scrollHeight; }
+  function clearEmptyState() { if (emptyState.parentNode) emptyState.remove(); }
+
+  // ---- ephemeral status/response line -----------------------------------
+  // Drives the ONE thing visible near the composer besides the entity
+  // itself: "Listening…" / "Thinking…" / a short glance at the reply.
+  // Never the full transcript -- that always lives in the history sheet's
+  // log (see addUserBubble/addAssistantBubble), never duplicated here.
+  const RESPONSE_LINE_MS = 6000;
+  let statusLineTimer = null;
+  function setStatusLine(text, { persist = false } = {}) {
+    clearTimeout(statusLineTimer);
+    statusLineTimer = null;
+    if (!text) { statusLine.hidden = true; statusLine.textContent = ''; return; }
+    statusLine.textContent = text;
+    statusLine.hidden = false;
+    if (!persist) statusLineTimer = setTimeout(() => setStatusLine(null), RESPONSE_LINE_MS);
+  }
+
+  function addUserBubble(text) {
+    clearEmptyState();
+    const b = document.createElement('div');
+    b.className = 'mamcp-entry mamcp-entry-user';
+    const marker = document.createElement('span');
+    marker.className = 'mamcp-entry-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    b.appendChild(marker);
+    const p = document.createElement('p');
+    p.textContent = text;
+    b.appendChild(p);
+    log.appendChild(b);
+    scrollLogToBottom();
+    // A real conversation now exists -- the ephemeral pre-interaction
+    // suggestions fade for good (renderChips()'s own check), regardless of
+    // whether this turn started by typing, voice, or a suggestion click.
+    renderChips();
+  }
+
+  function buildRefCard(card) {
+    const a = document.createElement('a');
+    a.className = 'mamcp-ref-card';
+    if (card.kind === 'property') {
+      a.href = 'listing.html?id=' + encodeURIComponent(card.listingId);
+      const media = document.createElement('div');
+      media.className = 'mamcp-ref-card-media';
+      if (card.imageUrl) {
+        const img = document.createElement('img');
+        img.src = card.imageUrl; img.alt = ''; img.loading = 'lazy';
+        media.appendChild(img);
+      }
+      a.appendChild(media);
+      const body = document.createElement('div');
+      body.className = 'mamcp-ref-card-body';
+      const t = document.createElement('p');
+      t.className = 'mamcp-ref-card-title';
+      t.textContent = card.title || tr('mam.property', 'Property');
+      body.appendChild(t);
+      const price = fmtPrice(card.price, card.currency);
+      if (price) {
+        const p = document.createElement('p');
+        p.className = 'mamcp-ref-card-price';
+        p.textContent = price + (card.dealType === 'rent' ? tr('mam.perMonth', ' / mo') : '');
+        body.appendChild(p);
+      }
+      a.appendChild(body);
+      return a;
+    }
+    if (card.kind === 'project') {
+      a.href = 'map.html?city=' + encodeURIComponent(card.city || '');
+      const body = document.createElement('div');
+      body.className = 'mamcp-ref-card-body';
+      const t = document.createElement('p');
+      t.className = 'mamcp-ref-card-title';
+      t.textContent = card.name || tr('mam.project', 'Project');
+      body.appendChild(t);
+      a.appendChild(body);
+      return a;
+    }
+    if (card.kind === 'professional') {
+      const page = PROFESSIONAL_PAGES[card.serviceType];
+      if (!page) return null;
+      a.href = page + '?id=' + encodeURIComponent(card.providerId);
+      const body = document.createElement('div');
+      body.className = 'mamcp-ref-card-body';
+      const t = document.createElement('p');
+      t.className = 'mamcp-ref-card-title';
+      // backend/app/mam/routes.py's _serialize_card sends `displayName`
+      // for a professional card (never `name` -- that's the project
+      // card's own field) -- this used to silently always fall back to
+      // the generic label below.
+      t.textContent = card.displayName || tr('mam.professional', 'Professional');
+      body.appendChild(t);
+      a.appendChild(body);
+      return a;
+    }
+    return null;
+  }
+
+  function buildSuggestedActions(actions) {
+    if (!actions || !actions.length) return null;
+    const wrap = document.createElement('div');
+    wrap.className = 'mamcp-actions';
+    actions.forEach((a) => {
+      const href = resolveActionHref(a);
+      if (!href) return; // not a real, resolvable destination -- skipped, never a dead link
+      const chip = document.createElement('a');
+      chip.className = 'mamcp-action-chip';
+      chip.textContent = tr(a.labelKey, a.labelFallback || 'Open');
+      chip.href = href;
+      // A suggested action is MAM moving the visitor, so it takes the same
+      // in-place path as MAM's other navigations -- otherwise "open this
+      // listing" would still cut the voice off mid-sentence, which is the
+      // single most common thing MAM is asked to do. It stays a REAL <a
+      // href> underneath: the fast path is only taken for a plain left
+      // click, so middle-click, ctrl/cmd-click, "open in new tab" and a
+      // crawler following the link all behave exactly as before.
+      chip.addEventListener('click', (e) => {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (!canNavigateInPlace(href)) return;
+        e.preventDefault();
+        mamNavigate(href);
+      });
+      wrap.appendChild(chip);
+    });
+    return wrap.childElementCount ? wrap : null;
+  }
+
+  function addAssistantBubble(data, { failed = false, retryText = null } = {}) {
+    clearEmptyState();
+    const b = document.createElement('div');
+    b.className = 'mamcp-entry mamcp-entry-assistant' + (failed ? ' mamcp-entry-error' : '');
+    const marker = document.createElement('span');
+    marker.className = 'mamcp-entry-marker';
+    marker.setAttribute('aria-hidden', 'true');
+    b.appendChild(marker);
+    if (data.message) {
+      const p = document.createElement('p');
+      p.textContent = data.message;
+      b.appendChild(p);
+    }
+    if (retryText) {
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.className = 'mamcp-retry';
+      retryBtn.textContent = tr('mam.retry', 'Try again');
+      retryBtn.addEventListener('click', () => { retryBtn.disabled = true; sendMessage(retryText); });
+      b.appendChild(retryBtn);
+    }
+    const cards = (data.cards || []).map(buildRefCard).filter(Boolean);
+    if (cards.length) {
+      const row = document.createElement('div');
+      row.className = 'mamcp-ref-cards';
+      cards.forEach((c) => row.appendChild(c));
+      b.appendChild(row);
+    }
+    const suggested = buildSuggestedActions(data.suggestedActions);
+    if (suggested) b.appendChild(suggested);
+    log.appendChild(b);
+    scrollLogToBottom();
+    // A short glance at the reply near the composer -- text only, never
+    // the cards/actions above (those stay in the history sheet and the
+    // spatial result layer; the ephemeral line never duplicates them).
+    if (data.message) setStatusLine(data.message);
+    renderChips();
+    return b;
+  }
+
+  // Drives the composer's "Thinking…" line for a REAL network wait only
+  // (a turn is genuinely in flight) -- separate from setVoiceState's own
+  // PROCESSING transitions, some of which are purely cosmetic acknowledgement
+  // beats (e.g. speakGreeting()'s) that must never overwrite text a reply
+  // just set.
+  let thinking = false;
+  function showThinking() {
+    if (thinking) return;
+    thinking = true;
+    setVoiceState('PROCESSING');
+    setStatusLine(tr('mamai.stateThinking', 'Thinking…'), { persist: true });
+  }
+  function hideThinking() { thinking = false; }
+
+  // ---- Voice output (TTS) -- OFF by default (never autoplays on load),
+  // the same localStorage preference the map's MAM dock uses so it
+  // carries over between surfaces. Only ever speaks a reply that was
+  // itself produced from a voice-initiated turn, or when the user has
+  // explicitly turned voice replies on via this header toggle -- never
+  // a surprise voice on a page the visitor never asked MAM to talk on. --
+  let voiceOutputEnabled = localStorage.getItem(VOICE_OUTPUT_KEY) === '1';
+  let cachedVoices = [];
+  function refreshVoices() { cachedVoices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; }
+  if (window.speechSynthesis) {
+    refreshVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', refreshVoices);
+  }
+  function speechVoiceLangCandidates() {
+    const lang = currentLang();
+    if (lang === 'ku') return ['ku', 'ckb', 'ar']; // no browser ships native Kurdish TTS -- Arabic is the closest honest fallback, flagged to the user below
+    if (lang === 'ar') return ['ar'];
+    return ['en'];
+  }
+  function pickVoice(candidates) {
+    for (const prefix of candidates) {
+      const matching = cachedVoices.filter((v) => v.lang && v.lang.toLowerCase().startsWith(prefix));
+      if (matching.length) return matching[0];
+    }
+    const en = cachedVoices.filter((v) => v.lang && v.lang.toLowerCase().startsWith('en'));
+    return en.length ? en[0] : null;
+  }
+  let fallbackNoteShown = false;
+  let ttsBlockedNoteShown = false;
+  // onDone fires when the reply has finished being spoken -- or straight
+  // away when there is nothing to speak. The hands-free loop chains on it,
+  // so it must fire on EVERY path, including the disabled/unsupported ones
+  // and the browser-refused one; a path that silently returns would strand
+  // the loop mid-turn with the microphone shut and no way back.
+  //
+  // "Refused" is a real state, not a theoretical one: a browser that has
+  // not seen a user gesture on this document simply never fires `start`
+  // on the utterance -- no error event, no exception, nothing. A watchdog
+  // is the only way to notice, so one runs on every spoken reply and is
+  // cleared the moment speech genuinely begins.
+  // ---- KurdishTTS audio playback (Sorani) --------------------------------
+  // Reuses ONE <audio> element for the life of the panel rather than a new
+  // one per reply -- both so at most one KurdishTTS clip is ever playing
+  // (interrupting a previous one just replaces its source) and so it's a
+  // single, obvious thing to stop from disableVoiceCompletely()/a new
+  // sendMessage() interrupting an in-flight reply.
+  const kurdishAudioEl = new Audio();
+  kurdishAudioEl.preload = 'auto';
+  // Needed before createMediaElementSource can read this element without
+  // tainting the graph; the blob is same-origin anyway, so this only
+  // matters if a future path serves audio from elsewhere.
+  kurdishAudioEl.crossOrigin = 'anonymous';
+  let kurdishTtsController = null;   // aborts an in-flight (now-obsolete) synthesis request
+  let lastKurdishTtsText = null;     // cost control: never re-synthesize the same reply twice in a row
+  let lastKurdishTtsBlobUrl = null;
+  function stopKurdishAudio() {
+    if (kurdishTtsController) { kurdishTtsController.abort(); kurdishTtsController = null; }
+    try { kurdishAudioEl.pause(); } catch { /* not playing */ }
+  }
+  // Returns true if it successfully started (or is in the process of
+  // starting) KurdishTTS playback -- the caller must NOT also start
+  // browser speechSynthesis in that case. Returns false (having called
+  // nothing further) when KurdishTTS isn't usable right now, so the
+  // caller falls through to the existing browser-voice path unchanged.
+  async function speakWithKurdishTts(text, { onDone }) {
+    kurdishTtsController = new AbortController();
+    const thisController = kurdishTtsController;
+    let blobUrl;
+    if (lastKurdishTtsText === text && lastKurdishTtsBlobUrl) {
+      blobUrl = lastKurdishTtsBlobUrl;   // identical reply already synthesized -- reuse it, never re-request
+    } else {
+      const blob = await mamVoiceTts(text, { signal: thisController.signal });
+      if (thisController.signal.aborted) return; // superseded by a newer turn while awaiting
+      if (!blob) {
+        kurdishTtsController = null;
+        speakWithBrowserVoice(text, { onDone }); // KurdishTTS unavailable/quota-exhausted -- fall back, never fake success
+        return;
+      }
+      if (lastKurdishTtsBlobUrl) URL.revokeObjectURL(lastKurdishTtsBlobUrl);
+      blobUrl = URL.createObjectURL(blob);
+      lastKurdishTtsText = text;
+      lastKurdishTtsBlobUrl = blobUrl;
+    }
+    if (thisController.signal.aborted) return;
+    kurdishAudioEl.src = blobUrl;
+    let settled = false;
+    function settle() {
+      if (settled) return;
+      settled = true;
+      // If a hands-free loop is running, the onDone callback below is
+      // about to call startListening() itself (see the various onDone
+      // sites in the recognition block), which sets LISTENING -- setting
+      // IDLE here first would just be an instantly-overwritten flash.
+      // Only force IDLE when nothing else is about to take over.
+      // The voice has stopped, so the body must stop with it -- a level
+      // left frozen at its last value is exactly the "canned" look this
+      // design exists to avoid.
+      voiceEnergy.stop();
+      if (!handsFree) setVoiceState('IDLE');
+      kurdishTtsController = null;
+      if (onDone) onDone();
+    }
+    kurdishAudioEl.onplay = () => {
+      setVoiceState('SPEAKING');
+      // PATH A -- a real AnalyserNode on MAM's own output. This is the
+      // path that gives true per-frame amplitude, and Kurdish is the
+      // primary language here, so it is the one that matters most.
+      voiceEnergy.attachToAudioElement(kurdishAudioEl);
+    };
+    kurdishAudioEl.onended = settle;
+    kurdishAudioEl.onerror = () => { speakWithBrowserVoice(text, { onDone }); }; // playback itself failed -- fall back rather than going silent
+    try {
+      await kurdishAudioEl.play();
+    } catch {
+      // Same browser autoplay/gesture restriction speechSynthesis can hit
+      // -- fall back to the existing browser path's own honest handling
+      // of that case (its watchdog + "tap anywhere" note).
+      speakWithBrowserVoice(text, { onDone });
+    }
+  }
+  function speak(text, { onDone } = {}) {
+    // onDone fires exactly once, on every path. The latch matters now that
+    // sendMessage() speaks from inside its own try/catch: a speech engine
+    // that throws must not be able to turn a reply that was already
+    // rendered and recorded into a "that didn't go through" error bubble,
+    // and must not strand the hands-free loop either. The failure is still
+    // reported (console + the watchdog's own visible note) rather than
+    // silently discarded -- speech breaking is worth knowing about; it
+    // just isn't the chat turn's problem.
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; if (onDone) onDone(); };
+    if (!voiceOutputEnabled || !text) { finish(); return; }
+    try {
+      stopKurdishAudio();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (soraniVoiceActive() && kurdishVoice.ttsAvailable) {
+        Promise.resolve(speakWithKurdishTts(text, { onDone: finish })).catch((err) => {
+          console.warn('MAM: Kurdish TTS failed', err);
+          finish();
+        });
+        return;
+      }
+      speakWithBrowserVoice(text, { onDone: finish });
+    } catch (err) {
+      console.warn('MAM: speech synthesis failed', err);
+      finish();
+    }
+  }
+  function speakWithBrowserVoice(text, { onDone } = {}) {
+    if (!window.speechSynthesis) { if (onDone) onDone(); return; }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const candidates = speechVoiceLangCandidates();
+    const voice = pickVoice(candidates);
+    if (voice) { utterance.voice = voice; utterance.lang = voice.lang; }
+    if (currentLang() === 'ku' && voice && voice.lang.toLowerCase().startsWith('ar') && !fallbackNoteShown) {
+      fallbackNoteShown = true;
+      const note = document.createElement('p');
+      note.className = 'mamcp-fallback-note';
+      note.textContent = tr('mam.speechFallbackNote', 'No Kurdish voice was found on this device — using an Arabic voice to read replies aloud, which will not sound like native Kurdish.');
+      log.appendChild(note);
+      scrollLogToBottom();
+    }
+    // Exactly one of these paths may finish the turn, however many events
+    // the engine decides to fire (some fire `end` after `error`).
+    let settled = false;
+    let watchdog = null;
+    function settle() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      // See speakWithKurdishTts's settle() for why this is conditional.
+      // The voice has stopped, so the body must stop with it -- a level
+      // left frozen at its last value is exactly the "canned" look this
+      // design exists to avoid.
+      voiceEnergy.stop();
+      if (!handsFree) setVoiceState('IDLE');
+      if (onDone) onDone();
+    }
+    utterance.addEventListener('start', () => {
+      clearTimeout(watchdog);          // speech really began -- not blocked
+      setVoiceState('SPEAKING');
+      // PATH B -- speechSynthesis exposes NO audio node, by design, so
+      // there is no amplitude to read. What it does expose is `boundary`,
+      // which fires as each word begins, so the envelope below is driven
+      // by MAM's REAL word timing; only the shape between words is
+      // inferred. See js/mam-voice-energy.js for why this distinction is
+      // kept visible instead of being papered over.
+      voiceEnergy.startEnvelope();
+    });
+    utterance.addEventListener('boundary', () => voiceEnergy.impulse());
+    utterance.addEventListener('end', settle);
+    utterance.addEventListener('error', settle);
+    watchdog = setTimeout(() => {
+      if (settled) return;
+      // Nothing started within a generous window: the browser is refusing
+      // to speak (autoplay/gesture policy, or no usable voice). Say so
+      // once, honestly, rather than leaving a silent assistant that looks
+      // broken -- and let the loop continue rather than hang.
+      if (!ttsBlockedNoteShown) {
+        ttsBlockedNoteShown = true;
+        const note = document.createElement('p');
+        note.className = 'mamcp-fallback-note';
+        note.textContent = tr('mam.speechBlockedNote', 'Your browser is not letting MAM speak aloud yet. Replies are shown here as text; tap anywhere on the page and try voice again to allow it.');
+        log.appendChild(note);
+        scrollLogToBottom();
+      }
+      try { window.speechSynthesis.cancel(); } catch { /* nothing queued */ }
+      settle();
+    }, 2500);
+    window.speechSynthesis.speak(utterance);
+  }
+  // ---- speaking across a navigation -------------------------------------
+  // A full document navigation destroys this document and, with it, every
+  // utterance and <audio> element it owns. Nothing can carry browser
+  // speech across that -- so the only honest ordering is to say the short
+  // acknowledgement FIRST and navigate once it has genuinely finished (or
+  // genuinely failed). The bug this replaces did the opposite: the action's
+  // run() called location.href and only then called speak(), so the reply
+  // was handed to a document that was already going away.
+  //
+  // speak() already invokes onDone on EVERY path -- voice off, no engine,
+  // ended, errored, and the watchdog's "the browser refused to start"
+  // case -- so the hand-off normally happens the moment speech really
+  // ends, and synchronously (no added delay at all) when voice output is
+  // off. The cap below is purely a safety net for an engine that fires
+  // neither `end` nor `error`: navigation must still happen, so broken TTS
+  // can never strand a visitor on the page they asked to leave. It sits
+  // just above speakWithBrowserVoice's own 2500ms watchdog so that the
+  // watchdog -- which explains itself to the visitor -- wins the race in
+  // the case they both cover.
+  const NAV_SPEECH_CAP_MS = 3000;
+  /**
+   * @param {string} text the acknowledgement to say
+   * @param {() => void} navigate performs the move
+   * @param {{onDone?: Function, href?: string}} [opts] `href`, when the
+   *   destination is known, lets this decide whether the move destroys the
+   *   document or not -- which changes the ordering completely.
+   */
+  function speakThenNavigate(text, navigate, { onDone, href } = {}) {
+    // SAME-DOCUMENT: the document survives, so this audio element and this
+    // speech queue survive with it. Move FIRST and keep talking straight
+    // through it -- that is the entire point of js/mam-shell.js, and waiting
+    // here would reintroduce the very pause it exists to remove.
+    if (href && canNavigateInPlace(href)) {
+      navigate();
+      speak(text, { onDone: onDone });
+      return;
+    }
+    // FULL NAVIGATION: the document, this <audio> element and this utterance
+    // are all about to be destroyed. The only honest ordering is to finish
+    // speaking and leave once it has genuinely ended -- or genuinely failed.
+    // speak() calls onDone on every path (voice off, no engine, ended,
+    // errored, refused), so this is usually immediate. The cap is purely a
+    // safety net for an engine that fires neither `end` nor `error`: broken
+    // TTS must never strand a visitor on the page they asked to leave.
+    let handedOff = false;
+    const go = () => {
+      if (handedOff) return;   // whichever of speech/cap arrives first wins, once
+      handedOff = true;
+      clearTimeout(cap);
+      if (onDone) onDone();
+      navigate();
+    };
+    const cap = setTimeout(go, NAV_SPEECH_CAP_MS);
+    speak(text, { onDone: go });
+  }
+
+  function updateVoiceToggleUI() {
+    voiceToggleIcon.innerHTML = voiceOutputEnabled ? ICON_VOLUME_ON_SVG : ICON_VOLUME_OFF_SVG;
+    voiceToggleBtn.setAttribute('aria-pressed', String(voiceOutputEnabled));
+  }
+  if (window.speechSynthesis) {
+    voiceToggleBtn.hidden = false;
+    updateVoiceToggleUI();
+    voiceToggleBtn.addEventListener('click', () => {
+      voiceOutputEnabled = !voiceOutputEnabled;
+      localStorage.setItem(VOICE_OUTPUT_KEY, voiceOutputEnabled ? '1' : '0');
+      updateVoiceToggleUI();
+      if (!voiceOutputEnabled) window.speechSynthesis.cancel();
+    });
+  }
+
+  // ---- applying an allowlisted map filter/focus action -----------------
+  // Reuses the exact same real hook the map's own dock uses -- never a
+  // second search implementation. When this panel happens to already be
+  // open ON map.html, the filters/focus apply immediately in place. From
+  // ANY other page, MAM operating the frontend still has to be able to
+  // reach the map: the same filter values are translated (see
+  // js/mam-actions.js's filtersToMapUrlParams -- the SAME vocabulary
+  // backend/app/mam/orchestrator.py's tool calls already use) into
+  // map.html's own URL query state, and the visitor is taken there, so a
+  // search made from Home lands exactly like the same search made
+  // directly on the map. -------------------------------------------------
+  //
+  // Anything that can be applied to the map IN PLACE is applied here and
+  // now. Anything that needs a real navigation is RETURNED as a thunk
+  // instead of being performed, so the caller decides when to run it --
+  // which is what lets the spoken reply finish first (see
+  // speakThenNavigate). Returns null when the action was fully handled in
+  // place, or was a no-op.
+  /** @returns {(() => void)|null} */
+  function applyMapAction(mapAction) {
+    if (!mapAction) return null;
+    // MAM AI Command Center's one Sell action (backend/app/mam/tools.py's
+    // open_sell): reuses this SAME MapAction shape rather than a second
+    // one -- 'q' already means "city name" in every MapAction this
+    // backend produces (see filtersToMapUrlParams/_search_filters_action),
+    // so this is a navigation, never a second filter implementation. Only
+    // ever a FORM PREFILL on arrival (sell.html's own prefillCityFromMam()
+    // reads this same query param) -- nothing here submits anything.
+    if (mapAction.target === 'sell.html') {
+      const city = mapAction.filters && mapAction.filters.q;
+      const params = new URLSearchParams();
+      if (city && /^[a-zA-Z]+$/.test(city)) params.set('prefillCity', city.toLowerCase());
+      const href = 'sell.html' + (params.toString() ? '?' + params.toString() : '');
+      const run = () => { mamNavigate(href); };
+      run.href = href;
+      return run;
+    }
+    if (mapAction.target !== 'map.html') return null;
+    const onMapPage = window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.applyFilters === 'function';
+    if (onMapPage) {
+      if (mapAction.filters && Object.keys(mapAction.filters).length) {
+        window.DarweshPropertiesMap.applyFilters(mapAction.filters);
+      }
+      if (mapAction.focusListingId && typeof window.DarweshPropertiesMap.focusListing === 'function') {
+        window.DarweshPropertiesMap.focusListing(mapAction.focusListingId);
+      }
+      return null;
+    }
+    const hasFilters = mapAction.filters && Object.keys(mapAction.filters).length;
+    if (!hasFilters && !mapAction.focusListingId) return null;
+    const params = filtersToMapUrlParams(mapAction.filters || {});
+    if (mapAction.focusListingId) params.set('listing', String(mapAction.focusListingId));
+    const href = 'map.html' + (params.toString() ? '?' + params.toString() : '');
+    const run = () => { mamNavigate(href); };
+    run.href = href;   // so speakThenNavigate can tell in-place from full
+    return run;
+  }
+
+  // ---- direct commands -- the small, deterministic action layer --------
+  // A handful of requests (navigate, go back, clear filters, collapse/
+  // open MAM) need no NLU and no backend round trip at all: detected here
+  // via js/mam-actions.js's fixed allowlist and executed immediately,
+  // offline of the backend, identically every time. Everything this does
+  // NOT confidently recognize (a property search, a filter value, small
+  // talk) falls straight through to the real backend conversation just
+  // below, completely unaffected -- this is deliberately narrow, never a
+  // second, competing intent parser. Typed and spoken input both arrive
+  // through this SAME sendMessage(), so a direct command works identically
+  // either way, in the same session/transcript as everything else.
+  function executeDirectCommand(command) {
+    // `navigates` marks the descriptors whose run() destroys this
+    // document. sendMessage speaks their acknowledgement BEFORE running
+    // them (see speakThenNavigate); everything without the flag stays
+    // same-page and runs immediately, so collapsing MAM or clearing
+    // filters never waits on speech.
+    if (command.type === 'navigate') {
+      const page = resolvePage(command.page);
+      if (!page) return null;
+      return {
+        confirm: trf('mam.actionOpenedPage', 'Opening {page}…', { page: command.page }),
+        navigates: true,
+        href: page,
+        run: () => { mamNavigate(page); }
+      };
+    }
+    if (command.type === 'back') {
+      return { confirm: tr('mam.actionWentBack', 'Going back…'), navigates: true, run: () => { history.back(); } };
+    }
+    if (command.type === 'clear_filters') {
+      if (window.DarweshPropertiesMap && typeof window.DarweshPropertiesMap.clearFilters === 'function') {
+        return { confirm: tr('mam.actionClearedFilters', 'Filters cleared.'), run: () => { window.DarweshPropertiesMap.clearFilters(); } };
+      }
+      return { confirm: tr('mam.actionNoFiltersHere', "There's nothing to clear here — the filters live on the map."), run: () => {} };
+    }
+    if (command.type === 'collapse_mam') {
+      return { confirm: null, run: () => { close(); } };
+    }
+    if (command.type === 'open_mam') {
+      return { confirm: null, run: () => { open(); } };
+    }
+    // Phase 2: same account.html destinations js/mam-command-registry.js's
+    // showSavedProperties()/openUserProfile() point at -- built the same
+    // way the 'navigate' case above does (fixed href, mamNavigate), not by
+    // calling into that module, since neither destination needs its
+    // validation (it's a literal, not a visitor-supplied page name).
+    if (command.type === 'show_saved_properties') {
+      return {
+        confirm: tr('mam.actionOpenedSaved', 'Opening your saved properties…'),
+        navigates: true,
+        href: ACCOUNT_FAVORITES_URL,
+        run: () => { mamNavigate(ACCOUNT_FAVORITES_URL); }
+      };
+    }
+    if (command.type === 'open_profile') {
+      return {
+        confirm: tr('mam.actionOpenedProfile', 'Opening your profile…'),
+        navigates: true,
+        href: ACCOUNT_PROFILE_URL,
+        run: () => { mamNavigate(ACCOUNT_PROFILE_URL); }
+      };
+    }
+    return null;
+  }
+
+  // ---- adaptive spatial question/card flow -------------------------------
+  // The "missing-information resolver" half of the pipeline js/mam-spatial-
+  // flows.js's own header comment describes: this orchestrates WHICH
+  // question to ask next and WHAT a completed flow does, using only that
+  // file's pure functions -- js/mam-spatial-choice.js (spatialChoice above)
+  // only ever renders whatever question/choices it's handed and resolves a
+  // Promise on a pick, never deciding any of this itself. `activeFlow` is
+  // null whenever no clarification is in progress, which is the normal
+  // case for every turn that is already specific enough -- see
+  // isVaguePropertyNeed()/isVagueProfessionalNeed()'s own "never asks what
+  // it doesn't need to" contract.
+  let activeFlow = null; // { kind: 'property'|'professional'|'sell', questions, slots, originalText, viaVoice, category? }
+
+  function cancelActiveFlow() {
+    if (!activeFlow) return;
+    activeFlow = null;
+    if (spatialChoice) spatialChoice.cancel();
+  }
+
+  function describeSlotLabel(questionId, slots) {
+    if (questionId === 'intent' && slots.intent) {
+      const c = spatialFlows.INTENT_CHOICES.find((x) => x.id === slots.intent);
+      return c ? tr(c.labelKey, c.fallback) : null;
+    }
+    if (questionId === 'city' && slots.city) return spatialFlows.cityLabel(slots.city);
+    if (questionId === 'type' && slots.propertyType) {
+      const t = spatialFlows.PROPERTY_TYPES.find((x) => x.word === slots.propertyType);
+      return t ? tr(t.labelKey, t.fallback) : null;
+    }
+    return null;
+  }
+
+  function applyChoiceToSlots(flow, questionId, value) {
+    if (questionId === 'intent') {
+      flow.slots.intent = value;
+      // Sell has its own single-question flow (city only) -- Phase 1
+      // explicitly does not recreate the 7-step Sell form here, so a
+      // 'sell' pick swaps the whole flow rather than continuing to ask
+      // property-search questions (type/rooms) that don't apply to it.
+      if (value === 'sell' && flow.kind === 'property') {
+        flow.kind = 'sell';
+        flow.questions = spatialFlows.SELL_QUESTIONS;
+        flow.slots = { city: null };
+      }
+    } else if (questionId === 'city') {
+      flow.slots.city = value;
+    } else if (questionId === 'type') {
+      flow.slots.propertyType = value;
+    }
+  }
+
+  async function advanceFlow() {
+    if (!activeFlow || !spatialChoice) return;
+    const flow = activeFlow;
+    const question = spatialFlows.nextQuestion(flow.questions, flow.slots);
+    if (!question) { await completeFlow(flow); return; }
+    const built = question.build(currentLang());
+    built.breadcrumb = flow.questions
+      .map((q) => describeSlotLabel(q.id, flow.slots))
+      .filter(Boolean);
+    const choice = await spatialChoice.ask(built);
+    if (activeFlow !== flow || !choice) return; // cancelled mid-ask, or superseded
+    applyChoiceToSlots(flow, question.id, choice.value);
+    await advanceFlow();
+  }
+
+  async function completeFlow(flow) {
+    activeFlow = null;
+    const lang = currentLang();
+    if (flow.kind === 'sell') {
+      setStatusLine(tr('mamai.spatial.openingSell', 'Opening Sell…'), { persist: true });
+      const { setSellField } = await import('./mam-command-registry.js');
+      const result = setSellField('city', String(flow.slots.city || '').toLowerCase());
+      if (!result.ok) {
+        setStatusLine(null);
+        addAssistantBubble({ message: tr('mam.genericError', "That didn't go through. Please try again.") }, { failed: true });
+      }
+      return; // a successful setSellField() already navigated away
+    }
+    const synthesized = flow.kind === 'professional'
+      ? spatialFlows.synthesizeProfessionalMessage(flow.originalText, flow.slots.city, lang)
+      : spatialFlows.synthesizePropertyMessage(flow.slots, lang);
+    setStatusLine(tr('mamai.spatial.findingMatches', 'Let me find the best matches.'), { persist: true });
+    await sendMessage(synthesized, { viaVoice: flow.viaVoice });
+  }
+
+  function startPropertyFlow(text, viaVoice) {
+    const signals = spatialFlows.detectPropertySignals(text);
+    activeFlow = {
+      kind: 'property',
+      questions: spatialFlows.PROPERTY_QUESTIONS,
+      slots: {
+        intent: signals.dealType === 'rent' ? 'rent' : signals.dealType === 'buy' ? 'buy' : null,
+        city: signals.city || null,
+        propertyType: signals.propertyType || null
+      },
+      originalText: text,
+      viaVoice
+    };
+    advanceFlow();
+  }
+
+  function startProfessionalFlow(text, category, viaVoice) {
+    activeFlow = {
+      kind: 'professional',
+      questions: spatialFlows.PROFESSIONAL_QUESTIONS,
+      slots: { city: null },
+      originalText: text,
+      category,
+      viaVoice
+    };
+    advanceFlow();
+  }
+
+  // ---- sending a turn -----------------------------------------------
+  let sending = false;
+  let pendingController = null;
+  let lastTurnWasVoice = false;
+  function setSendingState(isSending) {
+    sending = isSending;
+    input.disabled = isSending;
+    sendBtn.disabled = isSending;
+    sendBtn.setAttribute('aria-busy', String(isSending));
+  }
+
+  async function sendMessage(rawText, { viaVoice = false, onReplySpoken, onFailed } = {}) {
+    const text = (rawText || '').trim();
+    if (!text || sending) return;
+
+    // ---- an active spatial question intercepts EVERY channel this same
+    // function already receives typed/voice input through. A click/tap on
+    // a card never reaches here at all -- it resolves spatialChoice's
+    // Promise directly (see js/mam-spatial-choice.js's resolveChoice) --
+    // this is only the voice/typed path into that SAME one handler, via
+    // trySelectFromText's call to the identical resolveChoice(). Text that
+    // doesn't match any current choice abandons the flow rather than
+    // silently swallowing a real message the visitor typed or said.
+    if (activeFlow && spatialChoice && spatialChoice.isActive()) {
+      if (spatialChoice.trySelectFromText(text)) {
+        addUserBubble(text);
+        recordTurn({ role: 'user', text });
+        return;
+      }
+      cancelActiveFlow();
+    }
+
+    if (text.length > MAX_MESSAGE_LENGTH) {
+      addAssistantBubble({ message: trf('mam.tooLong', 'That message is too long (max {n} characters).', { n: MAX_MESSAGE_LENGTH }) });
+      if (onFailed) onFailed();
+      return;
+    }
+
+    // Direct commands short-circuit the entire backend round trip -- see
+    // executeDirectCommand() above. Typed or spoken, this is the exact
+    // same check either way, in the exact same session/transcript as a
+    // normal turn. Recorded into the history log exactly as before --
+    // just no longer forced open: a routine turn stays in the ephemeral
+    // composer layer, and the history sheet is a visitor's own choice.
+    const direct = detectDirectCommand(text);
+    const resolved = direct && executeDirectCommand(direct);
+    if (resolved) {
+      lastTurnWasVoice = viaVoice;
+      addUserBubble(text);
+      recordTurn({ role: 'user', text });
+      if (resolved.confirm) {
+        addAssistantBubble({ message: resolved.confirm });
+        recordTurn({ role: 'assistant', text: resolved.confirm, cards: [] });
+      }
+      if (resolved.navigates) {
+        if (resolved.href) emitSpatial('navigate', { href: resolved.href, mapAction: null });
+        // Say it, THEN leave -- running the navigation first is what used
+        // to throw the acknowledgement away mid-sentence.
+        speakThenNavigate(resolved.confirm || '', resolved.run, { onDone: onReplySpoken, href: resolved.href });
+      } else {
+        resolved.run();
+        // speak() is the single gate on whether anything is said: it
+        // returns immediately (calling onDone) when voice output is off,
+        // so this is never a surprise voice -- and, unlike before, a
+        // visitor who turned the speaker on gets TYPED replies read out
+        // too, which is what the toggle has always claimed to do.
+        speak(resolved.confirm || '', { onDone: onReplySpoken });
+      }
+      return;
+    }
+
+    // ---- start the adaptive flow for a genuinely vague need, before this
+    // turn would otherwise go straight to the backend unanswered-enough.
+    // See js/mam-spatial-flows.js's own header comment for why this never
+    // competes with the real backend parse: it only ever decides WHETHER
+    // to ask first, never what a message means -- a request that is
+    // already specific (Flow B) never triggers either check below and
+    // falls straight through to the exact same backend turn as before.
+    if (spatialChoice && !direct) {
+      if (spatialFlows.isVaguePropertyNeed(text)) {
+        addUserBubble(text);
+        recordTurn({ role: 'user', text });
+        startPropertyFlow(text, viaVoice);
+        return;
+      }
+      const profNeed = spatialFlows.isVagueProfessionalNeed(text);
+      if (profNeed && !profNeed.city) {
+        addUserBubble(text);
+        recordTurn({ role: 'user', text });
+        startProfessionalFlow(text, profNeed.category, viaVoice);
+        return;
+      }
+    }
+
+    lastTurnWasVoice = viaVoice;
+
+    if (pendingController) pendingController.abort();
+    pendingController = new AbortController();
+    const thisController = pendingController;
+
+    addUserBubble(text);
+    recordTurn({ role: 'user', text });
+    input.value = '';
+    setSendingState(true);
+    showThinking();
+    emitSpatial('start', { text });
+
+    try {
+      const data = await sendMamChat(
+        { message: text, language: currentLang(), sessionId: getSessionId(), pageContext },
+        { user: auth.currentUser, signal: thisController.signal }
+      );
+      if (thisController.signal.aborted) return;
+      hideThinking();
+      if (data.sessionId) setSessionId(data.sessionId);
+      addAssistantBubble(data);
+      recordTurn({ role: 'assistant', text: data.message || '', cards: Array.isArray(data.cards) ? data.cards : [] });
+      const navigateForAction = applyMapAction(data.mapAction);
+      companion.setState('result-ready');
+      emitSpatial('result', {
+        message: data.message || '',
+        cards: Array.isArray(data.cards) ? data.cards : [],
+        mapAction: data.mapAction || null,
+        suggestedActions: Array.isArray(data.suggestedActions) ? data.suggestedActions : []
+      });
+      // Whether anything is spoken is speak()'s own decision (voice output
+      // on, or this turn came in by voice -- beginHandsFree turns the
+      // preference on for the duration of a spoken conversation). The call
+      // used to be gated on `lastTurnWasVoice` here as well, which meant a
+      // visitor who switched the speaker on and then TYPED got silence:
+      // the toggle set a preference nothing downstream ever consulted.
+      if (navigateForAction) {
+        emitSpatial('navigate', { href: navigateForAction.href, mapAction: data.mapAction || null });
+        // This reply also moves the visitor to the map. Speak first so the
+        // sentence is not cut off by the document going away; the cap in
+        // speakThenNavigate bounds how long a long reply can hold up the
+        // navigation, and the full text stays visible in the transcript,
+        // which the destination page restores without re-speaking it.
+        speakThenNavigate(data.message || '', navigateForAction, { onDone: onReplySpoken, href: navigateForAction.href });
+      } else {
+        speak(data.message || '', { onDone: onReplySpoken });
+      }
+    } catch (err) {
+      if (thisController.signal.aborted) { hideThinking(); return; }
+      hideThinking();
+      setVoiceState('ERROR');
+      let errMsg;
+      if (err instanceof BackendResponseError && err.status === 429) {
+        errMsg = tr('mam.rateLimited', "You're sending messages a little fast — please wait a moment and try again.");
+      } else if (err && err.name === 'AbortError') {
+        errMsg = tr('mam.timeout', 'That took too long to answer. Please try again.');
+      } else if (err instanceof BackendUnavailableError) {
+        errMsg = tr('mam.offline', "I can't reach the Darwesh server right now. Please try again.");
+      } else {
+        errMsg = tr('mam.genericError', "That didn't go through. Please try again.");
+      }
+      addAssistantBubble({ message: errMsg }, { failed: true, retryText: text });
+      emitSpatial('error', { message: errMsg });
+      if (onFailed) onFailed();
+    } finally {
+      if (pendingController === thisController) {
+        setSendingState(false);
+        pendingController = null;
+      }
+    }
+  }
+
+  form.addEventListener('submit', (e) => { e.preventDefault(); sendMessage(input.value); });
+
+  // ---- Voice input (STT) -- browser SpeechRecognition only, and honest
+  // about it: if the browser/platform has no
+  // SpeechRecognition constructor, the mic button simply never appears
+  // -- never a fake "listening" state with nothing behind it. There is
+  // no dedicated Kurdish speech-recognition service wired up, so a
+  // Sorani speaker's audio is sent using the closest available
+  // recognition locale (ar-IQ) exactly like the existing map dock
+  // already does; this is a known, reported limitation, not a claim of
+  // native Kurdish STT. ---------------------------------------------------
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Every mic control on the page -- the panel's own plus the dock's --
+  // driven from ONE state. Two buttons for one microphone must never be
+  // able to disagree about whether it is open.
+  const allMicEls = [micBtn, ...micEls.filter(Boolean)];
+
+  // Surfaced to the caller so a host page can offer voice from its own
+  // control without reaching into this module's internals -- and so
+  // "unsupported" is a fact it can read rather than guess at.
+  const voiceApi = { isSupported: false, toggleHandsFree: () => {} };
+
+  // ---- the wake phrase, "MAM AI" ----------------------------------------
+  // Whether the visitor wants MAM listening for the phrase is a STANDING
+  // preference -- set once, the first time they explicitly turn voice on,
+  // and remembered in localStorage (not sessionStorage: it is meant to
+  // survive well past one tab/visit, exactly like "remember that the user
+  // wants wake mode enabled" asks for) -- not a per-turn or per-session
+  // flag. It is also what auto-resumes wake-listening on the next page
+  // (see the bottom of this block) and what a real mic failure clears, so
+  // a permanently denied/missing microphone does not keep silently
+  // retrying on every future navigation.
+  const WAKE_ENABLED_KEY = 'darwesh_mam_wake_enabled';
+  let wakeEnabled = false;
+  try { wakeEnabled = localStorage.getItem(WAKE_ENABLED_KEY) === '1'; } catch { /* storage disabled */ }
+  function persistWakeEnabled(on) {
+    wakeEnabled = on;
+    try { if (on) localStorage.setItem(WAKE_ENABLED_KEY, '1'); else localStorage.removeItem(WAKE_ENABLED_KEY); } catch { /* storage disabled */ }
+  }
+
+  // Loose, not exact-match: SpeechRecognition transcribes "MAM AI" as
+  // whatever its language model thinks it heard, and that varies by
+  // accent/engine ("mam ai", "mom eye", "mamai"...). Normalizing case,
+  // punctuation and collapsing whitespace before testing keeps the match
+  // forgiving without turning it into a fuzzy-match rabbit hole. The
+  // Arabic-script Kurdish/Arabic spelling the product asked for is
+  // matched on the ORIGINAL transcript (Arabic script has no case, and
+  // \p{L} normalization is what already strips the diacritics/punctuation
+  // that would otherwise break a literal substring match).
+  function normalizeForPhraseMatch(s) {
+    return (s || '').toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  }
+  // "MAM AI" and "MAMA" match anywhere in the transcript -- both are
+  // distinctive enough (two syllables, an unusual pairing/repetition) that
+  // a stray mid-sentence match is very unlikely. Bare "MAM" is the
+  // opposite case: a common short word ("my mam", "mam and dad") that
+  // genuinely could turn up buried in an unrelated sentence, which is
+  // exactly the "dangerously broad substring matching" this must avoid.
+  // It is therefore only accepted at the START of the utterance --
+  // real wake-word usage says the name FIRST ("MAM, three bedrooms in
+  // Erbil" / a bare "MAM") rather than trailing off a sentence about
+  // something else, so anchoring to `^` keeps the explicit, narrow
+  // pattern the product asked for without opening a substring hole.
+  const WAKE_PATTERNS = [/\bmam\s*a+\s*i\b/, /\bmamai\b/, /^mama\b/, /^mam\b/, /مام\s*ا[يی]/, /مام\s*آی/, /^مام\b/];
+  function heardWakePhrase(transcript) {
+    const norm = normalizeForPhraseMatch(transcript);
+    return WAKE_PATTERNS.some((re) => re.test(norm));
+  }
+  // A short wake word like bare "MAM" is naturally said in the SAME
+  // breath as the request that follows it ("mam show me villas in
+  // erbil") far more often than "MAM AI" is -- continuous stays off (see
+  // above), so that whole utterance arrives as one wake-mode `result` and
+  // waiting for a second one nobody is going to say would just look like
+  // MAM ignored the request. If real words follow the matched phrase in
+  // the SAME transcript, they are sent immediately as the request itself
+  // instead of being discarded once wake-mode's own listener has decided
+  // this session heard the trigger.
+  function extractWakeTrailingText(transcript) {
+    const norm = normalizeForPhraseMatch(transcript);
+    for (const re of WAKE_PATTERNS) {
+      const m = re.exec(norm);
+      if (m) {
+        const rest = norm.slice(m.index + m[0].length).trim();
+        return rest.length >= 2 ? rest : null;
+      }
+    }
+    return null;
+  }
+  const STOP_PATTERNS = [/\bstop\s*mam\b/, /\bmam\s*stop\b/, /وەستە\s*مام/, /مام\s*وەستە/, /توقف\s*مام/, /مام\s*توقف/];
+  function heardStopPhrase(transcript) {
+    const norm = normalizeForPhraseMatch(transcript);
+    return STOP_PATTERNS.some((re) => re.test(norm));
+  }
+
+  function clearVoiceIntent() {
+    // Legacy key from before wakeEnabled existed -- still cleared so a
+    // browser that carries an old value from a previous deploy doesn't
+    // resurrect stale resume logic. Not written anywhere any more.
+    try { sessionStorage.removeItem(VOICE_INTENT_KEY); } catch { /* storage disabled */ }
+  }
+
+  if (!SpeechRecognitionCtor) {
+    // No recognition in this browser. The mic controls stay hidden rather
+    // than showing a button that would pretend to listen -- and a wake
+    // preference carried from a browser that DID have it is dropped, so
+    // no page offers to resume something it cannot do.
+    allMicEls.forEach((el) => { el.hidden = true; });
+    clearVoiceIntent();
+    persistWakeEnabled(false);
+    if (onResumeHint) onResumeHint(null);
+  } else {
+    // ONE instance for the life of the page, shared by BOTH the passive
+    // wake loop and the active conversation loop -- never two recognition
+    // objects competing for one microphone. `recogMode` records which
+    // purpose the CURRENTLY RUNNING session serves, since `result` and
+    // `end` both need to know that to decide what happens next.
+    const recognition = new SpeechRecognitionCtor();
+    // `continuous` stays FALSE on purpose, for both modes. The browser's
+    // own continuous mode keeps the microphone stream open straight
+    // through MAM's spoken reply and transcribes that reply back as the
+    // next question -- the assistant ends up talking to itself. Capturing
+    // one utterance at a time and reopening the mic only when it is
+    // actually safe to (never while MAM is speaking) is what keeps the
+    // two voices apart, and is also exactly what lets ONE instance serve
+    // both a passive wake loop and an active conversation loop in turn.
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    let recogMode = null;       // 'wake' | 'conversation' | null -- purpose of the running session
+    let listening = false;      // conversation recognition currently open
+    let wakeListening = false;  // wake recognition currently open
+    // handsFree ('an active, multi-turn conversation loop is running') is
+    // declared at the outer scope, alongside setVoiceState -- see that
+    // declaration's own comment for why. Set/read here exactly as before.
+    // Set between calling recognition.start() and the browser confirming
+    // it. Without it, a fast end->restart can call start() twice before
+    // the first has taken effect, which throws InvalidStateError and (on
+    // some builds) leaves two capture sessions running.
+    let starting = false;
+    // A run of silences ends a CONVERSATION turn instead of holding the
+    // microphone open forever -- someone who walked away should not leave
+    // it capturing. It does not turn wake mode off; see
+    // naturalConversationEnd() below.
+    let silentRounds = 0;
+    const MAX_SILENT_ROUNDS = 3;
+    // Engines can deliver the same final result twice (a `result` event
+    // repeated as the session closes). Sending it twice would put the
+    // same question in the log twice and burn a backend turn on it.
+    let lastTranscript = '';
+    let lastTranscriptAt = 0;
+    const DUPLICATE_WINDOW_MS = 2500;
+    // A SECOND duplicate guard, on the FINAL text actually about to be
+    // sent -- lastTranscript above only ever sees the browser's own raw
+    // guess, but a Sorani turn may instead send KurdishTTS's transcript
+    // (see the 'end' handler below), which lastTranscript never observed.
+    // Without this, two back-to-back turns that both resolve to the same
+    // KurdishTTS transcript (a very plausible false "did I mishear that
+    // twice" case) would each burn a real backend/TTS turn.
+    let lastSentVoiceText = null;
+    let lastSentVoiceTextAt = 0;
+    // Decided inside `result` (while `recognition` may still technically
+    // be finishing its current session) and acted on inside `end` --
+    // calling recognition.start() again before the browser has actually
+    // finished the previous session throws InvalidStateError, so every
+    // transition waits for `end`, exactly like the original hands-free
+    // loop already did for its own restart decisions.
+    let pendingWakeToConversation = false;
+    let pendingWakeInlineCommand = null;   // real words heard trailing the wake word in the same utterance
+    let pendingStopCommand = false;
+    let pendingSendText = null;
+
+    function speechLangTag() {
+      const lang = currentLang();
+      return (lang === 'ar' || lang === 'ku') ? 'ar-IQ' : 'en-US';
+    }
+
+    function updateMicUI() {
+      allMicEls.forEach((el) => {
+        el.classList.toggle('mic-listening', listening);
+        el.classList.toggle('is-listening', listening);
+        el.classList.toggle('mic-handsfree', handsFree);
+        el.classList.toggle('is-handsfree', handsFree);
+        el.classList.toggle('is-wake', wakeListening || (wakeEnabled && !handsFree));
+        // Not a strict boolean once wake mode exists, but aria-pressed only
+        // takes true/false/mixed -- "engaged in any form" is what a screen
+        // reader needs to know before it reads the label below, which is
+        // where the actual distinction (off vs. waiting vs. talking) lives.
+        el.setAttribute('aria-pressed', String(handsFree || wakeEnabled));
+        el.setAttribute('aria-label', handsFree
+          ? tr('mam.handsFreeStop', 'Stop the voice conversation')
+          : (wakeEnabled
+            ? tr('mam.wakeModeOn', 'Voice on — say “MAM AI” to talk, or tap to turn it off')
+            : tr('mam.handsFreeStart', 'Start a hands-free voice conversation')));
+      });
+      if (onVoiceUi) onVoiceUi({ handsFree, listening, wakeEnabled, wakeListening, voiceState });
+    }
+
+    function voiceProblem(messageKey, fallback) {
+      // Recorded into the history log like any other reply (addAssistantBubble
+      // does that) and surfaced via the ephemeral status line -- no longer a
+      // forced-open panel: the redesign's whole point is that a routine
+      // (if unwelcome) voice hiccup does not summon a permanent chat surface.
+      addAssistantBubble({ message: tr(messageKey, fallback) }, { failed: true });
+    }
+
+    voiceApi.getVoiceState = () => voiceState;
+
+    // Gives the outer-scope placeholder (declared near setVoiceState,
+    // above -- see its own comment) its real body, now that
+    // SpeechRecognition/startListening genuinely exist. Confirmed
+    // interruption: stop whichever voice is actually playing (KurdishTTS
+    // audio and/or browser speechSynthesis -- only one is ever really
+    // active, but both are safe to stop unconditionally), cancel any
+    // obsolete in-flight TTS request, then hand straight into a fresh
+    // conversation-mode capture for the new thing the visitor is saying.
+    // startListening()'s own re-entrancy guard makes this safe even if
+    // the interrupted speak()'s own onDone callback also later fires.
+    handleBargeIn = function () {
+      stopBargeInWatch();
+      stopKurdishAudio();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      setVoiceState('INTERRUPTED');
+      startListening();
+    };
+
+    // ---- KurdishTTS STT (Sorani conversation-turn capture) ----------------
+    // The browser's own SpeechRecognition (above/below) has no real Sorani
+    // support on most engines -- see the module's opening comment. Rather
+    // than replacing the whole wake/conversation state machine, a SEPARATE
+    // MediaRecorder captures the SAME conversation-mode turn in parallel
+    // (started right after recognition.start() succeeds, in
+    // startListening() below) purely as raw audio, sent to the backend STT
+    // proxy once the turn ends (finishKurdishRecording(), called from the
+    // 'end' handler). recognition itself still drives every start/stop
+    // timing decision exactly as before -- only WHICH transcript gets used
+    // changes when Sorani KurdishTTS STT is available.
+    let kurdishMediaStream = null;
+    let kurdishRecorder = null;
+    let kurdishRecordedChunks = [];
+    let kurdishSttController = null;
+
+    async function ensureKurdishMediaStream() {
+      if (kurdishMediaStream) return kurdishMediaStream;
+      try {
+        kurdishMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        return kurdishMediaStream;
+      } catch {
+        return null; // mic denied/unavailable for this second consumer -- the browser's own recognition still works
+      }
+    }
+
+    function pickKurdishRecorderMimeType() {
+      const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+      for (const type of candidates) {
+        if (window.MediaRecorder && window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(type)) return type;
+      }
+      return '';
+    }
+
+    function startKurdishRecording() {
+      if (!soraniVoiceActive() || !kurdishVoice.sttAvailable || !navigator.mediaDevices || !window.MediaRecorder) return;
+      ensureKurdishMediaStream().then((stream) => {
+        if (!stream || recogMode !== 'conversation') return; // turn already ended before permission resolved
+        kurdishRecordedChunks = [];
+        try {
+          kurdishRecorder = new MediaRecorder(stream, { mimeType: pickKurdishRecorderMimeType() });
+        } catch {
+          kurdishRecorder = null;
+          return;
+        }
+        kurdishRecorder.addEventListener('dataavailable', (e) => { if (e.data && e.data.size) kurdishRecordedChunks.push(e.data); });
+        try { kurdishRecorder.start(); } catch { kurdishRecorder = null; }
+      });
+    }
+
+    // Aborts an in-progress recording/transcription without sending it --
+    // used when the turn is being torn down for a reason other than a
+    // normal end (voice turned off, a stop phrase heard).
+    function stopKurdishRecording() {
+      if (kurdishSttController) { kurdishSttController.abort(); kurdishSttController = null; }
+      if (kurdishRecorder && kurdishRecorder.state !== 'inactive') { try { kurdishRecorder.stop(); } catch { /* already stopped */ } }
+      kurdishRecorder = null;
+      kurdishRecordedChunks = [];
+    }
+
+    // Stops the recorder, sends what it captured to the backend STT proxy,
+    // and resolves with the transcript -- or null if there was no
+    // recording, nothing was captured, or the proxy call failed/was
+    // unavailable, so the caller falls back to the browser's own guess
+    // rather than losing the turn.
+    async function finishKurdishRecording() {
+      const recorder = kurdishRecorder;
+      kurdishRecorder = null;
+      if (!recorder) return null;
+      if (recorder.state === 'inactive') return null;
+      const stopped = new Promise((resolve) => { recorder.addEventListener('stop', resolve, { once: true }); });
+      try { recorder.stop(); } catch { return null; }
+      await stopped;
+      const chunks = kurdishRecordedChunks;
+      kurdishRecordedChunks = [];
+      if (!chunks.length) return null;
+      const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+      kurdishSttController = new AbortController();
+      const thisController = kurdishSttController;
+      const transcript = await mamVoiceStt(blob, { signal: thisController.signal });
+      if (kurdishSttController === thisController) kurdishSttController = null;
+      return transcript;
+    }
+
+    // Begins/continues one CONVERSATION turn -- the active, "capture a
+    // real question" mode. Unchanged in spirit from the original
+    // hands-free loop; only now it also hands off cleanly from wake mode.
+    function startListening() {
+      if (listening || starting) return;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopKurdishAudio();
+      recognition.lang = speechLangTag();
+      starting = true;
+      try {
+        recognition.start();
+        recogMode = 'conversation';
+        listening = true;
+        // setVoiceState('LISTENING') already drives the ephemeral
+        // "Listening…" status line -- no longer forcing the history
+        // sheet open every time voice mode starts (that was the exact
+        // "permanent chat panel" behaviour this redesign removes).
+        setVoiceState('LISTENING');
+        startKurdishRecording();
+      } catch {
+        // Already started, or the mic was refused: drop the mode rather
+        // than leaving a button that claims to be listening.
+        listening = false; starting = false; recogMode = null;
+        naturalConversationEnd();
+        return;
+      }
+      starting = false;
+      updateMicUI();
+    }
+
+    function stopListening() {
+      listening = false;
+      if (voiceState === 'LISTENING') setVoiceState('IDLE');
+      updateMicUI();
+    }
+
+    // Begins the PASSIVE wake loop -- listening only for "MAM AI", never
+    // open()-ing the panel or touching the log. Requires wakeEnabled: it
+    // is never armed on its own initiative.
+    function startWakeListening() {
+      if (listening || wakeListening || starting || handsFree || !wakeEnabled) return;
+      recognition.lang = speechLangTag();
+      starting = true;
+      try {
+        recognition.start();
+        recogMode = 'wake';
+        wakeListening = true;
+        setVoiceState('WAKE_LISTENING');
+      } catch {
+        // Most likely: the browser is refusing to start recognition
+        // without a fresh gesture on THIS document (see the resume
+        // handling below). wakeEnabled itself is left alone -- this is a
+        // "not right now" refusal, not the visitor asking for voice off.
+        wakeListening = false; starting = false; recogMode = null;
+        if (onResumeHint) onResumeHint(tr('mam.voiceResume', 'Voice mode is paused — tap the microphone to continue talking.'));
+        updateMicUI();
+        return;
+      }
+      starting = false;
+      updateMicUI();
+    }
+
+    function stopWakeListening() {
+      wakeListening = false;
+      if (voiceState === 'WAKE_LISTENING') setVoiceState('IDLE');
+      updateMicUI();
+    }
+
+    // A conversation turn ending on its OWN (silence timeout, a failed
+    // backend call) -- as opposed to the visitor explicitly asking for
+    // quiet. The standing wake preference is not touched: if it is still
+    // on, listening does not truly stop, it drops back to passively
+    // waiting for "MAM AI" so the next question needs no button press.
+    function naturalConversationEnd() {
+      handsFree = false;
+      silentRounds = 0;
+      stopListening();
+      if (wakeEnabled) startWakeListening();
+    }
+
+    // The one, total, explicit stop -- the mic/voice button while
+    // anything is on, or the "Stop MAM" / "MAM stop" voice command.
+    // Turns the WHOLE system off, including the standing wake preference,
+    // and does not restart itself.
+    function disableVoiceCompletely() {
+      persistWakeEnabled(false);
+      handsFree = false; silentRounds = 0;
+      pendingWakeToConversation = false; pendingWakeInlineCommand = null; pendingStopCommand = false; pendingSendText = null;
+      // abort(), not stop(): stop() still delivers whatever it heard, so
+      // an explicit Stop could be followed by one more question the
+      // visitor never meant to ask.
+      try { recognition.abort(); } catch { /* not running */ }
+      recogMode = null;
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopKurdishAudio();
+      stopKurdishRecording();
+      if (onResumeHint) onResumeHint(null);
+      stopListening();
+      stopWakeListening();
+      // Belt-and-suspenders: stopListening()/stopWakeListening() above
+      // already reach IDLE from LISTENING/WAKE_LISTENING, but this is the
+      // one place that must GUARANTEE MAM is never left claiming to still
+      // be listening/thinking/speaking (e.g. voice turned off mid-reply,
+      // straight out of SPEAKING). The one exception is ERROR: the
+      // 'error' handler below calls setVoiceState('ERROR') and THEN this
+      // function in the same call stack, so forcing IDLE here too would
+      // make the error transition invisible -- ERROR is left standing
+      // until the next real voice action instead (starting to listen
+      // again naturally moves off it), which is itself a settled,
+      // non-busy state, not a "stuck" one.
+      if (voiceState !== 'ERROR') setVoiceState('IDLE');
+    }
+
+    // `viaWake`: true when a heard wake phrase is what started this turn,
+    // as opposed to the visitor pressing the mic button themselves. Only
+    // the explicit-click path counts as the "enable voice once" gesture
+    // that persists the standing preference -- a wake-triggered turn
+    // requires wakeEnabled to already be true to have been listening for
+    // the phrase at all, so re-persisting it there is redundant, not
+    // wrong, but skipping it keeps the intent of the flag legible: it
+    // means "the visitor asked for this," not "a turn happened."
+    // `skipListen`: the caller already has a real command to send (a
+    // command spoken trailing the wake word in the very same utterance --
+    // see extractWakeTrailingText) and will call sendMessage itself right
+    // after this returns, so opening the mic to wait for a second
+    // utterance that was never coming would just add a pointless capture
+    // round before the one that actually matters.
+    function beginHandsFree({ viaWake = false, skipListen = false } = {}) {
+      if (handsFree) return;
+      handsFree = true;
+      silentRounds = 0;
+      if (onResumeHint) onResumeHint(null);
+      if (!viaWake) persistWakeEnabled(true);
+      // The point of the mode is a spoken conversation, so replies are
+      // read aloud while it is on even if the visitor had voice output
+      // switched off for typing. The stored preference is left alone --
+      // ending the mode restores whatever they had chosen.
+      if (!voiceOutputEnabled && window.speechSynthesis) {
+        voiceOutputEnabled = true;
+        updateVoiceToggleUI();
+      }
+      if (skipListen) return; // caller already has a real command and will send it itself
+      // A short, natural Sorani greeting on the visitor's OWN explicit
+      // gesture (never on a wake-word re-entry, and never on the silent
+      // auto-resume after navigation -- see the bottom of this block) --
+      // section 4's "first interaction" shape. Fixed text, never an LLM
+      // call: nothing here costs a chat-provider turn, and speak()'s own
+      // KurdishTTS cache (see speakWithKurdishTts) means the audio itself
+      // is only ever synthesized once per page, however many times the
+      // visitor toggles the mic.
+      if (!viaWake && soraniVoiceActive()) { speakGreeting(); return; }
+      startListening();
+    }
+
+    function speakGreeting() {
+      const greetingText = tr('mam.greeting', "Hi, I'm MAM AI. Ask me about Darwesh properties -- how can I help?");
+      addAssistantBubble({ message: greetingText });
+      recordTurn({ role: 'assistant', text: greetingText, cards: [] });
+      setVoiceState('PROCESSING'); // acknowledgement beat, mirrors the wake-handoff one above
+      speak(greetingText, { onDone: () => { if (handsFree) startListening(); } });
+    }
+
+    // ONE predictable on/off switch for the mic/voice button: anything
+    // currently on (an active conversation, the standing wake preference,
+    // or the passive loop that preference drives) turns EVERYTHING off;
+    // otherwise this both persists the standing preference (the required
+    // "explicit enable" gesture) and starts talking immediately, so the
+    // very first use does not require the visitor to already know and say
+    // the wake phrase.
+    function toggleMicButton() {
+      if (handsFree || wakeEnabled || wakeListening) { disableVoiceCompletely(); return; }
+      beginHandsFree();
+    }
+    voiceApi.isSupported = true;
+    voiceApi.toggleHandsFree = toggleMicButton;
+
+    allMicEls.forEach((el) => {
+      el.hidden = false;
+      el.addEventListener('click', toggleMicButton);
+    });
+    updateMicUI();
+
+    recognition.addEventListener('result', (e) => {
+      const transcript = (e.results[0][0].transcript || '').trim();
+      if (recogMode === 'wake') {
+        // Wake mode is a trigger, not a transcription service: anything
+        // that isn't the phrase is simply not acted on. The restart (or
+        // the hand-off into a real conversation) happens uniformly in
+        // 'end' below, once the browser has actually finished this
+        // session -- starting a new one from here would race it.
+        if (transcript && heardWakePhrase(transcript)) {
+          pendingWakeToConversation = true;
+          pendingWakeInlineCommand = extractWakeTrailingText(transcript);
+        }
+        return;
+      }
+      if (recogMode === 'conversation') {
+        if (!transcript) return;
+        if (heardStopPhrase(transcript)) { pendingStopCommand = true; return; }
+        const now = Date.now();
+        if (transcript === lastTranscript && now - lastTranscriptAt < DUPLICATE_WINDOW_MS) return;
+        lastTranscript = transcript;
+        lastTranscriptAt = now;
+        silentRounds = 0;
+        pendingSendText = transcript;
+      }
+    });
+
+    recognition.addEventListener('end', () => {
+      const mode = recogMode;
+      recogMode = null;
+      if (mode === 'wake') {
+        stopWakeListening();
+        if (pendingWakeToConversation) {
+          pendingWakeToConversation = false;
+          const inline = pendingWakeInlineCommand;
+          pendingWakeInlineCommand = null;
+          if (inline) {
+            beginHandsFree({ viaWake: true, skipListen: true });
+            setVoiceState('LISTENING');   // a brief acknowledgement beat, per the wake-flow states
+            sendMessage(inline, {
+              viaVoice: true,
+              onReplySpoken: () => { if (handsFree) startListening(); },
+              onFailed: () => { naturalConversationEnd(); }
+            });
+          } else {
+            beginHandsFree({ viaWake: true });
+          }
+        } else if (wakeEnabled && !handsFree) {
+          startWakeListening();   // heard nothing useful -- keep waiting for the phrase
+        }
+        return;
+      }
+      if (mode === 'conversation') {
+        const wasListening = listening;
+        stopListening();
+        if (pendingStopCommand) { pendingStopCommand = false; stopKurdishRecording(); disableVoiceCompletely(); return; }
+
+        // Sorani, with KurdishTTS STT available and a recording actually
+        // running: prefer ITS transcript (the browser's own recognition
+        // rarely has real Sorani support -- see the module's opening
+        // comment) over the browser's guess, falling back to that guess
+        // only if the proxy call fails or is unavailable -- never losing
+        // the turn over a KurdishTTS hiccup.
+        const browserGuess = pendingSendText;
+        pendingSendText = null;
+        const soraniSttInFlight = soraniVoiceActive() && kurdishVoice.sttAvailable && !!kurdishRecorder;
+        let textPromise;
+        if (soraniSttInFlight) {
+          textPromise = finishKurdishRecording().then((ko) => (ko && ko.trim()) || browserGuess);
+        } else {
+          stopKurdishRecording();
+          textPromise = Promise.resolve(browserGuess);
+        }
+
+        // Shared by both "nothing usable was heard" and "the exact same
+        // thing was just sent a moment ago" -- reopen the mic a few
+        // times, then give up (dropping to wake-listening if that
+        // preference is still on) rather than capturing indefinitely.
+        function retryListeningOrGiveUp() {
+          if (!handsFree || !wasListening || sending) return;
+          silentRounds += 1;
+          if (silentRounds >= MAX_SILENT_ROUNDS) { naturalConversationEnd(); return; }
+          startListening();
+        }
+
+        textPromise.then((text) => {
+          if (!text) { retryListeningOrGiveUp(); return; }
+          const now = Date.now();
+          if (text === lastSentVoiceText && now - lastSentVoiceTextAt < DUPLICATE_WINDOW_MS) {
+            retryListeningOrGiveUp();
+            return;
+          }
+          lastSentVoiceText = text;
+          lastSentVoiceTextAt = now;
+          sendMessage(text, {
+            viaVoice: true,
+            // Chained off the end of the spoken reply, so the next turn
+            // opens the mic exactly when MAM stops talking -- never while
+            // it is still speaking, which is what would feed its own
+            // voice back in.
+            onReplySpoken: () => { if (handsFree) startListening(); },
+            // A failed turn ends the conversation loop (not the standing
+            // wake preference): looping on an error would just re-ask
+            // into a broken connection.
+            onFailed: () => { naturalConversationEnd(); }
+          });
+        });
+      }
+    });
+
+    recognition.addEventListener('error', (e) => {
+      const kind = (e && e.error) || '';
+      // 'no-speech' is ordinary silence, handled by the 'end' handler
+      // that follows it -- not a failure worth telling anyone about, in
+      // either mode.
+      if (kind === 'no-speech') { return; }
+      // 'aborted' is this module's own disableVoiceCompletely() calling
+      // abort(); reporting it would mean an error bubble on every
+      // deliberate stop.
+      if (kind === 'aborted') { return; }
+      // A real failure. Disabling outright (rather than letting 'end'
+      // run its normal restart/wake-drop-back logic) matters most for
+      // 'not-allowed'/'audio-capture': retrying those would just fail
+      // again, silently, forever, on every future page.
+      pendingWakeToConversation = false; pendingWakeInlineCommand = null; pendingStopCommand = false; pendingSendText = null;
+      setVoiceState('ERROR');
+      disableVoiceCompletely();
+      if (kind === 'not-allowed' || kind === 'service-not-allowed') {
+        voiceProblem('mam.micDenied', 'Microphone access is blocked. Allow the microphone for this site in your browser settings, then try voice again.');
+      } else if (kind === 'audio-capture') {
+        voiceProblem('mam.micUnavailable', "No microphone was found. Connect one, or type your question instead.");
+      } else if (kind === 'network') {
+        voiceProblem('mam.micNetwork', "Speech recognition couldn't reach its service. Check your connection, or type your question instead.");
+      } else {
+        voiceProblem('mam.micFailed', "Voice input stopped unexpectedly. You can try again, or type your question.");
+      }
+    });
+
+    // ---- resuming wake mode after a page navigation (section 7) -------
+    // The browser destroyed the previous page's microphone stream and its
+    // SpeechRecognition object along with the document -- nothing can
+    // carry those across, and this module does not pretend otherwise.
+    // What survives is `wakeEnabled` itself (localStorage, so it outlives
+    // this one tab/session, not just this page).
+    //
+    // Unlike TTS autoplay, most browsers do NOT require a fresh user
+    // gesture to call SpeechRecognition.start() once microphone
+    // permission has already been granted for the origin -- permission is
+    // an origin-level grant, not a per-navigation one. So this actually
+    // ATTEMPTS to resume (the "strongest reliable web behaviour" this was
+    // asked to implement), rather than only ever showing a static "tap to
+    // resume" hint: startWakeListening()'s own catch above is what falls
+    // back to that hint on the (real, still-possible) browsers/situations
+    // that do refuse it.
+    clearVoiceIntent();
+    if (wakeEnabled) startWakeListening();
+  }
+
+  // ---- suggested prompts ----------------------------------------------
+  // Carried over from the map dock this panel replaced, so the same four
+  // starting points exist everywhere instead of only on the map. They are
+  // hidden as soon as there is a real conversation to look at.
+  const CHIPS = [
+    ['drm.ai.chip1', 'Houses for sale in Erbil'],
+    ['drm.ai.chip2', 'Apartments for rent in Kirkuk'],
+    ['drm.ai.chip3', 'Under 150 million'],
+    ['drm.ai.chip4', '3 bedrooms'],
+  ];
+  function renderChips() {
+    chipsEl.textContent = '';
+    if (log.querySelector('.mamcp-entry')) return;   // a conversation is under way -- ephemeral suggestions fade for good
+    CHIPS.forEach(([key, fallback]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mamcp-chip';
+      btn.textContent = tr(key, fallback);
+      btn.addEventListener('click', () => { sendMessage(btn.textContent); renderChips(); });
+      chipsEl.appendChild(btn);
+    });
+  }
+
+  document.addEventListener('darwesh:langchange', () => {
+    input.placeholder = tr('mam.inputPlaceholder', 'Ask MAM anything…');
+    renderChips();
+  });
+
+  // Whether a real conversation already exists is decided ONCE, before
+  // replaying it below adds bubbles to the log -- callers (the map's
+  // first-time greeting) need to know "was there already a conversation
+  // when this page loaded," not "is the log non-empty right now," which
+  // replaying would otherwise make trivially true.
+  const hadExistingConversation = readTranscript().length > 0;
+
+  // Redraw whatever was said before this page loaded. Runs last so every
+  // helper it uses exists and the log is still empty; a failed turn was
+  // never recorded, so nothing here can resurrect an error bubble.
+  (function replayCarriedConversation() {
+    const turns = readTranscript();
+    if (!turns.length) return;
+    turns.forEach((t) => {
+      if (!t || typeof t.text !== 'string') return;
+      if (t.role === 'user') addUserBubble(t.text);
+      else addAssistantBubble({ message: t.text, cards: Array.isArray(t.cards) ? t.cards : [] });
+    });
+  })();
+  renderChips();
+
+  // ---- entry points from elsewhere on the site --------------------------
+  // `?ai=1`/`?mam=1` force the panel open on load, and `?q=...` sends an
+  // initial message once it is -- a deep-link contract any page can use to
+  // land a visitor straight into a conversation instead of an idle one.
+  // Back/forward across same-document swaps. Bound once, here, because this
+  // panel is the only thing that ever creates one (js/mam-shell.js).
+  bindPopstate();
+
+  const bootParams = new URLSearchParams(window.location.search);
+  if (bootParams.get('ai') === '1' || bootParams.get('mam') === '1') open();
+  const initialQuery = bootParams.get('q');
+  if (initialQuery) sendMessage(initialQuery);
+
+  return {
+    open, close, toggle, sendMessage,
+    /** Present only where the browser really has speech recognition. */
+    toggleHandsFree: voiceApi.toggleHandsFree,
+    isVoiceSupported: voiceApi.isSupported,
+    /** True if a conversation was already carried in when this page loaded. */
+    hasExistingConversation: hadExistingConversation,
+    /** Speak through the SAME voice path, language selection and Kurdish
+     *  TTS as every other MAM utterance -- exposed so js/mam-presence.js
+     *  can greet without becoming a second speech implementation. */
+    speak,
+    /** Observe the authoritative voice machine. js/mam-presence.js adopts
+     *  these so the body and the conversation can never disagree about
+     *  what MAM is doing. */
+    onVoiceState(fn) { if (typeof fn === 'function') voiceStateListeners.push(fn); }
+  };
+}
+
+function ensureStylesheet() {
+  if (document.querySelector('link[data-mamcp-style]')) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = new URL('../css/mam-chat-panel.css', import.meta.url).href;
+  link.setAttribute('data-mamcp-style', '1');
+  document.head.appendChild(link);
+}

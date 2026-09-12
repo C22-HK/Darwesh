@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
+     (images/brand/darwesh-mark.png); geometry unmodified. Root-relative
+     paths so they resolve from every route regardless of the current page. -->
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/service.html"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Service Providers</title>
+<meta name="description" content="Verified service providers in your city. Send a request through Darwesh Group."/>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/service-universe.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-[76px] pb-24 md:pb-0">
+
+<div id="siteHeader" data-active="services"></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active="services"></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <!-- Header: filled from js/service-catalog.js once ?type= resolves -->
+  <section class="mb-6 max-w-2xl">
+    <a href="services.html" class="svc-back-link mb-3">
+      <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+      <span data-i18n="svc.backToUniverse">Back to Services</span>
+    </a>
+    <p id="svcEyebrow" class="rp-hero-eyebrow mb-2">—</p>
+    <h1 id="svcTitle" class="font-headline-md text-[26px] md:text-[32px] font-bold text-on-surface mb-2">—</h1>
+    <p id="svcTagline" class="font-body-md text-[14px] text-on-surface-variant"></p>
+  </section>
+
+  <!-- Unknown/missing ?type= -->
+  <div id="unknownTypeState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">help</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="svc.unknownType">This service type isn't recognized.</p>
+    <a href="services.html" class="inline-block mt-4 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="svc.backToUniverse">Back to Services</a>
+  </div>
+
+  <div id="directoryBody" class="hidden">
+    <!-- Filters, cards, loading/empty/error states all come from
+         js/provider-discovery.js -- the same module build.html and
+         renovate.html mount. One provider card exists in this codebase,
+         not three that slowly drift apart. -->
+    <div id="providerMount"></div>
+  </div>
+</main>
+
+<script type="module">
+  import { getService } from './js/service-catalog.js';
+  import { mountProviderDiscovery } from './js/provider-discovery.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+  const el = (id) => document.getElementById(id);
+
+  const type = new URLSearchParams(window.location.search).get('type');
+  const svc = getService(type);
+
+  if (!svc) {
+    el('directoryBody').classList.add('hidden');
+    el('unknownTypeState').classList.remove('hidden');
+  } else if (!svc.serviceType) {
+    // This page is the serviceProviders directory, and it only works for
+    // services whose supply IS a set of provider documents. The catalog
+    // also carries services backed by something else entirely
+    // (Installments is backed by developer `projects`, not by anyone who
+    // signs up as a provider), and those declare no serviceType.
+    //
+    // Without this branch such a service would query serviceProviders
+    // where serviceType == null -- always empty -- and render cards
+    // pointing at `null?id=...`, a dead link built from a missing
+    // profileHref. Instead, hand the visitor to the page that really does
+    // serve this service. Nothing links here for these services; this is
+    // the hand-typed-URL path, and it should land somewhere real.
+    window.location.replace(svc.directoryHref);
+  } else {
+    document.title = `Darwesh Group - ${tr(svc.titleKey, svc.title)}`;
+    el('svcEyebrow').textContent = tr('svc.directoryEyebrow', 'Darwesh Service Providers');
+    el('svcTitle').textContent = tr(svc.titleKey, svc.title);
+    el('svcTagline').textContent = tr(svc.taglineKey, svc.tagline);
+    el('directoryBody').classList.remove('hidden');
+    mountProviderDiscovery(el('providerMount'), {
+      services: [svc.key],
+      emptyTitleKey: 'svc.emptyNone',
+      emptyTitleFallback: 'No verified providers are available in this area yet.'
+    });
+  }
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/i18n.js"></script>
+</body></html>
