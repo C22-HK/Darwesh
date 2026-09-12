@@ -459,64 +459,70 @@ jobs:
         run: |
           cat > "$RUNNER_TEMP/check-endpoints.sh" <<'SH'
           #!/usr/bin/env bash
-          # usage: check-endpoints.sh <label> <base-url>
-          # Two unauthenticated GETs. Reads nothing, changes nothing.
+          # usage: check-endpoints.sh <label> <base-url> [baseline]
+          # Unauthenticated GETs only. Reads nothing, changes nothing.
+          # In "baseline" mode it measures and reports but never fails
+          # the run -- it exists to say what the CURRENT production
+          # revision already answers, so a surprising status on the
+          # canary can be told apart from one that was always there.
           set -uo pipefail
           LABEL="$1"
           BASE="$2"
+          MODE="${3:-gate}"
           status=0
 
-          # Wait for the URL to start serving before judging it.
-          #
-          # `gcloud run deploy --no-traffic --tag` returns once the
-          # revision is created; the tagged hostname it prints can still
-          # 404 at Cloud Run's edge for a few seconds while the tag
-          # becomes routable. Run #8 caught exactly that and nothing
-          # else: same host, half a second apart,
-          #   21:51:55.088  /healthz -> 404
-          #   21:51:55.518  verification route -> 401
-          # /healthz is registered unconditionally in create_app, in the
-          # same function and before the verification routes, and it
-          # returns a flat 200. An app that answers one of those cannot
-          # be missing the other -- so the 404 was the edge, not the
-          # service, on a tag URL four seconds old.
-          #
-          # This waits, it does not forgive. 200 is still the only
-          # accepted answer; if the deadline passes without one the
-          # check fails exactly as it did before. Only the answers that
-          # a not-yet-routable URL actually gives (404, 503, no
-          # connection) are retried -- any other status is a definite
-          # answer from something that IS listening, and is judged
-          # immediately rather than waited out.
+          probe() {
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE$1" || echo 000
+          }
+
+          # HEALTH. server.py registers the SAME handler at two paths,
+          # on adjacent unconditional lines:
+          #     app.add_api_route("/healthz", _health_check, ...)
+          #     app.add_api_route("/api/v1/health", _health_check, ...)
+          # Either answering 200 proves the same thing -- the app is up
+          # and serving. Asserting on /healthz alone was an arbitrary
+          # choice of mine, and runs #8 and #9 showed it is not a safe
+          # one: /healthz answered 404 thirty-one times over 91 seconds
+          # on a revision that, on the same host, answered 401 from a
+          # route registered LATER in the very same function. Whatever
+          # is special about that path, it is not "the app is down", so
+          # it must not be the sole gate. Both are probed and both are
+          # reported.
+          HZ=000; VH=000; healthy=0; attempts=0
           DEADLINE=$((SECONDS + 90))
-          attempts=0
           while : ; do
             attempts=$((attempts + 1))
-            health=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE/healthz" || echo 000)
-            [ "$health" = "200" ] && break
+            HZ=$(probe /healthz)
+            VH=$(probe /api/v1/health)
+            if [ "$HZ" = "200" ] || [ "$VH" = "200" ]; then healthy=1; break; fi
+            [ "$MODE" = "baseline" ] && break
             [ "$SECONDS" -ge "$DEADLINE" ] && break
-            case "$health" in
-              404|503|000) sleep 3 ;;
-              *) break ;;
-            esac
+            # Retry only while an answer could still be a URL that is not
+            # yet routable. Anything else came from something already
+            # listening and is judged now, not waited out.
+            t=0
+            case "$HZ" in 404|503|000) t=1 ;; esac
+            case "$VH" in 404|503|000) t=1 ;; esac
+            [ "$t" = "1" ] || break
+            sleep 3
           done
 
-          if [ "$health" = "200" ]; then
-            echo "OK   [$LABEL] /healthz -> 200 (after ${attempts} attempt(s), ${SECONDS}s)"
-            echo "- ✅ **$LABEL** \`/healthz\` -> \`200\` (${attempts} attempt(s), ${SECONDS}s)" >> "$GITHUB_STEP_SUMMARY"
+          DETAIL="/healthz=$HZ /api/v1/health=$VH, ${attempts} attempt(s), ${SECONDS}s"
+          if [ "$healthy" = "1" ]; then
+            echo "OK   [$LABEL] health 200 ($DETAIL)"
+            echo "- ✅ **$LABEL** health \`200\` ($DETAIL)" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error::[$LABEL] /healthz answered $health, expected 200 (${attempts} attempt(s) over ${SECONDS}s)"
-            echo "- ❌ **$LABEL** \`/healthz\` -> \`$health\` (expected 200, ${attempts} attempt(s) over ${SECONDS}s)" >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::[$LABEL] neither health path answered 200 ($DETAIL)"
+            echo "- ❌ **$LABEL** no health path answered 200 ($DETAIL)" >> "$GITHUB_STEP_SUMMARY"
             status=1
           fi
 
-          # The real check. Deliberately single-shot, unlike the wait
-          # above: we only get here once /healthz has answered 200, which
-          # proves the edge is routing to a running app. A 404 at that
-          # point is the app genuinely not having registered the route --
-          # the exact condition this check exists to catch -- so retrying
-          # it would risk waiting out a real failure instead of reporting
-          # it.
+          # The real check. Deliberately single-shot: by here a health
+          # path has answered 200, which proves the edge is routing to a
+          # running app, so a 404 now is the app genuinely not having
+          # registered the route -- the exact condition this check
+          # exists to catch. Retrying would risk waiting out a real
+          # failure instead of reporting it.
           #   401 -> route registered, auth active (handlers.py _UNAUTHENTICATED)
           #   404 -> build_verification_handlers returned None and server.py
           #          registered none of the thirteen verification routes --
@@ -524,8 +530,7 @@ jobs:
           #          "Verification isn't switched on yet"
           #   503 -> service not serving
           #   000 -> network/DNS/TLS failure, never treated as a pass
-          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-                   "$BASE/api/v1/access/me/verification" || echo 000)
+          code=$(probe /api/v1/access/me/verification)
           case "$code" in
             401)
               echo "OK   [$LABEL] verification route -> 401 (registered, auth active)"
@@ -553,6 +558,8 @@ jobs:
               ;;
           esac
 
+          # Baseline is a measurement, not a gate: report and move on.
+          [ "$MODE" = "baseline" ] && exit 0
           exit $status
           SH
           chmod +x "$RUNNER_TEMP/check-endpoints.sh"
@@ -662,6 +669,28 @@ jobs:
           # the record of what to roll back to, so if it is empty the
           # deploy should stop rather than proceed unrecorded.
           if-no-files-found: error
+
+      # ---- Control measurement, before anything changes ---------------
+      # Runs the identical check against the revision serving production
+      # RIGHT NOW, so the canary's answers can be compared against a
+      # known reference instead of against my assumptions. Runs #8 and
+      # #9 both had /healthz answer 404 on a canary whose verification
+      # route answered 401 -- if production answers the same way, that
+      # 404 predates this deploy and is not a regression it introduced;
+      # if production answers 200, the canary really is different and
+      # the gate below is right to stop it.
+      #
+      # Read-only: two or three unauthenticated GETs against a URL that
+      # already serves the public. It cannot fail the run (baseline
+      # mode), so it can never block a deploy on its own.
+      - name: Baseline — what production answers today
+        run: |
+          PROD_URL=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(status.url)')
+          echo "production url: $PROD_URL"
+          echo "### Baseline: \`$OLD_REVISION\` (live now, before this deploy)" >> "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/check-endpoints.sh" "production BEFORE" "$PROD_URL" baseline
 
       # ---- Deploy the canary: BUILD AND START, SERVE NOTHING ----------
       - name: Deploy canary revision with no traffic
