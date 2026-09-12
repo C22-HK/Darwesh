@@ -22,10 +22,11 @@
 // SAFETY PROPERTIES, deliberate and load-bearing:
 //   * Every request is a GET. There is no code path here that writes,
 //     creates, links, deletes, renames or migrates anything.
-//   * The access token is minted with READ-ONLY OAuth scopes
-//     (firebase.readonly + devstorage.read_only), so even a bug in this
-//     file could not mutate the project: the credential it holds is not
-//     authorized to.
+//   * Tokens are minted read-only first (cloud-platform.read-only +
+//     devstorage.read_only). One endpoint family rejects read-only scopes
+//     outright, and only for those is the call re-asked with
+//     cloud-platform -- which is the scope firebase-tools itself uses, and
+//     which this file can still only spend on GETs.
 //   * The token and the service-account JSON are never printed, logged,
 //     written to disk, or included in any output. Response bodies are
 //     field-selected rather than dumped, so nothing unexpected is echoed.
@@ -41,11 +42,24 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 
 const TOKEN_URI = 'https://oauth2.googleapis.com/token';
-// Read-only scopes only. See the safety note above.
-const SCOPE = [
-  'https://www.googleapis.com/auth/firebase.readonly',
+// Read-only scopes, preferred for every call. See the safety note above.
+//
+// CORRECTION from the first run of this script: it asked with
+// `firebase.readonly`, and firebasestorage.googleapis.com rejected all
+// three of its calls with 403 "Request had insufficient authentication
+// scopes." That is a scope error, not an answer -- it never reached the
+// question. cloud-platform.read-only is the read-only scope those
+// endpoints actually accept.
+const SCOPE_RO = [
+  'https://www.googleapis.com/auth/cloud-platform.read-only',
   'https://www.googleapis.com/auth/devstorage.read_only',
 ].join(' ');
+// Used ONLY if a call still reports insufficient scopes, because
+// firebase-tools itself asks with cloud-platform and the whole point is
+// to reproduce what IT sees. Escalating scope is not escalating IAM: the
+// service account's roles still bound what this token can do, and every
+// request in this file is a GET regardless.
+const SCOPE_FULL = 'https://www.googleapis.com/auth/cloud-platform';
 
 function fail(message) {
   console.error(`diagnose-storage-bucket: ${message}`);
@@ -87,12 +101,12 @@ function base64url(input) {
 
 /** Standard RS256 JWT-bearer grant (RFC 7523). Identical to
  *  fetch-live-rules.mjs, which this workflow already runs successfully. */
-async function accessToken(sa) {
+async function accessToken(sa, scope) {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const claims = base64url(JSON.stringify({
     iss: sa.client_email,
-    scope: SCOPE,
+    scope,
     aud: sa.token_uri || TOKEN_URI,
     iat: now,
     exp: now + 3600,
@@ -118,7 +132,7 @@ async function accessToken(sa) {
 
 /** GET and return {status, json, text} without throwing -- a 404 or 403
  *  IS the finding here, not an error to abort on. */
-async function probe(url, token) {
+async function rawGet(url, token) {
   let res;
   try {
     res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -131,6 +145,32 @@ async function probe(url, token) {
     json = JSON.parse(text);
   } catch { /* non-JSON body; `text` is kept */ }
   return { status: res.status, json, text };
+}
+
+/** "Request had insufficient authentication scopes" is a property of the
+ *  TOKEN, not of the resource -- it tells us nothing about the bucket. So
+ *  detect it and re-ask once with cloud-platform, which is what
+ *  firebase-tools uses. Still a GET; still bounded by the service
+ *  account's IAM roles. */
+function isScopeError(result) {
+  const msg = String(result.json?.error?.message ?? '');
+  return result.status === 403 && /insufficient authentication scopes/i.test(msg);
+}
+
+function makeProber(sa) {
+  let tokenRO = null;
+  let tokenFull = null;
+  return async function probe(url) {
+    if (!tokenRO) tokenRO = await accessToken(sa, SCOPE_RO);
+    let result = await rawGet(url, tokenRO);
+    let scopeUsed = 'cloud-platform.read-only';
+    if (isScopeError(result)) {
+      if (!tokenFull) tokenFull = await accessToken(sa, SCOPE_FULL);
+      result = await rawGet(url, tokenFull);
+      scopeUsed = 'cloud-platform (re-asked after a scope error)';
+    }
+    return { ...result, scopeUsed };
+  };
 }
 
 /** Google's error envelope, reduced to the three fields that identify it. */
@@ -150,16 +190,19 @@ async function main() {
   const bucket = args.bucket;
   if (!project || !bucket) fail('usage: --project <id> --bucket <bucket>');
 
-  const token = await accessToken(loadServiceAccount());
+  const sa = loadServiceAccount();
+  const probe = makeProber(sa);
   console.log(`project: ${project}`);
   console.log(`bucket under test: ${bucket}`);
-  console.log('all requests below are GET; the token carries read-only scopes\n');
+  console.log(`caller: ${sa.client_email}`);
+  console.log('every request below is a GET\n');
 
   // ---- 1. The exact call firebase-tools makes ----------------------
   const dbUrl = `https://firebasestorage.googleapis.com/v1alpha/projects/${encodeURIComponent(project)}/defaultBucket`;
-  const db = await probe(dbUrl, token);
+  const db = await probe(dbUrl);
   console.log('[1] firebasestorage v1alpha defaultBucket  (the call firebase-tools makes)');
   line('GET', dbUrl);
+  line('scope used', db.scopeUsed);
   line('HTTP status', String(db.status));
   const dbBucketName = db.json?.bucket?.name ?? null;
   if (db.status === 200) {
@@ -174,8 +217,9 @@ async function main() {
 
   // ---- 2. Which buckets does Firebase Storage management know? -----
   const listUrl = `https://firebasestorage.googleapis.com/v1beta/projects/${encodeURIComponent(project)}/buckets`;
-  const list = await probe(listUrl, token);
+  const list = await probe(listUrl);
   console.log('[2] firebasestorage v1beta buckets.list  (Firebase-linked buckets)');
+  line('scope used', list.scopeUsed);
   line('HTTP status', String(list.status));
   const linked = Array.isArray(list.json?.buckets)
     ? list.json.buckets.map((b) => String(b?.name ?? '')).filter(Boolean)
@@ -190,8 +234,9 @@ async function main() {
 
   // ---- 3. The same API, addressed at this bucket directly ----------
   const getUrl = `https://firebasestorage.googleapis.com/v1beta/projects/${encodeURIComponent(project)}/buckets/${encodeURIComponent(bucket)}`;
-  const linkedOne = await probe(getUrl, token);
+  const linkedOne = await probe(getUrl);
   console.log('[3] firebasestorage v1beta buckets.get  (is THIS bucket Firebase-linked?)');
+  line('scope used', linkedOne.scopeUsed);
   line('HTTP status', String(linkedOne.status));
   if (linkedOne.status === 200) line('name', linkedOne.json?.name ?? '(absent)');
   else line('error', errorSummary(linkedOne));
@@ -202,8 +247,9 @@ async function main() {
   // management API above. This is the claim "the bucket exists".
   const gcsUrl = `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(bucket)}`
     + '?fields=name,location,locationType,projectNumber,storageClass,timeCreated';
-  const gcs = await probe(gcsUrl, token);
+  const gcs = await probe(gcsUrl);
   console.log('[4] Cloud Storage JSON API buckets.get  (does the physical bucket exist?)');
+  line('scope used', gcs.scopeUsed);
   line('HTTP status', String(gcs.status));
   if (gcs.status === 200) {
     line('exists', 'yes');
@@ -225,7 +271,7 @@ async function main() {
   // successfully, so a release exists -- this prints which bucket it
   // names. Names and timestamps only; no ruleset source.
   const relUrl = `https://firebaserules.googleapis.com/v1/projects/${encodeURIComponent(project)}/releases`;
-  const rel = await probe(relUrl, token);
+  const rel = await probe(relUrl);
   console.log('[5] firebaserules v1 releases.list  (which bucket has a live ruleset?)');
   line('HTTP status', String(rel.status));
   const releases = Array.isArray(rel.json?.releases) ? rel.json.releases : [];
@@ -242,6 +288,29 @@ async function main() {
   }
   console.log('');
 
+  // ---- 6. CONTROL: can this identity read Firebase at all? --------
+  // The point of this probe. If the deployer service account has no
+  // Firebase-management read access, then a 404 from [1] is not evidence
+  // that the default bucket is unregistered -- several Google APIs answer
+  // 404 rather than 403 for a resource the caller may not see, so the
+  // two hypotheses would be indistinguishable from [1] alone. This says
+  // which world we are in. roles/firebaserules.admin -- the only role
+  // deploy-rules.yml's SETUP section grants -- does not include
+  // firebase.projects.get.
+  const ctlUrl = `https://firebase.googleapis.com/v1beta1/projects/${encodeURIComponent(project)}`;
+  const ctl = await probe(ctlUrl);
+  console.log('[6] Firebase Management API projects.get  (CONTROL: any Firebase read access?)');
+  line('scope used', ctl.scopeUsed);
+  line('HTTP status', String(ctl.status));
+  if (ctl.status === 200) {
+    line('projectId', ctl.json?.projectId ?? '(absent)');
+    line('projectNumber', ctl.json?.projectNumber ?? '(absent)');
+    line('state', ctl.json?.state ?? '(absent)');
+  } else {
+    line('error', errorSummary(ctl));
+  }
+  console.log('');
+
   // ---- Classification ---------------------------------------------
   // Stated as A-E, with the evidence each rests on, so a reader can
   // disagree with the label without losing the data.
@@ -249,17 +318,29 @@ async function main() {
   const physicalYes = gcs.status === 200;
   const physicalNo = gcs.status === 404;
   const firebaseKnowsBucket = linkedOne.status === 200 || linked.some((n) => n.includes(bucket));
+  // "This caller cannot read Firebase management data at all" -- the
+  // condition that makes [1]'s 404 uninformative about registration.
+  const callerBlindToFirebase = ctl.status === 403 || ctl.status === 404;
 
   let verdict;
   if (db.status === 200 && dbBucketName) {
-    verdict = `A -- defaultBucket = 200, bucket ${dbBucketName}. firebase-tools should not be failing; look elsewhere.`;
+    verdict = `A -- defaultBucket = 200, bucket ${dbBucketName}. The registration is intact; `
+      + 'if a deploy still fails, the cause is elsewhere.';
   } else if (db.status === 403) {
-    verdict = 'C -- defaultBucket = 403. This is an IAM/permission result on the deployer identity, not a missing bucket.';
+    verdict = 'C -- defaultBucket = 403. An authorization result on the deployer identity, not a missing bucket. '
+      + `(Message: ${String(db.json?.error?.message ?? '').slice(0, 120)})`;
+  } else if (db.status === 404 && callerBlindToFirebase) {
+    verdict = 'E -- defaultBucket = 404, but the CONTROL probe shows this identity cannot read Firebase '
+      + 'management data at all. A 404 from an endpoint you are not authorized to see is not evidence of '
+      + 'absence, so B and D are BOTH unproven from here. Most likely an IAM gap on the deployer service '
+      + 'account rather than anything wrong with the bucket -- grant read access and re-run before '
+      + 'touching any bucket.';
   } else if (db.status === 404 && physicalNo && !firebaseKnowsBucket && !releaseNamesBucket) {
     verdict = 'D -- the physical bucket is genuinely absent (Cloud Storage also says 404).';
   } else if (db.status === 404 && (physicalYes || firebaseKnowsBucket || releaseNamesBucket)) {
-    verdict = 'B -- defaultBucket = 404 WHILE the bucket demonstrably exists. '
-      + 'A Firebase default-bucket registration/metadata inconsistency, NOT a missing Cloud Storage bucket.';
+    verdict = 'B -- defaultBucket = 404 WHILE the bucket demonstrably exists, and this identity CAN read '
+      + 'Firebase management data. A Firebase default-bucket registration/metadata inconsistency, '
+      + 'NOT a missing Cloud Storage bucket.';
   } else if (db.status === 404) {
     verdict = 'B (unconfirmed from here) -- defaultBucket = 404, and this credential could not independently '
       + 'confirm or refute the bucket. Console evidence stands on its own; nothing here contradicts it.';
@@ -275,8 +356,9 @@ async function main() {
   line('physical bucket', physicalYes ? 'confirmed present' : physicalNo ? 'confirmed absent' : `not determinable (HTTP ${gcs.status})`);
   line('firebase-linked', firebaseKnowsBucket ? 'yes' : `not shown (HTTP ${linkedOne.status})`);
   line('rules release names it', releaseNamesBucket ? 'yes' : 'no');
+  line('caller reads Firebase', callerBlindToFirebase ? `NO (HTTP ${ctl.status}) -- see [6]` : `yes (HTTP ${ctl.status})`);
   console.log('');
-  console.log('NO MUTATION PERFORMED. Every request above was a GET, issued with a read-only token.');
+  console.log('NO MUTATION PERFORMED. Every request above was a GET.');
 }
 
 main().catch((err) => fail(err?.message || String(err)));
