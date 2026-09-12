@@ -831,7 +831,6 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
     'account.html', 'add-work.html', 'admin.html', 'agent-dashboard.html',
     'org-projects.html', 'verify.html',
     'promo.html', // agent QR check-in: live discount code + staff roster
-    'verification.html', // orphaned prototype with hardcoded mock listings
   ];
 
   // Credential entry. Nothing to index, and indexing a sign-in form only
