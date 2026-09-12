@@ -266,7 +266,13 @@ body.vjc-open { overflow: hidden; }
   gap: 12px;
 }
 
-.vjc-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.vjc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.vjc-ident { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vjc-brand {
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--vj-gold);
+}
 .vjc-title {
   margin: 0;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -295,24 +301,63 @@ body.vjc-open { overflow: hidden; }
 /* Guidance drawn over the preview; the full frame is always captured. */
 .vjc-frame { position: absolute; inset: 0; pointer-events: none; }
 .vjc-frame[hidden] { display: none; }
+/* NO DARK MASK. The previous `box-shadow: 0 0 0 100vmax rgba(0,0,0,.34)`
+   dimmed everything outside the guide, which made the preview look
+   underexposed and, worse, made it genuinely harder to tell whether the
+   real lighting was good enough. The guide is a thin outline over an
+   untouched picture: the camera image is exactly what the sensor sees. */
 .vjc-frame::after {
   content: ''; position: absolute;
-  border: 2px solid rgba(212, 175, 96, .75);
-  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .34);
+  border: 1.5px solid var(--vjc-guide, rgba(212, 175, 96, .9));
+  transition: border-color .18s ease, box-shadow .18s ease;
+  /* A hairline scrim on the outline itself, never over the picture --
+     it keeps a pale guide readable against a white card. */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(0, 0, 0, .18);
+}
+
+/* Three states, each with its own colour AND its own sentence in
+   .vjc-hint -- colour is never the only signal (WCAG 1.4.1). */
+.vjc-stage { --vjc-guide: rgba(212, 175, 96, .9); }          /* looking */
+.vjc-stage[data-vjc-state="adjust"] { --vjc-guide: rgba(232, 170, 62, .96); }  /* amber: fix one thing */
+.vjc-stage[data-vjc-state="ready"]  { --vjc-guide: rgba(106, 190, 130, .98); } /* soft green: hold steady */
+
+/* Auto-capture progress: the outline fills over the stability window.
+   Deliberately not a 3-2-1 countdown -- a bank scanner recognises a card,
+   it does not count at you. */
+.vjc-progress {
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: 0; transition: opacity .15s ease;
+}
+.vjc-progress.is-active { opacity: 1; }
+.vjc-progress::after {
+  content: ''; position: absolute; inset: -1.5px;
+  border-radius: inherit;
+  background: conic-gradient(rgba(106,190,130,.95) calc(var(--vjc-progress, 0) * 360deg), transparent 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  padding: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .vjc-frame::after, .vjc-progress { transition: none; }
 }
 /* ID-1 card is 85.6 x 54 mm; 1.586 keeps the guide true to the real card. */
-.vjc-stage-card .vjc-frame::after {
+.vjc-stage-card .vjc-frame::after,
+.vjc-stage-card .vjc-progress {
   left: 5%; right: 5%; top: 50%;
   transform: translateY(-50%);
   aspect-ratio: 1.586;
   border-radius: 12px;
 }
-.vjc-stage-face .vjc-frame::after {
+.vjc-stage-face .vjc-frame::after,
+.vjc-stage-face .vjc-progress {
   left: 18%; right: 18%; top: 50%;
   transform: translateY(-50%);
   aspect-ratio: .78;
   border-radius: 50%;
 }
+/* The progress ring is positioned by the rules above, so it needs the
+   same box model as the outline rather than filling the stage. */
+.vjc-stage-card .vjc-progress, .vjc-stage-face .vjc-progress { inset: auto; }
 
 .vjc-hint { margin: 0; text-align: center; font-size: 13px; line-height: 1.5; color: var(--vj-muted); }
 .vjc-hint[hidden] { display: none; }
@@ -383,4 +428,66 @@ body.vjc-open { overflow: hidden; }
   .vjc-shutter { width: 56px; height: 56px; }
   .vjc-shutter-ring { width: 44px; height: 44px; }
   .vjc-hint { display: none; }
+}
+
+/* ---- Secure send: real step progress ------------------------------- */
+/* Four named steps, not a percentage. Nothing on this page knows how many
+   bytes have landed, so a progress bar here would be invented -- and an
+   invented bar that crawls then jumps reads as broken. */
+.vj-sending {
+  margin: 14px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--vj-rule, rgba(198,154,75,.28));
+  border-radius: 14px;
+  background: rgba(198, 154, 75, .05);
+}
+.vj-sending[hidden] { display: none; }
+.vj-sending-title { margin: 0 0 10px; font-size: 13.5px; font-weight: 600; }
+.vj-sending-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.vj-sending-step {
+  font-size: 12.5px; line-height: 1.5;
+  padding-inline-start: 20px; position: relative;
+  color: var(--vj-muted, #8b8378);
+  transition: color .18s ease;
+}
+/* Logical inset-inline-start, so the marker sits on the correct side in
+   Kurdish and Arabic without a separate RTL rule. */
+.vj-sending-step::before {
+  content: ''; position: absolute; inset-inline-start: 4px; top: .55em;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; opacity: .45;
+}
+.vj-sending-step.is-active { color: var(--vj-gold, #c69a4b); font-weight: 600; }
+.vj-sending-step.is-active::before { opacity: 1; }
+.vj-sending-step.is-done { color: #5f9c72; }
+.vj-sending-step.is-done::before { opacity: 1; }
+.vj-sending-count {
+  margin: 10px 0 0; font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--vj-muted, #8b8378);
+}
+
+/* ---- Recoverable upload failure ------------------------------------ */
+/* The accepted photos are still in memory. This panel exists so the
+   person can see that and press Retry, instead of being sent back to
+   retake three photographs over a problem that was never theirs. */
+.vj-recover {
+  margin: 14px 0 0;
+  padding: 16px;
+  border: 1px solid rgba(198, 92, 78, .34);
+  border-radius: 14px;
+  background: rgba(198, 92, 78, .06);
+}
+.vj-recover[hidden] { display: none; }
+.vj-recover-title { margin: 0 0 6px; font-size: 14px; font-weight: 700; }
+.vj-recover-body { margin: 0 0 8px; font-size: 12.5px; line-height: 1.6; }
+.vj-recover-kept {
+  margin: 0 0 12px; font-size: 12.5px; font-weight: 600;
+  color: #5f9c72;
+}
+
+/* Every control the camera and these panels expose stays a real touch
+   target at phone size. */
+@media (max-width: 480px) {
+  .vjc-close, .vjc-btn, .vj-recover .vj-btn { min-height: 44px; min-width: 44px; }
 }

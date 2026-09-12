@@ -158,6 +158,28 @@ violation reporting. -->
 
       <div id="vjFaceNotice"></div>
 
+      <!-- Real step progress. Not a percentage: nothing here knows how
+           many bytes have landed, and inventing a number that crawls and
+           then jumps is worse than naming the step honestly. -->
+      <div class="vj-sending" id="vjSending" hidden aria-live="polite">
+        <p class="vj-sending-title" data-i18n="verify.sendingTitle">Sending your documents securely</p>
+        <ol class="vj-sending-steps" id="vjSendingSteps"></ol>
+        <p class="vj-sending-count" id="vjSendingCount"></p>
+      </div>
+
+      <!-- Upload failure. The accepted photos are still in memory and
+           stay there: a server or network problem must never cost
+           somebody three retakes. -->
+      <div class="vj-recover" id="vjRecover" hidden>
+        <p class="vj-recover-title" data-i18n="verify.failTitle">We couldn't send your documents yet.</p>
+        <p class="vj-recover-body" id="vjRecoverWhy"></p>
+        <p class="vj-recover-kept" data-i18n="verify.failKept">Your photos are still here.</p>
+        <div class="vj-actions">
+          <button type="button" class="vj-btn vj-btn-primary" id="vjRetrySend" data-i18n="verify.retrySend">Retry</button>
+          <button type="button" class="vj-btn" id="vjReviewPhotos" data-i18n="verify.reviewPhotos">Review photos</button>
+        </div>
+      </div>
+
       <div class="vj-actions">
         <button type="button" class="vj-btn vj-btn-ghost" data-vj-back="id" data-i18n="verify.back">Back</button>
         <button type="button" class="vj-btn vj-btn-primary" id="vjCaptureBtn" data-vj-camera="selfie" data-i18n="verify.faceCapture">Take photo</button>
@@ -198,6 +220,7 @@ violation reporting. -->
     uploadEvidence,
     submitCase,
     validateFile,
+    storageErrorCode,
     rewardBadgeText,
   } from './js/verify-journey.js';
   import { openCamera, cameraSupported, prepareFile } from './js/verify-camera.js';
@@ -255,10 +278,10 @@ violation reporting. -->
   // live camera or the fallback file input, they land in picked[kind] as a
   // File and the submit logic below never learns the difference.
   const CAMERA = {
-    id_front: { facing: 'environment', guide: 'card', filename: 'id-front.jpg', noticeId: 'vjIdNotice',
+    id_front: { facing: 'environment', guide: 'card', detect: true, filename: 'id-front.jpg', noticeId: 'vjIdNotice',
       titleKey: 'verify.camIdFrontTitle', titleEn: 'Front of your ID',
       hintKey: 'verify.camCardHint', hintEn: 'Fill the frame with your ID. Keep all four corners inside it.' },
-    id_back: { facing: 'environment', guide: 'card', filename: 'id-back.jpg', noticeId: 'vjIdNotice',
+    id_back: { facing: 'environment', guide: 'card', detect: true, filename: 'id-back.jpg', noticeId: 'vjIdNotice',
       titleKey: 'verify.camIdBackTitle', titleEn: 'Back of your ID',
       hintKey: 'verify.camCardHint', hintEn: 'Fill the frame with your ID. Keep all four corners inside it.' },
     selfie: { facing: 'user', guide: 'face', filename: 'selfie.jpg', noticeId: 'vjFaceNotice',
@@ -268,7 +291,19 @@ violation reporting. -->
 
   function cameraLabels(config) {
     return {
+      brand: tr('verify.brand', 'Darwesh Group'),
       title: tr(config.titleKey, config.titleEn),
+      // Smart-guide states. Exactly one of these is shown at a time, and
+      // each is the TEXT half of a state whose other half is the guide
+      // colour -- neither is ever shown alone.
+      gPlace: tr('verify.gPlace', 'Place your ID inside the frame.'),
+      gCloser: tr('verify.gCloser', 'Move closer.'),
+      gFarther: tr('verify.gFarther', 'Move slightly farther away.'),
+      gCorners: tr('verify.gCorners', 'Keep all four corners visible.'),
+      gStraighter: tr('verify.gStraighter', 'Hold the card straighter.'),
+      gLight: tr('verify.gLight', 'More light needed.'),
+      gStill: tr('verify.gStill', 'Hold still.'),
+      holdSteady: tr('verify.gHoldSteady', 'Hold steady'),
       hint: tr(config.hintKey, config.hintEn),
       reviewHint: tr('verify.camReviewHint', 'Readable and in focus? Keep it, or take another.'),
       capture: tr('verify.faceCapture', 'Take photo'),
@@ -306,6 +341,9 @@ violation reporting. -->
     const file = await openCamera({
       facing: config.facing,
       guide: config.guide,
+      // Rectangular document detection only where there IS a document.
+      // A face is not a card and must never be judged as one.
+      detect: config.detect === true,
       filename: config.filename,
       labels: cameraLabels(config),
     });
@@ -419,24 +457,97 @@ violation reporting. -->
     return `<ul>${names.map((n) => `<li>${escapeText(n)}</li>`).join('')}</ul>`;
   }
 
-  $('vjSubmitBtn').addEventListener('click', async () => {
+  /**
+   * Upload failures, each said calmly and accurately.
+   *
+   * The rule this exists to keep: never blame the person's photo for a
+   * problem that is ours. "Your photo is invalid" for what is really a
+   * Storage permission refusal sends someone off to retake a perfectly
+   * good ID three times, and they still cannot get through.
+   */
+  function uploadFailureMessage(code) {
+    switch (code) {
+      case 'storage/unauthorized':
+      case 'storage/unauthenticated':
+        return tr('verify.failUnauthorized',
+          'Verification uploads are not available right now. Your photos are still here — please try again.');
+      case 'storage/retry-limit-exceeded':
+        return tr('verify.failNetwork',
+          'The connection dropped while sending. Your photos are still here — please try again.');
+      case 'storage/quota-exceeded':
+        return tr('verify.failQuota',
+          "We couldn't store your documents right now. Your photos are still here — please try again shortly.");
+      case 'storage/canceled':
+        return tr('verify.failCanceled', 'Sending was interrupted. Your photos are still here.');
+      default:
+        return tr('verify.failGeneric',
+          "We couldn't send your documents just now. Your photos are still here — please try again.");
+    }
+  }
+
+  const SEND_STEPS = [
+    ['prepare', 'verify.sendPrepare', 'Preparing files'],
+    ['id', 'verify.sendId', 'Uploading ID'],
+    ['face', 'verify.sendFace', 'Uploading face photo'],
+    ['submit', 'verify.sendSubmit', 'Submitting for review'],
+  ];
+
+  function renderSending(activeKey, done, total) {
+    const host = $('vjSendingSteps');
+    const activeIndex = SEND_STEPS.findIndex(([k]) => k === activeKey);
+    host.innerHTML = SEND_STEPS.map(([key, k, en], i) => {
+      const state = i < activeIndex ? 'done' : i === activeIndex ? 'active' : 'todo';
+      return `<li class="vj-sending-step is-${state}">${escapeText(tr(k, en))}</li>`;
+    }).join('');
+    // Only shown when there is more than one file, and always the real
+    // count of files actually finished.
+    $('vjSendingCount').textContent = total > 1 ? `${done} / ${total}` : '';
+  }
+
+  function showSending(on) {
+    $('vjSending').hidden = !on;
+    if (on) $('vjRecover').hidden = true;
+  }
+
+  /** Everything the person has accepted, in submission order. Held in
+   *  memory and NEVER cleared by a failure -- retry reuses these exact
+   *  files, so a network or server problem costs no retakes. */
+  function acceptedEvidence() {
+    const kinds = [['id_front', picked.id_front], ['selfie', picked.selfie]];
+    if (picked.id_back) kinds.splice(1, 0, ['id_back', picked.id_back]);
+    return kinds;
+  }
+
+  async function sendForReview() {
     if (!currentUser || !picked.selfie || !picked.id_front) return;
     setSubmitting(true);
     notice('vjFaceNotice', null, '');
+    $('vjRecover').hidden = true;
+    showSending(true);
 
+    const kinds = acceptedEvidence();
     let evidence;
     try {
-      const kinds = [['id_front', picked.id_front], ['selfie', picked.selfie]];
-      if (picked.id_back) kinds.splice(1, 0, ['id_back', picked.id_back]);
+      renderSending('prepare', 0, kinds.length);
       evidence = [];
-      for (const [kind, file] of kinds) {
+      for (let i = 0; i < kinds.length; i++) {
+        const [kind, file] = kinds[i];
+        renderSending(kind === 'selfie' ? 'face' : 'id', i, kinds.length);
         // Sequential, not Promise.all: three simultaneous multi-megabyte
         // uploads on a phone connection is how a submission half-fails.
         evidence.push(await uploadEvidence(storage, storageApi, currentUser.uid, kind, file));
       }
+      renderSending('submit', kinds.length, kinds.length);
     } catch (err) {
-      console.error('[verify] upload failed', err && err.code);
-      notice('vjFaceNotice', 'err', escapeText(tr('verify.uploadFailed', 'That image could not be uploaded. Please try again.')));
+      // The CODE only. Never the message, the object path, a download URL
+      // or anything from the image itself -- a code names what the
+      // service refused and nothing about who or what was in the photo.
+      const code = storageErrorCode(err);
+      console.error('[verify] evidence upload refused', code || '(no storage code)');
+      showSending(false);
+      $('vjRecoverWhy').textContent = uploadFailureMessage(code);
+      $('vjRecover').hidden = false;
+      // picked.* is deliberately untouched.
       setSubmitting(false);
       return;
     }
@@ -447,6 +558,7 @@ violation reporting. -->
 
     const result = await submitCase(currentUser, evidence, null);
     setSubmitting(false);
+    showSending(false);
 
     if (result.ok) {
       showDone('submitted', issues);
@@ -467,6 +579,14 @@ violation reporting. -->
     notice('vjFaceNotice', 'err', escapeText(localizeBackendError(
       result.error, tr, 'verify.errGeneric',
       "We couldn't finish that just now. Please try again.")));
+  }
+
+  $('vjSubmitBtn').addEventListener('click', sendForReview);
+  // Retry reuses the files already in memory. No recapture, no reselect.
+  $('vjRetrySend').addEventListener('click', sendForReview);
+  $('vjReviewPhotos').addEventListener('click', () => {
+    $('vjRecover').hidden = true;
+    goto('id');
   });
 
   function showDone(mode, issues) {

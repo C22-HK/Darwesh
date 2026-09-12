@@ -165,6 +165,41 @@ export async function validateFile(file) {
 }
 
 /**
+ * The Storage failure codes this flow can actually produce, kept as a
+ * frozen list so the UI can map each to calm, accurate copy instead of
+ * showing one generic sentence for six different problems.
+ *
+ * SAFE TO LOG. A code is a category, not content: it names what the
+ * service refused, never what was in the photo, who the person is, or
+ * where the object lives. Nothing else from the error goes anywhere --
+ * not the message, not the object path, not a download URL.
+ */
+export const STORAGE_ERROR_CODES = Object.freeze([
+  'storage/unauthorized',
+  'storage/unauthenticated',
+  'storage/retry-limit-exceeded',
+  'storage/quota-exceeded',
+  'storage/canceled',
+  'storage/invalid-checksum',
+  'storage/server-file-wrong-size',
+  'storage/unknown',
+]);
+
+/**
+ * Extracts a safe, known error code, or '' when there isn't one.
+ *
+ * App Check failures surface as storage/unauthorized with an App Check
+ * detail in the message; the code is what matters and the message is
+ * deliberately not read, so nothing from it can reach a log or a screen.
+ */
+export function storageErrorCode(err) {
+  const code = err && typeof err.code === 'string' ? err.code : '';
+  if (STORAGE_ERROR_CODES.includes(code)) return code;
+  // An unknown storage/* code is still safe to surface as a category.
+  return code.startsWith('storage/') ? 'storage/unknown' : '';
+}
+
+/**
  * Uploads one image to the signed-in user's own private evidence prefix
  * and returns the METADATA the backend will be told about it.
  *

@@ -27,6 +27,19 @@
 // camera could not be used. The caller handles null by showing the upload
 // fallback -- no camera must never mean no verification.
 
+import { createDocumentDetector, REASONS } from './verify-doc-detect.js';
+
+// How long the card must stay continuously capture-ready before the
+// camera takes the photo itself. Long enough that a hand passing through
+// a good position does not trigger it, short enough that someone holding
+// a card steady is not left waiting and wondering.
+const AUTO_CAPTURE_MS = 2500;
+
+// Detection cadence. Every frame is wasted work -- a person cannot move a
+// card meaningfully in 16ms -- and on a mid-range phone it competes with
+// the preview itself for the main thread.
+const DETECT_INTERVAL_MS = 120;
+
 const JPEG_QUALITY = 0.92;
 
 // Capture at sensor resolution and a 48 MP phone hands back a frame that
@@ -155,6 +168,29 @@ export function cameraSupported() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 }
 
+/**
+ * Turns a detector verdict into the ONE sentence to show.
+ *
+ * Exactly one, never a list: someone handed six corrections at once fixes
+ * none of them. The detector already ranked them, so this is a plain
+ * lookup with no logic of its own -- and every state has TEXT, because
+ * the guide colour alone is not a message a colour-blind person, or a
+ * screen reader, can read.
+ */
+function guidanceFor(reason, labels) {
+  switch (reason) {
+    case REASONS.CLIPPED: return labels.gCorners;
+    case REASONS.TOO_FAR: return labels.gCloser;
+    case REASONS.TOO_CLOSE: return labels.gFarther;
+    case REASONS.NOT_STRAIGHT: return labels.gStraighter;
+    case REASONS.TOO_DARK: return labels.gLight;
+    case REASONS.BLURRY: return labels.gStill;
+    case REASONS.MOVING: return labels.gStill;
+    case REASONS.READY: return labels.holdSteady;
+    default: return labels.gPlace;
+  }
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -173,7 +209,10 @@ function buildModal(labels, guide) {
   const sheet = el('div', 'vjc-sheet');
 
   const head = el('div', 'vjc-head');
-  head.append(el('h2', 'vjc-title', labels.title));
+  const ident = el('div', 'vjc-ident');
+  ident.append(el('span', 'vjc-brand', labels.brand));
+  ident.append(el('h2', 'vjc-title', labels.title));
+  head.append(ident);
   const close = el('button', 'vjc-close');
   close.type = 'button';
   close.setAttribute('aria-label', labels.close);
@@ -199,7 +238,19 @@ function buildModal(labels, guide) {
   // in the photo rather than silently cut in half.
   const frame = el('div', 'vjc-frame');
   frame.setAttribute('aria-hidden', 'true');
+  // The auto-capture progress ring. An outline that fills over the
+  // stability window, not a 3-2-1 countdown: the brief asks for a bank
+  // scanner recognising a card, and a scanner does not count at you.
+  const progress = el('div', 'vjc-progress');
+  progress.setAttribute('aria-hidden', 'true');
+  frame.append(progress);
+
   const hint = el('p', 'vjc-hint', labels.hint);
+  // The guidance text is the assistive channel too: colour alone never
+  // carries a state (WCAG 1.4.1), and a screen reader gets the same one
+  // sentence a sighted person reads.
+  hint.setAttribute('role', 'status');
+  hint.setAttribute('aria-live', 'polite');
 
   stage.append(video, shot, frame);
 
@@ -228,7 +279,7 @@ function buildModal(labels, guide) {
 
   sheet.append(head, stage, hint, status, actions, fallback);
   root.append(sheet);
-  return { root, sheet, video, shot, frame, hint, status, shutter, retake, confirm, close, fallback };
+  return { root, sheet, stage, video, shot, frame, progress, hint, status, shutter, retake, confirm, close, fallback };
 }
 
 /**
@@ -241,7 +292,7 @@ function buildModal(labels, guide) {
  * @param {string} options.filename              name for the produced File
  * @returns {Promise<File|null>}
  */
-export function openCamera({ facing = 'environment', guide = 'card', labels, filename = 'capture.jpg' }) {
+export function openCamera({ facing = 'environment', guide = 'card', labels, filename = 'capture.jpg', detect = false }) {
   return new Promise((resolve) => {
     const ui = buildModal(labels, guide);
     let stream = null;
@@ -254,7 +305,83 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
     // the right way round, and text in shot must stay readable.
     if (facing === 'user') ui.video.classList.add('is-mirrored');
 
+    // --- Smart document detection -------------------------------------
+    // Entirely local. Frames are read into a canvas, reduced to a verdict,
+    // and dropped; nothing here is uploaded, logged or measured remotely.
+    // A ready verdict means CAPTURE-READY, never "this ID is genuine".
+    const detector = detect ? createDocumentDetector() : null;
+    let detectTimer = 0;
+    let readySince = 0;
+
+    // The guide rectangle in normalised coordinates, matching what
+    // css/verify.css draws, so the detector judges the card against the
+    // outline the person can actually see.
+    function guideBox() {
+      const stage = ui.stage.getBoundingClientRect();
+      const box = ui.frame.getBoundingClientRect();
+      if (!stage.width || !stage.height) return { x: 0.05, y: 0.2, w: 0.9, h: 0.6 };
+      return {
+        x: (box.left - stage.left) / stage.width,
+        y: (box.top - stage.top) / stage.height,
+        w: box.width / stage.width,
+        h: box.height / stage.height,
+      };
+    }
+
+    function setGuideState(state, message) {
+      ui.stage.dataset.vjcState = state;
+      if (message != null && ui.hint.textContent !== message) ui.hint.textContent = message;
+    }
+
+    function setProgress(fraction) {
+      ui.progress.style.setProperty('--vjc-progress', String(Math.max(0, Math.min(1, fraction))));
+      ui.progress.classList.toggle('is-active', fraction > 0);
+    }
+
+    function stopDetecting() {
+      if (detectTimer) { clearInterval(detectTimer); detectTimer = 0; }
+      readySince = 0;
+      setProgress(0);
+    }
+
+    function startDetecting() {
+      if (!detector || detectTimer) return;
+      detectTimer = setInterval(() => {
+        if (settled || capturing || !ui.video.videoWidth || ui.video.hidden) return;
+        let verdict;
+        try {
+          verdict = detector.analyse(ui.video, guideBox());
+        } catch {
+          // Detection is an ASSIST. If it throws for any reason, stop it
+          // and leave the person with a working manual shutter rather
+          // than a camera that has died around a helper feature.
+          stopDetecting();
+          setGuideState('idle', labels.hint);
+          return;
+        }
+
+        if (verdict.ready) {
+          if (!readySince) readySince = Date.now();
+          const held = Date.now() - readySince;
+          setGuideState('ready', labels.holdSteady);
+          setProgress(held / AUTO_CAPTURE_MS);
+          if (held >= AUTO_CAPTURE_MS) {
+            stopDetecting();
+            capture();               // the bank scanner "recognised the card"
+          }
+          return;
+        }
+
+        // Any drop in quality resets the timer immediately: the 2.5s must
+        // be 2.5s of CONTINUOUS readiness, not 2.5s of mostly-ready.
+        readySince = 0;
+        setProgress(0);
+        setGuideState(verdict.found ? 'adjust' : 'idle', guidanceFor(verdict.reason, labels));
+      }, DETECT_INTERVAL_MS);
+    }
+
     function cleanup() {
+      stopDetecting();
       if (stream) {
         stream.getTracks().forEach((t) => t.stop());
         stream = null;
@@ -301,12 +428,16 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
     // replaces the photo the person is already looking at.
     let capturing = false;
 
-    ui.shutter.addEventListener('click', async () => {
+    // ONE capture path for both the shutter and auto-capture. They must
+    // not drift: an auto-captured photo is the same photo, reviewed the
+    // same way, and nothing downstream can tell which button pressed it.
+    async function capture() {
       if (capturing) return;
       const v = ui.video;
       if (!v.videoWidth || !v.videoHeight) return;  // stream not ready: ignore, don't capture black
       capturing = true;
       ui.shutter.disabled = true;
+      stopDetecting();
 
       let blob = null;
       try {
@@ -337,7 +468,13 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       ui.confirm.onclick = () => {
         finish(new File([blob], filename, { type: 'image/jpeg' }));
       };
-    });
+    }
+
+    // Manual capture always exists. Auto-capture is an assist for the
+    // common case; an unusual card, an awkward light or a detector that
+    // simply cannot see it must never leave someone unable to take a
+    // photo they can plainly see is fine.
+    ui.shutter.addEventListener('click', capture);
 
     ui.retake.addEventListener('click', () => {
       ui.shot.hidden = true;
@@ -348,6 +485,9 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       ui.shutter.hidden = false;
       ui.hint.textContent = labels.hint;
       if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = null; }
+      if (detector) detector.reset();
+      setGuideState('idle', labels.hint);
+      startDetecting();
     });
 
     document.body.classList.add('vjc-open');
@@ -380,7 +520,7 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       const watchdog = setTimeout(() => {
         if (!settled && (!ui.video.videoWidth || !ui.video.videoHeight)) fail(labels.errNoPreview);
       }, 4000);
-      const clear = () => clearTimeout(watchdog);
+      const clear = () => { clearTimeout(watchdog); startDetecting(); };
       ui.video.addEventListener('loadeddata', clear, { once: true });
       ui.video.addEventListener('playing', clear, { once: true });
     }).catch((err) => {
