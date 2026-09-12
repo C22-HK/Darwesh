@@ -136,6 +136,77 @@ jobs:
             echo "::warning::Deploying the backend from '${{ github.ref_name }}', not the production branch."
           fi
 
+      # ---- Preflight: is there a usable credential at all? -----------
+      # Run #1 spent its whole 28s passing the test gates and then died
+      # on google-github-actions/auth with "the GitHub Action workflow
+      # must specify exactly one of workload_identity_provider or
+      # credentials_json" -- which is that action's way of saying the
+      # secret it was handed was EMPTY. That message names neither the
+      # secret nor the likely cause, so this step says both, and says it
+      # in two seconds instead of thirty.
+      #
+      # It also checks the SHAPE of the credential, because an empty
+      # secret and a wrong-shaped one (the key id pasted instead of the
+      # key file, a truncated paste, a base64 blob, the JSON wrapped in
+      # quotes) fail later with equally unhelpful errors.
+      #
+      # Values are never printed -- only yes/no facts about structure.
+      # GitHub masks an exact secret match in logs, but NOT a value
+      # derived from it, so a field echoed out of the parsed JSON would
+      # leak for real.
+      - name: Preflight the deploy credential
+        env:
+          GCP_DEPLOY_KEY: ${{ secrets.GCP_DEPLOY_KEY }}
+        run: |
+          if [ -z "${GCP_DEPLOY_KEY:-}" ]; then
+            echo "::error::Secret GCP_DEPLOY_KEY is empty or is not visible to this job. Check, in order: (1) the name is exactly GCP_DEPLOY_KEY, case-sensitive; (2) it is under Settings -> Secrets and variables -> Actions -> *Secrets*, not *Variables*; (3) if it was added as an ENVIRONMENT secret, it is on the 'production' environment -- this job targets that one, and a secret scoped to any other environment is invisible here; (4) if it is an organization secret, this repository is in its selected-repositories list. Control: FIREBASE_SERVICE_ACCOUNT is a repository secret and reaches this same 'production' environment in deploy-rules.yml, so a repository-level secret with the right name does work."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          raw = os.environ.get("GCP_DEPLOY_KEY", "")
+          problems = []
+
+          # Structure only. Nothing below ever prints a value or any part
+          # of one -- see this step's comment.
+          if not raw.lstrip().startswith("{"):
+              problems.append(
+                  "does not start with '{' -- it is not a service-account JSON key file. "
+                  "Paste the whole downloaded .json, not the key id, not a base64 blob, "
+                  "and not the file wrapped in extra quotes."
+              )
+          else:
+              try:
+                  key = json.loads(raw)
+              except json.JSONDecodeError as exc:
+                  problems.append(f"is not valid JSON ({exc.msg} at line {exc.lineno}) -- likely a truncated paste")
+                  key = None
+              if isinstance(key, dict):
+                  if key.get("type") != "service_account":
+                      problems.append('has no "type": "service_account" -- wrong kind of credential file')
+                  for field in ("client_email", "private_key", "project_id"):
+                      if not key.get(field):
+                          problems.append(f'is missing "{field}"')
+                  pk = key.get("private_key") or ""
+                  if pk and "BEGIN PRIVATE KEY" not in pk:
+                      problems.append('"private_key" does not contain a PEM block')
+                  # Non-secret, and a mismatch here is a real footgun: the
+                  # key would authenticate fine and then be denied on every
+                  # call. Reported without echoing what it actually says.
+                  if key.get("project_id") and key.get("project_id") != os.environ.get("GCP_PROJECT"):
+                      problems.append(
+                          f'"project_id" is not {os.environ.get("GCP_PROJECT")!r} -- the key belongs to a different project'
+                      )
+
+          if problems:
+              print("::error::GCP_DEPLOY_KEY " + "; ".join(problems))
+              sys.exit(1)
+          print("credential present and shaped like a service-account key for", os.environ.get("GCP_PROJECT"))
+          PY
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -487,14 +558,27 @@ jobs:
       - name: Summary
         if: always()
         run: |
+          # OLD_REVISION is only set once the capture step has run, which
+          # is after auth. So an empty value here means the run died
+          # before it could have touched Cloud Run at all -- and printing
+          # a rollback command in that case is worse than printing
+          # nothing: run #1 ended with "--to-revisions
+          # <previous-revision>=100" in its summary, which reads as though
+          # a deploy had happened and needed undoing. Say what is true
+          # instead.
           {
             echo
             echo "---"
-            echo "Rollback at any time:"
-            echo '```bash'
-            echo "gcloud run services update-traffic $SERVICE \\"
-            echo "  --region $REGION \\"
-            echo "  --project $GCP_PROJECT \\"
-            echo "  --to-revisions ${OLD_REVISION:-<previous-revision>}=100"
-            echo '```'
+            if [ -n "${OLD_REVISION:-}" ]; then
+              echo "Rollback at any time:"
+              echo '```bash'
+              echo "gcloud run services update-traffic $SERVICE \\"
+              echo "  --region $REGION \\"
+              echo "  --project $GCP_PROJECT \\"
+              echo "  --to-revisions $OLD_REVISION=100"
+              echo '```'
+            else
+              echo "This run stopped before reaching Cloud Run, so **nothing was deployed and no"
+              echo "traffic moved**. The live service is exactly as it was; there is nothing to roll back."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
