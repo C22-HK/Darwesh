@@ -1,31 +1,57 @@
 name: Deploy Backend
 
-# Builds and deploys backend/ to Cloud Run, on demand.
+# Builds backend/ and rolls it out to Cloud Run as a CANARY, on demand.
 #
 # MANUAL ONLY, DELIBERATELY -- same posture as deploy-rules.yml. There is
 # no push trigger. This service holds the OTP secret, signs verification
 # evidence URLs and is the only thing that can mark an identity approved;
 # shipping it is a decision someone makes, not a side effect of merging.
 #
-# WHAT THIS PROTECTS AGAINST
-# --------------------------
-#   1. Shipping code that fails its own tests -- the ruff + pytest gate
-#      below runs first, and a red suite never reaches production.
-#   2. Losing the environment. `gcloud run deploy --set-env-vars` REPLACES
-#      the whole env map; it would silently drop OTP_HMAC_SECRET,
-#      RESEND_API_KEY and ALLOWED_ORIGINS, taking signup OTP, password
-#      reset and CORS down with it. This workflow uses --update-env-vars
-#      (merge) and sets exactly one variable. Every secret stays in Cloud
-#      Run / Secret Manager and is never read, printed or written here.
-#   3. Not knowing how to get back. Before deploying it records the
-#      currently-serving revision and the rollback command, as an
-#      artifact and in the run summary.
-#   4. A deploy that "succeeds" while the feature is still dead. The
-#      verification routes are registered only if the Firebase credential
-#      gate passes (app/main.py build_verification_handlers -> None, None
-#      and server.py skips all thirteen routes). The post-deploy step
-#      below asserts they answer 401 rather than 404, which is the exact
-#      difference between working and silently absent.
+# TRAFFIC IS NEVER MOVED BY THE DEPLOY ITSELF
+# -------------------------------------------
+# `gcloud run deploy` on its own promotes the new revision to 100% the
+# moment it is ready -- production traffic moves onto code that has not
+# been checked even once. This workflow splits that into two operations
+# with a gate between them:
+#
+#   1. deploy --no-traffic --tag verify-canary
+#        The new revision is built and started, reachable ONLY at its own
+#        tagged URL. The previously-serving revision keeps 100% of real
+#        traffic. Nothing a user touches has changed yet.
+#   2. the canary checks run against the TAGGED URL
+#        /healthz must be 200, and the verification route must answer 401
+#        (registered) rather than 404 (silently absent). Either failing
+#        stops the run with production untouched.
+#   3. update-traffic --to-revisions <new>=100
+#        An explicit, separate step that only runs if step 2 passed.
+#   4. the same checks run again on the real production URL.
+#
+# So a revision that boots broken -- or boots fine but registers none of
+# the verification routes because the credential gate failed -- never
+# serves a single user request.
+#
+# WHAT ELSE THIS PROTECTS AGAINST
+# -------------------------------
+#   * Shipping code that fails its own tests -- the ruff + pytest gate
+#     runs before anything reaches Google.
+#   * Losing the environment. `gcloud run deploy --set-env-vars` REPLACES
+#     the whole env map; it would silently drop OTP_HMAC_SECRET,
+#     RESEND_API_KEY and ALLOWED_ORIGINS, taking signup OTP, password
+#     reset and CORS down with it. This uses --update-env-vars (merge)
+#     and names exactly two variables. Every secret stays in Cloud Run /
+#     Secret Manager and is never read, printed or written here.
+#   * Not knowing how to get back. Before deploying it records the
+#     revision actually serving traffic and prints the exact rollback
+#     command, into both the run summary and a 90-day artifact.
+#
+# THE ROLLBACK TARGET COMES FROM THE TRAFFIC BLOCK, NOT latestReady
+# -----------------------------------------------------------------
+# `status.latestReadyRevisionName` is "the newest revision that booted",
+# NOT "the revision serving traffic" -- and with --no-traffic those are
+# deliberately different: the canary becomes latestReady while serving
+# 0%. Reading the rollback target from latestReady would therefore name
+# the canary itself, i.e. roll back to the thing you are rolling back
+# from. It is read from `status.traffic` (highest percent) instead.
 #
 # WHY THE ROLLBACK ARTIFACT IS REDACTED
 # -------------------------------------
@@ -88,13 +114,14 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy backend to Cloud Run
+    name: Deploy backend to Cloud Run (canary)
     runs-on: ubuntu-latest
     environment: production
     env:
       GCP_PROJECT: darwesh-group
       SERVICE: darwesh-backend
       REGION: me-central1
+      CANARY_TAG: verify-canary
 
     steps:
       - name: Confirm intent
@@ -142,68 +169,160 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # ---- The one endpoint assertion, written once -------------------
+      # The canary check and the post-shift check MUST be the same test,
+      # or the canary proves nothing about what production will do. So it
+      # lives in one script, called twice with a different base URL.
+      # In RUNNER_TEMP, not the workspace, so no artifact step can sweep
+      # it up alongside real deploy output.
+      - name: Prepare the endpoint check
+        run: |
+          cat > "$RUNNER_TEMP/check-endpoints.sh" <<'SH'
+          #!/usr/bin/env bash
+          # usage: check-endpoints.sh <label> <base-url>
+          # Two unauthenticated GETs. Reads nothing, changes nothing.
+          set -uo pipefail
+          LABEL="$1"
+          BASE="$2"
+          status=0
+
+          health=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE/healthz" || echo 000)
+          if [ "$health" = "200" ]; then
+            echo "OK   [$LABEL] /healthz -> 200"
+            echo "- ✅ **$LABEL** \`/healthz\` -> \`200\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::[$LABEL] /healthz answered $health, expected 200"
+            echo "- ❌ **$LABEL** \`/healthz\` -> \`$health\` (expected 200)" >> "$GITHUB_STEP_SUMMARY"
+            status=1
+          fi
+
+          # The real check.
+          #   401 -> route registered, auth active (handlers.py _UNAUTHENTICATED)
+          #   404 -> build_verification_handlers returned None and server.py
+          #          registered none of the thirteen verification routes --
+          #          exactly the state that makes verify.html say
+          #          "Verification isn't switched on yet"
+          #   503 -> service not serving
+          #   000 -> network/DNS/TLS failure, never treated as a pass
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
+                   "$BASE/api/v1/access/me/verification" || echo 000)
+          case "$code" in
+            401)
+              echo "OK   [$LABEL] verification route -> 401 (registered, auth active)"
+              echo "- ✅ **$LABEL** verification route -> \`401\` (registered, auth active)" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            404)
+              echo "::error::[$LABEL] verification routes are NOT registered (404). The Firebase credential gate did not pass -- check the revision's startup log for 'Verification endpoints not configured, skipping' and confirm APP_ENV=production took effect."
+              echo "- ❌ **$LABEL** verification route -> \`404\` — routes not registered (credential gate)" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+            503)
+              echo "::error::[$LABEL] verification route -> 503, the revision is not serving"
+              echo "- ❌ **$LABEL** verification route -> \`503\` — not serving" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+            000)
+              echo "::error::[$LABEL] could not reach $BASE at all (network, DNS or TLS failure)"
+              echo "- ❌ **$LABEL** unreachable (network/DNS/TLS)" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+            *)
+              echo "::error::[$LABEL] unexpected $code from the verification route (expected 401)"
+              echo "- ❌ **$LABEL** verification route -> \`$code\` (expected 401)" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+          esac
+
+          exit $status
+          SH
+          chmod +x "$RUNNER_TEMP/check-endpoints.sh"
+
       # ---- Gate 2: know how to get back ------------------------------
-      - name: Record the currently-serving revision
+      - name: Record the revision currently serving traffic
         run: |
           mkdir -p rollback
           # RUNNER_TEMP, not the workspace: the raw JSON carries env var
           # VALUES, and nothing under the checkout can then sweep it into
-          # an artifact. Only the redacted summary below is uploaded.
-          if gcloud run services describe "$SERVICE" \
-                --region "$REGION" --project "$GCP_PROJECT" \
-                --format=json > "$RUNNER_TEMP/service-before.json" 2>/dev/null; then
-            python3 - "$RUNNER_TEMP/service-before.json" > rollback/before.txt <<'PY'
-          import json, sys
+          # an artifact. Only the redacted summary is uploaded.
+          cat > "$RUNNER_TEMP/capture.py" <<'PY'
+          """Writes a REDACTED pre-deploy record, and prints the revision
+          that is actually serving traffic (stdout) for the caller to keep
+          as the rollback target."""
+          import json
+          import sys
 
           service = json.load(open(sys.argv[1]))
+          out = open(sys.argv[2], "w")
           spec = service.get("spec", {}) or {}
           status = service.get("status", {}) or {}
           container = ((spec.get("template", {}) or {})
                        .get("spec", {}) or {}).get("containers", [{}])[0]
 
-          print("service:", service.get("metadata", {}).get("name", "?"))
-          print("serving revision:", status.get("latestReadyRevisionName", "?"))
-          print("image:", container.get("image", "?"))
-          print()
-          print("traffic:")
-          for t in status.get("traffic", []) or []:
-              print(f"  {t.get('revisionName', '?')} -> {t.get('percent', 0)}%")
-          print()
+          traffic = [t for t in (status.get("traffic") or []) if t.get("percent")]
+          traffic.sort(key=lambda t: t.get("percent", 0), reverse=True)
+          # The SERVING revision, which is not the same thing as
+          # latestReadyRevisionName -- see this workflow's header.
+          serving = traffic[0].get("revisionName", "") if traffic else ""
+
+          print("service:", service.get("metadata", {}).get("name", "?"), file=out)
+          print("serving revision (rollback target):", serving or "(none)", file=out)
+          print("latest ready revision:", status.get("latestReadyRevisionName", "?"), file=out)
+          print("image:", container.get("image", "?"), file=out)
+          print(file=out)
+          print("traffic:", file=out)
+          for t in status.get("traffic") or []:
+              tag = f"  tag={t['tag']}" if t.get("tag") else ""
+              print(f"  {t.get('revisionName', '?')} -> {t.get('percent', 0)}%{tag}", file=out)
+          print(file=out)
           # NAMES AND KIND ONLY. Never the values -- see this file's
           # "WHY THE ROLLBACK ARTIFACT IS REDACTED".
-          print("environment variables (names only, values deliberately omitted):")
+          print("environment variables (names only, values deliberately omitted):", file=out)
           for var in container.get("env", []) or []:
               kind = "secretKeyRef" if "valueFrom" in var else "plain"
-              print(f"  {var.get('name', '?')}  [{kind}]")
+              print(f"  {var.get('name', '?')}  [{kind}]", file=out)
+          out.close()
+          print(serving)
           PY
+
+          if gcloud run services describe "$SERVICE" \
+                --region "$REGION" --project "$GCP_PROJECT" \
+                --format=json > "$RUNNER_TEMP/service-before.json" 2>/dev/null; then
+            OLD_REVISION=$(python3 "$RUNNER_TEMP/capture.py" \
+                             "$RUNNER_TEMP/service-before.json" rollback/before.txt)
           else
-            echo "no existing '$SERVICE' service in $REGION -- this is a first deploy, nothing to roll back to" \
+            OLD_REVISION=""
+            echo "no existing '$SERVICE' service in $REGION -- first deploy, nothing to roll back to" \
               > rollback/before.txt
           fi
+          echo "OLD_REVISION=$OLD_REVISION" >> "$GITHUB_ENV"
 
-          PREV=$(gcloud run services describe "$SERVICE" \
-                   --region "$REGION" --project "$GCP_PROJECT" \
-                   --format='value(status.latestReadyRevisionName)' 2>/dev/null || true)
           {
-            echo "## Backend deploy — \`$SERVICE\` (\`$GCP_PROJECT\` / \`$REGION\`)"
+            echo "## Backend canary deploy — \`$SERVICE\` (\`$GCP_PROJECT\` / \`$REGION\`)"
             echo
             echo "Ref \`${{ github.ref_name }}\` at \`${{ github.sha }}\`"
+            echo
+            echo "The new revision is deployed with **zero traffic** first and checked at its own"
+            echo "tagged URL. Production traffic moves only if those checks pass."
             echo
             echo '### Before this deploy'
             echo '```'
             cat rollback/before.txt
             echo '```'
-            if [ -n "$PREV" ]; then
-              echo '### Rollback'
-              echo 'If this deploy misbehaves, shift traffic back:'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$OLD_REVISION" ]; then
+            {
+              echo "### Rollback"
+              echo 'Shift traffic back to the revision that was serving before this run:'
               echo '```bash'
               echo "gcloud run services update-traffic $SERVICE \\"
-              echo "  --region $REGION --project $GCP_PROJECT \\"
-              echo "  --to-revisions $PREV=100"
+              echo "  --region $REGION \\"
+              echo "  --project $GCP_PROJECT \\"
+              echo "  --to-revisions $OLD_REVISION=100"
               echo '```'
-            fi
-            echo
-          } >> "$GITHUB_STEP_SUMMARY"
+              echo
+            } | tee -a rollback/before.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Keep the pre-deploy state for rollback
         uses: actions/upload-artifact@v4
@@ -216,27 +335,41 @@ jobs:
           # deploy should stop rather than proceed unrecorded.
           if-no-files-found: error
 
-      # ---- Deploy -----------------------------------------------------
-      - name: Deploy
+      # ---- Deploy the canary: BUILD AND START, SERVE NOTHING ----------
+      - name: Deploy canary revision with no traffic
         working-directory: backend
         run: |
+          # --no-traffic: the new revision serves 0%. The revision that was
+          # serving keeps 100% until the explicit shift further down.
+          # --tag: gives the canary its own stable URL
+          # (https://$CANARY_TAG---<service>-<hash>.run.app) so it can be
+          # tested in isolation. Re-tagging on a later run is idempotent.
+          #
           # --update-env-vars, NEVER --set-env-vars. See this file's
           # header: --set replaces the entire environment and would drop
           # every secret this service needs.
           #
-          # APP_ENV=production is the one variable this workflow owns, and
-          # it is load-bearing twice over: _has_firebase_credential()
-          # (app/main.py) returns false without it unless
-          # FIREBASE_SERVICE_ACCOUNT_JSON is set, which silently skips the
-          # verification, referral and reward routes; and cfg.is_production
-          # selects FirestoreRateLimiter over the in-memory one, so rate
-          # limits actually survive across instances.
+          # Exactly two variables, both non-secret, both merged in:
+          #   APP_ENV=production is load-bearing twice over --
+          #     _has_firebase_credential() (app/main.py) returns false
+          #     without it unless FIREBASE_SERVICE_ACCOUNT_JSON is set,
+          #     which silently skips the verification, referral and reward
+          #     routes; and cfg.is_production selects FirestoreRateLimiter
+          #     over the in-memory one, so rate limits survive across
+          #     instances.
+          #   VERIFICATION_EVIDENCE_BUCKET is what lets an admin actually
+          #     open a submitted ID: without it build_verification_handlers
+          #     leaves evidence reveal reporting itself unavailable.
           #
-          # Everything else -- OTP_HMAC_SECRET, RESEND_API_KEY,
-          # ALLOWED_ORIGINS, the MAM provider keys,
-          # VERIFICATION_EVIDENCE_BUCKET -- is managed in Cloud Run and
-          # deliberately untouched here. A deploy workflow that also owned
-          # the secrets would be a second place they could leak from.
+          # VERIFICATION_ARCHIVE_BUCKET is deliberately NOT set -- the
+          # archive pipeline is a separate decision with its own retention
+          # implications, and main.py already degrades honestly without it.
+          #
+          # Nothing else is touched: OTP_HMAC_SECRET, RESEND_API_KEY,
+          # ALLOWED_ORIGINS, FIREBASE_PROJECT_ID and the model provider
+          # keys keep whatever binding they already have, plain or
+          # secretKeyRef. A deploy workflow that also owned the secrets
+          # would be a second place they could leak from.
           #
           # --quiet: accept defaults rather than prompting. The service
           # already exists, so unspecified settings (ingress, auth,
@@ -245,55 +378,123 @@ jobs:
             --source . \
             --region "$REGION" \
             --project "$GCP_PROJECT" \
-            --update-env-vars APP_ENV=production \
+            --no-traffic \
+            --tag "$CANARY_TAG" \
+            --update-env-vars "APP_ENV=production,VERIFICATION_EVIDENCE_BUCKET=darwesh-group.firebasestorage.app" \
             --quiet
 
-      # ---- Confirm it took --------------------------------------------
-      # `gcloud run deploy` reporting success only means a revision is
-      # serving. It says nothing about whether the routes this deploy
-      # exists to ship are actually registered.
-      - name: Verify the deployed service
+      - name: Resolve the canary revision and its URL
         run: |
-          URL=$(gcloud run services describe "$SERVICE" \
-                  --region "$REGION" --project "$GCP_PROJECT" \
-                  --format='value(status.url)')
-          REV=$(gcloud run services describe "$SERVICE" \
-                  --region "$REGION" --project "$GCP_PROJECT" \
-                  --format='value(status.latestReadyRevisionName)')
-          echo "serving: $REV at $URL"
-          status=0
+          gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format=json > "$RUNNER_TEMP/service-after-deploy.json"
 
-          health=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$URL/healthz" || echo 000)
-          if [ "$health" = "200" ]; then
-            echo "OK: /healthz -> 200"
-            echo "- ✅ \`/healthz\` answers 200" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "::error::/healthz answered $health, expected 200"
-            echo "- ❌ \`/healthz\` answered $health" >> "$GITHUB_STEP_SUMMARY"
-            status=1
+          NEW_REVISION=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(status.latestCreatedRevisionName)')
+
+          # The tagged URL, read from the traffic block by tag name. Not a
+          # secret -- it is a public Cloud Run hostname. Kept to one line
+          # on purpose: a multi-line `python3 -c` here would have to start
+          # at column 0, which terminates the enclosing YAML block scalar.
+          CANARY_URL=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(next((t['url'] for t in (d.get('status',{}).get('traffic') or []) if t.get('tag')==sys.argv[2] and t.get('url')),''))" "$RUNNER_TEMP/service-after-deploy.json" "$CANARY_TAG")
+
+          if [ -z "$NEW_REVISION" ] || [ -z "$CANARY_URL" ]; then
+            echo "::error::could not resolve the canary revision ('$NEW_REVISION') or its tagged URL ('$CANARY_URL'). Not shifting any traffic."
+            exit 1
           fi
 
-          # The real check. Unauthenticated, so it is a plain read that
-          # changes nothing:
-          #   401 -> the route is registered (handlers.py _UNAUTHENTICATED)
-          #   404 -> build_verification_handlers returned None and
-          #          server.py skipped all thirteen verification routes,
-          #          which is exactly the state that made verify.html say
-          #          "Verification isn't switched on yet"
-          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 \
-                   "$URL/api/v1/access/me/verification" || echo 000)
-          if [ "$code" = "401" ]; then
-            echo "OK: verification routes registered (401 unauthenticated)"
-            echo "- ✅ verification routes registered (\`401\` unauthenticated)" >> "$GITHUB_STEP_SUMMARY"
-          elif [ "$code" = "404" ]; then
-            echo "::error::verification routes are NOT registered (404). The Firebase credential gate did not pass -- check the revision's startup log for 'Verification endpoints not configured, skipping' and confirm APP_ENV=production took effect."
-            echo "- ❌ verification routes NOT registered (\`404\`) — credential gate did not pass" >> "$GITHUB_STEP_SUMMARY"
-            status=1
-          else
-            echo "::error::unexpected $code from /api/v1/access/me/verification (expected 401)"
-            echo "- ❌ unexpected \`$code\` from the verification route" >> "$GITHUB_STEP_SUMMARY"
-            status=1
+          echo "NEW_REVISION=$NEW_REVISION" >> "$GITHUB_ENV"
+          echo "CANARY_URL=$CANARY_URL" >> "$GITHUB_ENV"
+          echo "canary revision: $NEW_REVISION"
+          echo "canary url:      $CANARY_URL"
+          {
+            echo "### Canary"
+            echo "- previously serving: \`${OLD_REVISION:-(none)}\`"
+            echo "- new revision: \`$NEW_REVISION\` (0% traffic)"
+            echo "- canary URL: $CANARY_URL"
+            echo
+            echo '### Checks'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- The gate. Production is still untouched at this point ------
+      - name: Canary checks (tagged URL, zero traffic)
+        run: |
+          if ! "$RUNNER_TEMP/check-endpoints.sh" "canary" "$CANARY_URL"; then
+            {
+              echo
+              echo "**Stopped before shifting traffic.** \`$NEW_REVISION\` is deployed at 0% and"
+              echo "\`${OLD_REVISION:-the previous revision}\` is still serving every request."
+              echo "Nothing a user touches has changed. Inspect the canary's startup log, then"
+              echo "either fix and re-run, or delete the revision."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::canary checks failed -- production traffic NOT shifted. $NEW_REVISION stays at 0%."
+            exit 1
           fi
 
-          echo "- serving revision \`$REV\`" >> "$GITHUB_STEP_SUMMARY"
-          exit $status
+      # ---- Only now does production move ------------------------------
+      - name: Shift 100% of traffic to the canary revision
+        run: |
+          # Explicit, by revision name. Never an implicit promotion from
+          # `gcloud run deploy`, and never --to-latest, which would move
+          # traffic onto whatever happened to be built most recently
+          # rather than onto the exact revision just verified.
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" \
+            --project "$GCP_PROJECT" \
+            --to-revisions "$NEW_REVISION=100" \
+            --quiet
+          echo "- traffic shifted: \`$NEW_REVISION\` -> 100%" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post-shift checks (production URL)
+        run: |
+          PROD_URL=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(status.url)')
+          echo "production url: $PROD_URL"
+          if ! "$RUNNER_TEMP/check-endpoints.sh" "production" "$PROD_URL"; then
+            {
+              echo
+              echo "**Production is serving \`$NEW_REVISION\` and failing its checks.** Roll back now:"
+              echo '```bash'
+              echo "gcloud run services update-traffic $SERVICE \\"
+              echo "  --region $REGION \\"
+              echo "  --project $GCP_PROJECT \\"
+              echo "  --to-revisions ${OLD_REVISION:-<previous-revision>}=100"
+              echo '```'
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::production checks failed after the traffic shift. Roll back to ${OLD_REVISION:-the previous revision}."
+            exit 1
+          fi
+
+      # Cosmetic, and deliberately non-blocking: the deploy has already
+      # succeeded by this point, so a tag that fails to detach must not
+      # fail the run. Leaving it attached is harmless -- the next run
+      # re-points the same tag.
+      - name: Release the canary tag
+        if: success()
+        continue-on-error: true
+        run: |
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" \
+            --project "$GCP_PROJECT" \
+            --remove-tags "$CANARY_TAG" \
+            --quiet \
+            || echo "::warning::could not remove the '$CANARY_TAG' tag; harmless, the next run re-points it."
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo
+            echo "---"
+            echo "Rollback at any time:"
+            echo '```bash'
+            echo "gcloud run services update-traffic $SERVICE \\"
+            echo "  --region $REGION \\"
+            echo "  --project $GCP_PROJECT \\"
+            echo "  --to-revisions ${OLD_REVISION:-<previous-revision>}=100"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
