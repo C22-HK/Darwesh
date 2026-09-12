@@ -200,7 +200,7 @@ violation reporting. -->
     validateFile,
     rewardBadgeText,
   } from './js/verify-journey.js';
-  import { openCamera, cameraSupported } from './js/verify-camera.js';
+  import { openCamera, cameraSupported, prepareFile } from './js/verify-camera.js';
 
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
   const $ = (id) => document.getElementById(id);
@@ -360,9 +360,20 @@ violation reporting. -->
 
   function bindUploadFallback(kind, inputId, noticeId) {
     const input = $(inputId);
-    input.addEventListener('change', () => {
-      const file = input.files && input.files[0];
-      if (!file) return;
+    input.addEventListener('change', async () => {
+      const chosen = input.files && input.files[0];
+      if (!chosen) return;
+      // An album photo comes off the same sensor as a capture, so it gets
+      // the same treatment: too big is downscaled rather than refused.
+      // Disabled while that runs -- the label stops responding, which is
+      // the honest signal that the last pick is still being worked on.
+      input.disabled = true;
+      let file = chosen;
+      try {
+        file = await prepareFile(chosen, CAMERA[kind].filename);
+      } finally {
+        input.disabled = false;
+      }
       if (!acceptPhoto(kind, file, noticeId)) input.value = '';
     });
   }

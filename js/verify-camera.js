@@ -64,13 +64,13 @@ function toBlob(canvas, quality) {
 /**
  * Draws the frame scaled to fit `edge` on its longest side.
  *
- * `source` is the live <video>. Anything drawable that carries
- * videoWidth/videoHeight works too, which is how the tests feed it
- * resolutions no fake capture device will produce.
+ * `source` is the live <video>, or an ImageBitmap decoded from a file the
+ * person picked. Anything else drawable works too, which is how the tests
+ * feed it resolutions no fake capture device will produce.
  */
 function drawScaled(source, edge) {
-  const w = source.videoWidth;
-  const h = source.videoHeight;
+  const w = source.videoWidth || source.width;
+  const h = source.videoHeight || source.height;
   // min(...,1) is what stops a 720p front camera being blown up to 2048
   // and encoded as a bigger file with no extra detail in it.
   const scale = Math.min(edge / Math.max(w, h), 1);
@@ -85,10 +85,10 @@ function drawScaled(source, edge) {
 }
 
 /**
- * Encodes the current video frame as a JPEG that fits the budget,
- * stepping down only as far as it has to. Returns null if even the
- * smallest step failed to encode, so the caller can say so rather than
- * hand an empty file to the upload.
+ * Encodes a frame as a JPEG that fits the budget, stepping down only as
+ * far as it has to. Returns null if even the smallest step failed to
+ * encode, so the caller can say so rather than hand an empty file to the
+ * upload.
  */
 export async function encodeFrame(source) {
   let last = null;
@@ -102,6 +102,50 @@ export async function encodeFrame(source) {
   // attempt is still better than nothing: validateFile then gives the
   // person the real "too large" message instead of a silent no-op.
   return last;
+}
+
+/**
+ * Brings a picked file within the same limits as a capture.
+ *
+ * Photos chosen from the gallery come straight off the same sensor, so a
+ * 48 MP original hits the 12 MB ceiling exactly as a capture would -- and
+ * unlike a capture there is no "take it again smaller" available: the
+ * photo already exists at that size. Downscaling is the only way through.
+ *
+ * A file already inside the limits is returned UNTOUCHED. Re-encoding an
+ * acceptable photo would only cost it a generation of JPEG loss, and a
+ * PNG or WebP that fits has no reason to become a JPEG. The same guard
+ * applies to the result: if re-encoding somehow produced something
+ * larger, the original is kept.
+ *
+ * Anything this can't decode (a corrupt file, or a HEIC on a browser that
+ * won't take it) is passed through unchanged so validateFile gives its
+ * own, accurate message rather than this inventing one.
+ *
+ * @param {File} file      what the person picked
+ * @param {string} filename  name for the result IF it has to be re-encoded
+ * @returns {Promise<File>}
+ */
+export async function prepareFile(file, filename = 'photo.jpg') {
+  if (!file || !/^image\//.test(file.type)) return file;
+
+  let bitmap = null;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+
+  try {
+    if (Math.max(bitmap.width, bitmap.height) <= MAX_EDGE && file.size <= MAX_BYTES) return file;
+    const blob = await encodeFrame(bitmap);
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], filename, { type: 'image/jpeg' });
+  } catch {
+    return file;
+  } finally {
+    if (bitmap.close) bitmap.close();
+  }
 }
 
 /** getUserMedia needs a secure context. On http:// (other than localhost)
