@@ -1,0 +1,71 @@
+name: Diagnose Storage bucket (read-only)
+
+# TEMPORARY DIAGNOSTIC. Delete this file once the storage-rules deploy
+# question is settled -- it exists to answer one thing and has no ongoing
+# purpose.
+#
+# THE QUESTION
+# ------------
+# `firebase deploy --only storage:rules` fails with "Firebase Storage has
+# not been set up on project 'darwesh-group'", while the Firebase Console
+# shows a real, populated bucket at gs://darwesh-group.firebasestorage.app
+# (customer-photos/, professional-work/, sell-submissions/,
+# sell-verification/). firebase-tools raises that message from exactly one
+# condition -- a 404 from the v1alpha defaultBucket endpoint -- so the
+# message cannot distinguish "no bucket" from "bucket present but not
+# registered as the project's default". This workflow asks the two
+# questions separately.
+#
+# WHY THIS IS SAFE
+# ----------------
+# Every request the script makes is a GET, and the access token it mints
+# carries read-only OAuth scopes (firebase.readonly, devstorage.read_only),
+# so the credential it holds is not authorized to change anything even if
+# the script were wrong. There is no deploy step, no bucket creation, no
+# IAM change, and no `firebase` CLI invocation anywhere in this file.
+# Compare `deploy-rules.yml`, which is the only workflow that deploys.
+
+on:
+  workflow_dispatch:
+
+# Only actions/checkout's read. No token writes.
+permissions:
+  contents: read
+
+# Same environment as deploy-rules.yml, because that is where the
+# FIREBASE_SERVICE_ACCOUNT secret is reachable from. Nothing here deploys.
+concurrency:
+  group: diagnose-storage-bucket
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Read-only Storage diagnostic
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FIREBASE_PROJECT: darwesh-group
+      # The bucket the Console shows and js/firebase-init.js uses.
+      STORAGE_BUCKET: darwesh-group.firebasestorage.app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No `npm ci`. The script is dependency-free on purpose (same
+      # reasoning as scripts/fetch-live-rules.mjs), so a diagnostic does
+      # not depend on an install succeeding first.
+      - name: Probe defaultBucket, Firebase-linked buckets, and Cloud Storage
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not set."
+            exit 1
+          fi
+          node scripts/diagnose-storage-bucket.mjs \
+            --project "$FIREBASE_PROJECT" \
+            --bucket "$STORAGE_BUCKET"
