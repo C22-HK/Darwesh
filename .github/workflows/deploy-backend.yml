@@ -122,6 +122,14 @@ jobs:
       SERVICE: darwesh-backend
       REGION: me-central1
       CANARY_TAG: verify-canary
+      # The service account Cloud Build runs the source build as. Not a
+      # guess: run #6 named it twice -- once in a warning ("does not have
+      # permission to check details of build service account
+      # projects/353477435585/serviceAccounts/353477435585-compute@
+      # developer.gserviceaccount.com") and once in the failure, by its
+      # numeric id 107164045339432031289. 353477435585 is also the project
+      # number in the service's own hostname.
+      BUILD_SA: 353477435585-compute@developer.gserviceaccount.com
 
     steps:
       - name: Confirm intent
@@ -265,7 +273,137 @@ jobs:
           print("credential present and shaped like a service-account key for", os.environ.get("GCP_PROJECT"))
           PY
 
+      # Checkout stays ahead of auth on purpose: google-github-actions/auth
+      # writes its credential file INTO the workspace, and actions/checkout
+      # defaults to clean:true, which would delete it.
       - uses: actions/checkout@v4
+
+      # ---- Authenticate ----------------------------------------------
+      # Moved ahead of the test gates so the IAM preflight below can fail
+      # before pip install + pytest, and long before a Cloud Build
+      # submission. Run #6 spent 78 seconds and a source upload to
+      # discover a missing IAM binding.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # ---- Preflight: can this deployer act as the service accounts? --
+      # THE RUN #6 FAILURE, CAUGHT CHEAPLY.
+      #
+      #   ERROR: (gcloud.run.deploy) PERMISSION_DENIED: Build failed
+      #   because the default service account is missing required IAM
+      #   permissions. ... caller does not have permission to act as
+      #   service account projects/darwesh-group/serviceAccounts/
+      #   107164045339432031289
+      #
+      # `gcloud run deploy --source` needs iam.serviceAccounts.actAs on
+      # TWO accounts, and a deploy can get past the first and die on the
+      # second:
+      #   1. the BUILD service account Cloud Build runs the build as
+      #      (BUILD_SA below), and
+      #   2. the RUNTIME service account the new Cloud Run revision runs
+      #      as, read live from the service rather than assumed.
+      # Run #6 died on (1) after "Uploading sources...done", so (2) was
+      # never reached and is still unproven. This step tests both.
+      #
+      # HOW IT TESTS, and why this is not a false-positive check:
+      # IAM's own :testIamPermissions endpoint answers "which of these
+      # permissions does the CALLER hold on this resource" and requires no
+      # permission of its own -- it exists so a UI can decide what to grey
+      # out. So this is real authorization introspection, not a guess.
+      # `get-iam-policy` would have been wrong here: it needs
+      # iam.serviceAccounts.getIamPolicy, which this deployer does not
+      # have (run #6's warning proves it cannot even read the build SA),
+      # so it would report "denied" for a caller whose actAs is fine.
+      #
+      # NO MUTATION. Two POSTs that only read back the caller's own
+      # effective permissions; nothing in this step alters any policy.
+      #
+      # NO BROADER ROLE NEEDED to run the diagnostic, and if the API
+      # itself refuses to answer, this step says INDETERMINATE and lets
+      # the run continue rather than inventing a verdict -- a broken
+      # diagnostic must never block a deploy that would have worked.
+      #
+      # The access token is masked the instant it exists and is never
+      # printed, echoed, or written to a file.
+      - name: Preflight service-account impersonation (actAs)
+        run: |
+          TOKEN=$(gcloud auth print-access-token)
+          echo "::add-mask::$TOKEN"
+
+          RUNTIME_SA=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(spec.template.spec.serviceAccountName)' 2>/dev/null || true)
+          # An empty serviceAccountName means the service runs as the
+          # project's default compute account -- the same identity as
+          # BUILD_SA, so there is nothing extra to test.
+          if [ -z "$RUNTIME_SA" ]; then
+            RUNTIME_SA="$BUILD_SA"
+            echo "runtime service account: (default compute, same as build SA)"
+          else
+            echo "runtime service account: $RUNTIME_SA"
+          fi
+          echo "RUNTIME_SA=$RUNTIME_SA" >> "$GITHUB_ENV"
+
+          # Deduplicated: when the service runs as the default compute
+          # account, RUNTIME_SA and BUILD_SA are the same identity and
+          # testing it twice would just print the same line twice.
+          ACCOUNTS="$BUILD_SA"
+          if [ -n "$RUNTIME_SA" ] && [ "$RUNTIME_SA" != "$BUILD_SA" ]; then
+            ACCOUNTS="$ACCOUNTS $RUNTIME_SA"
+          fi
+
+          status=0
+          missing=""
+          indeterminate=""
+          for SA in $ACCOUNTS; do
+            [ -z "$SA" ] && continue
+            URL="https://iam.googleapis.com/v1/projects/$GCP_PROJECT/serviceAccounts/$SA:testIamPermissions"
+            BODY="$RUNNER_TEMP/actas-$SA.json"
+            CODE=$(curl -sS --max-time 30 -o "$BODY" -w '%{http_code}' \
+              -X POST "$URL" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d '{"permissions":["iam.serviceAccounts.actAs"]}' || echo 000)
+            if [ "$CODE" = "200" ]; then
+              if grep -q 'iam.serviceAccounts.actAs' "$BODY"; then
+                echo "OK   actAs granted on $SA"
+              else
+                echo "MISSING  actAs NOT granted on $SA"
+                missing="$missing $SA"
+                status=1
+              fi
+            else
+              # Could not ask. Say so; do not guess either way.
+              echo "INDETERMINATE  testIamPermissions on $SA answered HTTP $CODE"
+              indeterminate="$indeterminate $SA"
+            fi
+            rm -f "$BODY"
+          done
+
+          if [ -n "$indeterminate" ]; then
+            echo "::warning::Could not determine actAs on:$indeterminate. IAM's testIamPermissions did not answer, so this preflight cannot confirm or deny the permission for those accounts -- a limitation of the check, not a verdict. The deploy continues; if it fails with PERMISSION_DENIED naming one of them, that is the cause."
+          fi
+
+          if [ "$status" != "0" ]; then
+            {
+              echo "### Blocked before the build: missing \`iam.serviceAccounts.actAs\`"
+              echo
+              echo "\`github-backend-deployer@$GCP_PROJECT.iam.gserviceaccount.com\` cannot act as:"
+              for SA in $missing; do echo "- \`$SA\`"; done
+              echo
+              echo "Grant **roles/iam.serviceAccountUser** to the deployer **on that service account"
+              echo "as the resource** (IAM & Admin -> Service Accounts -> select it -> Permissions"
+              echo "-> Grant access). Do not grant it project-wide."
+              echo
+              echo "Nothing was built and no traffic moved."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Missing iam.serviceAccounts.actAs on:$missing. Grant roles/iam.serviceAccountUser to github-backend-deployer@$GCP_PROJECT.iam.gserviceaccount.com scoped to that service account as the resource. Stopped before the test gates and before any build -- nothing was deployed."
+            exit 1
+          fi
 
       - uses: actions/setup-python@v5
         with:
@@ -289,14 +427,6 @@ jobs:
       - name: Test
         working-directory: backend
         run: pytest
-
-      # ---- Authenticate ----------------------------------------------
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
-
-      - uses: google-github-actions/setup-gcloud@v2
 
       # ---- The one endpoint assertion, written once -------------------
       # The canary check and the post-shift check MUST be the same test,
@@ -397,6 +527,14 @@ jobs:
           print("serving revision (rollback target):", serving or "(none)", file=out)
           print("latest ready revision:", status.get("latestReadyRevisionName", "?"), file=out)
           print("image:", container.get("image", "?"), file=out)
+          # Recorded because run #6 failed on actAs against a service
+          # account, and the runtime one is the second account a source
+          # deploy needs to impersonate. Not a secret -- an identity, not
+          # a credential -- and knowing it is what makes the actAs
+          # preflight able to test the right pair.
+          runtime_sa = ((spec.get("template", {}) or {})
+                        .get("spec", {}) or {}).get("serviceAccountName") or ""
+          print("runtime service account:", runtime_sa or "(project default compute)", file=out)
           print(file=out)
           print("traffic:", file=out)
           for t in status.get("traffic") or []:
