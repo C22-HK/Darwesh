@@ -783,6 +783,315 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
   }
 }
 
+// ---------------------------------------------------------------------
+// 13. Sitemap: never submit a private page to Google
+// ---------------------------------------------------------------------
+// A sitemap is an instruction to crawl and index. The damage from one
+// wrong line is asymmetric and slow to undo: an admin console, a member's
+// account page or a QR discount code, once indexed, is public until the
+// page is removed AND Google recrawls it. There is no build step here to
+// notice, and the file is edited by hand, so this check is the only thing
+// standing between a copy-pasted line and a crawler.
+//
+// Note on scope: this validates the committed sitemap.xml, it does not
+// regenerate it. actions/checkout makes a depth-1 clone where `git log`
+// reports the same commit for every file, so the <lastmod> dates cannot
+// be recomputed here. `node scripts/generate-sitemap.mjs` does that from
+// a full checkout; everything below needs no history.
+{
+  let seoBugs = 0;
+  const ORIGIN = 'https://www.darweshgroup.com';
+
+  // Every page in the repository, with why it is or is not crawlable.
+  // The point of writing the exclusions out is the assertion at the end:
+  // a newly added page belongs to no category and fails this check, so
+  // "is this public?" gets answered deliberately once, rather than by
+  // whoever later notices it in Search Console.
+  const PUBLIC_PAGES = {
+    'index.html': '/',
+    'about.html': '/about.html',
+    'buy.html': '/buy.html',
+    'rent.html': '/rent.html',
+    'sell.html': '/sell.html',
+    'map.html': '/map.html',
+    'services.html': '/services.html',
+    'projects.html': '/projects.html',
+    'installments.html': '/installments.html',
+    'insights.html': '/insights.html',
+    'build.html': '/build.html',
+    'renovate.html': '/renovate.html',
+    'design.html': '/design.html',
+    'mam-ai.html': '/mam-ai.html',
+  };
+
+  // Signed-in, admin-only, or internal. Each MUST carry a robots noindex
+  // (asserted below) -- the sitemap exclusion alone is not protection,
+  // since a crawler can reach a page from any link anywhere.
+  const PRIVATE_PAGES = [
+    'account.html', 'add-work.html', 'admin.html', 'agent-dashboard.html',
+    'org-projects.html', 'verify.html',
+    'promo.html', // agent QR check-in: live discount code + staff roster
+    'verification.html', // orphaned prototype with hardcoded mock listings
+  ];
+
+  // Credential entry. Nothing to index, and indexing a sign-in form only
+  // ever competes with the page the user actually wanted.
+  const AUTH_PAGES = ['login.html', 'signup.html', 'signup-professional.html', 'reset-password.html'];
+
+  // Templates that render a record chosen by a query parameter. With no
+  // parameter -- which is the only form a sitemap could contain -- they
+  // render "not found" or a sign-in prompt, so the canonical URL is a
+  // real page with no content. The records themselves are user-generated
+  // and live in Firestore; a sitemap covering them would have to be
+  // generated from the database, not from this repository.
+  const DETAIL_TEMPLATES = [
+    'agent.html', 'cleaning.html', 'designer.html', 'engineer.html',
+    'landscaping.html', 'lawyer.html', 'listing.html', 'maintenance.html',
+    'offer.html', 'office.html', 'organization.html', 'project.html',
+    'service.html', 'work.html',
+  ];
+
+  const sitemapPath = path.join(ROOT, 'sitemap.xml');
+  if (!fs.existsSync(sitemapPath)) {
+    fail('sitemap.xml is missing -- run `node scripts/generate-sitemap.mjs`');
+    seoBugs++;
+  } else {
+    const xml = fs.readFileSync(sitemapPath, 'utf8');
+    const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].trim());
+
+    if (locs.length === 0) {
+      fail('sitemap.xml contains no <loc> entries');
+      seoBugs++;
+    }
+
+    // (a) Duplicates. Google takes the last one; either way the file is
+    // wrong and the duplicate is usually a half-finished edit.
+    const dupes = locs.filter((l, i) => locs.indexOf(l) !== i);
+    [...new Set(dupes)].forEach((d) => {
+      fail(`sitemap.xml: duplicate URL ${d}`);
+      seoBugs++;
+    });
+
+    // (b) Scheme and host. http:// in a sitemap invites an indexed
+    // redirect chain; a bare or apex host is a different site to Google
+    // than the canonical www one.
+    locs.forEach((loc) => {
+      if (!loc.startsWith('https://')) {
+        fail(`sitemap.xml: ${loc} is not HTTPS`);
+        seoBugs++;
+      } else if (!loc.startsWith(`${ORIGIN}/`) && loc !== `${ORIGIN}/`) {
+        fail(`sitemap.xml: ${loc} is not on ${ORIGIN}`);
+        seoBugs++;
+      }
+    });
+
+    // (c) The check this whole block exists for: no private page, under
+    // any spelling. Matched by filename rather than by exact URL so that
+    // "/admin.html?x=1" or "/ADMIN.html" cannot slip past.
+    const forbidden = [
+      ...PRIVATE_PAGES.map((f) => [f, 'a private/admin/internal page']),
+      ...AUTH_PAGES.map((f) => [f, 'an authentication page']),
+      ...DETAIL_TEMPLATES.map((f) => [f, 'a parameter-driven detail template with no standalone content']),
+    ];
+    locs.forEach((loc) => {
+      const lower = loc.toLowerCase();
+      forbidden.forEach(([file, why]) => {
+        if (lower.includes(`/${file.toLowerCase()}`)) {
+          fail(`sitemap.xml: ${loc} is ${why} and must never be submitted for indexing`);
+          seoBugs++;
+        }
+      });
+    });
+
+    // (d) Each URL resolves to a file that exists, is listed as public,
+    // declares the same canonical, and is not noindex. A sitemap entry
+    // whose page says noindex is a direct contradiction: it asks Google
+    // to crawl a page that then refuses to be indexed.
+    const expectedLocs = new Set(Object.values(PUBLIC_PAGES).map((p) => ORIGIN + p));
+    locs.forEach((loc) => {
+      if (!expectedLocs.has(loc)) {
+        fail(`sitemap.xml: ${loc} is not in the declared public set -- add it to PUBLIC_PAGES here and in scripts/generate-sitemap.mjs, or remove it`);
+        seoBugs++;
+        return;
+      }
+      const file = Object.keys(PUBLIC_PAGES).find((f) => ORIGIN + PUBLIC_PAGES[f] === loc);
+      const abs = path.join(ROOT, file);
+      if (!fs.existsSync(abs)) {
+        fail(`sitemap.xml: ${loc} maps to ${file}, which does not exist`);
+        seoBugs++;
+        return;
+      }
+      const html = fs.readFileSync(abs, 'utf8');
+      if (/<meta\s+name="robots"[^>]*content="[^"]*noindex/i.test(html)) {
+        fail(`sitemap.xml: ${loc} (${file}) declares noindex -- a page cannot be both submitted and withheld`);
+        seoBugs++;
+      }
+      const canonical = (html.match(/<link rel="canonical" href="([^"]+)"/) || [])[1];
+      if (canonical !== loc) {
+        fail(`sitemap.xml: ${loc} but ${file} declares canonical "${canonical}" -- Google follows the canonical and drops the sitemap URL`);
+        seoBugs++;
+      }
+    });
+
+    // (e) <lastmod> must be a real past date. A future date is the
+    // classic symptom of a hand-edited sitemap and gets the field
+    // ignored site-wide.
+    const today = new Date().toISOString().slice(0, 10);
+    [...xml.matchAll(/<lastmod>([^<]*)<\/lastmod>/g)].forEach((m) => {
+      const d = m[1].trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d))) {
+        fail(`sitemap.xml: "${d}" is not a valid YYYY-MM-DD <lastmod>`);
+        seoBugs++;
+      } else if (d > today) {
+        fail(`sitemap.xml: <lastmod> ${d} is in the future`);
+        seoBugs++;
+      }
+    });
+
+    // (f) robots.txt must point at the sitemap and must not forbid the
+    // very URLs the sitemap submits -- the two files contradicting each
+    // other is a silent way to de-index the whole site.
+    const robotsPath = path.join(ROOT, 'robots.txt');
+    if (!fs.existsSync(robotsPath)) {
+      fail('robots.txt is missing');
+      seoBugs++;
+    } else {
+      const robots = fs.readFileSync(robotsPath, 'utf8');
+      if (!robots.includes(`Sitemap: ${ORIGIN}/sitemap.xml`)) {
+        fail(`robots.txt does not declare "Sitemap: ${ORIGIN}/sitemap.xml"`);
+        seoBugs++;
+      }
+      const disallows = [...robots.matchAll(/^\s*Disallow:\s*(\S+)\s*$/gim)].map((m) => m[1]);
+      disallows.forEach((rule) => {
+        locs.forEach((loc) => {
+          const pathOnly = loc.slice(ORIGIN.length) || '/';
+          if (rule !== '/' ? pathOnly.startsWith(rule) : true) {
+            fail(`robots.txt disallows "${rule}", which blocks the sitemap URL ${loc}`);
+            seoBugs++;
+          }
+        });
+      });
+    }
+  }
+
+  // (g) Every private page really carries noindex. The sitemap only
+  // controls what is submitted; this is what controls what is indexed
+  // when a crawler arrives by any other route.
+  PRIVATE_PAGES.forEach((f) => {
+    const abs = path.join(ROOT, f);
+    if (!fs.existsSync(abs)) return;
+    if (!/<meta\s+name="robots"[^>]*content="[^"]*noindex/i.test(fs.readFileSync(abs, 'utf8'))) {
+      fail(`${f}: classified private but has no robots noindex -- a crawler reaching it from any link will index it`);
+      seoBugs++;
+    }
+  });
+
+  // (h) Public pages carry the metadata that decides how they appear in
+  // results and when shared. Titles and descriptions must also be unique:
+  // two pages with the same description is how one of them stops ranking.
+  const seenTitles = new Map();
+  const seenDescs = new Map();
+  Object.keys(PUBLIC_PAGES).forEach((f) => {
+    const abs = path.join(ROOT, f);
+    if (!fs.existsSync(abs)) {
+      fail(`${f}: listed as a public page but does not exist`);
+      seoBugs++;
+      return;
+    }
+    const html = fs.readFileSync(abs, 'utf8');
+    const required = [
+      [/<title>[^<]{5,}<\/title>/, 'a non-empty <title>'],
+      [/<meta name="description" content="[^"]{20,}"/, 'a meta description'],
+      [/<link rel="canonical" href="https:\/\//, 'an https canonical'],
+      [/<meta property="og:title" content="[^"]+"/, 'og:title'],
+      [/<meta property="og:description" content="[^"]+"/, 'og:description'],
+      [/<meta property="og:url" content="https:\/\//, 'og:url'],
+      [/<meta property="og:image" content="https:\/\//, 'og:image'],
+      [/<meta name="twitter:card" content="[^"]+"/, 'twitter:card'],
+    ];
+    required.forEach(([re, what]) => {
+      if (!re.test(html)) {
+        fail(`${f}: public page is missing ${what}`);
+        seoBugs++;
+      }
+    });
+
+    // og:url and canonical disagreeing splits the social/search identity
+    // of the page between two URLs.
+    const canonical = (html.match(/<link rel="canonical" href="([^"]+)"/) || [])[1];
+    const ogUrl = (html.match(/<meta property="og:url" content="([^"]+)"/) || [])[1];
+    if (canonical && ogUrl && canonical !== ogUrl) {
+      fail(`${f}: og:url "${ogUrl}" disagrees with canonical "${canonical}"`);
+      seoBugs++;
+    }
+
+    // og:image must be a file that is actually in the repository --
+    // a 404 image is worse than no card at all.
+    const ogImage = (html.match(/<meta property="og:image" content="([^"]+)"/) || [])[1];
+    if (ogImage && ogImage.startsWith(ORIGIN)) {
+      const rel = ogImage.slice(ORIGIN.length).replace(/^\//, '');
+      if (!fs.existsSync(path.join(ROOT, rel))) {
+        fail(`${f}: og:image points at ${rel}, which is not in the repository`);
+        seoBugs++;
+      }
+    }
+
+    const title = (html.match(/<title>([^<]*)<\/title>/) || [])[1];
+    const desc = (html.match(/<meta name="description" content="([^"]*)"/) || [])[1];
+    if (title) {
+      if (seenTitles.has(title)) {
+        fail(`${f}: duplicate <title> -- identical to ${seenTitles.get(title)}`);
+        seoBugs++;
+      } else seenTitles.set(title, f);
+    }
+    if (desc) {
+      if (seenDescs.has(desc)) {
+        fail(`${f}: duplicate meta description -- identical to ${seenDescs.get(desc)}`);
+        seoBugs++;
+      } else seenDescs.set(desc, f);
+    }
+  });
+
+  // (i) Any JSON-LD on a public page must at least parse. Invalid
+  // structured data is silently dropped by Google, so nothing else
+  // would ever report it.
+  Object.keys(PUBLIC_PAGES).forEach((f) => {
+    const abs = path.join(ROOT, f);
+    if (!fs.existsSync(abs)) return;
+    const html = fs.readFileSync(abs, 'utf8');
+    [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].forEach((m, i) => {
+      try {
+        JSON.parse(m[1]);
+      } catch (e) {
+        fail(`${f}: JSON-LD block #${i} is not valid JSON (${e.message})`);
+        seoBugs++;
+      }
+    });
+  });
+
+  // (j) The assertion that keeps this check honest as the site grows: a
+  // page nobody classified is a page nobody decided about.
+  const classified = new Set([
+    ...Object.keys(PUBLIC_PAGES), ...PRIVATE_PAGES, ...AUTH_PAGES, ...DETAIL_TEMPLATES,
+  ]);
+  htmlFiles.forEach((f) => {
+    if (!classified.has(f)) {
+      fail(`${f}: not classified as public, private, auth or detail-template -- decide whether it belongs in sitemap.xml and add it to the right list in this check (and to scripts/generate-sitemap.mjs if public)`);
+      seoBugs++;
+    }
+  });
+  classified.forEach((f) => {
+    if (!htmlFiles.includes(f)) {
+      fail(`${f}: classified here but no longer exists -- remove it from this check`);
+      seoBugs++;
+    }
+  });
+
+  if (seoBugs === 0) {
+    ok(`sitemap guarded: ${Object.keys(PUBLIC_PAGES).length} public URLs, all HTTPS on ${ORIGIN}, no duplicates, none noindex, each matching its page's canonical; ${PRIVATE_PAGES.length} private pages all noindex; ${htmlFiles.length} pages all classified`);
+  }
+}
+
 fs.rmSync(tmpDir, { recursive: true, force: true });
 
 console.log('');
