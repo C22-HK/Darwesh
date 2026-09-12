@@ -238,6 +238,18 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
       ui.video.srcObject = s;
       const play = ui.video.play();
       if (play && play.catch) play.catch(() => {});
+
+      // A granted stream is not a working preview. iOS can reject play()
+      // for its own reasons, and the symptom is a black rectangle with a
+      // shutter that does nothing when pressed, because the capture guard
+      // sees videoWidth 0. Rather than leave that silent, say so and offer
+      // the upload route. Cleared as soon as a real frame arrives.
+      const watchdog = setTimeout(() => {
+        if (!settled && (!ui.video.videoWidth || !ui.video.videoHeight)) fail(labels.errNoPreview);
+      }, 4000);
+      const clear = () => clearTimeout(watchdog);
+      ui.video.addEventListener('loadeddata', clear, { once: true });
+      ui.video.addEventListener('playing', clear, { once: true });
     }).catch((err) => {
       const name = err && err.name;
       if (name === 'NotAllowedError' || name === 'SecurityError') fail(labels.errDenied);
