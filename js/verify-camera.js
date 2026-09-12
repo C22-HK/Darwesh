@@ -29,6 +29,81 @@
 
 const JPEG_QUALITY = 0.92;
 
+// Capture at sensor resolution and a 48 MP phone hands back a frame that
+// can encode to more than the 12 MB storage.rules allows, so the photo is
+// rejected after the person has already taken it. Downscaling first also
+// makes three uploads over mobile data finish in a fraction of the time.
+//
+// 2048px on the long edge is the trade: an ID card filling the guide still
+// lands ~1300-1900px across, far more than a reviewer needs to read an ID
+// number, while a typical frame encodes to well under a megabyte. Never
+// upscale -- a small frame is left exactly as it is.
+const MAX_EDGE = 2048;
+
+// Budget, not the limit. storage.rules rejects at 12 MB and the client
+// mirrors that; encoding to 8 MB leaves room for the multipart overhead
+// and for the limit to be lowered later without this silently sitting on
+// the boundary.
+const MAX_BYTES = 8 * 1024 * 1024;
+
+// Tried in order until one fits the budget. In practice the first entry
+// always wins at 2048px; the rest exist so an unusual sensor or a very
+// noisy scene degrades gracefully instead of failing the capture.
+const ENCODE_STEPS = [
+  { edge: MAX_EDGE, quality: JPEG_QUALITY },
+  { edge: MAX_EDGE, quality: 0.82 },
+  { edge: 1600, quality: 0.8 },
+  { edge: 1280, quality: 0.75 },
+];
+
+/** Promise wrapper around the callback-style toBlob. */
+function toBlob(canvas, quality) {
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+/**
+ * Draws the frame scaled to fit `edge` on its longest side.
+ *
+ * `source` is the live <video>. Anything drawable that carries
+ * videoWidth/videoHeight works too, which is how the tests feed it
+ * resolutions no fake capture device will produce.
+ */
+function drawScaled(source, edge) {
+  const w = source.videoWidth;
+  const h = source.videoHeight;
+  // min(...,1) is what stops a 720p front camera being blown up to 2048
+  // and encoded as a bigger file with no extra detail in it.
+  const scale = Math.min(edge / Math.max(w, h), 1);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/**
+ * Encodes the current video frame as a JPEG that fits the budget,
+ * stepping down only as far as it has to. Returns null if even the
+ * smallest step failed to encode, so the caller can say so rather than
+ * hand an empty file to the upload.
+ */
+export async function encodeFrame(source) {
+  let last = null;
+  for (const step of ENCODE_STEPS) {
+    const blob = await toBlob(drawScaled(source, step.edge), step.quality);
+    if (!blob) continue;
+    last = blob;
+    if (blob.size <= MAX_BYTES) return blob;
+  }
+  // Every step overshot (or all encodes failed). Returning the smallest
+  // attempt is still better than nothing: validateFile then gives the
+  // person the real "too large" message instead of a silent no-op.
+  return last;
+}
+
 /** getUserMedia needs a secure context. On http:// (other than localhost)
  *  the API is simply absent, so the caller must be able to ask BEFORE
  *  offering a camera button it cannot honour. */
@@ -176,34 +251,48 @@ export function openCamera({ facing = 'environment', guide = 'card', labels, fil
     document.addEventListener('keydown', onKey);
     window.addEventListener('pagehide', onPageHide);
 
-    ui.shutter.addEventListener('click', () => {
+    // Encoding is async and can take a moment on a large frame, so the
+    // shutter is latched for the duration. Without it a double-tap starts
+    // a second encode whose result lands after the first and quietly
+    // replaces the photo the person is already looking at.
+    let capturing = false;
+
+    ui.shutter.addEventListener('click', async () => {
+      if (capturing) return;
       const v = ui.video;
-      const w = v.videoWidth;
-      const h = v.videoHeight;
-      if (!w || !h) return;               // stream not ready yet: ignore, don't capture black
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      canvas.getContext('2d').drawImage(v, 0, 0, w, h);
-      canvas.toBlob((blob) => {
-        if (!blob) { fail(labels.errCapture); return; }
-        if (blobUrl) URL.revokeObjectURL(blobUrl);
-        blobUrl = URL.createObjectURL(blob);
-        ui.shot.src = blobUrl;
-        ui.shot.hidden = false;
-        ui.video.hidden = true;
-        // The guide exists to help aim. Over a still it is just clutter
-        // between the person and the photo they are judging.
-        ui.frame.hidden = true;
-        ui.shutter.hidden = true;
-        ui.retake.hidden = false;
-        ui.confirm.hidden = false;
-        ui.hint.textContent = labels.reviewHint;
-        ui.confirm.dataset.blob = '1';
-        ui.confirm.onclick = () => {
-          finish(new File([blob], filename, { type: 'image/jpeg' }));
-        };
-      }, 'image/jpeg', JPEG_QUALITY);
+      if (!v.videoWidth || !v.videoHeight) return;  // stream not ready: ignore, don't capture black
+      capturing = true;
+      ui.shutter.disabled = true;
+
+      let blob = null;
+      try {
+        blob = await encodeFrame(v);
+      } finally {
+        capturing = false;
+        ui.shutter.disabled = false;
+      }
+
+      // The sheet can be dismissed mid-encode (Escape, backdrop, pagehide).
+      // Touching the DOM after that would resurrect a modal that is gone.
+      if (settled) return;
+      if (!blob) { fail(labels.errCapture); return; }
+
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(blob);
+      ui.shot.src = blobUrl;
+      ui.shot.hidden = false;
+      ui.video.hidden = true;
+      // The guide exists to help aim. Over a still it is just clutter
+      // between the person and the photo they are judging.
+      ui.frame.hidden = true;
+      ui.shutter.hidden = true;
+      ui.retake.hidden = false;
+      ui.confirm.hidden = false;
+      ui.hint.textContent = labels.reviewHint;
+      ui.confirm.dataset.blob = '1';
+      ui.confirm.onclick = () => {
+        finish(new File([blob], filename, { type: 'image/jpeg' }));
+      };
     });
 
     ui.retake.addEventListener('click', () => {
