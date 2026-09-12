@@ -157,9 +157,67 @@ jobs:
       - name: Preflight the deploy credential
         env:
           GCP_DEPLOY_KEY: ${{ secrets.GCP_DEPLOY_KEY }}
+          # DIAGNOSIS ONLY, and booleans only -- see the note below.
+          #
+          # The CONTROL. A repository secret that demonstrably reaches
+          # this same `production` environment (deploy-rules.yml has used
+          # it across seven runs). If this is visible and GCP_DEPLOY_KEY
+          # is not, the problem is the new secret's name or store. If this
+          # is ALSO invisible, no secret is reaching this job at all and
+          # the new one was never the issue.
+          PROBE_FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Names the same credential plausibly got saved under instead.
+          # Finding one turns "it isn't working" into "rename this".
+          PROBE_GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          PROBE_GCP_KEY: ${{ secrets.GCP_KEY }}
+          PROBE_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          PROBE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          PROBE_GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          PROBE_GCP_DEPLOY_KEY_JSON: ${{ secrets.GCP_DEPLOY_KEY_JSON }}
+          PROBE_GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          PROBE_GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
           if [ -z "${GCP_DEPLOY_KEY:-}" ]; then
-            echo "::error::Secret GCP_DEPLOY_KEY is empty or is not visible to this job. Check, in order: (1) the name is exactly GCP_DEPLOY_KEY, case-sensitive; (2) it is under Settings -> Secrets and variables -> Actions -> *Secrets*, not *Variables*; (3) if it was added as an ENVIRONMENT secret, it is on the 'production' environment -- this job targets that one, and a secret scoped to any other environment is invisible here; (4) if it is an organization secret, this repository is in its selected-repositories list. Control: FIREBASE_SERVICE_ACCOUNT is a repository secret and reaches this same 'production' environment in deploy-rules.yml, so a repository-level secret with the right name does work."
+            # Which secrets CAN this job see? Names and set/unset only --
+            # never a value, never a length, never a prefix. A secret name
+            # is something the repository owner already knows; its content
+            # is what must never be echoed, and GitHub masks only exact
+            # matches, not anything derived.
+            python3 - <<'PY'
+          import os
+
+          probes = sorted((k[len("PROBE_"):], bool((v or "").strip()))
+                          for k, v in os.environ.items() if k.startswith("PROBE_"))
+          print("secret visibility from THIS job (names only, no values):")
+          print(f"  {'GCP_DEPLOY_KEY':38s} NOT SET  <-- the one this deploy needs")
+          for name, present in probes:
+              print(f"  {name:38s} {'set' if present else 'not set'}")
+
+          control = dict(probes).get("FIREBASE_SERVICE_ACCOUNT", False)
+          found = [n for n, present in probes if present and n != "FIREBASE_SERVICE_ACCOUNT"]
+
+          if not control:
+              print("::error::No secrets are reaching this job at all -- even FIREBASE_SERVICE_ACCOUNT, "
+                    "which deploy-rules.yml has used successfully seven times against this same "
+                    "'production' environment, is invisible here. So this is not about GCP_DEPLOY_KEY's "
+                    "name. Check whether the 'production' environment has a deployment-branch rule that "
+                    "excludes 'claude/web-project-hqdo8o', and whether this run was dispatched from a fork.")
+          elif found:
+              print(f"::error::GCP_DEPLOY_KEY is not set, but this job CAN see a secret named "
+                    f"{', '.join(found)}. That is almost certainly the same credential under a different "
+                    f"name. Either rename it to GCP_DEPLOY_KEY, or say the word and the workflow will read "
+                    f"the name you actually used.")
+          else:
+              print("::error::Secret GCP_DEPLOY_KEY is empty or not visible to this job, and no likely "
+                    "alternative name is visible either -- but the control secret IS visible, so "
+                    "repository secrets do reach this job and this environment. Check, in order: (1) the "
+                    "name is exactly GCP_DEPLOY_KEY, case-sensitive; (2) it is under Settings -> Secrets "
+                    "and variables -> *Actions*, on the *Secrets* tab -- not Variables, and not the "
+                    "Dependabot or Codespaces tab, which are separate stores Actions cannot read; (3) if "
+                    "it was added as an ENVIRONMENT secret, it is on the 'production' environment, since a "
+                    "secret scoped to any other environment is invisible here; (4) if it is an "
+                    "organization secret, this repository is in its selected-repositories list.")
+          PY
             exit 1
           fi
           python3 - <<'PY'
