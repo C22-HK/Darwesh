@@ -23,6 +23,8 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const os = require('os');
 
+const { findXmlErrors } = require('./xml-wellformed.cjs');
+
 const ROOT = path.join(__dirname, '..');
 const htmlFiles = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
 let failures = 0;
@@ -856,6 +858,21 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
     seoBugs++;
   } else {
     const xml = fs.readFileSync(sitemapPath, 'utf8');
+
+    // (0) The file must be WELL-FORMED XML before any of its content is
+    // worth checking. This is first because it is the failure that
+    // actually reached production: a `--` inside an XML comment, which
+    // every parser rejects -- and rejects the whole document, so all 14
+    // URLs were silently discarded. Every check below this line reads the
+    // file with regular expressions, and regular expressions are perfectly
+    // happy with XML that no parser will accept. That gap is exactly how a
+    // broken sitemap passed 13/13 checks and shipped.
+    const xmlErrors = findXmlErrors(xml);
+    xmlErrors.forEach((e) => {
+      fail(`sitemap.xml is not well-formed XML at line ${e.line}, column ${e.column}: ${e.message}`);
+      seoBugs++;
+    });
+
     const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].trim());
 
     if (locs.length === 0) {
