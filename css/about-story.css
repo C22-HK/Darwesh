@@ -1,0 +1,688 @@
+/* Darwesh Group -- About page, cinematic architectural rebuild.
+ *
+ * Full replacement for the previous particle-field About demo (deleted:
+ * css/about-cinematic.css, js/about-particle-scene.js,
+ * js/about-particle-shaders.js -- a WebGL/Canvas2D volumetric dust cloud
+ * that resolved into a house). That direction was rejected. Nothing here
+ * reuses its markup, its class names, or its motion system.
+ *
+ * WHY THIS PAGE DOES NOT CARRY THE SITE'S DARK "cine-scope" PALETTE:
+ * every other public page (see css/cinematic.css's header comment) opts
+ * into a dark obsidian body via the `cine-scope` class on <body>. This
+ * page's brief asks specifically for "warm white, existing brand colors,
+ * and a restrained complementary accent" as the FIELD the content sits
+ * on -- a deliberate departure from the rest of the site's dark body
+ * chrome, while the shared header/footer (js/site-header.js,
+ * js/site-footer.js) stay exactly as they are everywhere else: both are
+ * already self-contained "light-luxury" components that do not read the
+ * cine-scope tokens at all. `cine-scope` is LEFT on <body> here only
+ * because js/site-mobile-nav.js's bottom bar (.home-bottomnav*) is styled
+ * exclusively under `.cine-scope .home-bottomnav*` in css/cinematic.css --
+ * removing the class would leave that bar unstyled on mobile. Every class
+ * below is a fresh `ab2-*` name, never one of the Tailwind semantic color
+ * utilities (bg-background, text-on-surface, bg-primary, ...) that
+ * cine-scope intercepts -- so its dark overrides never apply to this
+ * page's own content, and no specificity fight is needed: an element's
+ * own explicit background simply paints over its ancestor's.
+ *
+ * RENDERING APPROACH (brief section 5): no GLB/GLTF and no rendered video
+ * sequence exist anywhere in this repository (checked: zero .glb/.gltf/
+ * .mp4/.webm files in the whole tree) and none is fabricated here. Five
+ * scenes (05 lawyers, 06 cleaning, 07 landscaping, 09 construction, 10
+ * design) use this repo's own real photography (images/services/*.jpg,
+ * already used elsewhere on the public site -- services.html's carousel).
+ * Every other scene, plus the hero and the closing plan, is built from
+ * hand-authored inline SVG line-art -- an architect's-sketch register
+ * (thin ink strokes, one warm gold accent, generous paper-like ground)
+ * that is honestly a 2D/vector illustration system, not a claim of 3D or
+ * photoreal rendering. A true photoreal render sequence or a GLB scene
+ * per service is real, asset-dependent future work -- see the delivery
+ * report for the exact list; this file's structure (one media slot per
+ * scene, `.ab2-scene-media`) is built so dropping in a real render or
+ * video later needs no markup change.
+ *
+ * MOTION: exactly ONE scroll-scrubbed "camera" moment on the whole page --
+ * the hero's blueprint -> built-form transition, driven by js/about-
+ * story.js reading scroll position passively (one rAF-batched read/write
+ * loop, same discipline as js/cine-scroll-3d.js: never a listener per
+ * element, never a synchronous layout read inside the scroll handler).
+ * Every one of the 12 service scenes below plays ONCE on first entering
+ * the viewport (IntersectionObserver, unobserved after firing) and never
+ * re-triggers or re-pins -- twelve pinned sections would be exactly the
+ * "excessive motion" and "same animation everywhere" the brief warns
+ * against. No two scenes share the same reveal mechanism (see the per-
+ * scene comments below). Nothing here calls preventDefault on wheel/touch
+ * or programmatically scrolls the page -- native scrolling is untouched.
+ */
+
+.ab2-page {
+  --ab2-bg: #FAF6EE;
+  --ab2-bg-alt: #F1E9DA;
+  --ab2-surface: #FFFFFF;
+  --ab2-ink: #1A160F;
+  --ab2-ink-soft: #6B6152;
+  --ab2-ink-faint: #948A78;
+  --ab2-line: rgba(26, 22, 15, 0.10);
+  --ab2-line-strong: rgba(26, 22, 15, 0.20);
+  --ab2-gold: #AD8845;
+  --ab2-gold-text: #8A6430;
+  --ab2-gold-bright: #D9B368;
+  --ab2-dark: #14110C;
+  --ab2-dark-2: #1D1912;
+  --ab2-dark-ink: #F6F1E4;
+  --ab2-dark-ink-soft: #C9BEA6;
+  --ab2-radius: 22px;
+  --ab2-radius-sm: 12px;
+  --ab2-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ab2-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ab2-fast: 220ms;
+  --ab2-med: 620ms;
+  --ab2-slow: 1000ms;
+  --ab2-font-display: 'IBM Plex Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --ab2-font-body: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  background: var(--ab2-bg);
+  color: var(--ab2-ink);
+  font-family: var(--ab2-font-body);
+  position: relative;
+  isolation: isolate; /* keep this page's own stacking context off the header's */
+}
+
+.ab2-page * { box-sizing: border-box; }
+
+.ab2-container {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 5vw, 64px);
+}
+
+.ab2-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--ab2-font-body);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ab2-gold-text);
+  text-transform: uppercase;
+}
+.ab2-eyebrow::before {
+  content: '';
+  width: 22px;
+  height: 1.5px;
+  background: currentColor;
+  opacity: 0.6;
+}
+[dir="rtl"] .ab2-eyebrow::before { order: 2; }
+
+/* =========================================================================
+ * 1. HERO -- architectural drawing -> built form, camera-driven by scroll.
+ *
+ * A tall pin wrapper (`--ab2-hero-span`) holds a `position: sticky` stage
+ * (native sticky, never intercepted scroll input) whose progress is
+ * written to `--hp` (0..1) by js/about-story.js. Three SVG layers share
+ * one coordinate system and cross-fade/scale on that single number:
+ *   grid+dimensions (a technical drawing) -> stroke-drawn outline ->
+ *   solid gold-filled form -> a soft real photograph settling in behind
+ *   it. Text is NOT gated on any of this: full opacity from first paint.
+ * ========================================================================= */
+.ab2-hero { position: relative; background: var(--ab2-dark); }
+.ab2-hero-pin {
+  height: 220vh; /* the "camera" travel distance; sticky, not fixed */
+  position: relative;
+}
+.ab2-hero-stage-wrap {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  min-height: 620px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ab2-hero-stage {
+  position: absolute;
+  inset: 0;
+  --hp: 0; /* written by js/about-story.js; static 0.62 under reduced-motion */
+}
+.ab2-hero-photo {
+  position: absolute;
+  inset: -4%;
+  background-image: url('../images/cities/erbil-citadel.jpg');
+  background-size: cover;
+  background-position: center 62%;
+  opacity: calc(var(--hp) * 0.5);
+  filter: saturate(0.75) brightness(0.6) blur(1.5px);
+  transform: scale(calc(1.06 + var(--hp) * 0.05));
+  transition: opacity 60ms linear;
+}
+.ab2-hero-stage::after { /* legibility scrim, independent of --hp */
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 900px 640px at 50% 62%, rgba(20,17,12,0.15), rgba(20,17,12,0.72) 68%, rgba(20,17,12,0.92));
+}
+.ab2-hero-svg {
+  position: relative;
+  width: min(78vw, 640px);
+  height: auto;
+  transform: scale(calc(1 + var(--hp) * 0.07)) translateY(calc(var(--hp) * -14px));
+  filter: drop-shadow(0 30px 60px rgba(0,0,0,0.45));
+}
+.ab2-hero-grid line {
+  stroke: rgba(217, 179, 104, 0.28);
+  stroke-width: 0.6;
+  opacity: calc(1 - var(--hp) * 1.4);
+}
+.ab2-hero-dim { stroke: rgba(246, 241, 228, 0.4); stroke-width: 0.8; opacity: calc(0.9 - var(--hp) * 1.3); }
+.ab2-hero-dim-text { fill: rgba(246, 241, 228, 0.55); font-size: 6px; font-family: var(--ab2-font-body); letter-spacing: 0.04em; opacity: calc(0.9 - var(--hp) * 1.5); }
+.ab2-hero-outline {
+  fill: none;
+  stroke: var(--ab2-dark-ink);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 1400;
+  stroke-dashoffset: calc(1400 - min(var(--hp) * 2.4, 1) * 1400);
+  opacity: calc(1 - max(var(--hp) - 0.55, 0) * 2.4);
+}
+.ab2-hero-fill {
+  opacity: calc(max(var(--hp) - 0.4, 0) * 2.1);
+}
+.ab2-hero-fill path { fill: url(#ab2HeroGoldGrad); }
+.ab2-hero-fill .ab2-hero-glow { fill: var(--ab2-gold-bright); opacity: calc(0.5 + var(--hp) * 0.5); }
+.ab2-hero-fill .ab2-hero-window { fill: rgba(217,179,104,0.85); opacity: calc(max(var(--hp) - 0.62, 0) * 3); }
+
+.ab2-hero-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 780px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 6vw, 64px);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  color: var(--ab2-dark-ink);
+}
+.ab2-hero-content .ab2-eyebrow { color: var(--ab2-gold-bright); }
+.ab2-hero-title {
+  font-family: var(--ab2-font-display);
+  font-weight: 700;
+  font-size: clamp(2.15rem, 4.6vw + 0.6rem, 3.8rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 0;
+}
+.ab2-hero-intro {
+  font-size: clamp(1rem, 0.5vw + 0.92rem, 1.2rem);
+  line-height: 1.7;
+  color: var(--ab2-dark-ink-soft);
+  max-width: 58ch;
+  margin: 0;
+}
+.ab2-scroll-cue {
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ab2-dark-ink-soft);
+  text-transform: uppercase;
+}
+.ab2-scroll-cue svg { width: 15px; height: 15px; animation: ab2-cue-bob 2.2s var(--ab2-ease) infinite; }
+@keyframes ab2-cue-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+
+/* =========================================================================
+ * 2. SERVICE SCENES -- shared scaffolding.
+ * ========================================================================= */
+.ab2-services { position: relative; background: var(--ab2-bg); }
+
+.ab2-scene {
+  padding-block: clamp(64px, 9vw, 128px);
+  border-top: 1px solid var(--ab2-line);
+}
+.ab2-scene--alt { background: var(--ab2-bg-alt); }
+.ab2-scene-inner {
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 5vw, 64px);
+  display: grid;
+  gap: clamp(32px, 5vw, 56px);
+}
+.ab2-scene--split .ab2-scene-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+.ab2-scene--split.ab2-scene--media-left .ab2-scene-media { order: 1; }
+.ab2-scene--split.ab2-scene--media-left .ab2-scene-copy { order: 2; }
+.ab2-scene--split.ab2-scene--media-right .ab2-scene-media { order: 2; }
+.ab2-scene--split.ab2-scene--media-right .ab2-scene-copy { order: 1; }
+.ab2-scene--center .ab2-scene-inner { justify-items: center; text-align: center; max-width: 900px; }
+.ab2-scene--center .ab2-scene-media { width: 100%; }
+.ab2-scene--full .ab2-scene-inner { display: block; padding-inline: 0; max-width: none; }
+
+.ab2-scene-num {
+  display: block;
+  font-family: var(--ab2-font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  color: var(--ab2-ink-faint);
+  margin-bottom: 10px;
+}
+.ab2-scene-title {
+  font-family: var(--ab2-font-display);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 1.6vw + 1rem, 2.15rem);
+  line-height: 1.25;
+  margin: 0 0 14px;
+  text-wrap: balance;
+}
+.ab2-scene-body {
+  font-size: clamp(0.98rem, 0.3vw + 0.9rem, 1.08rem);
+  line-height: 1.75;
+  color: var(--ab2-ink-soft);
+  margin: 0 0 22px;
+  max-width: 46ch;
+}
+.ab2-scene--center .ab2-scene-body { max-width: 52ch; }
+.ab2-scene-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ab2-gold-text);
+  text-decoration: none;
+  border-bottom: 1.5px solid transparent;
+  padding-bottom: 2px;
+  transition: border-color var(--ab2-fast) var(--ab2-ease), gap var(--ab2-fast) var(--ab2-ease);
+}
+.ab2-scene-link:hover, .ab2-scene-link:focus-visible { border-color: var(--ab2-gold-text); gap: 12px; }
+.ab2-scene-link svg { width: 16px; height: 16px; flex: none; }
+[dir="rtl"] .ab2-scene-link svg { transform: scaleX(-1); }
+.ab2-scene-link:focus-visible { outline: 2px solid var(--ab2-gold-text); outline-offset: 4px; border-radius: 3px; }
+
+.ab2-scene-media {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--ab2-radius);
+  overflow: hidden;
+  background: var(--ab2-surface);
+  border: 1px solid var(--ab2-line);
+}
+.ab2-scene--center .ab2-scene-media { aspect-ratio: 16 / 9; max-width: 760px; }
+
+/* Play-once entrance: opacity + a small, honest translate. Handled by the
+ * shared js/reveal.js (.cine-reveal/.cine-in-view, one IntersectionObserver
+ * for the whole page) -- this file only supplies THIS page's pre-reveal
+ * offsets so text is never gated behind the scene's own internal motion. */
+.ab2-scene .cine-reveal { transition-duration: var(--ab2-med); }
+
+/* ---- 01 Buyer-seller mediation: two outlines converge ------------------ */
+.ab2-s01-svg { width: 100%; height: 100%; }
+.ab2-s01-a, .ab2-s01-b {
+  fill: none; stroke: var(--ab2-ink); stroke-width: 1.6; stroke-linejoin: round;
+  transition: transform var(--ab2-slow) var(--ab2-ease-enter), opacity var(--ab2-slow) var(--ab2-ease-enter);
+}
+.ab2-s01-a { transform: translateX(-26px); opacity: 0.55; }
+.ab2-s01-b { transform: translateX(26px); opacity: 0.55; stroke: var(--ab2-gold-text); }
+.ab2-s01-link {
+  stroke: var(--ab2-gold-text); stroke-width: 1.4; stroke-dasharray: 220; stroke-dashoffset: 220;
+  transition: stroke-dashoffset 900ms var(--ab2-ease-enter) 200ms;
+}
+.ab2-scene--01.is-active .ab2-s01-a { transform: translateX(-6px); opacity: 1; }
+.ab2-scene--01.is-active .ab2-s01-b { transform: translateX(6px); opacity: 1; }
+.ab2-scene--01.is-active .ab2-s01-link { stroke-dashoffset: 0; }
+
+/* ---- 02 Apartments: facade -> cutaway interior via clip reveal --------- */
+.ab2-s02-facade { position: absolute; inset: 0; background: var(--ab2-bg-alt); }
+.ab2-s02-facade svg { width: 100%; height: 100%; }
+.ab2-s02-facade rect.ab2-win { fill: var(--ab2-surface); stroke: var(--ab2-line-strong); }
+.ab2-s02-cutaway {
+  position: absolute; inset: 0;
+  clip-path: circle(0% at 72% 42%);
+  transition: clip-path 1100ms var(--ab2-ease-enter);
+  background: var(--ab2-surface);
+}
+.ab2-s02-cutaway svg { width: 100%; height: 100%; }
+.ab2-scene--02.is-active .ab2-s02-cutaway { clip-path: circle(85% at 72% 42%); }
+
+/* ---- 03 Residential communities: eye-level -> wide community reveal --- */
+.ab2-s03-photo {
+  position: absolute; inset: 0;
+  background-image: url('../images/cities/sulaymaniyah-city.jpg');
+  background-size: cover; background-position: center 70%;
+  transform: scale(1.16); filter: saturate(0.94);
+  transition: transform 1400ms var(--ab2-ease-enter);
+}
+.ab2-scene--03.is-active .ab2-s03-photo { transform: scale(1); }
+.ab2-s03-caption {
+  position: absolute; inset-inline: 0; bottom: 0;
+  padding: 14px 18px;
+  font-size: 0.72rem; color: rgba(255,255,255,0.8);
+  background: linear-gradient(0deg, rgba(15,13,9,0.6), transparent);
+}
+.ab2-s03-fore {
+  position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;
+  transform: scale(1.5); transform-origin: bottom center; opacity: 1;
+  transition: transform 1200ms var(--ab2-ease-enter), opacity 900ms var(--ab2-ease-enter);
+}
+.ab2-s03-fore svg { width: 46%; opacity: 0.9; }
+.ab2-scene--03.is-active .ab2-s03-fore { transform: scale(1); opacity: 0; }
+
+/* ---- 04 Rentals: a real hinge, a door that opens ----------------------- */
+.ab2-s04-room {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 68% 38%, rgba(217,179,104,0.35), transparent 70%),
+    linear-gradient(160deg, #EFE2C4, var(--ab2-bg-alt));
+}
+.ab2-s04-window {
+  position: absolute; inset-inline-end: 16%; top: 20%; width: 16%; aspect-ratio: 3 / 4;
+  border: 2px solid var(--ab2-ink); background: rgba(255,255,255,0.5);
+}
+.ab2-s04-window::before, .ab2-s04-window::after {
+  content: ''; position: absolute; background: var(--ab2-ink);
+}
+.ab2-s04-window::before { inset-inline: 0; top: 50%; height: 2px; }
+.ab2-s04-window::after { inset-block: 0; left: 50%; width: 2px; }
+.ab2-s04-floor { position: absolute; inset-inline: 12%; bottom: 12%; height: 2px; background: var(--ab2-ink); opacity: 0.7; }
+.ab2-s04-frame { position: absolute; inset: 12%; border: 3px solid var(--ab2-ink); border-radius: 4px; }
+.ab2-s04-door {
+  position: absolute; inset-block: 12%; inset-inline-start: 12%; width: 38%;
+  background: linear-gradient(120deg, #7A5A32, #5E4525);
+  transform-origin: left center; transform: perspective(900px) rotateY(0deg);
+  transition: transform 1300ms var(--ab2-ease-enter);
+  box-shadow: 2px 0 14px rgba(0,0,0,0.25);
+  border-radius: 2px 10px 10px 2px;
+}
+[dir="rtl"] .ab2-s04-door { transform-origin: right center; inset-inline-start: auto; inset-inline-end: 12%; }
+.ab2-s04-handle { position: absolute; inset-inline-end: 8%; top: 48%; width: 7px; height: 7px; border-radius: 50%; background: var(--ab2-gold-bright); }
+.ab2-scene--04.is-active .ab2-s04-door { transform: perspective(900px) rotateY(-108deg); }
+[dir="rtl"] .ab2-scene--04.is-active .ab2-s04-door { transform: perspective(900px) rotateY(108deg); }
+
+/* ---- 05 Lawyers: real photo, a focus pull, a floating glass card ------- */
+.ab2-s05-photo {
+  position: absolute; inset: 0;
+  background-image: url('../images/services/legal-services.jpg');
+  background-size: cover; background-position: center;
+  filter: blur(6px) brightness(0.9) saturate(0.9);
+  transform: scale(1.04);
+  transition: filter 1000ms var(--ab2-ease-enter), transform 1000ms var(--ab2-ease-enter);
+}
+.ab2-scene--05.is-active .ab2-s05-photo { filter: blur(0) brightness(1) saturate(1); transform: scale(1); }
+.ab2-s05-card {
+  position: absolute; left: 6%; bottom: 8%; max-width: 240px;
+  background: rgba(250,246,238,0.86);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid rgba(255,255,255,0.5);
+  border-radius: var(--ab2-radius-sm);
+  padding: 14px 16px;
+  opacity: 0; transform: translateY(14px);
+  transition: opacity 700ms var(--ab2-ease-enter) 300ms, transform 700ms var(--ab2-ease-enter) 300ms;
+}
+[dir="rtl"] .ab2-s05-card { left: auto; right: 6%; }
+.ab2-scene--05.is-active .ab2-s05-card { opacity: 1; transform: translateY(0); }
+.ab2-s05-card-label { font-size: 0.72rem; font-weight: 700; color: var(--ab2-ink); letter-spacing: 0.02em; }
+
+/* ---- 06 Cleaning: controlled before/after, one clip-path wipe ---------- */
+.ab2-scene--06 .ab2-scene-media { aspect-ratio: 21 / 9; max-width: none; border-radius: 0; }
+.ab2-s06-after {
+  position: absolute; inset: 0;
+  background-image: url('../images/services/cleaning.jpg');
+  background-size: cover; background-position: center;
+}
+.ab2-s06-before {
+  position: absolute; inset: 0;
+  background-image: url('../images/services/cleaning.jpg');
+  background-size: cover; background-position: center;
+  filter: saturate(0.25) brightness(0.72) contrast(0.9);
+  clip-path: inset(0 0% 0 0);
+  transition: clip-path 1300ms var(--ab2-ease-enter) 150ms;
+}
+.ab2-scene--06.is-active .ab2-s06-before { clip-path: inset(0 100% 0 0); }
+.ab2-s06-divider {
+  position: absolute; inset-block: 0; left: 0%; width: 2px; background: var(--ab2-gold-bright);
+  box-shadow: 0 0 12px rgba(217,179,104,0.7);
+  transition: left 1300ms var(--ab2-ease-enter) 150ms;
+}
+.ab2-scene--06.is-active .ab2-s06-divider { left: 100%; }
+.ab2-s06-copy { position: relative; padding-inline: clamp(20px, 5vw, 64px); margin-top: 28px; }
+
+/* ---- 07 Landscaping: planting plan fades into the real garden --------- */
+.ab2-s07-photo {
+  position: absolute; inset: 0;
+  background-image: url('../images/services/landscaping.jpg');
+  background-size: cover; background-position: center;
+  opacity: 0; filter: saturate(0.7);
+  transition: opacity 1200ms var(--ab2-ease-enter), filter 1200ms var(--ab2-ease-enter);
+}
+.ab2-scene--07.is-active .ab2-s07-photo { opacity: 1; filter: saturate(1); }
+.ab2-s07-plan { position: absolute; inset: 0; background: var(--ab2-bg-alt); }
+.ab2-s07-plan svg { width: 100%; height: 100%; }
+.ab2-s07-plan circle, .ab2-s07-plan .ab2-s07-grid { stroke: var(--ab2-ink-soft); }
+.ab2-s07-plan { transition: opacity 1000ms var(--ab2-ease-enter) 200ms; }
+.ab2-scene--07.is-active .ab2-s07-plan { opacity: 0; }
+.ab2-s07-leaf { transform-origin: bottom center; animation: ab2-leaf-sway 6s ease-in-out infinite; }
+.ab2-s07-leaf:nth-child(2) { animation-delay: -2s; }
+.ab2-s07-leaf:nth-child(3) { animation-delay: -4s; }
+@keyframes ab2-leaf-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+
+/* ---- 08 Installments: a restrained, readable, drawn timeline ---------- */
+.ab2-s08-svg { width: 100%; height: 100%; }
+.ab2-s08-track { stroke: var(--ab2-line-strong); stroke-width: 2; fill: none; }
+.ab2-s08-progress {
+  stroke: var(--ab2-gold-text); stroke-width: 2; fill: none;
+  stroke-dasharray: 640; stroke-dashoffset: 640;
+  transition: stroke-dashoffset 1400ms var(--ab2-ease-enter);
+}
+.ab2-scene--08.is-active .ab2-s08-progress { stroke-dashoffset: 0; }
+.ab2-s08-node circle { fill: var(--ab2-surface); stroke: var(--ab2-ink); stroke-width: 1.4; }
+.ab2-s08-node text { fill: var(--ab2-ink-soft); font-size: 8px; font-family: var(--ab2-font-body); font-weight: 600; }
+.ab2-s08-node { opacity: 0; transform: translateY(8px); transition: opacity 600ms var(--ab2-ease-enter), transform 600ms var(--ab2-ease-enter); }
+/* :nth-of-type, not :nth-child -- the two <path> siblings (track/progress)
+   that precede these <g> nodes would otherwise be counted as children 1-2,
+   pushing every node's stagger two slots later than intended and reversing
+   the visible reading order (confirmed live: the last two nodes appeared
+   first, the first two stayed invisible well past a second). All four
+   .ab2-s08-node elements are the SVG's only <g> siblings, so nth-of-type
+   counts exactly them. */
+.ab2-s08-node:nth-of-type(1) { transition-delay: 120ms; } .ab2-s08-node:nth-of-type(2) { transition-delay: 420ms; }
+.ab2-s08-node:nth-of-type(3) { transition-delay: 720ms; } .ab2-s08-node:nth-of-type(4) { transition-delay: 1020ms; }
+.ab2-scene--08.is-active .ab2-s08-node { opacity: 1; transform: translateY(0); }
+
+/* ---- 09 Construction: foundation -> structure -> facade -> finish ----- */
+.ab2-scene--09 .ab2-scene-media { aspect-ratio: 21 / 9; max-width: none; border-radius: 0; }
+.ab2-s09-photo {
+  position: absolute; inset: 0;
+  background-image: url('../images/services/engineering.jpg');
+  background-size: cover; background-position: center;
+  opacity: 0; transition: opacity 900ms var(--ab2-ease-enter) 1400ms;
+}
+.ab2-scene--09.is-active .ab2-s09-photo { opacity: 1; }
+.ab2-s09-stage { position: absolute; inset: 0; background: var(--ab2-dark); }
+.ab2-s09-stage svg { width: 100%; height: 100%; }
+.ab2-s09-layer { opacity: 0; transform: translateY(16px); transition: opacity 620ms var(--ab2-ease-enter), transform 620ms var(--ab2-ease-enter); }
+.ab2-scene--09.is-active .ab2-s09-layer { opacity: 1; transform: translateY(0); }
+.ab2-scene--09.is-active .ab2-s09-l1 { transition-delay: 80ms; }
+.ab2-scene--09.is-active .ab2-s09-l2 { transition-delay: 340ms; }
+.ab2-scene--09.is-active .ab2-s09-l3 { transition-delay: 600ms; }
+.ab2-scene--09.is-active .ab2-s09-l4 { transition-delay: 860ms; }
+.ab2-scene--09.is-active .ab2-s09-stage { transition: opacity 700ms var(--ab2-ease-enter) 1400ms; opacity: 0; }
+.ab2-s09-copy { position: relative; padding-inline: clamp(20px, 5vw, 64px); margin-top: 28px; }
+
+/* ---- 10 Design: same room, material + light shift on the real photo --- */
+.ab2-s10-photo {
+  position: absolute; inset: 0;
+  background-image: url('../images/services/interior-design.jpg');
+  background-size: cover; background-position: center;
+}
+.ab2-s10-duotone {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(70,86,92,0.55), rgba(38,45,50,0.65));
+  mix-blend-mode: color;
+  opacity: 1;
+  transition: opacity 1300ms var(--ab2-ease-enter);
+}
+.ab2-scene--10.is-active .ab2-s10-duotone { opacity: 0; }
+.ab2-s10-warm {
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(217,179,104,0.16), transparent 60%);
+  opacity: 0; transition: opacity 1300ms var(--ab2-ease-enter) 200ms;
+}
+.ab2-scene--10.is-active .ab2-s10-warm { opacity: 1; }
+
+/* ---- 11 Furniture: close-up grain pulls back to a composed room ------- */
+.ab2-s11-room { position: absolute; inset: 0; background: var(--ab2-bg-alt); }
+.ab2-s11-room svg { width: 100%; height: 100%; opacity: 0; transition: opacity 900ms var(--ab2-ease-enter) 500ms; }
+.ab2-scene--11.is-active .ab2-s11-room svg { opacity: 1; }
+.ab2-s11-swatch {
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(100deg, rgba(120,86,46,0.35) 0 3px, rgba(160,120,68,0.28) 3px 7px, rgba(120,86,46,0.35) 7px 11px),
+    linear-gradient(160deg, #8A6635, #6B4E27);
+  transform: scale(2.4);
+  transition: transform 1300ms var(--ab2-ease-enter);
+}
+.ab2-scene--11.is-active .ab2-s11-swatch { transform: scale(1); }
+
+/* ---- 12 House & garden plans: overhead plan draws, then tilts to 3D --- */
+.ab2-scene--12 .ab2-scene-media { aspect-ratio: 1 / 1; max-width: 620px; }
+.ab2-s12-plan { position: absolute; inset: 0; background: var(--ab2-surface); }
+.ab2-s12-plan svg { width: 100%; height: 100%; }
+.ab2-s12-plan .ab2-s12-draw {
+  fill: none; stroke: var(--ab2-ink); stroke-width: 1.3;
+  stroke-dasharray: 1100; stroke-dashoffset: 1100;
+  transition: stroke-dashoffset 1600ms var(--ab2-ease-enter);
+}
+.ab2-scene--12.is-active .ab2-s12-plan .ab2-s12-draw { stroke-dashoffset: 0; }
+.ab2-s12-iso {
+  position: absolute; inset: 0;
+  perspective: 900px;
+  opacity: 0;
+  transition: opacity 800ms var(--ab2-ease-enter) 1500ms;
+}
+.ab2-scene--12.is-active .ab2-s12-iso { opacity: 1; }
+.ab2-s12-iso svg {
+  width: 100%; height: 100%;
+  transform: rotateX(46deg) rotateZ(-4deg) scale(0.92);
+  transform-origin: center;
+}
+.ab2-s12-iso rect, .ab2-s12-iso path { stroke: var(--ab2-ink); stroke-width: 1; }
+
+/* =========================================================================
+ * 3. CLOSING
+ * ========================================================================= */
+.ab2-closing {
+  background: var(--ab2-dark);
+  color: var(--ab2-dark-ink);
+  padding-block: clamp(72px, 10vw, 140px);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.ab2-closing::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 900px 500px at 50% 0%, rgba(217,179,104,0.14), transparent 60%);
+  pointer-events: none;
+}
+.ab2-closing-inner { position: relative; max-width: 720px; margin-inline: auto; padding-inline: clamp(20px, 5vw, 64px); }
+.ab2-closing-title {
+  font-family: var(--ab2-font-display);
+  font-weight: 700;
+  font-size: clamp(1.9rem, 3vw + 0.8rem, 2.9rem);
+  line-height: 1.2;
+  margin: 0 0 32px;
+  text-wrap: balance;
+}
+.ab2-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 34px;
+  border-radius: 999px;
+  background: var(--ab2-gold-bright);
+  color: var(--ab2-dark);
+  font-weight: 700;
+  font-size: 0.98rem;
+  text-decoration: none;
+  transition: transform var(--ab2-fast) var(--ab2-ease), box-shadow var(--ab2-fast) var(--ab2-ease);
+  box-shadow: 0 10px 30px rgba(217,179,104,0.25);
+}
+.ab2-cta:hover, .ab2-cta:focus-visible { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(217,179,104,0.35); }
+.ab2-cta:focus-visible { outline: 2px solid var(--ab2-dark-ink); outline-offset: 3px; }
+
+/* =========================================================================
+ * 4. RESPONSIVE
+ * ========================================================================= */
+@media (max-width: 860px) {
+  .ab2-scene--split .ab2-scene-inner { grid-template-columns: 1fr; }
+  .ab2-scene--split .ab2-scene-media,
+  .ab2-scene--split .ab2-scene-copy { order: initial !important; }
+  .ab2-hero-pin { height: 190vh; }
+  .ab2-hero-stage-wrap { min-height: 560px; }
+  .ab2-s05-card { max-width: none; left: 5%; right: 5%; bottom: 6%; }
+  [dir="rtl"] .ab2-s05-card { right: 5%; }
+}
+@media (max-width: 560px) {
+  .ab2-hero-title { font-size: clamp(1.85rem, 8vw, 2.6rem); }
+  .ab2-scene { padding-block: 52px; }
+  .ab2-scene-media { aspect-ratio: 4 / 3.4; }
+  .ab2-scene--06 .ab2-scene-media, .ab2-scene--09 .ab2-scene-media { aspect-ratio: 4 / 5; }
+  .ab2-hero-pin { height: 175vh; }
+}
+
+/* =========================================================================
+ * 5. REDUCED MOTION -- every scene renders at its resting, final state; no
+ * IntersectionObserver-driven class is required for content to be fully
+ * visible (js/about-story.js also skips attaching one), and the hero's
+ * sticky pin collapses to a normal static section.
+ * ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  .ab2-page * { animation: none !important; transition: none !important; }
+  .ab2-hero-pin { height: auto; }
+  .ab2-hero-stage-wrap { position: relative; height: auto; min-height: 0; padding-block: 96px 64px; }
+  .ab2-hero-stage { position: relative; --hp: 0.62; }
+  .ab2-hero-svg { position: relative; }
+  .ab2-s01-a, .ab2-s01-b { transform: none; opacity: 1; }
+  .ab2-s01-link { stroke-dashoffset: 0; }
+  .ab2-s02-cutaway { clip-path: circle(85% at 72% 42%); }
+  .ab2-s03-photo { transform: scale(1); }
+  .ab2-s03-fore { opacity: 0; }
+  .ab2-s04-door { transform: perspective(900px) rotateY(-108deg); }
+  [dir="rtl"] .ab2-s04-door { transform: perspective(900px) rotateY(108deg); }
+  .ab2-s05-photo { filter: none; transform: none; }
+  .ab2-s05-card { opacity: 1; transform: none; }
+  .ab2-s06-before { clip-path: inset(0 100% 0 0); }
+  .ab2-s06-divider { left: 100%; }
+  .ab2-s07-photo { opacity: 1; filter: none; }
+  .ab2-s07-plan { opacity: 0; }
+  .ab2-s08-progress { stroke-dashoffset: 0; }
+  .ab2-s08-node { opacity: 1; transform: none; }
+  .ab2-s09-photo { opacity: 1; }
+  .ab2-s09-stage { opacity: 0; }
+  .ab2-s09-layer { opacity: 1; transform: none; }
+  .ab2-s10-duotone { opacity: 0; }
+  .ab2-s10-warm { opacity: 1; }
+  .ab2-s11-room svg { opacity: 1; }
+  .ab2-s11-swatch { transform: scale(1); }
+  .ab2-s12-plan .ab2-s12-draw { stroke-dashoffset: 0; }
+  .ab2-s12-iso { opacity: 1; }
+}
+
+/* =========================================================================
+ * 6. RTL -- content mirrors; every left/right pixel value above already has
+ * an explicit [dir="rtl"] counterpart. Gold/ink/layout tokens are direction-
+ * agnostic so nothing else needs a mirrored rule.
+ * ========================================================================= */
+[dir="rtl"] .ab2-scene-num,
+[dir="rtl"] .ab2-scene-title,
+[dir="rtl"] .ab2-scene-body { text-align: right; }
