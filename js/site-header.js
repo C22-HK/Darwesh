@@ -1,11 +1,13 @@
 // Darwesh shared site header -- the ONE canonical top nav bar (flag
 // language selector, wordmark, Home / Properties Map / Sell / MAM AI /
-// About / Profile / notifications) for every public content page, plus
-// "Challenge" (the Darwesh Arena entry point, arena.html) as its own item
-// beside the brand lockup rather than inside the left nav group -- Arena
-// is a standing growth feature, not one destination among equals, so it
-// gets a permanently visible position next to the logo instead of
-// competing for space with Home/Sell/MAM AI. There is
+// "Challenge" [the Darwesh Arena entry point, arena.html] / About /
+// Profile / notifications) for every public content page. Challenge sits
+// in the RIGHT-hand group, immediately before About -- not the left group
+// with Home/Sell/MAM AI, and not floating beside the centered brand
+// lockup either; it uses the exact same link markup (navClass/
+// ariaCurrent) as every other item in that row, so it gets identical
+// typography, spacing, hover, focus, and active-underline behavior with
+// no special-casing. There is
 // deliberately ONE public property map (map.html) -- the earlier
 // "Buy/Rent Map" + "Explore Map" pairing competed for the same job and
 // was consolidated into one "Properties Map" link; a follow-up pass then
@@ -195,6 +197,7 @@
             '<a class="' + navClass('mamai') + '" href="mam-ai.html" data-i18n="mamai.navLabel"' + ariaCurrent('mamai') + '>MAM AI</a>' +
           '</div>' +
           '<div class="flex items-center gap-6">' +
+            '<a class="' + navClass('arena') + '" href="arena.html" data-i18n="arena.navLabel"' + ariaCurrent('arena') + '>Challenge</a>' +
             // "Services" was removed as a standalone nav item -- the
             // Darwesh Service Universe carousel on the Home page (and
             // the many in-context links throughout the site) is now how
@@ -208,10 +211,7 @@
           '</div>' +
         '</div>' +
         '<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">' +
-          '<div class="pointer-events-auto flex items-center gap-5">' +
-            '<span class="text-[22px]">' + brandLockup + '</span>' +
-            '<a class="' + navClass('arena') + '" href="arena.html" data-i18n="arena.navLabel"' + ariaCurrent('arena') + '>Challenge</a>' +
-          '</div>' +
+          '<div class="pointer-events-auto text-[22px]">' + brandLockup + '</div>' +
         '</div>' +
       '</div>' +
 
