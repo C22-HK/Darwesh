@@ -1,0 +1,201 @@
+/*
+  Darwesh Group — Services Carousel (production)
+  =================================================================
+  Replaces the Service Universe orbital widget's mount on services.html
+  only -- css/service-universe.css and js/service-universe.js are left
+  untouched (installments.html/renovate.html/build.html/service.html still
+  load the stylesheet for shared classes).
+
+  Uses the site's own real design tokens (css/profile-tokens.css's
+  --ps-color-*/--ps-focus-ring, already loaded on every page that loads
+  this file) rather than a parallel token set, so this stays in sync with
+  the rest of the site automatically.
+*/
+
+.svc-carousel {
+  --scc-press-fast: 120ms;
+  --scc-release: 220ms;
+  --scc-detail: 180ms;
+  --scc-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .svc-carousel { --scc-press-fast: 1ms; --scc-release: 1ms; --scc-detail: 90ms; }
+}
+
+/* ---------------------------------------------------------------
+   Hero copy
+   --------------------------------------------------------------- */
+.svc-carousel-hero { text-align: center; padding: 4px 20px 6px; }
+.svc-carousel-hero h1 { margin: 0 0 8px; text-wrap: balance; }
+.svc-carousel-hero p { margin: 0; }
+
+/* ---------------------------------------------------------------
+   Carousel stage
+   --------------------------------------------------------------- */
+.svcc-stage-wrap { position: relative; max-width: 760px; margin: 0 auto; padding: 22px 0 4px; }
+.svcc-stage {
+  position: relative; height: 400px; max-width: 100%; overflow: hidden;
+  perspective: 1400px; touch-action: pan-y;
+  outline: none;
+}
+.svcc-stage:focus-visible { box-shadow: inset var(--ps-focus-ring); }
+.svcc-stage::before {
+  content: ""; position: absolute; left: 50%; bottom: 22px;
+  width: 82%; height: 34px; transform: translateX(-50%);
+  background: radial-gradient(ellipse at center, rgba(198,154,75,0.14), rgba(198,154,75,0) 72%);
+  pointer-events: none; z-index: 0;
+}
+.svcc-card {
+  position: absolute; top: 48%; left: 50%;
+  width: 232px; aspect-ratio: 2 / 3;
+  border-radius: var(--ps-radius-card, 16px);
+  overflow: hidden;
+  cursor: pointer;
+  border: 1.5px solid rgba(255,255,255,0.08);
+  box-shadow: 0 12px 30px -14px rgba(0,0,0,0.65);
+  background: var(--ps-color-surface-container);
+  will-change: transform, opacity;
+  -webkit-tap-highlight-color: transparent;
+}
+.svcc-card.is-selected {
+  border-color: rgba(198,154,75,0.6);
+  box-shadow: 0 16px 40px -16px rgba(198,154,75,0.4), 0 12px 30px -14px rgba(0,0,0,0.65);
+}
+.svcc-card-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 38%;
+  pointer-events: none;
+}
+.svcc-card-art {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.svcc-card-art .material-symbols-outlined { font-size: 74px; color: rgba(244,239,231,0.85); }
+.svcc-card-caption {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
+  padding: 14px 16px 12px;
+  background: linear-gradient(to top, rgba(11,14,18,0.94), rgba(11,14,18,0.5) 65%, transparent);
+}
+.svcc-card-caption span { font-weight: 700; font-size: 15px; color: var(--ps-color-on-primary); text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+.svcc-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+
+/* Arrows */
+.svcc-arrow {
+  position: relative;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(23,25,27,0.85); border: 1px solid rgba(255,255,255,0.08);
+  color: var(--ps-color-on-primary); display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; backdrop-filter: blur(6px);
+  box-shadow: 0 1px 1px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06);
+  transition: border-color var(--scc-press-fast) var(--scc-ease), transform var(--scc-press-fast) var(--scc-ease);
+}
+.svcc-arrow:hover { border-color: rgba(198,154,75,.55); }
+/* NOT a bare `transform: scale(0.92)` here -- these buttons are
+   positioned via `transform: translateY(-50%)` (see .svcc-arrow-left/
+   -right below), and `transform` on :active REPLACES rather than
+   combines with that base transform. A bare scale() briefly un-centers
+   the button the instant it's pressed (loses its -50% offset), so real
+   pointerdown->pointerup click sequences landed on whatever was
+   underneath by the time pointerup fired -- reproduced and confirmed via
+   raw CDP input dispatch + per-event target logging, not just visual
+   inspection. Both rules below always carry the same translateY(-50%).
+*/
+.svcc-arrow:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.svcc-arrow .material-symbols-outlined { font-size: 22px; }
+/* The mobile arrow row's buttons aren't absolutely positioned (no base
+   transform to clobber), so a bare scale() is fine for them -- the two
+   more-specific :active rules below win for the desktop-positioned pair
+   regardless of source order. */
+.svcc-arrow:active { transform: scale(0.92); }
+/* Positioned clear of the stage's own box: at -4px the arrow's hit
+   target overlapped ~40px of the outermost card's clipped-but-still-
+   visible pixels. -56px clears the stage's edge with margin. */
+.svcc-arrow-left { position: absolute; left: -56px; top: 46%; transform: translateY(-50%); z-index: 200; }
+.svcc-arrow-right { position: absolute; right: -56px; top: 46%; transform: translateY(-50%); z-index: 200; }
+.svcc-arrow-left:active { transform: translateY(-50%) scale(0.92); }
+.svcc-arrow-right:active { transform: translateY(-50%) scale(0.92); }
+@media (max-width: 700px) {
+  .svcc-arrow-left, .svcc-arrow-right { display: none; }
+}
+
+/* Position indicator */
+.svcc-indicator-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 4px; }
+.svcc-indicator-count { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ps-color-on-surface-variant); font-weight: 600; min-width: 52px; text-align: center; direction: ltr; unicode-bidi: isolate; }
+.svcc-dots { display: flex; gap: 6px; }
+.svcc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ps-color-outline-variant); transition: background-color var(--scc-detail) var(--scc-ease), transform var(--scc-detail) var(--scc-ease); }
+.svcc-dot.is-active { background: var(--ps-color-secondary); transform: scale(1.3); }
+.svcc-swipe-hint { text-align: center; font-size: 12px; color: var(--ps-color-on-surface-variant); margin-top: 6px; }
+@media (max-width: 700px) { .svcc-indicator-row { margin-top: 14px; } }
+
+/* Mobile arrow row (shown below stage on small screens) */
+.svcc-mobile-arrows { display: none; align-items: center; justify-content: center; gap: 18px; margin-top: 14px; }
+@media (max-width: 700px) { .svcc-mobile-arrows { display: flex; } }
+
+/* ---------------------------------------------------------------
+   Detail block
+   --------------------------------------------------------------- */
+.svcc-detail { max-width: 560px; margin: 26px auto 0; text-align: center; padding: 0 20px; min-height: 128px; }
+.svcc-detail-title { margin: 0 0 6px; transition: opacity var(--scc-detail) ease, transform var(--scc-detail) ease; }
+.svcc-detail-desc { margin: 0 0 18px; line-height: 1.5; transition: opacity var(--scc-detail) ease, transform var(--scc-detail) ease; }
+.svcc-detail.is-changing .svcc-detail-title,
+.svcc-detail.is-changing .svcc-detail-desc { opacity: 0; transform: translateY(6px); }
+
+.svcc-explore-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 48px; padding-inline: 28px; border-radius: 999px;
+  background: linear-gradient(180deg, var(--ps-color-secondary-container), var(--ps-color-secondary));
+  color: var(--ps-color-on-secondary); font-weight: 700; font-size: 15px;
+  text-decoration: none; border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 8px 18px -8px rgba(198,154,75,.55), inset 0 1px 0 rgba(255,255,255,.25);
+  transition: transform var(--scc-press-fast) var(--scc-ease), box-shadow var(--scc-press-fast) var(--scc-ease);
+}
+.svcc-explore-btn:hover { transform: translateY(-1px); }
+.svcc-explore-btn:active { transform: scale(0.98); }
+.svcc-explore-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.svcc-explore-btn .material-symbols-outlined { font-size: 18px; }
+
+/* ---------------------------------------------------------------
+   MAM AI panel
+   --------------------------------------------------------------- */
+.svcc-mamrow { max-width: 900px; margin: 30px auto 0; padding: 0 20px; }
+.svcc-mam-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: var(--ps-color-surface-container); border: 1px solid var(--ps-color-outline-variant); border-radius: 18px;
+  padding: 16px 20px;
+}
+.svcc-mam-left { display: flex; align-items: center; gap: 12px; }
+.svcc-mam-icon { width: 40px; height: 40px; border-radius: 12px; background: rgba(198,154,75,.14); display: flex; align-items: center; justify-content: center; flex: none; }
+.svcc-mam-icon .material-symbols-outlined { color: var(--ps-color-secondary); font-size: 22px; }
+.svcc-mam-title { font-weight: 700; font-size: 14.5px; margin: 0; }
+.svcc-mam-sub { font-size: 12.5px; color: var(--ps-color-on-surface-variant); margin: 2px 0 0; }
+.svcc-mam-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 42px; padding-inline: 18px;
+  border-radius: 999px; border: 1px solid rgba(198,154,75,.5); background: transparent;
+  color: var(--ps-color-secondary); font-weight: 700; font-size: 13.5px; text-decoration: none;
+  transition: background-color var(--scc-press-fast) var(--scc-ease);
+}
+.svcc-mam-btn:hover { background: rgba(198,154,75,.1); }
+.svcc-mam-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.svcc-mam-btn .material-symbols-outlined { font-size: 16px; }
+
+/* Live region kept visually hidden */
+.svcc-visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Mobile stage sizing -- one large portrait selected card + narrow
+   previews on both sides. */
+@media (max-width: 700px) {
+  .svcc-stage { height: 380px; }
+  .svcc-card { width: 76vw; max-width: 300px; aspect-ratio: 2 / 3; height: auto; }
+}
+@media (max-width: 400px) {
+  .svcc-card { width: 78vw; }
+  .svcc-stage { height: 360px; }
+}
+
+/* ---------------------------------------------------------------
+   RTL
+   --------------------------------------------------------------- */
+[dir="rtl"] .svcc-arrow-left { left: auto; right: -4px; }
+[dir="rtl"] .svcc-arrow-right { right: auto; left: -4px; }

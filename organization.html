@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/organization.html"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Organization Profile</title>
+<meta name="description" content="Organization profile on Darwesh Group: business details, team and projects."/>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+  .org-cover { aspect-ratio: 16/5; min-height: 120px; background: linear-gradient(135deg,#221E15,#17150F); border-radius: 16px; overflow: hidden; position: relative; }
+  .org-cover img { width: 100%; height: 100%; object-fit: cover; }
+  .org-product-card { display: flex; flex-direction: column; overflow: hidden; }
+  .org-product-thumb { aspect-ratio: 1/1; background: #221E15; overflow: hidden; }
+  .org-product-thumb img { width: 100%; height: 100%; object-fit: cover; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-[76px] pb-24 md:pb-0">
+<h1 class="sr-only" data-i18n="org.pageH1">Organization profile</h1>
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:180px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:28px;width:220px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:120px;"></div>
+  </div>
+
+  <!-- No ?id, no signed-in account with an organization -->
+  <div id="noOrgState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">domain</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="org.noOrgTitle">You don't manage an organization yet</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1 max-w-sm mx-auto" data-i18n="org.noOrgHint">Organizations for developers, residential communities, finance providers and furniture stores are set up through professional sign-up.</p>
+    <a href="signup-professional.html" class="inline-block mt-4 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="org.registerOrg">Register an organization</a>
+    <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3">
+      <a href="login.html" class="hover:underline" data-i18n="org.logIn">Log in</a>
+    </p>
+  </div>
+
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">domain_disabled</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="org.notFound">Organization not found</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="org.notFoundHint">This organization may have been removed.</p>
+  </div>
+
+  <div id="errorState" class="hidden"></div>
+
+  <!-- Organization profile -->
+  <div id="orgContent" class="hidden">
+
+    <div class="org-cover mb-6" id="coverFrame">
+      <img id="coverImg" class="hidden" alt="" decoding="async"/>
+      <label id="coverUploadLabel" class="ps-avatar-upload hidden" style="position:absolute;bottom:10px;inset-inline-end:10px;" title="Change cover">
+        <span class="material-symbols-outlined text-[15px]" aria-hidden="true">photo_camera</span>
+        <input id="coverUpload" type="file" accept="image/*" class="hidden"/>
+      </label>
+    </div>
+
+    <section class="ps-hero mb-8">
+      <div class="ps-hero-glow" aria-hidden="true"></div>
+      <div class="ps-avatar" style="position:relative;z-index:1;">
+        <div id="logoFrame" class="ps-avatar-frame">
+          <span class="material-symbols-outlined text-on-secondary text-[36px]" id="logoIcon">business</span>
+          <img id="logoImg" class="hidden" alt="" decoding="async"/>
+        </div>
+        <label id="logoUploadLabel" class="ps-avatar-upload hidden" title="Change logo">
+          <span class="material-symbols-outlined text-[15px]" aria-hidden="true">photo_camera</span>
+          <input id="logoUpload" type="file" accept="image/*" class="hidden"/>
+        </label>
+      </div>
+      <div style="position:relative;z-index:1;flex:1;min-width:0;">
+        <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-1">
+          <h2 id="orgName" class="font-headline-md text-[24px] md:text-[28px] font-bold truncate max-w-full">—</h2>
+          <span id="typeBadge" class="ps-badge ps-badge-neutral"></span>
+          <span id="verifiedBadge" class="ps-badge ps-badge-verified hidden">
+            <span class="material-symbols-outlined text-[13px]" aria-hidden="true">verified</span>
+            <span data-i18n="org.verified">Verified</span>
+          </span>
+          <span id="unverifiedBadge" class="ps-badge ps-badge-unverified hidden" data-i18n="org.unverified">Unverified</span>
+        </div>
+        <p id="orgLocation" class="font-body-md text-[13px] opacity-80 mb-2"></p>
+        <p id="orgDescription" class="font-body-md text-[14px] opacity-90 max-w-xl"></p>
+        <div class="flex flex-wrap justify-center md:justify-start gap-2.5 mt-4">
+          <a id="projectsLink" href="#" class="ps-btn hidden bg-secondary text-on-secondary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-secondary-container hover:text-on-secondary-container transition-colors" data-i18n="org.manageProjects">Manage projects &amp; units</a>
+          <button id="editProfileBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors" data-i18n="org.editProfile">Edit Profile</button>
+          <button id="requestJoinBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors" data-i18n="org.requestToJoin">Request to join</button>
+          <button id="verifyToggleBtn" type="button" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors"></button>
+        </div>
+        <p id="requestJoinMsg" class="hidden text-[12px] mt-2"></p>
+      </div>
+    </section>
+
+    <p id="adminViewingNote" class="hidden font-label-caps text-label-caps text-secondary mb-4" data-i18n="org.adminViewing">Viewing as admin</p>
+
+    <div class="ps-tablist mb-6" role="tablist" aria-label="Organization profile sections">
+      <button class="ps-tab" role="tab" id="tabBtnOverview" aria-controls="panelOverview" type="button" data-i18n="org.tabOverview">Overview</button>
+      <button class="ps-tab hidden" role="tab" id="tabBtnProducts" aria-controls="panelProducts" type="button" data-i18n="org.tabProducts">Products</button>
+      <button class="ps-tab" role="tab" id="tabBtnTeam" aria-controls="panelTeam" type="button" data-i18n="org.tabTeam">Team</button>
+    </div>
+
+    <!-- Overview panel -->
+    <section id="panelOverview" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnOverview">
+      <div id="overviewReadOnly" class="ps-card p-5 md:p-6 max-w-2xl">
+        <div class="grid sm:grid-cols-2 gap-4 font-body-md text-[13.5px]">
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="org.city">City</p>
+            <p id="ovCity" class="text-on-surface">—</p>
+          </div>
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="org.district">District</p>
+            <p id="ovDistrict" class="text-on-surface">—</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Finance provider: documented details.downPayment/eligibility convention, read-only -->
+      <div id="financeCard" class="ps-card p-5 md:p-6 max-w-2xl mt-4 hidden">
+        <p class="font-headline-md text-[15px] font-bold mb-3" data-i18n="org.financeDetailsTitle">Financing details</p>
+        <div class="grid sm:grid-cols-2 gap-4 font-body-md text-[13.5px]">
+          <div>
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="org.downPayment">Typical down payment</p>
+            <p id="ovDownPayment" class="text-on-surface">—</p>
+          </div>
+          <div class="sm:col-span-2">
+            <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="org.eligibility">Eligibility</p>
+            <p id="ovEligibility" class="text-on-surface" style="white-space:pre-wrap;">—</p>
+          </div>
+        </div>
+        <p class="font-body-md text-[12px] text-on-surface-variant mt-3" data-i18n="org.financeDisclaimer">Published by this organization. Darwesh Group does not calculate or process payments -- contact the organization directly for a real offer.</p>
+      </div>
+
+      <!-- Furniture store: documented details.deliveryAreas convention, read-only -->
+      <div id="deliveryCard" class="ps-card p-5 md:p-6 max-w-2xl mt-4 hidden">
+        <p class="text-on-surface-variant font-label-caps text-[11px] mb-1" data-i18n="org.deliveryAreas">Delivery areas</p>
+        <p id="ovDeliveryAreas" class="text-on-surface font-body-md text-[13.5px]">—</p>
+      </div>
+
+      <!-- Owner/permitted-staff edit form -->
+      <form id="overviewEditForm" class="ps-card p-5 md:p-6 max-w-2xl mt-4 hidden">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editName" data-i18n="org.name">Organization name</label>
+            <input id="editName" class="ps-input" type="text" maxlength="200" required/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="editDescription" data-i18n="org.description">Description</label>
+            <textarea id="editDescription" class="ps-input" rows="3" maxlength="2000"></textarea>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editCity" data-i18n="org.city">City</label>
+            <input id="editCity" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="editDistrict" data-i18n="org.district">District</label>
+            <input id="editDistrict" class="ps-input" type="text" maxlength="200"/>
+          </div>
+          <div id="editDownPaymentWrap" class="hidden">
+            <label class="ps-field-label" for="editDownPayment" data-i18n="org.downPayment">Typical down payment</label>
+            <input id="editDownPayment" class="ps-input" type="number" min="0" max="100" step="1"/>
+          </div>
+          <div id="editEligibilityWrap" class="hidden sm:col-span-2">
+            <label class="ps-field-label" for="editEligibility" data-i18n="org.eligibility">Eligibility</label>
+            <textarea id="editEligibility" class="ps-input" rows="2" maxlength="1000"></textarea>
+          </div>
+          <div id="editDeliveryAreasWrap" class="hidden sm:col-span-2">
+            <label class="ps-field-label" for="editDeliveryAreas" data-i18n="org.deliveryAreas">Delivery areas</label>
+            <input id="editDeliveryAreas" class="ps-input" type="text" maxlength="500"/>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-5">
+          <button type="submit" id="saveOverviewBtn" class="ps-btn bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="org.save">Save</button>
+          <button type="button" id="cancelOverviewBtn" class="ps-btn border border-outline-variant px-5 py-2.5 rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="org.cancel">Cancel</button>
+          <p id="overviewSaveMsg" class="hidden text-[12px] self-center"></p>
+        </div>
+      </form>
+    </section>
+
+    <!-- Products panel (furniture_store only) -->
+    <section id="panelProducts" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnProducts" hidden>
+      <form id="productForm" class="ps-card p-4 mb-5 hidden">
+        <p class="font-headline-md text-[14px] font-bold mb-3" id="productFormTitle" data-i18n="org.addProduct">Add product</p>
+        <input type="hidden" id="productId"/>
+        <div class="grid sm:grid-cols-2 gap-3">
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="pName" data-i18n="org.productName">Product name</label>
+            <input id="pName" class="ps-input" type="text" maxlength="200" required/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="pCategory" data-i18n="org.productCategory">Category</label>
+            <input id="pCategory" class="ps-input" type="text" maxlength="80"/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="pStatus" data-i18n="org.productStatus">Status</label>
+            <select id="pStatus" class="ps-input">
+              <option value="available" data-i18n="org.statusAvailable">Available</option>
+              <option value="out_of_stock" data-i18n="org.statusOutOfStock">Out of stock</option>
+              <option value="hidden" data-i18n="org.statusHidden">Hidden</option>
+              <option value="sold_out" data-i18n="org.statusSoldOut">Sold out</option>
+            </select>
+          </div>
+          <div>
+            <label class="ps-field-label" for="pPrice" data-i18n="org.productPrice">Price</label>
+            <input id="pPrice" class="ps-input" type="number" min="0" step="0.01" required/>
+          </div>
+          <div>
+            <label class="ps-field-label" for="pCurrency" data-i18n="org.productCurrency">Currency</label>
+            <input id="pCurrency" class="ps-input" type="text" maxlength="10" value="USD"/>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="ps-field-label" for="pDescription" data-i18n="org.productDescription">Description</label>
+            <textarea id="pDescription" class="ps-input" rows="2" maxlength="2000"></textarea>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button type="submit" id="saveProductBtn" class="ps-btn bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps" data-i18n="org.save">Save</button>
+          <button type="button" id="cancelProductBtn" class="ps-btn border border-outline-variant px-5 py-2.5 rounded-full font-label-caps text-label-caps text-on-surface" data-i18n="org.cancel">Cancel</button>
+          <p id="productSaveMsg" class="hidden text-[12px] self-center"></p>
+        </div>
+      </form>
+      <div class="flex items-center justify-between mb-4">
+        <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="org.productsHint">Manage the items your store offers. Nothing here processes a payment -- Darwesh Group only lists what you publish.</p>
+        <button type="button" id="newProductBtn" class="ps-btn hidden bg-secondary text-on-secondary px-4 py-2 rounded-full font-label-caps text-[12px] whitespace-nowrap" data-i18n="org.newProduct">+ New product</button>
+      </div>
+      <div id="productsGrid" class="ps-grid"></div>
+      <div id="productsEmpty" class="ps-empty hidden"></div>
+    </section>
+
+    <!-- Team panel -->
+    <section id="panelTeam" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnTeam" hidden>
+      <div id="teamPrivateState" class="ps-empty hidden">
+        <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">lock</span>
+        <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="org.teamPrivate">Team roster is private</p>
+        <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="org.teamPrivateHint">Only the organization owner and Darwesh Group admins can view the full team.</p>
+      </div>
+
+      <div id="selfMembershipCard" class="ps-card p-4 mb-4 hidden max-w-md"></div>
+
+      <div id="teamManaged" class="hidden">
+        <p class="font-body-md text-[12.5px] text-on-surface-variant mb-4 max-w-lg" data-i18n="org.inviteNotAvailable">Inviting a specific person by email isn't available on this page yet. People can request to join from this organization's public profile, and you can approve or reject them below.</p>
+        <p id="teamActionMsg" class="hidden text-[12px] mb-4"></p>
+        <div id="teamList" class="space-y-2"></div>
+        <div id="teamEmpty" class="ps-empty hidden">
+          <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">group</span>
+          <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="org.teamEmpty">No team members yet.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+  import { auth, db, storage, getDoc, updateDoc, setDoc, deleteDoc, addDoc, getDocs } from './js/firebase-init.js';
+  import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+  import { doc, collection, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, LOGO_IMAGE, PORTFOLIO_IMAGE, createUploadGate } from './js/image-compress.js';
+  import {
+    mountTabs, renderEmptyState, renderErrorState,
+    withBusyButton, withUploadTimeout
+  } from './js/profile-shell.js';
+  import {
+    listMyOrganizations, getMyPermissions,
+    requestOrganizationMembership, approveOrganizationMembership, rejectOrganizationMembership,
+    removeOrganizationMember, revokeOrganizationInvitation,
+    acceptOrganizationInvitation, declineOrganizationInvitation,
+    BackendResponseError, BackendUnavailableError
+  } from './js/backend-api.js';
+  import { esc } from './js/professional-content.js';
+
+  const logoGate = createUploadGate();
+  const coverGate = createUploadGate();
+
+  function isSafeHttpUrl(url) {
+    if (typeof url !== 'string' || url.trim() === '') return false;
+    try {
+      const u = new URL(url, window.location.href);
+      return u.protocol === 'https:' || u.protocol === 'http:';
+    } catch { return false; }
+  }
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  const TYPE_LABEL_KEYS = {
+    developer_project: ['auth.pro.typeDeveloper', 'Real Estate Developer'],
+    residential_community: ['auth.pro.typeResidentialCommunity', 'Residential Community'],
+    finance_provider: ['auth.pro.typeFinanceProvider', 'Installment / Finance Provider'],
+    furniture_store: ['auth.pro.typeFurnitureStore', 'Furniture Store']
+  };
+  const PROJECT_ORG_TYPES = ['developer_project', 'residential_community'];
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedId = params.get('id');
+
+  const el = (id) => document.getElementById(id);
+  function show(id) { el(id).classList.remove('hidden'); }
+  function hide(id) { el(id).classList.add('hidden'); }
+  function hideStates() {
+    ['loadingState', 'noOrgState', 'notFoundState', 'errorState', 'orgContent'].forEach(hide);
+  }
+
+  let currentUser = null;
+  let orgId = null;
+  let orgData = null;
+  let isOwnerView = false;
+  let isAdminView = false;
+  let canEditProfile = false; // owner, admin, or an active member with manage_organization_profile
+
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user;
+    await resolveAndLoad();
+  });
+
+  async function resolveAndLoad() {
+    if (requestedId) {
+      orgId = requestedId;
+      await loadOrg();
+      return;
+    }
+    if (currentUser) {
+      try {
+        const result = await listMyOrganizations(currentUser);
+        const mine = result.organizations || [];
+        const owned = mine.find((o) => o.isOwner);
+        const active = mine.find((o) => o.membershipStatus === 'active');
+        const pendingOrInvited = mine.find((o) => o.membershipStatus === 'pending' || o.membershipStatus === 'invited');
+        const pick = owned || active || pendingOrInvited;
+        if (pick) {
+          window.location.replace(`organization.html?id=${encodeURIComponent(pick.organizationId)}`);
+          return;
+        }
+      } catch { /* falls through to noOrgState */ }
+    }
+    hideStates();
+    show('noOrgState');
+  }
+
+  async function loadOrg() {
+    hideStates();
+    show('loadingState');
+    try {
+      const snap = await getDoc(doc(db, 'organizations', orgId));
+      if (!snap.exists()) { hideStates(); show('notFoundState'); return; }
+      orgData = snap.data();
+      isOwnerView = !!(currentUser && orgData.ownerId && orgData.ownerId === currentUser.uid);
+      isAdminView = false;
+      canEditProfile = isOwnerView;
+      if (currentUser) {
+        try {
+          const profileSnap = await getDoc(doc(db, 'users', currentUser.uid));
+          isAdminView = profileSnap.exists() && profileSnap.data().role === 'admin';
+        } catch { /* keep false */ }
+        if (!canEditProfile && !isAdminView) {
+          // Not the owner -- the only way to know whether an active
+          // membership's org-scoped grant (or the caller's own global
+          // accountType default) actually includes
+          // 'manage_organization_profile' is to ask the backend, which
+          // resolves the exact union firestore.rules' hasOrgPermission()
+          // checks. A failed call (offline, backend not reachable) just
+          // means no edit form shows -- never a client-side guess that
+          // could show a form the write rule then rejects.
+          try {
+            const perms = await getMyPermissions(currentUser, orgId);
+            canEditProfile = !!(perms.organization && perms.organization.effectivePermissions
+              && perms.organization.effectivePermissions.manage_organization_profile === true);
+          } catch { /* stays false */ }
+        }
+      }
+      renderOrg();
+      hideStates();
+      show('orgContent');
+      setupTabs();
+      if (orgData.type === 'furniture_store') loadProductsTab();
+      loadTeamTab();
+    } catch (err) {
+      hideStates();
+      show('errorState');
+      renderErrorState(el('errorState'), { message: tr('org.errorLoad', "Couldn't load this organization."), onRetry: loadOrg });
+    }
+  }
+
+  function renderOrg() {
+    el('orgName').textContent = orgData.name || '—';
+    const typeKey = TYPE_LABEL_KEYS[orgData.type];
+    el('typeBadge').textContent = typeKey ? tr(typeKey[0], typeKey[1]) : orgData.type;
+    const locationParts = [orgData.city, orgData.district].filter(Boolean);
+    el('orgLocation').textContent = locationParts.join(' · ');
+    el('orgDescription').textContent = orgData.description || '';
+    if (!orgData.description) {
+      el('orgDescription').textContent = tr('org.noDescription', "This organization hasn't added a description yet.");
+      el('orgDescription').classList.add('opacity-70');
+    } else {
+      el('orgDescription').classList.remove('opacity-70');
+    }
+
+    hide('verifiedBadge'); hide('unverifiedBadge');
+    if (orgData.verified) show('verifiedBadge'); else show('unverifiedBadge');
+
+    if (isSafeHttpUrl(orgData.logoUrl)) {
+      el('logoImg').src = orgData.logoUrl;
+      el('logoImg').classList.remove('hidden');
+      el('logoIcon').classList.add('hidden');
+    }
+    if (isSafeHttpUrl(orgData.coverImageUrl)) {
+      el('coverImg').src = orgData.coverImageUrl;
+      el('coverImg').classList.remove('hidden');
+    }
+
+    hide('financeCard'); hide('deliveryCard'); hide('projectsLink'); hide('tabBtnProducts');
+    const details = orgData.details && typeof orgData.details === 'object' ? orgData.details : {};
+    if (orgData.type === 'finance_provider') {
+      show('financeCard');
+      el('ovDownPayment').textContent = (details.downPayment !== undefined && details.downPayment !== null && details.downPayment !== '')
+        ? `${details.downPayment}%` : '—';
+      el('ovEligibility').textContent = details.eligibility || '—';
+    } else if (orgData.type === 'furniture_store') {
+      show('deliveryCard');
+      el('ovDeliveryAreas').textContent = details.deliveryAreas || '—';
+      show('tabBtnProducts');
+    } else if (PROJECT_ORG_TYPES.includes(orgData.type)) {
+      el('projectsLink').href = `org-projects.html?org=${encodeURIComponent(orgId)}`;
+      show('projectsLink');
+    }
+
+    el('ovCity').textContent = orgData.city || '—';
+    el('ovDistrict').textContent = orgData.district || '—';
+
+    hide('editProfileBtn'); hide('logoUploadLabel'); hide('coverUploadLabel');
+    hide('requestJoinBtn'); hide('adminViewingNote'); hide('verifyToggleBtn');
+
+    if (canEditProfile) {
+      show('editProfileBtn');
+      show('logoUploadLabel');
+      show('coverUploadLabel');
+    }
+    if (isAdminView) {
+      show('adminViewingNote');
+      const verifyBtn = el('verifyToggleBtn');
+      verifyBtn.textContent = orgData.verified ? tr('org.markUnverified', 'Remove verified status') : tr('org.markVerified', 'Mark as verified');
+      show('verifyToggleBtn');
+      verifyBtn.onclick = () => withBusyButton(verifyBtn, async () => {
+        try {
+          await updateDoc(doc(db, 'organizations', orgId), { verified: !orgData.verified, updatedAt: Date.now() / 1000 });
+          orgData.verified = !orgData.verified;
+          renderOrg();
+        } catch (err) {
+          console.error('[organization] verify toggle failed', err);
+        }
+      });
+    }
+    if (currentUser && !isOwnerView && !isAdminView) {
+      // Whether they're already a member is resolved by loadTeamTab's
+      // own self-membership read; this button starts hidden and is
+      // revealed there only for a real non-member.
+    }
+
+    wireEditForm();
+    wireLogoUpload();
+    wireCoverUpload();
+  }
+
+  function wireEditForm() {
+    const editBtn = el('editProfileBtn');
+    const form = el('overviewEditForm');
+    const readOnly = el('overviewReadOnly');
+    if (editBtn.dataset.wired) return;
+    editBtn.dataset.wired = '1';
+    editBtn.addEventListener('click', () => {
+      el('editName').value = orgData.name || '';
+      el('editDescription').value = orgData.description || '';
+      el('editCity').value = orgData.city || '';
+      el('editDistrict').value = orgData.district || '';
+      const details = orgData.details && typeof orgData.details === 'object' ? orgData.details : {};
+      hide('editDownPaymentWrap'); hide('editEligibilityWrap'); hide('editDeliveryAreasWrap');
+      if (orgData.type === 'finance_provider') {
+        show('editDownPaymentWrap'); show('editEligibilityWrap');
+        el('editDownPayment').value = details.downPayment !== undefined && details.downPayment !== null ? details.downPayment : '';
+        el('editEligibility').value = details.eligibility || '';
+      } else if (orgData.type === 'furniture_store') {
+        show('editDeliveryAreasWrap');
+        el('editDeliveryAreas').value = details.deliveryAreas || '';
+      }
+      readOnly.classList.add('hidden');
+      hide('financeCard'); hide('deliveryCard');
+      form.classList.remove('hidden');
+    });
+    el('cancelOverviewBtn').addEventListener('click', () => {
+      form.classList.add('hidden');
+      readOnly.classList.remove('hidden');
+      renderOrg();
+    });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const saveBtn = el('saveOverviewBtn');
+      withBusyButton(saveBtn, async () => {
+        const msg = el('overviewSaveMsg');
+        msg.classList.add('hidden');
+        const details = {};
+        if (orgData.type === 'finance_provider') {
+          const dp = el('editDownPayment').value.trim();
+          if (dp !== '') details.downPayment = Number(dp);
+          const elig = el('editEligibility').value.trim();
+          if (elig) details.eligibility = elig;
+        } else if (orgData.type === 'furniture_store') {
+          const da = el('editDeliveryAreas').value.trim();
+          if (da) details.deliveryAreas = da;
+        } else {
+          // developer_project / residential_community: this page never
+          // touches their `details` (amenities/units live at the
+          // project level, authored on org-projects.html) -- preserve
+          // whatever is already there rather than silently wiping it.
+          Object.assign(details, orgData.details || {});
+        }
+        const update = {
+          name: el('editName').value.trim(),
+          description: el('editDescription').value.trim(),
+          city: el('editCity').value.trim(),
+          district: el('editDistrict').value.trim(),
+          details,
+          updatedAt: Date.now() / 1000
+        };
+        try {
+          await updateDoc(doc(db, 'organizations', orgId), update);
+          Object.assign(orgData, update);
+          form.classList.add('hidden');
+          el('overviewReadOnly').classList.remove('hidden');
+          renderOrg();
+        } catch (err) {
+          msg.textContent = tr('org.errorGeneric', 'Something went wrong. Please try again.');
+          msg.style.color = '#E5787A';
+          msg.classList.remove('hidden');
+        }
+      });
+    });
+  }
+
+  function wireLogoUpload() {
+    const input = el('logoUpload');
+    if (input.dataset.wired) return;
+    input.dataset.wired = '1';
+    input.addEventListener('change', async function () {
+      const file = this.files[0];
+      if (!file) return;
+      if (!logoGate.begin()) return;
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileRef = storageRef(storage, `organization-media/${orgId}/logo/${Date.now()}-${safeName}`);
+        const upload = await compressImage(file, LOGO_IMAGE);
+        await withUploadTimeout(uploadBytes(fileRef, upload));
+        const url = await withUploadTimeout(getDownloadURL(fileRef));
+        await updateDoc(doc(db, 'organizations', orgId), { logoUrl: url, updatedAt: Date.now() / 1000 });
+        orgData.logoUrl = url;
+        renderOrg();
+      } catch { /* low-stakes, self-evident failure -- logo just doesn't change */ }
+      finally { logoGate.end(); this.value = ''; }
+    });
+  }
+
+  function wireCoverUpload() {
+    const input = el('coverUpload');
+    if (input.dataset.wired) return;
+    input.dataset.wired = '1';
+    input.addEventListener('change', async function () {
+      const file = this.files[0];
+      if (!file) return;
+      if (!coverGate.begin()) return;
+      try {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileRef = storageRef(storage, `organization-media/${orgId}/cover/${Date.now()}-${safeName}`);
+        const upload = await compressImage(file, PORTFOLIO_IMAGE);
+        await withUploadTimeout(uploadBytes(fileRef, upload));
+        const url = await withUploadTimeout(getDownloadURL(fileRef));
+        await updateDoc(doc(db, 'organizations', orgId), { coverImageUrl: url, updatedAt: Date.now() / 1000 });
+        orgData.coverImageUrl = url;
+        renderOrg();
+      } catch { /* same as logo -- silent, low-stakes */ }
+      finally { coverGate.end(); this.value = ''; }
+    });
+  }
+
+  function setupTabs() {
+    const tabs = [
+      { key: 'overview', button: el('tabBtnOverview'), panel: el('panelOverview') }
+    ];
+    if (orgData.type === 'furniture_store') tabs.push({ key: 'products', button: el('tabBtnProducts'), panel: el('panelProducts') });
+    tabs.push({ key: 'team', button: el('tabBtnTeam'), panel: el('panelTeam') });
+    mountTabs({ tabs });
+  }
+
+  // ---- Products (furniture_store) ------------------------------------
+  let canManageProducts = false;
+
+  async function loadProductsTab() {
+    canManageProducts = canEditProfile; // same permission key gates both today
+    if (canManageProducts) { show('newProductBtn'); wireProductForm(); }
+    await refreshProducts();
+  }
+
+  function wireProductForm() {
+    const btn = el('newProductBtn');
+    if (!btn.dataset.wired) {
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', () => openProductForm(null));
+    }
+    const cancelBtn = el('cancelProductBtn');
+    if (!cancelBtn.dataset.wired) {
+      cancelBtn.dataset.wired = '1';
+      cancelBtn.addEventListener('click', () => el('productForm').classList.add('hidden'));
+    }
+    const form = el('productForm');
+    if (!form.dataset.wired) {
+      form.dataset.wired = '1';
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const saveBtn = el('saveProductBtn');
+        withBusyButton(saveBtn, async () => {
+          const msg = el('productSaveMsg');
+          msg.classList.add('hidden');
+          const editingId = el('productId').value;
+          const payload = {
+            name: el('pName').value.trim(),
+            categoryId: el('pCategory').value.trim() || null,
+            description: el('pDescription').value.trim(),
+            price: Number(el('pPrice').value),
+            currency: el('pCurrency').value.trim() || 'USD',
+            status: el('pStatus').value,
+            updatedAt: Date.now() / 1000
+          };
+          Object.keys(payload).forEach((k) => { if (payload[k] === null) delete payload[k]; });
+          try {
+            if (editingId) {
+              await updateDoc(doc(db, 'products', editingId), payload);
+            } else {
+              await addDoc(collection(db, 'products'), { ...payload, sellerId: orgId, createdAt: Date.now() / 1000 });
+            }
+            el('productForm').classList.add('hidden');
+            await refreshProducts();
+          } catch (err) {
+            msg.textContent = tr('org.errorGeneric', 'Something went wrong. Please try again.');
+            msg.style.color = '#E5787A';
+            msg.classList.remove('hidden');
+          }
+        });
+      });
+    }
+  }
+
+  function openProductForm(product) {
+    el('productId').value = product ? product.id : '';
+    el('productFormTitle').textContent = product ? tr('org.editProduct', 'Edit product') : tr('org.addProduct', 'Add product');
+    el('pName').value = product ? (product.name || '') : '';
+    el('pCategory').value = product ? (product.categoryId || '') : '';
+    el('pStatus').value = product ? (product.status || 'available') : 'available';
+    el('pPrice').value = product ? (product.price != null ? product.price : '') : '';
+    el('pCurrency').value = product ? (product.currency || 'USD') : 'USD';
+    el('pDescription').value = product ? (product.description || '') : '';
+    el('productSaveMsg').classList.add('hidden');
+    el('productForm').classList.remove('hidden');
+    el('productForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  async function refreshProducts() {
+    const grid = el('productsGrid');
+    const emptyEl = el('productsEmpty');
+    grid.innerHTML = '';
+    try {
+      const snap = await getDocs(query(collection(db, 'products'), where('sellerId', '==', orgId), limit(60)));
+      if (snap.empty) {
+        renderEmptyState(emptyEl, {
+          icon: 'chair',
+          title: canManageProducts ? tr('org.productsEmptyOwner', 'Add your first product to get started.') : tr('org.productsEmpty', 'No products listed yet.')
+        });
+        show('productsEmpty');
+        return;
+      }
+      hide('productsEmpty');
+      const STATUS_LABELS = {
+        available: tr('org.statusAvailable', 'Available'),
+        out_of_stock: tr('org.statusOutOfStock', 'Out of stock'),
+        hidden: tr('org.statusHidden', 'Hidden'),
+        sold_out: tr('org.statusSoldOut', 'Sold out')
+      };
+      snap.forEach((docSnap) => {
+        const d = docSnap.data();
+        const card = document.createElement('div');
+        card.className = 'ps-card org-product-card';
+        const img = Array.isArray(d.images) && d.images.length && isSafeHttpUrl(d.images[0]) ? d.images[0] : null;
+        const price = typeof d.price === 'number' ? d.price.toLocaleString() : d.price;
+        card.innerHTML = `
+          <div class="org-product-thumb">${img ? `<img src="${esc(img)}" alt="" loading="lazy" decoding="async"/>` : ''}</div>
+          <div class="p-3">
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${esc(d.name || '')}</p>
+            <p class="font-data-mono text-[13px] text-secondary mt-1">${price !== undefined ? esc(d.currency || '') + ' ' + esc(String(price)) : ''}</p>
+            <span class="ps-badge ps-badge-neutral mt-1">${esc(STATUS_LABELS[d.status] || d.status || '')}</span>
+          </div>
+          ${canManageProducts ? `<div class="p-3 pt-0 flex gap-2">
+            <button data-action="edit" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('org.editProduct', 'Edit')}</button>
+            <button data-action="delete" class="ps-btn border border-error text-error px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('org.deleteProduct', 'Delete')}</button>
+          </div>` : ''}
+        `;
+        if (canManageProducts) {
+          card.querySelector('[data-action="edit"]').addEventListener('click', () => openProductForm({ id: docSnap.id, ...d }));
+          card.querySelector('[data-action="delete"]').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+            try { await deleteDoc(doc(db, 'products', docSnap.id)); await refreshProducts(); }
+            catch (err) { console.error('[organization] product delete failed', err); }
+          }));
+        }
+        grid.appendChild(card);
+      });
+    } catch {
+      renderErrorState(emptyEl, { message: tr('org.errorGeneric', 'Something went wrong. Please try again.'), onRetry: refreshProducts });
+      show('productsEmpty');
+    }
+  }
+
+  // ---- Team ------------------------------------------------------------
+  async function loadTeamTab() {
+    if (!(isOwnerView || isAdminView)) {
+      await loadSelfMembership();
+      if (!isOwnerView && !isAdminView) show('teamPrivateState');
+      return;
+    }
+    show('teamManaged');
+    await refreshTeamList();
+  }
+
+  async function loadSelfMembership() {
+    if (!currentUser) return;
+    try {
+      const selfSnap = await getDoc(doc(db, 'organizations', orgId, 'members', currentUser.uid));
+      if (!selfSnap.exists()) {
+        // No relationship at all -- offer "Request to join" on the hero.
+        if (currentUser.uid !== orgData.ownerId) {
+          const btn = el('requestJoinBtn');
+          show('requestJoinBtn');
+          if (!btn.dataset.wired) {
+            btn.dataset.wired = '1';
+            btn.addEventListener('click', () => withBusyButton(btn, async () => {
+              const msg = el('requestJoinMsg');
+              msg.classList.add('hidden');
+              try {
+                await requestOrganizationMembership(currentUser, orgId);
+                msg.textContent = tr('org.requestSent', 'Request sent. The owner will review it.');
+                msg.style.color = '#7FB89A';
+                msg.classList.remove('hidden');
+                hide('requestJoinBtn');
+              } catch (err) {
+                msg.textContent = err instanceof BackendResponseError ? err.message
+                  : err instanceof BackendUnavailableError ? tr('org.errorUnreachable', 'Could not reach the server.')
+                  : tr('org.errorGeneric', 'Something went wrong. Please try again.');
+                msg.style.color = '#E5787A';
+                msg.classList.remove('hidden');
+              }
+            }));
+          }
+        }
+        return;
+      }
+      const data = selfSnap.data();
+      const card = el('selfMembershipCard');
+      if (data.status === 'invited') {
+        card.innerHTML = `
+          <p class="font-body-md text-[13.5px] text-on-surface mb-3">${tr('org.yourInvitation', "You've been invited to join this organization.")}</p>
+          <div class="flex gap-2">
+            <button id="acceptInviteBtn" type="button" class="ps-btn bg-primary text-on-primary px-4 py-2 rounded-full font-label-caps text-label-caps">${tr('org.accept', 'Accept')}</button>
+            <button id="declineInviteBtn" type="button" class="ps-btn border border-outline-variant px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface">${tr('org.decline', 'Decline')}</button>
+          </div>
+          <p id="inviteResponseMsg" class="hidden text-[12px] mt-2"></p>
+        `;
+        card.classList.remove('hidden');
+        function showInviteResponseError(err) {
+          const msg = el('inviteResponseMsg');
+          msg.textContent = err instanceof BackendResponseError ? err.message
+            : err instanceof BackendUnavailableError ? tr('org.errorUnreachable', 'Could not reach the server.')
+            : tr('org.errorGeneric', 'Something went wrong. Please try again.');
+          msg.style.color = '#E5787A';
+          msg.classList.remove('hidden');
+        }
+        el('acceptInviteBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+          try { await acceptOrganizationInvitation(currentUser, orgId); window.location.reload(); }
+          catch (err) { showInviteResponseError(err); }
+        }));
+        el('declineInviteBtn').addEventListener('click', (e) => withBusyButton(e.currentTarget, async () => {
+          try { await declineOrganizationInvitation(currentUser, orgId); window.location.reload(); }
+          catch (err) { showInviteResponseError(err); }
+        }));
+      } else if (data.status === 'pending') {
+        card.innerHTML = `<p class="font-body-md text-[13.5px] text-on-surface-variant">${tr('org.statusPending', 'Pending approval')}</p>`;
+        card.classList.remove('hidden');
+      } else if (data.status === 'active') {
+        card.innerHTML = `<p class="font-body-md text-[13.5px] text-on-surface"><span class="ps-badge ps-badge-verified">${tr('org.statusActive', 'Active')}</span> ${tr('org.membershipAccepted', "You're now part of this team.")}</p>`;
+        card.classList.remove('hidden');
+      }
+    } catch { /* not a member and not permitted to read another uid -- resolves to permission-denied, treated as no self record */ }
+  }
+
+  async function refreshTeamList() {
+    const list = el('teamList');
+    list.innerHTML = '';
+    try {
+      const snap = await getDocs(collection(db, 'organizations', orgId, 'members'));
+      if (snap.empty) { show('teamEmpty'); return; }
+      hide('teamEmpty');
+      const rows = await Promise.all(snap.docs.map(async (d) => {
+        const data = d.data();
+        let name = d.id;
+        try {
+          const profileSnap = await getDoc(doc(db, 'users', d.id));
+          if (profileSnap.exists()) name = profileSnap.data().displayName || d.id;
+        } catch { /* keep uid as fallback label */ }
+        return { uid: d.id, status: data.status, name };
+      }));
+      rows.forEach(({ uid, status, name }) => {
+        const row = document.createElement('div');
+        row.className = 'ps-card p-3 flex items-center justify-between gap-3 flex-wrap';
+        const statusLabel = status === 'active' ? tr('org.statusActive', 'Active')
+          : status === 'pending' ? tr('org.statusPending', 'Pending approval')
+          : tr('org.statusInvited', 'Invited');
+        let actions = '';
+        if (status === 'pending') {
+          actions = `<button data-action="approve" data-uid="${esc(uid)}" class="ps-btn bg-primary text-on-primary px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('org.approve', 'Approve')}</button>
+                     <button data-action="reject" data-uid="${esc(uid)}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('org.reject', 'Reject')}</button>`;
+        } else if (status === 'invited') {
+          actions = `<button data-action="revoke" data-uid="${esc(uid)}" class="ps-btn border border-outline-variant px-3 py-1.5 rounded-full font-label-caps text-[11px] text-on-surface">${tr('org.revoke', 'Revoke invitation')}</button>`;
+        } else {
+          actions = `<button data-action="remove" data-uid="${esc(uid)}" class="ps-btn border border-error text-error px-3 py-1.5 rounded-full font-label-caps text-[11px]">${tr('org.remove', 'Remove')}</button>`;
+        }
+        row.innerHTML = `
+          <div class="min-w-0">
+            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${esc(name)}</p>
+            <span class="ps-badge ps-badge-neutral mt-1">${statusLabel}</span>
+          </div>
+          <div class="flex gap-2 flex-none">${actions}</div>
+        `;
+        list.appendChild(row);
+      });
+      list.querySelectorAll('button[data-action]').forEach((btn) => {
+        btn.addEventListener('click', () => withBusyButton(btn, async () => {
+          const msg = el('teamActionMsg');
+          msg.classList.add('hidden');
+          const uid = btn.dataset.uid;
+          const action = btn.dataset.action;
+          try {
+            if (action === 'approve') await approveOrganizationMembership(currentUser, orgId, uid);
+            if (action === 'reject') await rejectOrganizationMembership(currentUser, orgId, uid);
+            if (action === 'revoke') await revokeOrganizationInvitation(currentUser, orgId, uid);
+            if (action === 'remove') await removeOrganizationMember(currentUser, orgId, uid);
+            await refreshTeamList();
+          } catch (err) {
+            msg.textContent = err instanceof BackendResponseError ? err.message
+              : err instanceof BackendUnavailableError ? tr('org.errorUnreachable', 'Could not reach the server.')
+              : tr('org.errorGeneric', 'Something went wrong. Please try again.');
+            msg.style.color = '#E5787A';
+            msg.classList.remove('hidden');
+          }
+        }));
+      });
+    } catch {
+      renderErrorState(list, { message: tr('org.errorGeneric', 'Something went wrong. Please try again.'), onRetry: refreshTeamList });
+    }
+  }
+</script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/notification-bell.js"></script>
+<script src="./js/i18n.js"></script>
+</body></html>

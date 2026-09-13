@@ -1,0 +1,870 @@
+name: Deploy Backend
+
+# Builds backend/ and rolls it out to Cloud Run as a CANARY, on demand.
+#
+# MANUAL ONLY, DELIBERATELY -- same posture as deploy-rules.yml. There is
+# no push trigger. This service holds the OTP secret, signs verification
+# evidence URLs and is the only thing that can mark an identity approved;
+# shipping it is a decision someone makes, not a side effect of merging.
+#
+# TRAFFIC IS NEVER MOVED BY THE DEPLOY ITSELF
+# -------------------------------------------
+# `gcloud run deploy` on its own promotes the new revision to 100% the
+# moment it is ready -- production traffic moves onto code that has not
+# been checked even once. This workflow splits that into two operations
+# with a gate between them:
+#
+#   1. deploy --no-traffic --tag verify-canary
+#        The new revision is built and started, reachable ONLY at its own
+#        tagged URL. The previously-serving revision keeps 100% of real
+#        traffic. Nothing a user touches has changed yet.
+#   2. the canary checks run against the TAGGED URL
+#        /healthz must be 200, and the verification route must answer 401
+#        (registered) rather than 404 (silently absent). Either failing
+#        stops the run with production untouched.
+#   3. update-traffic --to-revisions <new>=100
+#        An explicit, separate step that only runs if step 2 passed.
+#   4. the same checks run again on the real production URL.
+#
+# So a revision that boots broken -- or boots fine but registers none of
+# the verification routes because the credential gate failed -- never
+# serves a single user request.
+#
+# WHAT ELSE THIS PROTECTS AGAINST
+# -------------------------------
+#   * Shipping code that fails its own tests -- the ruff + pytest gate
+#     runs before anything reaches Google.
+#   * Losing the environment. `gcloud run deploy --set-env-vars` REPLACES
+#     the whole env map; it would silently drop OTP_HMAC_SECRET,
+#     RESEND_API_KEY and ALLOWED_ORIGINS, taking signup OTP, password
+#     reset and CORS down with it. This uses --update-env-vars (merge)
+#     and names exactly two variables. Every secret stays in Cloud Run /
+#     Secret Manager and is never read, printed or written here.
+#   * Not knowing how to get back. Before deploying it records the
+#     revision actually serving traffic and prints the exact rollback
+#     command, into both the run summary and a 90-day artifact.
+#
+# THE ROLLBACK TARGET COMES FROM THE TRAFFIC BLOCK, NOT latestReady
+# -----------------------------------------------------------------
+# `status.latestReadyRevisionName` is "the newest revision that booted",
+# NOT "the revision serving traffic" -- and with --no-traffic those are
+# deliberately different: the canary becomes latestReady while serving
+# 0%. Reading the rollback target from latestReady would therefore name
+# the canary itself, i.e. roll back to the thing you are rolling back
+# from. It is read from `status.traffic` (highest percent) instead.
+#
+# WHY THE ROLLBACK ARTIFACT IS REDACTED
+# -------------------------------------
+# `gcloud run services describe --format=json` includes env var VALUES.
+# Uploading that verbatim would put OTP_HMAC_SECRET, RESEND_API_KEY and
+# the model provider keys into a downloadable 90-day artifact -- a
+# credential leak dressed as a safety feature. The capture step writes
+# variable NAMES and their kind (plain vs secretKeyRef) only; the raw JSON
+# stays in RUNNER_TEMP and is never uploaded.
+#
+# SETUP (once)
+# ------------
+#   1. In Google Cloud IAM for project darwesh-group, create a service
+#      account (e.g. github-backend-deployer) and grant it:
+#        - Cloud Run Admin              (roles/run.admin)
+#        - Cloud Build Editor           (roles/cloudbuild.builds.editor)
+#        - Artifact Registry Writer     (roles/artifactregistry.writer)
+#        - Storage Admin                (roles/storage.admin)
+#            -- Cloud Build's source staging bucket
+#        - Service Account User         (roles/iam.serviceAccountUser)
+#            -- required to deploy a revision that runs AS the service's
+#               runtime service account. Without it the deploy is
+#               rejected even with run.admin.
+#      Do NOT reuse github-rules-deployer: that one holds
+#      roles/firebaserules.admin and nothing else, on purpose.
+#   2. Create a JSON key for it.
+#   3. Repository -> Settings -> Secrets and variables -> Actions ->
+#      New repository secret, named GCP_DEPLOY_KEY, with the whole JSON
+#      file as the value.
+#
+# Stronger alternative, worth doing when there's time: Workload Identity
+# Federation, which removes the long-lived key entirely. It replaces
+# `credentials_json` below with `workload_identity_provider` +
+# `service_account` and needs `id-token: write` added to permissions.
+# One key is what this repo already does for rules, so this follows that
+# pattern rather than introducing a second auth model mid-incident.
+#
+# Optional but recommended: Settings -> Environments -> `production`, add
+# yourself as a required reviewer. This workflow already targets that
+# environment, so a reviewer requirement takes effect with no edit here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DEPLOY to confirm'
+        type: string
+        required: true
+
+# Only actions/checkout's own read is needed. The Google credential is a
+# secret, not this workflow's GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# Two backend deploys racing each other would make "which revision is
+# serving" a coin toss. Queue instead of cancelling.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend to Cloud Run (canary)
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      GCP_PROJECT: darwesh-group
+      SERVICE: darwesh-backend
+      REGION: me-central1
+      CANARY_TAG: verify-canary
+      # The service account Cloud Build runs the source build as. Not a
+      # guess: run #6 named it twice -- once in a warning ("does not have
+      # permission to check details of build service account
+      # projects/353477435585/serviceAccounts/353477435585-compute@
+      # developer.gserviceaccount.com") and once in the failure, by its
+      # numeric id 107164045339432031289. 353477435585 is also the project
+      # number in the service's own hostname.
+      BUILD_SA: 353477435585-compute@developer.gserviceaccount.com
+
+    steps:
+      - name: Confirm intent
+        run: |
+          if [ "${{ inputs.confirm }}" != "DEPLOY" ]; then
+            echo "::error::Type DEPLOY in the confirm field to run this workflow. Got: '${{ inputs.confirm }}'"
+            exit 1
+          fi
+          # Not fatal -- a hotfix from another branch is legitimate -- but
+          # which ref reached production should never be a mystery later.
+          if [ "${{ github.ref_name }}" != "claude/web-project-hqdo8o" ]; then
+            echo "::warning::Deploying the backend from '${{ github.ref_name }}', not the production branch."
+          fi
+
+      # ---- Preflight: is there a usable credential at all? -----------
+      # Run #1 spent its whole 28s passing the test gates and then died
+      # on google-github-actions/auth with "the GitHub Action workflow
+      # must specify exactly one of workload_identity_provider or
+      # credentials_json" -- which is that action's way of saying the
+      # secret it was handed was EMPTY. That message names neither the
+      # secret nor the likely cause, so this step says both, and says it
+      # in two seconds instead of thirty.
+      #
+      # It also checks the SHAPE of the credential, because an empty
+      # secret and a wrong-shaped one (the key id pasted instead of the
+      # key file, a truncated paste, a base64 blob, the JSON wrapped in
+      # quotes) fail later with equally unhelpful errors.
+      #
+      # Values are never printed -- only yes/no facts about structure.
+      # GitHub masks an exact secret match in logs, but NOT a value
+      # derived from it, so a field echoed out of the parsed JSON would
+      # leak for real.
+      - name: Preflight the deploy credential
+        env:
+          GCP_DEPLOY_KEY: ${{ secrets.GCP_DEPLOY_KEY }}
+          # DIAGNOSIS ONLY, and booleans only -- see the note below.
+          #
+          # The CONTROL. A repository secret that demonstrably reaches
+          # this same `production` environment (deploy-rules.yml has used
+          # it across seven runs). If this is visible and GCP_DEPLOY_KEY
+          # is not, the problem is the new secret's name or store. If this
+          # is ALSO invisible, no secret is reaching this job at all and
+          # the new one was never the issue.
+          PROBE_FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Names the same credential plausibly got saved under instead.
+          # Finding one turns "it isn't working" into "rename this".
+          PROBE_GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          PROBE_GCP_KEY: ${{ secrets.GCP_KEY }}
+          PROBE_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          PROBE_GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          PROBE_GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          PROBE_GCP_DEPLOY_KEY_JSON: ${{ secrets.GCP_DEPLOY_KEY_JSON }}
+          PROBE_GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          PROBE_GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          if [ -z "${GCP_DEPLOY_KEY:-}" ]; then
+            # Which secrets CAN this job see? Names and set/unset only --
+            # never a value, never a length, never a prefix. A secret name
+            # is something the repository owner already knows; its content
+            # is what must never be echoed, and GitHub masks only exact
+            # matches, not anything derived.
+            python3 - <<'PY'
+          import os
+
+          probes = sorted((k[len("PROBE_"):], bool((v or "").strip()))
+                          for k, v in os.environ.items() if k.startswith("PROBE_"))
+          print("secret visibility from THIS job (names only, no values):")
+          print(f"  {'GCP_DEPLOY_KEY':38s} NOT SET  <-- the one this deploy needs")
+          for name, present in probes:
+              print(f"  {name:38s} {'set' if present else 'not set'}")
+
+          control = dict(probes).get("FIREBASE_SERVICE_ACCOUNT", False)
+          found = [n for n, present in probes if present and n != "FIREBASE_SERVICE_ACCOUNT"]
+
+          if not control:
+              print("::error::No secrets are reaching this job at all -- even FIREBASE_SERVICE_ACCOUNT, "
+                    "which deploy-rules.yml has used successfully seven times against this same "
+                    "'production' environment, is invisible here. So this is not about GCP_DEPLOY_KEY's "
+                    "name. Check whether the 'production' environment has a deployment-branch rule that "
+                    "excludes 'claude/web-project-hqdo8o', and whether this run was dispatched from a fork.")
+          elif found:
+              print(f"::error::GCP_DEPLOY_KEY is not set, but this job CAN see a secret named "
+                    f"{', '.join(found)}. That is almost certainly the same credential under a different "
+                    f"name. Either rename it to GCP_DEPLOY_KEY, or say the word and the workflow will read "
+                    f"the name you actually used.")
+          else:
+              print("::error::Secret GCP_DEPLOY_KEY is empty or not visible to this job, and no likely "
+                    "alternative name is visible either -- but the control secret IS visible, so "
+                    "repository secrets do reach this job and this environment. Check, in order: (1) the "
+                    "name is exactly GCP_DEPLOY_KEY, case-sensitive; (2) it is under Settings -> Secrets "
+                    "and variables -> *Actions*, on the *Secrets* tab -- not Variables, and not the "
+                    "Dependabot or Codespaces tab, which are separate stores Actions cannot read; (3) if "
+                    "it was added as an ENVIRONMENT secret, it is on the 'production' environment, since a "
+                    "secret scoped to any other environment is invisible here; (4) if it is an "
+                    "organization secret, this repository is in its selected-repositories list.")
+          PY
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          raw = os.environ.get("GCP_DEPLOY_KEY", "")
+          problems = []
+
+          # Structure only. Nothing below ever prints a value or any part
+          # of one -- see this step's comment.
+          if not raw.lstrip().startswith("{"):
+              problems.append(
+                  "does not start with '{' -- it is not a service-account JSON key file. "
+                  "Paste the whole downloaded .json, not the key id, not a base64 blob, "
+                  "and not the file wrapped in extra quotes."
+              )
+          else:
+              try:
+                  key = json.loads(raw)
+              except json.JSONDecodeError as exc:
+                  problems.append(f"is not valid JSON ({exc.msg} at line {exc.lineno}) -- likely a truncated paste")
+                  key = None
+              if isinstance(key, dict):
+                  if key.get("type") != "service_account":
+                      problems.append('has no "type": "service_account" -- wrong kind of credential file')
+                  for field in ("client_email", "private_key", "project_id"):
+                      if not key.get(field):
+                          problems.append(f'is missing "{field}"')
+                  pk = key.get("private_key") or ""
+                  if pk and "BEGIN PRIVATE KEY" not in pk:
+                      problems.append('"private_key" does not contain a PEM block')
+                  # Non-secret, and a mismatch here is a real footgun: the
+                  # key would authenticate fine and then be denied on every
+                  # call. Reported without echoing what it actually says.
+                  if key.get("project_id") and key.get("project_id") != os.environ.get("GCP_PROJECT"):
+                      problems.append(
+                          f'"project_id" is not {os.environ.get("GCP_PROJECT")!r} -- the key belongs to a different project'
+                      )
+
+          if problems:
+              print("::error::GCP_DEPLOY_KEY " + "; ".join(problems))
+              sys.exit(1)
+          print("credential present and shaped like a service-account key for", os.environ.get("GCP_PROJECT"))
+          PY
+
+      # Checkout stays ahead of auth on purpose: google-github-actions/auth
+      # writes its credential file INTO the workspace, and actions/checkout
+      # defaults to clean:true, which would delete it.
+      - uses: actions/checkout@v4
+
+      # ---- Authenticate ----------------------------------------------
+      # Moved ahead of the test gates so the IAM preflight below can fail
+      # before pip install + pytest, and long before a Cloud Build
+      # submission. Run #6 spent 78 seconds and a source upload to
+      # discover a missing IAM binding.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # ---- Preflight: can this deployer act as the service accounts? --
+      # THE RUN #6 FAILURE, CAUGHT CHEAPLY.
+      #
+      #   ERROR: (gcloud.run.deploy) PERMISSION_DENIED: Build failed
+      #   because the default service account is missing required IAM
+      #   permissions. ... caller does not have permission to act as
+      #   service account projects/darwesh-group/serviceAccounts/
+      #   107164045339432031289
+      #
+      # `gcloud run deploy --source` needs iam.serviceAccounts.actAs on
+      # TWO accounts, and a deploy can get past the first and die on the
+      # second:
+      #   1. the BUILD service account Cloud Build runs the build as
+      #      (BUILD_SA below), and
+      #   2. the RUNTIME service account the new Cloud Run revision runs
+      #      as, read live from the service rather than assumed.
+      # Run #6 died on (1) after "Uploading sources...done", so (2) was
+      # never reached and is still unproven. This step tests both.
+      #
+      # HOW IT TESTS, and why this is not a false-positive check:
+      # IAM's own :testIamPermissions endpoint answers "which of these
+      # permissions does the CALLER hold on this resource" and requires no
+      # permission of its own -- it exists so a UI can decide what to grey
+      # out. So this is real authorization introspection, not a guess.
+      # `get-iam-policy` would have been wrong here: it needs
+      # iam.serviceAccounts.getIamPolicy, which this deployer does not
+      # have (run #6's warning proves it cannot even read the build SA),
+      # so it would report "denied" for a caller whose actAs is fine.
+      #
+      # NO MUTATION. Two POSTs that only read back the caller's own
+      # effective permissions; nothing in this step alters any policy.
+      #
+      # NO BROADER ROLE NEEDED to run the diagnostic, and if the API
+      # itself refuses to answer, this step says INDETERMINATE and lets
+      # the run continue rather than inventing a verdict -- a broken
+      # diagnostic must never block a deploy that would have worked.
+      #
+      # The access token is masked the instant it exists and is never
+      # printed, echoed, or written to a file.
+      - name: Preflight service-account impersonation (actAs)
+        run: |
+          TOKEN=$(gcloud auth print-access-token)
+          echo "::add-mask::$TOKEN"
+
+          RUNTIME_SA=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(spec.template.spec.serviceAccountName)' 2>/dev/null || true)
+          # An empty serviceAccountName means the service runs as the
+          # project's default compute account -- the same identity as
+          # BUILD_SA, so there is nothing extra to test.
+          if [ -z "$RUNTIME_SA" ]; then
+            RUNTIME_SA="$BUILD_SA"
+            echo "runtime service account: (default compute, same as build SA)"
+          else
+            echo "runtime service account: $RUNTIME_SA"
+          fi
+          echo "RUNTIME_SA=$RUNTIME_SA" >> "$GITHUB_ENV"
+
+          # Deduplicated: when the service runs as the default compute
+          # account, RUNTIME_SA and BUILD_SA are the same identity and
+          # testing it twice would just print the same line twice.
+          ACCOUNTS="$BUILD_SA"
+          if [ -n "$RUNTIME_SA" ] && [ "$RUNTIME_SA" != "$BUILD_SA" ]; then
+            ACCOUNTS="$ACCOUNTS $RUNTIME_SA"
+          fi
+
+          status=0
+          missing=""
+          indeterminate=""
+          for SA in $ACCOUNTS; do
+            [ -z "$SA" ] && continue
+            URL="https://iam.googleapis.com/v1/projects/$GCP_PROJECT/serviceAccounts/$SA:testIamPermissions"
+            BODY="$RUNNER_TEMP/actas-$SA.json"
+            CODE=$(curl -sS --max-time 30 -o "$BODY" -w '%{http_code}' \
+              -X POST "$URL" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json' \
+              -d '{"permissions":["iam.serviceAccounts.actAs"]}' || echo 000)
+            if [ "$CODE" = "200" ]; then
+              if grep -q 'iam.serviceAccounts.actAs' "$BODY"; then
+                echo "OK   actAs granted on $SA"
+              else
+                echo "MISSING  actAs NOT granted on $SA"
+                missing="$missing $SA"
+                status=1
+              fi
+            else
+              # Could not ask. Say so; do not guess either way.
+              echo "INDETERMINATE  testIamPermissions on $SA answered HTTP $CODE"
+              indeterminate="$indeterminate $SA"
+            fi
+            rm -f "$BODY"
+          done
+
+          if [ -n "$indeterminate" ]; then
+            echo "::warning::Could not determine actAs on:$indeterminate. IAM's testIamPermissions did not answer, so this preflight cannot confirm or deny the permission for those accounts -- a limitation of the check, not a verdict. The deploy continues; if it fails with PERMISSION_DENIED naming one of them, that is the cause."
+          fi
+
+          if [ "$status" != "0" ]; then
+            {
+              echo "### Blocked before the build: missing \`iam.serviceAccounts.actAs\`"
+              echo
+              echo "\`github-backend-deployer@$GCP_PROJECT.iam.gserviceaccount.com\` cannot act as:"
+              for SA in $missing; do echo "- \`$SA\`"; done
+              echo
+              echo "Grant **roles/iam.serviceAccountUser** to the deployer **on that service account"
+              echo "as the resource** (IAM & Admin -> Service Accounts -> select it -> Permissions"
+              echo "-> Grant access). Do not grant it project-wide."
+              echo
+              echo "Nothing was built and no traffic moved."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::Missing iam.serviceAccounts.actAs on:$missing. Grant roles/iam.serviceAccountUser to github-backend-deployer@$GCP_PROJECT.iam.gserviceaccount.com scoped to that service account as the resource. Stopped before the test gates and before any build -- nothing was deployed."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ---- Gate 1: the code must pass its own tests ------------------
+      # The same three commands ci.yml runs, in the same order, against
+      # the exact tree about to ship.
+      - name: Install dev dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Format check
+        working-directory: backend
+        run: ruff format --check app tests scripts
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check app tests scripts
+
+      - name: Test
+        working-directory: backend
+        run: |
+          # Run the unit tests without the deploy credential in scope.
+          #
+          # The auth step above exports GOOGLE_APPLICATION_CREDENTIALS
+          # (plus two aliases) pointing at a real service-account key,
+          # and it sits ahead of this gate on purpose so a missing IAM
+          # permission is caught in seconds rather than after a source
+          # upload. Run #7 showed the cost of that ordering: three tests
+          # assert that credential resolution degrades cleanly when no
+          # Application Default Credentials exist, ADC suddenly did
+          # exist, and they failed against a tree that was fine.
+          #
+          # backend/tests/conftest.py is the real fix -- it clears these
+          # per test, so the suite behaves the same wherever it runs.
+          # Unsetting them here as well means the pytest process never
+          # holds a production identity at all, conftest or no conftest:
+          # a test that tried to reach a live Google API would find
+          # nothing to authenticate with.
+          unset GOOGLE_APPLICATION_CREDENTIALS
+          unset CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE
+          unset GOOGLE_GHA_CREDS_PATH
+          pytest
+
+      # ---- The one endpoint assertion, written once -------------------
+      # The canary check and the post-shift check MUST be the same test,
+      # or the canary proves nothing about what production will do. So it
+      # lives in one script, called twice with a different base URL.
+      # In RUNNER_TEMP, not the workspace, so no artifact step can sweep
+      # it up alongside real deploy output.
+      - name: Prepare the endpoint check
+        run: |
+          cat > "$RUNNER_TEMP/check-endpoints.sh" <<'SH'
+          #!/usr/bin/env bash
+          # usage: check-endpoints.sh <label> <base-url> [baseline]
+          # Unauthenticated GETs only. Reads nothing, changes nothing.
+          # In "baseline" mode it measures and reports but never fails
+          # the run -- it exists to say what the CURRENT production
+          # revision already answers, so a surprising status on the
+          # canary can be told apart from one that was always there.
+          set -uo pipefail
+          LABEL="$1"
+          BASE="$2"
+          MODE="${3:-gate}"
+          status=0
+
+          probe() {
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE$1" || echo 000
+          }
+
+          # HEALTH. server.py registers the SAME handler at two paths,
+          # on adjacent unconditional lines:
+          #     app.add_api_route("/healthz", _health_check, ...)
+          #     app.add_api_route("/api/v1/health", _health_check, ...)
+          # Either answering 200 proves the same thing -- the app is up
+          # and serving. Asserting on /healthz alone was an arbitrary
+          # choice of mine, and runs #8 and #9 showed it is not a safe
+          # one: /healthz answered 404 thirty-one times over 91 seconds
+          # on a revision that, on the same host, answered 401 from a
+          # route registered LATER in the very same function. Whatever
+          # is special about that path, it is not "the app is down", so
+          # it must not be the sole gate. Both are probed and both are
+          # reported.
+          HZ=000; VH=000; healthy=0; attempts=0
+          DEADLINE=$((SECONDS + 90))
+          while : ; do
+            attempts=$((attempts + 1))
+            HZ=$(probe /healthz)
+            VH=$(probe /api/v1/health)
+            if [ "$HZ" = "200" ] || [ "$VH" = "200" ]; then healthy=1; break; fi
+            [ "$MODE" = "baseline" ] && break
+            [ "$SECONDS" -ge "$DEADLINE" ] && break
+            # Retry only while an answer could still be a URL that is not
+            # yet routable. Anything else came from something already
+            # listening and is judged now, not waited out.
+            t=0
+            case "$HZ" in 404|503|000) t=1 ;; esac
+            case "$VH" in 404|503|000) t=1 ;; esac
+            [ "$t" = "1" ] || break
+            sleep 3
+          done
+
+          DETAIL="/healthz=$HZ /api/v1/health=$VH, ${attempts} attempt(s), ${SECONDS}s"
+          if [ "$healthy" = "1" ]; then
+            echo "OK   [$LABEL] health 200 ($DETAIL)"
+            echo "- ✅ **$LABEL** health \`200\` ($DETAIL)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::[$LABEL] neither health path answered 200 ($DETAIL)"
+            echo "- ❌ **$LABEL** no health path answered 200 ($DETAIL)" >> "$GITHUB_STEP_SUMMARY"
+            status=1
+          fi
+
+          # The real check. Deliberately single-shot: by here a health
+          # path has answered 200, which proves the edge is routing to a
+          # running app, so a 404 now is the app genuinely not having
+          # registered the route -- the exact condition this check
+          # exists to catch. Retrying would risk waiting out a real
+          # failure instead of reporting it.
+          #   401 -> route registered, auth active (handlers.py _UNAUTHENTICATED)
+          #   404 -> build_verification_handlers returned None and server.py
+          #          registered none of the thirteen verification routes --
+          #          exactly the state that makes verify.html say
+          #          "Verification isn't switched on yet"
+          #   503 -> service not serving
+          #   000 -> network/DNS/TLS failure, never treated as a pass
+          code=$(probe /api/v1/access/me/verification)
+          case "$code" in
+            401)
+              echo "OK   [$LABEL] verification route -> 401 (registered, auth active)"
+              echo "- ✅ **$LABEL** verification route -> \`401\` (registered, auth active)" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            404)
+              echo "::error::[$LABEL] verification routes are NOT registered (404). The Firebase credential gate did not pass -- check the revision's startup log for 'Verification endpoints not configured, skipping' and confirm APP_ENV=production took effect."
+              echo "- ❌ **$LABEL** verification route -> \`404\` — routes not registered (credential gate)" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+            503)
+              echo "::error::[$LABEL] verification route -> 503, the revision is not serving"
+              echo "- ❌ **$LABEL** verification route -> \`503\` — not serving" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+            000)
+              echo "::error::[$LABEL] could not reach $BASE at all (network, DNS or TLS failure)"
+              echo "- ❌ **$LABEL** unreachable (network/DNS/TLS)" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+            *)
+              echo "::error::[$LABEL] unexpected $code from the verification route (expected 401)"
+              echo "- ❌ **$LABEL** verification route -> \`$code\` (expected 401)" >> "$GITHUB_STEP_SUMMARY"
+              status=1
+              ;;
+          esac
+
+          # Baseline is a measurement, not a gate: report and move on.
+          [ "$MODE" = "baseline" ] && exit 0
+          exit $status
+          SH
+          chmod +x "$RUNNER_TEMP/check-endpoints.sh"
+
+      # ---- Gate 2: know how to get back ------------------------------
+      - name: Record the revision currently serving traffic
+        run: |
+          mkdir -p rollback
+          # RUNNER_TEMP, not the workspace: the raw JSON carries env var
+          # VALUES, and nothing under the checkout can then sweep it into
+          # an artifact. Only the redacted summary is uploaded.
+          cat > "$RUNNER_TEMP/capture.py" <<'PY'
+          """Writes a REDACTED pre-deploy record, and prints the revision
+          that is actually serving traffic (stdout) for the caller to keep
+          as the rollback target."""
+          import json
+          import sys
+
+          service = json.load(open(sys.argv[1]))
+          out = open(sys.argv[2], "w")
+          spec = service.get("spec", {}) or {}
+          status = service.get("status", {}) or {}
+          container = ((spec.get("template", {}) or {})
+                       .get("spec", {}) or {}).get("containers", [{}])[0]
+
+          traffic = [t for t in (status.get("traffic") or []) if t.get("percent")]
+          traffic.sort(key=lambda t: t.get("percent", 0), reverse=True)
+          # The SERVING revision, which is not the same thing as
+          # latestReadyRevisionName -- see this workflow's header.
+          serving = traffic[0].get("revisionName", "") if traffic else ""
+
+          print("service:", service.get("metadata", {}).get("name", "?"), file=out)
+          print("serving revision (rollback target):", serving or "(none)", file=out)
+          print("latest ready revision:", status.get("latestReadyRevisionName", "?"), file=out)
+          print("image:", container.get("image", "?"), file=out)
+          # Recorded because run #6 failed on actAs against a service
+          # account, and the runtime one is the second account a source
+          # deploy needs to impersonate. Not a secret -- an identity, not
+          # a credential -- and knowing it is what makes the actAs
+          # preflight able to test the right pair.
+          runtime_sa = ((spec.get("template", {}) or {})
+                        .get("spec", {}) or {}).get("serviceAccountName") or ""
+          print("runtime service account:", runtime_sa or "(project default compute)", file=out)
+          print(file=out)
+          print("traffic:", file=out)
+          for t in status.get("traffic") or []:
+              tag = f"  tag={t['tag']}" if t.get("tag") else ""
+              print(f"  {t.get('revisionName', '?')} -> {t.get('percent', 0)}%{tag}", file=out)
+          print(file=out)
+          # NAMES AND KIND ONLY. Never the values -- see this file's
+          # "WHY THE ROLLBACK ARTIFACT IS REDACTED".
+          print("environment variables (names only, values deliberately omitted):", file=out)
+          for var in container.get("env", []) or []:
+              kind = "secretKeyRef" if "valueFrom" in var else "plain"
+              print(f"  {var.get('name', '?')}  [{kind}]", file=out)
+          out.close()
+          print(serving)
+          PY
+
+          if gcloud run services describe "$SERVICE" \
+                --region "$REGION" --project "$GCP_PROJECT" \
+                --format=json > "$RUNNER_TEMP/service-before.json" 2>/dev/null; then
+            OLD_REVISION=$(python3 "$RUNNER_TEMP/capture.py" \
+                             "$RUNNER_TEMP/service-before.json" rollback/before.txt)
+          else
+            OLD_REVISION=""
+            echo "no existing '$SERVICE' service in $REGION -- first deploy, nothing to roll back to" \
+              > rollback/before.txt
+          fi
+          echo "OLD_REVISION=$OLD_REVISION" >> "$GITHUB_ENV"
+
+          {
+            echo "## Backend canary deploy — \`$SERVICE\` (\`$GCP_PROJECT\` / \`$REGION\`)"
+            echo
+            echo "Ref \`${{ github.ref_name }}\` at \`${{ github.sha }}\`"
+            echo
+            echo "The new revision is deployed with **zero traffic** first and checked at its own"
+            echo "tagged URL. Production traffic moves only if those checks pass."
+            echo
+            echo '### Before this deploy'
+            echo '```'
+            cat rollback/before.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -n "$OLD_REVISION" ]; then
+            {
+              echo "### Rollback"
+              echo 'Shift traffic back to the revision that was serving before this run:'
+              echo '```bash'
+              echo "gcloud run services update-traffic $SERVICE \\"
+              echo "  --region $REGION \\"
+              echo "  --project $GCP_PROJECT \\"
+              echo "  --to-revisions $OLD_REVISION=100"
+              echo '```'
+              echo
+            } | tee -a rollback/before.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Keep the pre-deploy state for rollback
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-before-deploy-${{ github.run_id }}
+          path: rollback/
+          retention-days: 90
+          # FAIL-CLOSED, same reasoning as deploy-rules.yml: this step is
+          # the record of what to roll back to, so if it is empty the
+          # deploy should stop rather than proceed unrecorded.
+          if-no-files-found: error
+
+      # ---- Control measurement, before anything changes ---------------
+      # Runs the identical check against the revision serving production
+      # RIGHT NOW, so the canary's answers can be compared against a
+      # known reference instead of against my assumptions. Runs #8 and
+      # #9 both had /healthz answer 404 on a canary whose verification
+      # route answered 401 -- if production answers the same way, that
+      # 404 predates this deploy and is not a regression it introduced;
+      # if production answers 200, the canary really is different and
+      # the gate below is right to stop it.
+      #
+      # Read-only: two or three unauthenticated GETs against a URL that
+      # already serves the public. It cannot fail the run (baseline
+      # mode), so it can never block a deploy on its own.
+      - name: Baseline — what production answers today
+        run: |
+          PROD_URL=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(status.url)')
+          echo "production url: $PROD_URL"
+          echo "### Baseline: \`$OLD_REVISION\` (live now, before this deploy)" >> "$GITHUB_STEP_SUMMARY"
+          "$RUNNER_TEMP/check-endpoints.sh" "production BEFORE" "$PROD_URL" baseline
+
+      # ---- Deploy the canary: BUILD AND START, SERVE NOTHING ----------
+      - name: Deploy canary revision with no traffic
+        working-directory: backend
+        run: |
+          # --no-traffic: the new revision serves 0%. The revision that was
+          # serving keeps 100% until the explicit shift further down.
+          # --tag: gives the canary its own stable URL
+          # (https://$CANARY_TAG---<service>-<hash>.run.app) so it can be
+          # tested in isolation. Re-tagging on a later run is idempotent.
+          #
+          # --update-env-vars, NEVER --set-env-vars. See this file's
+          # header: --set replaces the entire environment and would drop
+          # every secret this service needs.
+          #
+          # Exactly two variables, both non-secret, both merged in:
+          #   APP_ENV=production is load-bearing twice over --
+          #     _has_firebase_credential() (app/main.py) returns false
+          #     without it unless FIREBASE_SERVICE_ACCOUNT_JSON is set,
+          #     which silently skips the verification, referral and reward
+          #     routes; and cfg.is_production selects FirestoreRateLimiter
+          #     over the in-memory one, so rate limits survive across
+          #     instances.
+          #   VERIFICATION_EVIDENCE_BUCKET is what lets an admin actually
+          #     open a submitted ID: without it build_verification_handlers
+          #     leaves evidence reveal reporting itself unavailable.
+          #
+          # VERIFICATION_ARCHIVE_BUCKET is deliberately NOT set -- the
+          # archive pipeline is a separate decision with its own retention
+          # implications, and main.py already degrades honestly without it.
+          #
+          # Nothing else is touched: OTP_HMAC_SECRET, RESEND_API_KEY,
+          # ALLOWED_ORIGINS, FIREBASE_PROJECT_ID and the model provider
+          # keys keep whatever binding they already have, plain or
+          # secretKeyRef. A deploy workflow that also owned the secrets
+          # would be a second place they could leak from.
+          #
+          # --quiet: accept defaults rather than prompting. The service
+          # already exists, so unspecified settings (ingress, auth,
+          # concurrency, runtime service account) are preserved as-is.
+          gcloud run deploy "$SERVICE" \
+            --source . \
+            --region "$REGION" \
+            --project "$GCP_PROJECT" \
+            --no-traffic \
+            --tag "$CANARY_TAG" \
+            --update-env-vars "APP_ENV=production,VERIFICATION_EVIDENCE_BUCKET=darwesh-group.firebasestorage.app" \
+            --quiet
+
+      - name: Resolve the canary revision and its URL
+        run: |
+          gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format=json > "$RUNNER_TEMP/service-after-deploy.json"
+
+          NEW_REVISION=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(status.latestCreatedRevisionName)')
+
+          # The tagged URL, read from the traffic block by tag name. Not a
+          # secret -- it is a public Cloud Run hostname. Kept to one line
+          # on purpose: a multi-line `python3 -c` here would have to start
+          # at column 0, which terminates the enclosing YAML block scalar.
+          CANARY_URL=$(python3 -c "import json,sys;d=json.load(open(sys.argv[1]));print(next((t['url'] for t in (d.get('status',{}).get('traffic') or []) if t.get('tag')==sys.argv[2] and t.get('url')),''))" "$RUNNER_TEMP/service-after-deploy.json" "$CANARY_TAG")
+
+          if [ -z "$NEW_REVISION" ] || [ -z "$CANARY_URL" ]; then
+            echo "::error::could not resolve the canary revision ('$NEW_REVISION') or its tagged URL ('$CANARY_URL'). Not shifting any traffic."
+            exit 1
+          fi
+
+          echo "NEW_REVISION=$NEW_REVISION" >> "$GITHUB_ENV"
+          echo "CANARY_URL=$CANARY_URL" >> "$GITHUB_ENV"
+          echo "canary revision: $NEW_REVISION"
+          echo "canary url:      $CANARY_URL"
+          {
+            echo "### Canary"
+            echo "- previously serving: \`${OLD_REVISION:-(none)}\`"
+            echo "- new revision: \`$NEW_REVISION\` (0% traffic)"
+            echo "- canary URL: $CANARY_URL"
+            echo
+            echo '### Checks'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- The gate. Production is still untouched at this point ------
+      - name: Canary checks (tagged URL, zero traffic)
+        run: |
+          if ! "$RUNNER_TEMP/check-endpoints.sh" "canary" "$CANARY_URL"; then
+            {
+              echo
+              echo "**Stopped before shifting traffic.** \`$NEW_REVISION\` is deployed at 0% and"
+              echo "\`${OLD_REVISION:-the previous revision}\` is still serving every request."
+              echo "Nothing a user touches has changed. Inspect the canary's startup log, then"
+              echo "either fix and re-run, or delete the revision."
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::canary checks failed -- production traffic NOT shifted. $NEW_REVISION stays at 0%."
+            exit 1
+          fi
+
+      # ---- Only now does production move ------------------------------
+      - name: Shift 100% of traffic to the canary revision
+        run: |
+          # Explicit, by revision name. Never an implicit promotion from
+          # `gcloud run deploy`, and never --to-latest, which would move
+          # traffic onto whatever happened to be built most recently
+          # rather than onto the exact revision just verified.
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" \
+            --project "$GCP_PROJECT" \
+            --to-revisions "$NEW_REVISION=100" \
+            --quiet
+          echo "- traffic shifted: \`$NEW_REVISION\` -> 100%" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post-shift checks (production URL)
+        run: |
+          PROD_URL=$(gcloud run services describe "$SERVICE" \
+            --region "$REGION" --project "$GCP_PROJECT" \
+            --format='value(status.url)')
+          echo "production url: $PROD_URL"
+          if ! "$RUNNER_TEMP/check-endpoints.sh" "production" "$PROD_URL"; then
+            {
+              echo
+              echo "**Production is serving \`$NEW_REVISION\` and failing its checks.** Roll back now:"
+              echo '```bash'
+              echo "gcloud run services update-traffic $SERVICE \\"
+              echo "  --region $REGION \\"
+              echo "  --project $GCP_PROJECT \\"
+              echo "  --to-revisions ${OLD_REVISION:-<previous-revision>}=100"
+              echo '```'
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::production checks failed after the traffic shift. Roll back to ${OLD_REVISION:-the previous revision}."
+            exit 1
+          fi
+
+      # Cosmetic, and deliberately non-blocking: the deploy has already
+      # succeeded by this point, so a tag that fails to detach must not
+      # fail the run. Leaving it attached is harmless -- the next run
+      # re-points the same tag.
+      - name: Release the canary tag
+        if: success()
+        continue-on-error: true
+        run: |
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" \
+            --project "$GCP_PROJECT" \
+            --remove-tags "$CANARY_TAG" \
+            --quiet \
+            || echo "::warning::could not remove the '$CANARY_TAG' tag; harmless, the next run re-points it."
+
+      - name: Summary
+        if: always()
+        run: |
+          # OLD_REVISION is only set once the capture step has run, which
+          # is after auth. So an empty value here means the run died
+          # before it could have touched Cloud Run at all -- and printing
+          # a rollback command in that case is worse than printing
+          # nothing: run #1 ended with "--to-revisions
+          # <previous-revision>=100" in its summary, which reads as though
+          # a deploy had happened and needed undoing. Say what is true
+          # instead.
+          {
+            echo
+            echo "---"
+            if [ -n "${OLD_REVISION:-}" ]; then
+              echo "Rollback at any time:"
+              echo '```bash'
+              echo "gcloud run services update-traffic $SERVICE \\"
+              echo "  --region $REGION \\"
+              echo "  --project $GCP_PROJECT \\"
+              echo "  --to-revisions $OLD_REVISION=100"
+              echo '```'
+            else
+              echo "This run stopped before reaching Cloud Run, so **nothing was deployed and no"
+              echo "traffic moved**. The live service is exactly as it was; there is nothing to roll back."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

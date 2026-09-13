@@ -1,0 +1,197 @@
+/*
+  Darwesh Group — REAL-SELECTOR button overrides (PREVIEW ONLY)
+  =================================================================
+  This file is the honest "before/after" layer: it targets the EXACT
+  selectors that exist in production CSS today (confirmed by direct
+  source inspection, cited per rule below) and restyles ONLY their
+  button-family visual/feedback properties (radius, press/hover motion,
+  focus ring, disabled/selected clarity). It changes nothing about
+  layout, color palette, typography, or non-button elements.
+
+  This file is never loaded by any production page. To preview it
+  "in place", a preview HTML loads the real production stylesheet(s)
+  read-only via a relative <link>, then this file after it, so the
+  cascade shows exactly what would change if this were adopted.
+
+  Where a real control already meets the brief (soft radius, proper
+  motion tokens, distinct selected state, working focus ring), it is
+  deliberately left alone below and called out in the report instead
+  of being touched for the sake of touching it.
+*/
+
+/* ---------------------------------------------------------------
+   AUTH BUTTONS — css/profile-tokens.css .auth-btn-primary/-secondary/-ghost
+   Today: border-radius: var(--radius-sm) = 5px (sharp); primary's
+   :active uses translateY(1px) instead of a press scale.
+   Change: soften radius to 14px; swap press feedback to scale(0.98)
+   per the spec's "very subtle press scale for standalone buttons".
+   Colors, focus ring (var(--ps-focus-ring)), and hover states are
+   already correct and are left untouched.
+   --------------------------------------------------------------- */
+.auth-btn-primary,
+.auth-btn-secondary,
+.auth-btn-ghost {
+  border-radius: 14px !important;
+}
+.auth-btn-primary:active {
+  transform: scale(0.98) !important;
+}
+
+/* ---------------------------------------------------------------
+   LANGUAGE SELECTOR — css/cinematic.css:335 .lang-toggle-btn (5px),
+   :372 .lang-option (3px). Reused identically on site-header.js,
+   login.html, signup.html, signup-professional.html.
+   Change: soften radius only. Hover/focus already correct.
+   --------------------------------------------------------------- */
+.lang-toggle-btn { border-radius: 12px !important; }
+.lang-option { border-radius: 8px !important; }
+
+/* ---------------------------------------------------------------
+   HOME HERO BUTTONS — css/home-world.css:534 body.world .w-btn
+   Today: border-radius 10px, already has hover translateY(-1px)+
+   brightness, active scale(0.985), focus-visible outline, and
+   prefers-reduced-motion handling (home-world.css:1338-1347).
+   This is already very close to the brief. Only change: soften
+   radius slightly further (10px -> 14px) for visual consistency
+   with the rest of the button system. Everything else is untouched
+   because it already matches the requested interaction language.
+   --------------------------------------------------------------- */
+body.world .w-btn { border-radius: 14px !important; }
+/* Search-bar variant already redeclares its own radius contextually
+   (home-world.css:772,1216) — soften those two spots the same way. */
+body.world .w-search .w-btn { border-radius: 15px !important; }
+@media (max-width: 640px) {
+  body.world .w-search .w-btn { border-radius: 12px !important; }
+}
+
+/* .w-icon-btn (rail/gallery arrows), .w-action (View All / Explore the
+   map / Back to Services -style text links), .w-dot (city-gallery tabs)
+   are NOT modified: w-icon-btn is already a proper 44px circular icon
+   button with hover/active/focus states; .w-action is a genuine text
+   link left as a text link per the brief; .w-dot is a tab indicator
+   already using the same 44px target with a proper visual dot. */
+
+/* ---------------------------------------------------------------
+   DESIGN.HTML FILTER CHIPS — css/cinematic.css:1565 .pwork-filter-chip
+   Real, in-scope accessibility gap found during inspection: this
+   class has NO :focus-visible rule anywhere in the stylesheets,
+   unlike every sibling chip family (.svc-filter-chip does have one,
+   service-universe.css:450). Keyboard users tabbing through the 9
+   category chips on design.html get no visible focus indicator at
+   all today. Fix: add the same focus ring already used everywhere
+   else on the site. Also soften the selected-state to a clearer
+   filled surface (today .is-active only tints border/text, which
+   is legal but low-contrast against neighbouring hover state).
+   --------------------------------------------------------------- */
+.pwork-filter-chip:focus-visible {
+  outline: none !important;
+  box-shadow: var(--ps-focus-ring) !important;
+}
+.pwork-filter-chip.is-active {
+  background: var(--ps-color-secondary) !important;
+  color: var(--ps-color-primary) !important;
+  border-color: var(--ps-color-secondary) !important;
+}
+
+/* .svc-filter-chip (installments.html Verified only / Reset) already
+   meets the brief: pill radius, 40px height, working focus ring
+   (service-universe.css:450). No change applied. */
+
+/* ---------------------------------------------------------------
+   INTRO OVERLAY — css/cinematic.css .cine-enter-btn (pill, 844),
+   .cine-intro-skip, .cine-audio-toggle (pill/circular). All three
+   are already pill/circular with focus-visible rings defined
+   (cinematic.css:866, 925). No radius/shape change needed; left
+   untouched.
+   --------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------
+   SOCIAL UNIVERSE NAV — css/social-universe.css:167 .so-nav-btn
+   Already a proper 34px circular icon button with border + hover.
+   No change — flagged here only so the "left alone" list is complete.
+   --------------------------------------------------------------- */
+
+/* =================================================================
+   MAP.HTML TOOLBAR — inline <style> block in map.html
+   =================================================================
+   #typeSegIndicator (map.html:229-238) is a real, already-shipped
+   sliding-pill segmented control: it measures the active button's own
+   offsetLeft/width and glides a gold pill behind it with a
+   260ms cubic-bezier(.22,.61,.36,1) transition, respects
+   prefers-reduced-motion, and is remeasured on resize. This already
+   IS the "selected indicator moves smoothly between tabs" behaviour
+   the brief asks for — left completely untouched, called out in the
+   report as an example of what's already right. */
+
+/* Confirmed gaps (grepped across the whole repo — no matches found):
+   .chip-opt, .currency-opt, .sort-option have NO :focus-visible rule
+   anywhere, and .currency-opt / .sort-option have no :hover or
+   transition either — state changes happen as an instant cut, and
+   keyboard users get no focus indicator on any of the three. */
+.chip-opt {
+  transition: background-color 150ms cubic-bezier(0.22,0.61,0.36,1),
+              border-color 150ms cubic-bezier(0.22,0.61,0.36,1),
+              color 150ms cubic-bezier(0.22,0.61,0.36,1) !important;
+}
+.chip-opt:focus-visible,
+.currency-opt:focus-visible,
+.sort-option:focus-visible,
+.tool-row:focus-visible,
+.filter-dropdown-btn:focus-visible,
+.map-type-btn:focus-visible {
+  outline: none !important;
+  box-shadow: var(--ps-focus-ring) !important;
+}
+.currency-opt {
+  transition: background-color 150ms cubic-bezier(0.22,0.61,0.36,1),
+              color 150ms cubic-bezier(0.22,0.61,0.36,1) !important;
+}
+.currency-opt:hover:not([aria-pressed="true"]) {
+  background: rgba(198,154,75,0.14) !important;
+}
+.sort-option {
+  transition: color 150ms cubic-bezier(0.22,0.61,0.36,1) !important;
+  border-radius: 8px !important;
+}
+.sort-option:hover { color: var(--ps-color-secondary-container, #d4af60) !important; }
+
+/* .tool-row (My Location/Reset/Search this area/Draw/Fullscreen/More
+   filters) and .map-drawer-close/.map-edge-handle already have proper
+   hover/press treatment per css/cinematic.css:2289-2324 and
+   :2078-2138 — only the missing focus ring is added above, nothing
+   else changes on these. */
+
+/* =================================================================
+   SELL.HTML — inline <style> block in sell.html
+   =================================================================
+   Confirmed gaps (grepped — no matches found): .chip-toggle,
+   .pill-toggle, .counter-btn have NO :focus-visible rule anywhere.
+   Their radius (0.5rem = 8px) is also sharper than the rest of the
+   button system; softened to 12px. Selected-state color logic
+   (.active -> gold fill) is already correct and untouched. */
+.chip-toggle,
+.pill-toggle {
+  border-radius: 12px !important;
+}
+.chip-toggle:focus-visible,
+.pill-toggle:focus-visible,
+.counter-btn:focus-visible {
+  outline: none !important;
+  box-shadow: var(--ps-focus-ring) !important;
+}
+/* .counter-btn (+/- steppers) already has a real :active feedback
+   state (background darkens) — left as-is besides the focus ring. */
+
+/* =================================================================
+   MAM AI COMPOSER — css/mam-chat-panel.css .mamcp-* classes
+   =================================================================
+   .mamcp-send / .mamcp-mic / .mamcp-icon-btn / .mamcp-history-btn /
+   .mamcp-chip / .mamcp-retry already exist as a coherent, purpose-
+   built component system (confirmed via source read of
+   css/mam-chat-panel.css) with their own motion and states. No
+   selector-level override is applied here — touching a live,
+   actively-used voice/chat surface with blanket CSS is exactly the
+   kind of "leak into a different component" risk the brief warns
+   against. Flagged in the report as needing a dedicated, narrower
+   pass rather than a blanket rule if you want it included. */
+

@@ -1,0 +1,22 @@
+{
+  "_comment": "EMULATOR-ONLY config, used by npm run test:rules and npm run test:storage-rules via --config. It exists because firebase.json's storage key is now the array form with an explicit bucket (which is what lets `firebase deploy --only storage` skip the broken v1alpha defaultBucket lookup), and the Storage EMULATOR rejects the array form unless every entry carries a `target` resolved through .firebaserc: emulator/storage/rules/config.js throws \"Must supply 'target' in Storage configuration\". Targets were not an option here: for a demo project id, an array entry whose target has no .firebaserc mapping makes the emulator fall back to DEFAULT OPEN RULES and say so only in a log line -- the storage suite would then be testing permissive rules instead of storage.rules, which is the one failure mode a rules gate must never have. So the object form lives here, where a wrong path fails the tests loudly, and firebase.json stays the single file that decides what reaches production. Keep the rules paths below identical to firebase.json's.",
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8080
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
+  }
+}

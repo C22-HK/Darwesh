@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
+     (images/brand/darwesh-mark.png); geometry unmodified. Root-relative
+     paths so they resolve from every route regardless of the current page. -->
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/agent.html"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Agent Profile</title>
+<meta name="description" content="Real-estate agent profile on Darwesh Group: active listings and viewing requests."/>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-[76px] pb-24 md:pb-0">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="ps-shell py-8">
+
+  <!-- Loading state -->
+  <div id="loadingState" aria-live="polite">
+    <div class="ps-skeleton" style="height:260px;border-radius:16px;margin-bottom:24px;"></div>
+    <div class="ps-skeleton" style="height:28px;width:220px;margin-bottom:16px;"></div>
+    <div class="ps-skeleton" style="height:120px;"></div>
+  </div>
+
+  <!-- Not found. Also the state for "this uid exists but is not an agent":
+       a non-agent user document is not publicly readable, and even where it
+       is, this page only ever presents agents. -->
+  <div id="notFoundState" class="ps-empty hidden">
+    <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">real_estate_agent</span>
+    <p class="font-body-md text-[14px] text-on-surface font-medium mt-3" data-i18n="rp.notFound">Profile not found</p>
+    <p class="font-body-md text-[13px] text-on-surface-variant mt-1" data-i18n="rp.notFoundHint">This profile may have been removed.</p>
+  </div>
+
+  <div id="errorState" class="hidden"></div>
+
+  <div id="providerContent" class="hidden">
+
+    <!-- Hero -->
+    <section class="rp-hero rp-hero--agent mb-8">
+      <div id="heroCover" class="rp-hero-cover" aria-hidden="true"></div>
+      <div id="heroMedia" class="rp-hero-media"></div>
+      <div class="rp-hero-identity">
+        <div class="w-full">
+          <p id="heroEyebrow" class="rp-hero-eyebrow mb-1" data-i18n="agent.role">Real Estate Agent</p>
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <h1 id="agentName" class="rp-hero-name font-headline-md text-[24px] md:text-[28px] font-bold truncate max-w-full">—</h1>
+          </div>
+          <p id="heroMeta" class="rp-hero-meta text-[13px]"></p>
+          <div class="flex flex-wrap gap-2.5 mt-4">
+            <!-- Owner-only. An agent manages their listings in the dashboard
+                 they already have; this page never becomes a second editor. -->
+            <a id="manageListingsBtn" href="agent-dashboard.html" class="ps-btn hidden border border-white/30 text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-white/10 transition-colors" data-i18n="agent.manageListings">Manage my listings</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabs. Only two, because only two are real for an agent: their
+         listings ARE their portfolio (no generic gallery), and there is no
+         services/credentials schema on users/{uid} to fill a third. -->
+    <div class="ps-tablist mb-6" role="tablist" aria-label="Agent profile sections">
+      <button class="ps-tab" role="tab" id="tabBtnListings" aria-controls="panelListings" type="button" data-i18n="agent.tabProperties">Properties</button>
+      <button class="ps-tab" role="tab" id="tabBtnAbout" aria-controls="panelAbout" type="button" data-i18n="rp.tabOverview">Overview</button>
+    </div>
+
+    <!-- Properties panel -->
+    <section id="panelListings" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnListings">
+      <div id="listingsGrid" class="ps-grid"></div>
+      <div id="listingsEmpty" class="ps-empty hidden"></div>
+    </section>
+
+    <!-- Overview panel -->
+    <section id="panelAbout" class="ps-panel" role="tabpanel" aria-labelledby="tabBtnAbout">
+      <div class="ps-card p-5 md:p-6 max-w-2xl">
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <dt class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="rp.city">City</dt>
+            <dd id="ovCity" class="font-body-md text-[14px] text-on-surface mt-1">—</dd>
+          </div>
+          <div>
+            <dt class="font-label-caps text-label-caps text-on-surface-variant" data-i18n="agent.office">Office</dt>
+            <dd id="ovOffice" class="font-body-md text-[14px] text-on-surface mt-1">—</dd>
+          </div>
+        </dl>
+        <p id="ovNote" class="font-body-md text-[13px] text-on-surface-variant mt-5 leading-relaxed" data-i18n="agent.contactNote">To arrange a viewing, open any property below and use the Request Viewing form.</p>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<script type="module" src="./js/i18n.js"></script>
+<script type="module" src="./js/agent-profile.js"></script>
+</body></html>

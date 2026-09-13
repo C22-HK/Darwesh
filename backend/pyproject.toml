@@ -1,0 +1,23 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 115
+
+[tool.ruff.lint]
+# Mirrors what `gofmt`/`go vet` caught in the Go version: real bugs,
+# unused imports, and import ordering -- not an opinionated style guide.
+# Deliberately excludes rules like TRY/BLE (they'd flag the broad
+# `except Exception` in app/auth/reset.py, which is intentional there --
+# it mirrors the Go handler's own `default:` case, which must catch any
+# error from either external service and still return the generic
+# response).
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Only app/otp/service.py's send()/verify() are exercised directly as
+# coroutines in tests (everything else goes through FastAPI's
+# TestClient, which handles async endpoints on its own without this) --
+# "auto" mode means a plain `async def test_...` just works, matching
+# how every other test file in this project is written (no per-test
+# decorator to remember).
+asyncio_mode = "auto"

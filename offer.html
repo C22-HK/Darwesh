@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/offer.html"/>
+<script>(function(){var l=localStorage.getItem('darwesh_lang');document.documentElement.lang=l||'en';document.documentElement.dir=(l==='ku'||l==='ar')?'rtl':'ltr';})();</script>
+<script src="./js/icon-fallback.js"></script>
+<title>Darwesh Group - Offer</title>
+<meta name="description" content="A current Darwesh Group promotional offer."/>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/offer-banner.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+  body { min-height: 100dvh; }
+  .offer-shell { max-width: 1100px; margin-inline: auto; padding-inline: 16px; }
+  .offer-skeleton {
+    height: 320px; border-radius: 18px;
+    background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.09), rgba(255,255,255,.04));
+    background-size: 200% 100%;
+    animation: offerShimmer 1.4s linear infinite;
+  }
+  @keyframes offerShimmer { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .offer-skeleton { animation: none; } }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased pt-[76px] pb-24 md:pb-0">
+
+<div id="siteHeader" data-active=""></div>
+<script src="./js/site-header.js"></script>
+<div id="siteMobileNav" data-active=""></div>
+<script src="./js/site-mobile-nav.js"></script>
+
+<main class="offer-shell py-8">
+  <!-- One host element. js/offers.js decides whether this offer is
+       publicly visible right now; js/offer-banner.js renders either the
+       offer or a localized unavailable state into it. There is no
+       separate "offer design" on this page -- it is the same component
+       the Home banner and the Admin preview use. -->
+  <div id="offerRoot" aria-live="polite">
+    <div class="offer-skeleton"></div>
+  </div>
+</main>
+
+<div id="siteFooter"></div>
+<!-- type="module": js/site-footer.js imports js/service-catalog.js, so it
+     only runs as a module (every other page loads it the same way). -->
+<script type="module" src="./js/site-footer.js"></script>
+
+<script type="module">
+  import { db } from './js/firebase-init.js';
+  import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+  import { normalizeOffer, effectiveState } from './js/offers.js';
+  import { renderOfferBanner, renderOfferUnavailable } from './js/offer-banner.js';
+
+  const root = document.getElementById('offerRoot');
+  const id = new URLSearchParams(window.location.search).get('id');
+
+  let lastOffer = null;
+  let lastReason = 'missing';
+
+  function paint() {
+    if (lastOffer) {
+      renderOfferBanner(root, lastOffer, { variant: 'page' });
+      document.title = 'Darwesh Group - ' + (lastOffer.title || 'Offer');
+    } else {
+      renderOfferUnavailable(root, lastReason);
+    }
+  }
+
+  if (!id) {
+    lastOffer = null; lastReason = 'missing'; paint();
+  } else {
+    // onSnapshot, not a one-shot read: firebase-init.js turns on
+    // persistent local cache, and this page must never sit on a stale
+    // percentage after an admin changes it. A listener always converges
+    // on server state, and a change published while someone has the
+    // page open updates in place.
+    onSnapshot(doc(db, 'offers', id), (snap) => {
+      if (!snap.exists()) {
+        // Also the shape a rules denial takes for a non-active offer:
+        // an unauthenticated reader cannot tell "no such offer" from
+        // "draft offer", which is the intended behaviour.
+        lastOffer = null; lastReason = 'missing';
+      } else {
+        const offer = normalizeOffer(snap.id, snap.data());
+        const st = effectiveState(offer);
+        if (st === 'active') {
+          lastOffer = offer;
+        } else {
+          lastOffer = null;
+          lastReason = (st === 'expired' || st === 'scheduled' || st === 'paused') ? st : 'missing';
+        }
+      }
+      paint();
+    }, () => {
+      lastOffer = null; lastReason = 'missing'; paint();
+    });
+  }
+
+  // Re-render on language switch so the unavailable state and the CTA
+  // fallbacks localize without a reload.
+  document.addEventListener('darwesh:langchange', paint);
+</script>
+
+<script src="./js/i18n.js"></script>
+<script type="module" src="./js/nav-auth.js"></script>
+<script type="module" src="./js/error-monitor.js"></script>
+</body></html>

@@ -1,0 +1,268 @@
+/* MAM AI Command Center -- the adaptive spatial question/card flow's
+ * visuals (js/mam-spatial-choice.js). Large obsidian/gold planes, not
+ * pills and not a form: a question materializes as large cards near the
+ * Entity, a pick turns the chosen one gold and dissolves the rest. Same
+ * obsidian/gold family every other MAM surface already uses (--mamco-*
+ * custom properties, literal fallbacks so this file needs no other
+ * stylesheet present), never a second palette -- and the exact same
+ * materialize/dissolve visual language css/mam-spatial-ui.css already
+ * established for nodes/result cards, scaled up for a much larger,
+ * "choose one of these" plane instead of a small reference chip. */
+
+.mam-choice-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+/* ---- task-memory breadcrumb -- "Kirkuk • Buy • House", tiny nodes above
+ * the current question, purely a display of slots js/mam-chat-panel.js
+ * has already resolved (never computed in here). --------------------- */
+.mam-choice-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--mamco-accent, #B89A63) 85%, var(--mamco-glow, #F2EEE5));
+  opacity: 0.85;
+}
+.mam-choice-breadcrumb-node { padding: 0 2px; }
+.mam-choice-breadcrumb-node + .mam-choice-breadcrumb-node::before {
+  content: "•";
+  margin-inline-end: 8px;
+  opacity: 0.55;
+}
+
+.mam-choice-question {
+  margin: 0;
+  max-width: min(92vw, 560px);
+  text-align: center;
+  font-family: 'Plus Jakarta Sans', 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+  font-size: clamp(16px, 2.6vw, 22px);
+  line-height: 1.3;
+  color: var(--mamco-glow, #F2EEE5);
+  text-wrap: balance;
+  /* "2-3 line max" per the brief -- a question this module is ever handed
+     is always a short, real card-question string, never free text, so
+     this is a safety clamp rather than something expected to bite. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.mam-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  perspective: 1200px;
+}
+
+/* ---- the card itself -- a large obsidian/gold architectural plane, not
+ * a pill: real button semantics (focusable, Enter/Space activate
+ * natively) with role="option" set by the renderer for the listbox
+ * pattern around it. ---------------------------------------------------- */
+.mam-choice-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 132px;
+  min-height: 96px;
+  padding: 18px 16px;
+  border-radius: 16px;
+  background: linear-gradient(155deg,
+    color-mix(in srgb, var(--mamco-surface, #17150F) 96%, var(--mamco-accent, #B89A63)) 0%,
+    var(--mamco-surface, #17150F) 78%);
+  border: 1px solid color-mix(in srgb, var(--mamco-accent, #B89A63) 30%, transparent);
+  box-shadow: 0 12px 28px -18px rgba(0, 0, 0, 0.65);
+  color: var(--mamco-glow, #F2EEE5);
+  cursor: pointer;
+  font: inherit;
+  transform-style: preserve-3d;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms ease, box-shadow 220ms ease;
+  animation: mam-choice-materialize 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.mam-choice-card::before {
+  /* the gold-line-trace: a thin sweep that draws the card's own edge in
+     during materialize, layered under the animation's own opacity/blur
+     so it reads as the plane assembling itself rather than fading in. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(120deg, transparent, var(--mamco-accent, #B89A63), transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  animation: mam-choice-trace 620ms ease-out both;
+  pointer-events: none;
+}
+.mam-choice-card:hover:not(.is-selected):not(.is-dissolving),
+.mam-choice-card:focus-visible {
+  transform: translateY(-3px) rotateX(2deg);
+  border-color: color-mix(in srgb, var(--mamco-accent, #B89A63) 65%, transparent);
+  box-shadow: 0 18px 34px -16px rgba(0, 0, 0, 0.7), 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 25%, transparent);
+  outline: none;
+}
+.mam-choice-card:focus-visible {
+  outline: 2px solid var(--mamco-accent, #B89A63);
+  outline-offset: 2px;
+}
+
+.mam-choice-card-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--mamco-accent, #B89A63) 0%, color-mix(in srgb, var(--mamco-accent, #B89A63) 20%, transparent) 70%, transparent 100%);
+  opacity: 0.8;
+}
+.mam-choice-card-label {
+  font-family: 'IBM Plex Sans', 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.005em;
+}
+
+/* "More cities" reads as an expander, not an answer -- an outlined/ghost
+ * treatment so it's visually distinct from the real choices around it. */
+.mam-choice-card-more {
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--mamco-accent, #B89A63) 40%, transparent);
+}
+.mam-choice-card-more .mam-choice-card-icon { opacity: 0.4; }
+
+/* ---- selection / dissolve -- the chosen card goes gold and forward,
+ * every sibling dissolves away, matching the brief's own language. ----- */
+.mam-choice-card.is-selected {
+  border-color: var(--mamco-accent, #B89A63);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--mamco-accent, #B89A63) 26%, var(--mamco-surface, #17150F)), var(--mamco-surface, #17150F));
+  box-shadow: 0 0 0 1px var(--mamco-accent, #B89A63), 0 0 30px -6px color-mix(in srgb, var(--mamco-accent, #B89A63) 70%, transparent);
+  transform: translateY(-4px) scale(1.04);
+  animation: none;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1), border-color 320ms ease, box-shadow 320ms ease, background 320ms ease;
+}
+.mam-choice-card.is-dissolving {
+  animation: none;
+  transition: opacity 320ms ease, filter 320ms ease, transform 320ms ease;
+  opacity: 0;
+  filter: blur(6px);
+  transform: scale(0.85);
+  pointer-events: none;
+}
+
+@keyframes mam-choice-materialize {
+  0% { opacity: 0; transform: translateY(16px) scale(0.82) rotateX(6deg); filter: blur(10px); }
+  55% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1) rotateX(0); filter: blur(0); }
+}
+@keyframes mam-choice-trace {
+  0% { opacity: 0; }
+  40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mam-choice-card { animation-duration: 1ms; }
+  .mam-choice-card::before { animation: none; opacity: 0; }
+  .mam-choice-card:hover, .mam-choice-card:focus-visible { transform: none; }
+  .mam-choice-card.is-selected { transform: none; }
+  .mam-choice-card.is-dissolving { transition-duration: 1ms; }
+}
+
+/* ---- mobile (per the brief: "one primary card + partial neighbor,
+ * swipe -- never four tiny cards across a phone screen") -- native
+ * horizontal scroll-snap, GPU-cheap (transform/opacity only). The
+ * active/neighbor distinction below is js/mam-spatial-choice.js's own
+ * PRESENTATION-ONLY carousel tracker (a scroll listener that finds
+ * whichever card is nearest the row's center and toggles these two
+ * classes) -- it never touches selection: tapping any card, centered or
+ * not, still resolves the exact same handler it always did. ------------ */
+@media (max-width: 640px) {
+  .mam-choice-root { gap: 12px; }
+  .mam-choice-breadcrumb {
+    font-size: 11px;
+    max-width: 88vw;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    display: block;
+  }
+  .mam-choice-question {
+    font-size: clamp(17px, 5vw, 20px);
+    line-height: 1.28;
+    -webkit-line-clamp: 2;
+    padding-inline: 6px;
+  }
+  .mam-choice-row {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 9vw;
+    padding-inline: 9vw;
+    padding-block: 4px 2px; /* room for the active card's own lift */
+    -webkit-overflow-scrolling: touch;
+  }
+  .mam-choice-card {
+    flex: none;
+    width: min(82vw, 340px);
+    min-height: 116px;
+    scroll-snap-align: center;
+    box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.6);
+    /* Neighbors rest slightly receded and dim until the carousel tracker
+       marks one .is-active-mobile -- an immediate, correct default even
+       before the first scroll-settle fires (see renderCards() in
+       js/mam-spatial-choice.js). */
+    opacity: 0.55;
+    transform: scale(0.94);
+    transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 260ms ease, box-shadow 260ms ease, border-color 260ms ease;
+  }
+  .mam-choice-card.is-active-mobile {
+    opacity: 1;
+    transform: scale(1);
+    border-color: color-mix(in srgb, var(--mamco-accent, #B89A63) 45%, transparent);
+    box-shadow: 0 20px 38px -16px rgba(0, 0, 0, 0.68), 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 18%, transparent);
+  }
+  .mam-choice-card.is-active-mobile.is-settled {
+    animation: mam-choice-settle-pulse 620ms ease-out;
+  }
+  .mam-choice-card:hover:not(.is-selected):not(.is-dissolving) {
+    /* The hover lift is a desktop-only affordance -- on a touch device it
+       just fights the carousel's own active-card scale above. */
+    transform: scale(1);
+  }
+  .mam-choice-card.is-active-mobile:hover:not(.is-selected):not(.is-dissolving) {
+    transform: scale(1);
+  }
+}
+
+@keyframes mam-choice-settle-pulse {
+  0% { box-shadow: 0 20px 38px -16px rgba(0, 0, 0, 0.68), 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 18%, transparent); }
+  40% { box-shadow: 0 20px 38px -16px rgba(0, 0, 0, 0.68), 0 0 0 5px color-mix(in srgb, var(--mamco-accent, #B89A63) 38%, transparent); }
+  100% { box-shadow: 0 20px 38px -16px rgba(0, 0, 0, 0.68), 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 18%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mam-choice-card.is-active-mobile.is-settled { animation: none; }
+}
+@media (prefers-reduced-motion: reduce) and (max-width: 640px) {
+  .mam-choice-card { transition-duration: 1ms; }
+}

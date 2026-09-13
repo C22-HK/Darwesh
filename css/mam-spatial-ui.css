@@ -1,0 +1,233 @@
+/* MAM AI Command Center -- spatial task/result UI (js/mam-spatial-ui.js).
+ * Everything in here renders REAL turn data (js/mam-chat-panel.js's own
+ * `onSpatialEvent` hook, fired at the exact same real lifecycle moments
+ * the transcript itself is built from) as a second, cinematic surface
+ * anchored to the entity rather than buried in the transcript log. No
+ * element here ever represents state the real turn didn't reach -- see
+ * mam-spatial-ui.js's own header comment for the honesty rules this
+ * file's animations are designed to respect (entrance/stagger timing is
+ * presentation only, never a claim about when the backend "finished"
+ * each piece).
+ *
+ * Same obsidian/gold family every other MAM surface already uses
+ * (--mamco-* custom properties, literal fallbacks so this file needs no
+ * other stylesheet present), never a second palette. */
+
+.mam-spatial-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+}
+.mam-spatial-nodes:empty { display: none; }
+
+.mam-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-family: 'IBM Plex Sans', 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--mamco-glow, #F2EEE5);
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mamco-accent, #B89A63) 35%, transparent);
+  white-space: nowrap;
+  animation: mam-node-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.mam-node-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--mamco-accent, #B89A63);
+  flex: none;
+}
+.mam-node[data-state="pending"] {
+  color: var(--mamco-glow, #F2EEE5);
+  opacity: 0.85;
+}
+.mam-node[data-state="pending"] .mam-node-dot {
+  animation: mam-node-pulse 1.1s ease-in-out infinite;
+}
+.mam-node[data-state="done"] {
+  border-color: var(--mamco-accent, #B89A63);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mamco-accent, #B89A63) 45%, transparent), 0 0 14px color-mix(in srgb, var(--mamco-accent, #B89A63) 30%, transparent);
+  background: color-mix(in srgb, var(--mamco-accent, #B89A63) 14%, var(--mamco-surface, #17150F));
+}
+.mam-node[data-state="done"] .mam-node-dot { background: var(--mamco-accent, #B89A63); }
+.mam-node[data-state="error"] {
+  color: var(--mamco-error, #E5787A);
+  border-color: color-mix(in srgb, var(--mamco-error, #E5787A) 45%, transparent);
+}
+.mam-node[data-state="error"] .mam-node-dot { background: var(--mamco-error, #E5787A); }
+
+@keyframes mam-node-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.72); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes mam-node-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+/* ---- Results -- real cards (data.cards, unmodified), a second
+ * cinematic rendering of the SAME array js/mam-chat-panel.js's
+ * transcript log already shows, never a second data source. -------- */
+.mam-spatial-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 560px;
+}
+.mam-spatial-results:empty { display: none; }
+.mam-spatial-results-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.mam-result-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mamco-accent, #B89A63) 22%, transparent);
+  text-decoration: none;
+  animation: mam-card-materialize 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+.mam-result-card:hover, .mam-result-card:focus-visible {
+  border-color: color-mix(in srgb, var(--mamco-accent, #B89A63) 60%, transparent);
+  transform: translateY(-2px);
+  outline: none;
+}
+.mam-result-media {
+  aspect-ratio: 4 / 3;
+  background: color-mix(in srgb, var(--mamco-accent, #B89A63) 10%, var(--mamco-surface, #17150F));
+  display: flex; align-items: center; justify-content: center;
+}
+.mam-result-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mam-result-media .material-symbols-outlined { color: var(--mamco-accent, #B89A63); opacity: 0.6; font-size: 28px; }
+.mam-result-body { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 2px; }
+.mam-result-title {
+  font-family: 'Plus Jakarta Sans', 'IBM Plex Sans', sans-serif;
+  font-size: 12.5px; font-weight: 700; color: var(--mamco-glow, #F2EEE5);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mam-result-sub {
+  font-size: 11.5px; font-weight: 600; color: var(--mamco-accent, #B89A63);
+}
+
+@keyframes mam-card-materialize {
+  0% { opacity: 0; transform: scale(0.78) translateY(10px); filter: blur(8px); }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+}
+
+.mam-spatial-results-heading {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--mamco-glow, #F2EEE5) 60%, transparent);
+  margin: 4px 0 -2px;
+}
+
+/* ---- Map/Sell transition beam -- a directional sweep from the entity
+ * toward the edge the visitor is about to be taken to, purely
+ * decorative and non-blocking: it plays WHILE speakThenNavigate is
+ * already doing the real work of speaking-then-leaving, never delays
+ * it. Logical properties throughout so it mirrors correctly under
+ * dir="rtl" with no separate RTL rule. ------------------------------- */
+.mam-spatial-beam {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
+  height: 2px;
+  transform: translateY(-50%) scaleX(0);
+  transform-origin: center;
+  background: linear-gradient(to right,
+    transparent 0%,
+    color-mix(in srgb, var(--mamco-accent, #B89A63) 70%, transparent) 45%,
+    var(--mamco-accent, #B89A63) 50%,
+    color-mix(in srgb, var(--mamco-accent, #B89A63) 70%, transparent) 55%,
+    transparent 100%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.mam-spatial-beam.is-active {
+  animation: mam-beam-sweep 900ms cubic-bezier(0.3, 0, 0.2, 1) both;
+}
+@keyframes mam-beam-sweep {
+  0% { opacity: 0; transform: translateY(-50%) scaleX(0.05); }
+  25% { opacity: 1; }
+  80% { opacity: 1; transform: translateY(-50%) scaleX(1); }
+  100% { opacity: 0; transform: translateY(-50%) scaleX(1); }
+}
+
+/* ---- Renderer debug badge -- QA-only (js/mam-ai's ?debug=1), never
+ * shown by default so it never ships as visible production chrome. -- */
+.mam-entity3d-debug-badge {
+  position: absolute;
+  inset-block-start: 8px;
+  inset-inline-end: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: 'IBM Plex Sans', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--mamco-glow, #F2EEE5);
+  background: color-mix(in srgb, var(--mamco-surface, #17150F) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mamco-accent, #B89A63) 45%, transparent);
+  z-index: 6;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mam-node, .mam-result-card { animation-duration: 1ms; }
+  .mam-spatial-beam.is-active { animation: mam-beam-flash-reduced 260ms ease both; }
+}
+@keyframes mam-beam-flash-reduced {
+  0% { opacity: 0; transform: translateY(-50%) scaleX(1); }
+  50% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(-50%) scaleX(1); }
+}
+
+/* ---- Mobile (390/430 and narrower) --------------------------------- */
+@media (max-width: 640px) {
+  .mam-node { font-size: 11px; padding: 5px 10px; }
+  .mam-spatial-results { max-width: 100%; }
+  .mam-spatial-results-heading { padding-inline: 9vw; }
+  /* One dominant result card + a partial neighbor peeking, swipe for
+     more -- the exact same native scroll-snap pattern
+     css/mam-spatial-choice.css already uses for the question cards, so
+     the whole surface feels like one system rather than a grid on
+     desktop and something else on mobile. */
+  .mam-spatial-results-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 9vw;
+    padding-inline: 9vw;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mam-result-card {
+    flex: none;
+    width: min(82vw, 340px);
+    scroll-snap-align: center;
+  }
+  .mam-result-media { aspect-ratio: 16 / 10; }
+  .mam-result-title { font-size: 15px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mam-result-sub { font-size: 13.5px; }
+  .mam-result-body { padding: 12px 14px 14px; gap: 4px; }
+}

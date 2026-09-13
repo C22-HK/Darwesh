@@ -1,0 +1,131 @@
+/*
+  Darwesh Group — Fluid button + tab-glide system (PREVIEW ONLY)
+  =================================================================
+  Extends design-preview/buttons.css's token system (same colors/
+  motion tokens) with:
+    1) capsule buttons with glass-like depth + press compression
+    2) a single continuous sliding tab-selection surface that
+       stretches toward its target and settles ("water droplet")
+  Nothing here is loaded by any production page.
+*/
+
+:root {
+  --fl-stretch-duration: 300ms;   /* selection glide, within the 240-360ms brief */
+  --fl-panel-duration: 200ms;     /* content-panel crossfade, within 160-240ms */
+  --fl-ease-glide: cubic-bezier(0.22, 0.61, 0.36, 1);   /* same family as --ps-focus-ring motion */
+  --fl-ease-settle: cubic-bezier(0.34, 1.4, 0.64, 1);   /* gentle overshoot for the "settle" moment only */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --fl-stretch-duration: 1ms; --fl-panel-duration: 1ms; }
+}
+
+/* =========================================================
+   CAPSULE BUTTONS — glass depth, press compression
+   ========================================================= */
+.fl-btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 48px; padding-inline: 26px;
+  border-radius: 999px;
+  font-size: 15.5px; font-weight: 600; font-family: inherit;
+  border: 1px solid transparent;
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0) scale(1);
+  transition: background-color 150ms var(--fl-ease-glide),
+              border-color 150ms var(--fl-ease-glide),
+              box-shadow 150ms var(--fl-ease-glide),
+              color 150ms var(--fl-ease-glide),
+              transform 220ms var(--fl-ease-settle);
+}
+.fl-btn::before {
+  /* fine top edge highlight -- restrained, not a glossy sheen */
+  content: ""; position: absolute; inset: 1px 1px auto 1px; height: 46%;
+  border-radius: 999px 999px 40% 40% / 999px 999px 100% 100%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(255,255,255,0));
+  pointer-events: none;
+}
+.fl-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--btn-obsidian, #0b0e12), 0 0 0 4px var(--btn-gold, #c69a4b); }
+.fl-btn:active { transform: scale(0.964, 0.9); }
+@media (prefers-reduced-motion: reduce) { .fl-btn:active { transform: scale(0.99); } }
+
+.fl-btn-primary {
+  background: linear-gradient(180deg, #d4af60, #c69a4b);
+  color: #0b0e12;
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 1px 1px rgba(11,14,18,.08), 0 8px 18px -8px rgba(198,154,75,.55), inset 0 1px 0 rgba(255,255,255,.25);
+}
+@media (hover: hover) {
+  .fl-btn-primary:hover { box-shadow: 0 1px 1px rgba(11,14,18,.08), 0 10px 22px -6px rgba(198,154,75,.7), inset 0 1px 0 rgba(255,255,255,.3); transform: translateY(-1px); }
+}
+
+.fl-btn-secondary {
+  background: linear-gradient(180deg, rgba(23,25,27,.92), rgba(17,19,21,.92));
+  color: #f4efe7;
+  border-color: rgba(255,255,255,0.08);
+  box-shadow: 0 1px 1px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(6px);
+}
+@media (hover: hover) {
+  .fl-btn-secondary:hover { border-color: rgba(198,154,75,.55); transform: translateY(-1px); }
+}
+
+.fl-btn-icon {
+  height: 46px; width: 46px; padding: 0; border-radius: 50%;
+  background: rgba(23,25,27,.85); color: #f4efe7; border-color: rgba(255,255,255,.08);
+  box-shadow: 0 1px 1px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.06);
+  backdrop-filter: blur(6px);
+}
+.fl-btn-icon svg { width: 20px; height: 20px; position: relative; z-index: 1; }
+@media (hover: hover) { .fl-btn-icon:hover { border-color: rgba(198,154,75,.55); } }
+.fl-btn-icon:active { transform: scale(0.90); }
+
+/* =========================================================
+   SEGMENTED / TAB BAR — one continuous gliding surface
+   ========================================================= */
+.fl-seg {
+  position: relative; display: inline-flex; gap: 2px;
+  padding: 4px; border-radius: 999px;
+  background: rgba(17,19,21,.7); border: 1px solid rgba(255,255,255,.06);
+  backdrop-filter: blur(6px);
+}
+.fl-seg-indicator {
+  position: absolute; top: 4px; bottom: 4px; left: 0; width: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d4af60, #c69a4b);
+  box-shadow: 0 2px 8px -2px rgba(198,154,75,.6), inset 0 1px 0 rgba(255,255,255,.3);
+  pointer-events: none; z-index: 0;
+  will-change: left, width;
+}
+@media (prefers-reduced-motion: reduce) { .fl-seg-indicator { transition: none !important; } }
+
+.fl-tab {
+  position: relative; z-index: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 40px; padding-inline: 18px;
+  border-radius: 999px; border: none; background: transparent;
+  color: #b8b0a5; font-size: 14px; font-weight: 700; font-family: inherit;
+  cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+  transition: color 220ms var(--fl-ease-glide);
+}
+.fl-tab[aria-selected="true"] { color: #0b0e12; }
+.fl-tab:focus-visible { outline: none; box-shadow: 0 0 0 2px #0b0e12, 0 0 0 4px #c69a4b; border-radius: 999px; }
+
+/* =========================================================
+   TAB CONTENT PANELS — crossfade + small directional shift
+   ========================================================= */
+.fl-panels { display: grid; }
+.fl-panel {
+  grid-area: 1 / 1;
+  opacity: 0; transform: translateX(var(--fl-panel-shift, 10px));
+  pointer-events: none;
+  transition: opacity var(--fl-panel-duration) ease, transform var(--fl-panel-duration) ease;
+}
+[dir="rtl"] .fl-panel { --fl-panel-shift: -10px; }
+.fl-panel.is-active { opacity: 1; transform: none; pointer-events: auto; }
+
+/* Nav-style segmented control used for the "navigates to a real page"
+   demo lower on the page -- identical visual system, explicit note in
+   markup instead of intercepting navigation. */
+.fl-navnote { font-size: 12.5px; color: #8f887c; margin-top: 10px; }

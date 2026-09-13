@@ -2,72 +2,93 @@
 
 <html class="light" lang="en"><head>
 <meta charset="utf-8"/>
+<!-- CLIENT-04 (CLIENT_SIDE_SECURITY_REVIEW.md): meta-delivered CSP. GitHub Pages
+can't set HTTP headers, so this is the only delivery mechanism available.
+unsafe-inline on script and style sources is a deliberate, documented
+tradeoff: this codebase has no build step and dozens of inline script/style
+blocks per page; blocking them needs a nonce (impossible with no per-request
+server logic) or a SHA-256 hash per block kept in lockstep with every future
+edit across 21 pages, a real ongoing cost not taken on here. What this DOES
+still provide: an injected payload (e.g. CLIENT-01/02, both since fixed) can
+no longer load a script from an attacker-controlled domain or exfiltrate data
+via fetch or img to one. Note: frame-ancestors, report-uri, and sandbox are
+silently ignored when CSP is delivered via a meta tag (a browser spec rule,
+not an oversight here); this can never provide clickjacking protection or
+violation reporting. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com https://unpkg.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com https://lh3.googleusercontent.com https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com; media-src 'self' blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firebasestorage.googleapis.com https://darwesh-backend-353477435585.me-central1.run.app https://overpass-api.de https://nominatim.openstreetmap.org https://www.google.com https://*.ingest.sentry.io; frame-src https://www.google.com; object-src 'none'; base-uri 'self'; upgrade-insecure-requests"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<!-- Favicon / app icons -- generated from the official Darwesh Group D-mark
+     (images/brand/darwesh-mark.png); geometry unmodified. Root-relative
+     paths so they resolve from every route regardless of the current page. -->
+<link rel="icon" href="/images/brand/favicon.ico" sizes="any"/>
+<link rel="icon" type="image/png" sizes="16x16" href="/images/brand/favicon-16.png"/>
+<link rel="icon" type="image/png" sizes="32x32" href="/images/brand/favicon-32.png"/>
+<link rel="icon" type="image/png" sizes="48x48" href="/images/brand/favicon-48.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="/images/brand/apple-touch-icon.png"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="canonical" href="https://www.darweshgroup.com/account.html"/>
 <title>Darwesh Group - My Account</title>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<meta name="robots" content="noindex, nofollow"/>
+<link href="css/tailwind.css" rel="stylesheet"/>
+<link href="css/profile-tokens.css" rel="stylesheet"/>
+<link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/verification-rewards.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "surface-bright": "#f7f9ff", "on-secondary-fixed-variant": "#5d4201", "secondary": "#775a19",
-                        "on-secondary-fixed": "#261900", "on-primary-fixed": "#0b1d2d", "primary": "#041627",
-                        "error": "#ba1a1a", "inverse-primary": "#b7c8de", "surface-container-low": "#f1f4f9",
-                        "on-primary-fixed-variant": "#38485a", "tertiary-fixed": "#6bfe9c", "surface-variant": "#e0e3e8",
-                        "on-tertiary-fixed": "#00210c", "primary-fixed": "#d2e4fb", "on-primary": "#ffffff",
-                        "surface": "#f7f9ff", "surface-container-high": "#e5e8ee", "inverse-surface": "#2d3135",
-                        "on-error-container": "#93000a", "on-secondary": "#ffffff", "error-container": "#ffdad6",
-                        "inverse-on-surface": "#eef1f6", "on-error": "#ffffff", "outline-variant": "#c4c6cd",
-                        "outline": "#74777d", "primary-container": "#1a2b3c", "tertiary-container": "#003115",
-                        "tertiary-fixed-dim": "#4ae183", "primary-fixed-dim": "#b7c8de", "secondary-container": "#fed488",
-                        "secondary-fixed-dim": "#e9c176", "secondary-fixed": "#ffdea5", "surface-dim": "#d7dadf",
-                        "tertiary": "#001a08", "surface-container-lowest": "#ffffff", "on-background": "#181c20",
-                        "surface-container-highest": "#e0e3e8", "on-tertiary-container": "#00a656", "on-primary-container": "#8192a7",
-                        "on-tertiary": "#ffffff", "on-tertiary-fixed-variant": "#005228", "on-surface-variant": "#44474c",
-                        "surface-tint": "#4f6073", "on-secondary-container": "#785a1a", "surface-container": "#ebeef3",
-                        "background": "#f7f9ff", "on-surface": "#181c20"
-                    },
-                    "borderRadius": { "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem" },
-                    "spacing": { "gutter": "24px", "stack-lg": "32px", "stack-md": "16px", "margin-desktop": "48px", "stack-sm": "8px", "container-max": "1280px", "margin-mobile": "16px", "unit": "8px" },
-                    "fontFamily": { "headline-md": ["Plus Jakarta Sans"], "label-caps": ["IBM Plex Sans"], "display-lg-mobile": ["Plus Jakarta Sans"], "body-lg": ["Inter"], "body-md": ["Inter"], "data-mono": ["Inter"], "display-lg": ["Plus Jakarta Sans"] },
-                    "fontSize": {
-                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }], "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
-                        "display-lg-mobile": ["32px", { "lineHeight": "40px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
-                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
-                        "display-lg": ["48px", { "lineHeight": "60px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
-                    }
-                }
-            }
-        }
-    </script>
 <style>
   body { min-height: 100dvh; }
-  .acct-tab { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; padding: 12px 4px; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; margin-right: 28px; }
-  .acct-tab.active { color: #041627; border-bottom-color: #775a19; }
+  .acct-tab { font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #A79F91; padding: 12px 4px; border-bottom: 2px solid transparent; cursor: pointer; background: none; border-left: none; border-right: none; border-top: none; margin-right: 28px; }
+  .acct-tab.active { color: #F2EEE5; border-bottom-color: #B89A63; }
   .acct-panel { display: none; }
   .acct-panel.active { display: block; }
-  .fav-card { background: #ffffff; border: 1px solid #e5e8ee; border-radius: 12px; overflow: hidden; }
+  .fav-card { background: #17150F; border: 1px solid #5D482B; border-radius: 12px; overflow: hidden; }
   .status-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
-  .status-pending { background: #fed488; color: #5d4201; }
-  .settings-input { border: 1px solid #c4c6cd; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #181c20; background: #ffffff; }
-  .settings-input:focus { outline: 2px solid #775a19; outline-offset: 1px; }
+  .status-pending { background: #8E7448; color: #090A0A; }
+  .status-active { background: #7FB89A; color: #090A0A; }
+  .status-declined { background: #E5787A; color: #090A0A; }
+  .settings-input { border: 1px solid #5D482B; border-radius: 8px; padding: 9px 12px; font-family: 'Inter', sans-serif; font-size: 14px; color: #F2EEE5; background: #17150F; }
+  .settings-input:focus { outline: 2px solid #B89A63; outline-offset: 1px; }
 </style>
+<script src="./js/icon-fallback.js"></script>
 </head>
-<body class="bg-background text-on-surface font-body-md antialiased">
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
 
 <div id="loadingGate" class="fixed inset-0 flex items-center justify-center bg-background z-50">
-  <p class="font-body-md text-on-surface-variant">Loading your account…</p>
+  <p class="font-body-md text-on-surface-variant" data-i18n="acct.loading">Loading your account…</p>
 </div>
 
 <div id="accountContent" class="hidden">
   <header class="flex items-center justify-between px-margin-mobile md:px-margin-desktop h-16 border-b border-outline-variant bg-surface-bright sticky top-0 z-40">
     <a href="index.html" class="font-headline-md text-[20px] text-primary font-bold">Darwesh Group</a>
     <div class="flex items-center gap-4">
-      <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline">Map</a>
-      <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button">Log out</button>
+      <a href="map.html" class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors hidden sm:inline" data-i18n="nav.map">Map</a>
+      <div class="relative">
+        <button aria-label="Language" class="lang-toggle-btn" type="button">
+          <span class="lang-current" data-flag-for="en"><img class="lang-flag" src="images/flags/usa.svg" alt="" width="18" height="13" decoding="async">EN</span>
+          <span class="lang-current" data-flag-for="ku"><img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="18" height="13" decoding="async">KU</span>
+          <span class="lang-current" data-flag-for="ar"><img class="lang-flag" src="images/flags/iraq.svg" alt="" width="18" height="13" decoding="async">AR</span>
+          <span class="lang-current" data-flag-for="tr"><img class="lang-flag" src="images/flags/turkey.svg" alt="" width="18" height="13" decoding="async">TR</span>
+        </button>
+        <div class="lang-menu hidden absolute end-0 top-full mt-2 z-50">
+          <button class="lang-option" data-lsel data-lang="ku" onclick="setLanguage('ku')" type="button">
+            <img class="lang-flag" src="images/flags/kurdistan.svg" alt="" width="20" height="14" decoding="async"><span>کوردی</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+          <button class="lang-option" data-lsel data-lang="ar" onclick="setLanguage('ar')" type="button">
+            <img class="lang-flag" src="images/flags/iraq.svg" alt="" width="20" height="14" decoding="async"><span>العربية</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+          <button class="lang-option" data-lsel data-lang="tr" onclick="setLanguage('tr')" type="button">
+            <img class="lang-flag" src="images/flags/turkey.svg" alt="" width="20" height="14" decoding="async"><span>Türkçe</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+          <button class="lang-option" data-lsel data-lang="en" onclick="setLanguage('en')" type="button">
+            <img class="lang-flag" src="images/flags/usa.svg" alt="" width="20" height="14" decoding="async"><span>English</span>
+            <span class="lang-option-check material-symbols-outlined" aria-hidden="true">check</span>
+          </button>
+        </div>
+      </div>
+      <button id="logoutBtn" class="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors" type="button" data-i18n="common.logOut">Log out</button>
     </div>
   </header>
 
@@ -80,7 +101,7 @@
         <div class="relative w-24 h-24 md:w-28 md:h-28 mx-auto">
           <div id="acctPhotoWrap" class="w-full h-full rounded-full border-4 border-surface-container-lowest bg-primary flex items-center justify-center shadow-lg overflow-hidden">
             <span class="material-symbols-outlined text-on-primary text-[44px]" id="acctPhotoIcon">person</span>
-            <img id="acctPhotoImg" class="hidden w-full h-full object-cover"/>
+            <img id="acctPhotoImg" class="hidden w-full h-full object-cover" decoding="async"/>
           </div>
           <label class="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-secondary text-on-secondary flex items-center justify-center shadow-md cursor-pointer hover:bg-secondary-container transition-colors" title="Change profile photo">
             <span class="material-symbols-outlined text-[16px]">photo_camera</span>
@@ -105,12 +126,32 @@
       </div>
     </section>
 
+    <!-- Management card (launch-readiness fix B3): shown ONLY for account
+         types whose own management page exists elsewhere (real-estate
+         office -> office.html, developer / residential community ->
+         org-projects.html) or that are registered but have no management
+         page yet (finance provider, furniture store -- stated honestly, no
+         dead link). Customers and professionals never see it; the header's
+         Profile chip already takes professionals to their own page. -->
+    <section id="roleCard" class="hidden bg-surface-container-lowest border border-outline-variant rounded-2xl p-5 md:p-6 mb-8 flex flex-col md:flex-row md:items-center gap-4">
+      <div class="w-12 h-12 rounded-xl bg-primary-container text-on-primary flex items-center justify-center flex-shrink-0" aria-hidden="true">
+        <span class="material-symbols-outlined" id="roleCardIcon">apartment</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-headline-md text-[18px] text-primary font-bold" id="roleCardTitle"></p>
+        <p class="font-body-md text-[13.5px] text-on-surface-variant mt-1" id="roleCardDesc"></p>
+      </div>
+      <a id="roleCardLink" class="hidden bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors text-center" href="account.html"></a>
+    </section>
+
     <div class="flex border-b border-outline-variant mb-6">
-      <button class="acct-tab active" data-tab="favorites" type="button">Favorites</button>
-      <button class="acct-tab" data-tab="submissions" type="button">My Submissions</button>
-      <button class="acct-tab" data-tab="searches" type="button">Saved Searches</button>
-      <button class="acct-tab" data-tab="agent" type="button">My Agent</button>
-      <button class="acct-tab" data-tab="settings" type="button">Settings</button>
+      <button class="acct-tab active" data-tab="favorites" type="button" data-i18n="acct.tabFavorites">Favorites</button>
+      <button class="acct-tab" data-tab="submissions" type="button" data-i18n="acct.tabSubmissions">My Submissions</button>
+      <button class="acct-tab" data-tab="requests" type="button" data-i18n="acct.tabRequests">My Requests</button>
+      <button class="acct-tab" data-tab="searches" type="button" data-i18n="acct.tabSearches">Saved Searches</button>
+      <button class="acct-tab" data-tab="agent" type="button" data-i18n="acct.tabAgent">My Agent</button>
+      <button class="acct-tab" data-tab="verification" type="button" data-i18n="acct.tabVerification">Verification &amp; Rewards</button>
+      <button class="acct-tab" data-tab="settings" type="button" data-i18n="acct.tabSettings">Settings</button>
     </div>
 
     <!-- My Agent -->
@@ -125,9 +166,9 @@
             <p class="font-body-md text-[13px] text-on-surface-variant" id="agentEmail">—</p>
           </div>
         </div>
-        <p class="font-label-caps text-label-caps text-secondary mb-3">Listings from your agent</p>
+        <p class="font-label-caps text-label-caps text-secondary mb-3" data-i18n="acct.agentListings">Listings from your agent</p>
         <div id="agentListingsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-        <p id="agentListingsEmpty" class="hidden font-body-md text-[13px] text-on-surface-variant py-4">Your agent hasn't added any listings yet.</p>
+        <p id="agentListingsEmpty" class="hidden font-body-md text-[13px] text-on-surface-variant py-4" data-i18n="acct.agentListingsEmpty">Your agent hasn't added any listings yet.</p>
       </div>
       <p id="agentEmpty" class="hidden font-body-md text-[14px] text-on-surface-variant py-8 text-center">
         You don't have an assigned agent yet. Contact the Darwesh Group office to get connected with one, or browse <a href="map.html" class="text-secondary hover:underline">Map</a> in the meantime.
@@ -150,6 +191,14 @@
       </p>
     </section>
 
+    <!-- Requests (launch-readiness: customer-facing inquiry-status view) -->
+    <section id="tab-requests" class="acct-panel">
+      <div id="requestsList" class="space-y-3"></div>
+      <p id="requestsEmpty" class="hidden font-body-md text-[14px] text-on-surface-variant py-8 text-center" data-i18n="acct.requestsEmpty">
+        No requests yet. When you contact a service provider (engineer, designer, lawyer, cleaner, landscaper or maintenance), the status shows up here.
+      </p>
+    </section>
+
     <!-- Saved Searches -->
     <section id="tab-searches" class="acct-panel">
       <div id="searchesList" class="space-y-3"></div>
@@ -158,29 +207,38 @@
       </p>
     </section>
 
+    <!-- Verification & Rewards (§C). The SAME component every role page
+         mounts -- account type changes which evidence a case may need,
+         never the architecture, so there is one component, not five. -->
+    <section id="tab-verification" class="acct-panel">
+      <div class="max-w-2xl">
+        <div data-verification-rewards></div>
+      </div>
+    </section>
+
     <!-- Settings -->
     <section id="tab-settings" class="acct-panel">
       <div class="max-w-lg">
         <div class="fav-card mb-5">
           <div class="px-5 py-4 border-b border-outline-variant">
-            <p class="font-body-md text-[14px] text-on-surface font-medium mb-3">Display name</p>
+            <p class="font-body-md text-[14px] text-on-surface font-medium mb-3" data-i18n="acct.displayName">Display name</p>
             <div class="flex gap-2">
               <input id="displayNameInput" class="settings-input flex-1" type="text"/>
-              <button id="saveNameBtn" class="bg-primary text-on-primary px-4 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="button">Save</button>
+              <button id="saveNameBtn" class="bg-primary text-on-primary px-4 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" type="button" data-i18n="common.save">Save</button>
             </div>
-            <p id="nameSaveMsg" class="hidden text-[12px] mt-2" style="color:#006300;">Saved.</p>
+            <p id="nameSaveMsg" class="hidden text-[12px] mt-2" style="color:#7FB89A;" data-i18n="acct.saved">Saved.</p>
           </div>
           <div class="px-5 py-4 flex items-center justify-between gap-3">
             <div>
-              <p class="font-body-md text-[14px] text-on-surface font-medium">Password</p>
-              <p class="font-body-md text-[12.5px] text-on-surface-variant">We'll email you a link to set a new one.</p>
+              <p class="font-body-md text-[14px] text-on-surface font-medium" data-i18n="acct.password">Password</p>
+              <p class="font-body-md text-[12.5px] text-on-surface-variant" data-i18n="acct.passwordHint">We'll email you a link to set a new one.</p>
             </div>
-            <button id="resetPasswordBtn" class="flex-none border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" type="button">Send Reset Email</button>
+            <button id="resetPasswordBtn" class="flex-none border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" type="button" data-i18n="acct.sendResetEmail">Send Reset Email</button>
           </div>
         </div>
-        <p id="resetPasswordMsg" class="hidden text-[12px] mb-5" style="color:#006300;">Reset email sent — check your inbox.</p>
+        <p id="resetPasswordMsg" class="hidden text-[12px] mb-5" style="color:#7FB89A;" data-i18n="acct.resetSent">Reset email sent — check your inbox.</p>
         <button id="settingsLogoutBtn" class="w-full py-3 rounded-lg border border-error text-error font-label-caps text-label-caps hover:bg-error-container transition-colors flex items-center justify-center gap-2" type="button">
-          <span class="material-symbols-outlined text-[18px]">logout</span>Sign Out
+          <span class="material-symbols-outlined text-[18px]">logout</span><span data-i18n="acct.signOut">Sign Out</span>
         </button>
       </div>
     </section>
@@ -188,19 +246,96 @@
 </div>
 
 <script type="module">
-  import { auth, db, storage } from './js/firebase-init.js';
+  import { auth, db, storage, getDoc, updateDoc, getDocs, deleteDoc } from './js/firebase-init.js';
   import { onAuthStateChanged, signOut, updateProfile, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
-  import { doc, getDoc, updateDoc, collection, getDocs, deleteDoc, orderBy, query, where } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+  import { doc, collection, orderBy, query, where, limit } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
   import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-storage.js";
+  import { compressImage, PROFILE_IMAGE, createUploadGate } from './js/image-compress.js';
+  import { describeManagementSurface } from './js/profile-destination.js';
+  import { listServiceRequests, BackendResponseError } from './js/backend-api.js';
+
+  function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
+
+  // Launch-readiness fix B3: an office owner/employee or an organization
+  // owner used to land here with nothing pointing at office.html or
+  // org-projects.html. The card below links to the real management page
+  // for the account types that have one, and says plainly when none exists
+  // yet. Ownership is never decided here -- office.html and
+  // org-projects.html each resolve it against the backend / firestore.rules.
+  const ROLE_CARD_COPY = {
+    office: {
+      title: ['acct.roleCard.officeTitle', 'Your real-estate office'],
+      desc: ['acct.roleCard.officeDesc', 'Manage your office profile, your team and your listings.'],
+      link: ['acct.roleCard.openOffice', 'Open office']
+    },
+    orgProjects: {
+      title: ['acct.roleCard.projectsTitle', 'Your projects'],
+      desc: ['acct.roleCard.projectsDesc', 'Create and manage your projects and units. Nothing becomes public until Darwesh Group approves it.'],
+      link: ['acct.roleCard.openProjects', 'Manage projects']
+    },
+    orgGeneric: {
+      title: ['acct.roleCard.orgTitle', 'Your organization'],
+      desc: ['acct.roleCard.orgDesc', 'Manage your organization profile and business details.'],
+      link: ['acct.roleCard.openOrganization', 'Manage organization']
+    }
+  };
+
+  async function renderRoleCard(user, profile) {
+    const surface = describeManagementSurface(profile);
+    if (!surface) return;
+    const copy = ROLE_CARD_COPY[surface.kind];
+    document.getElementById('roleCardIcon').textContent = surface.icon;
+    let title = tr(copy.title[0], copy.title[1]);
+    document.getElementById('roleCardDesc').textContent = tr(copy.desc[0], copy.desc[1]);
+    const link = document.getElementById('roleCardLink');
+    if (surface.href && copy.link) {
+      link.href = surface.href;
+      link.textContent = tr(copy.link[0], copy.link[1]);
+      link.classList.remove('hidden');
+    }
+    document.getElementById('roleCardTitle').textContent = title;
+    document.getElementById('roleCard').classList.remove('hidden');
+
+    // Organization owners: show the organization's real name next to the
+    // title. organizations/{id} is public-read, ownerId is a single-field
+    // equality query (no composite index), and a failure just leaves the
+    // generic title -- the card is never blocked on this read.
+    if (surface.kind === 'orgProjects' || surface.kind === 'orgGeneric') {
+      try {
+        const snap = await getDocs(query(collection(db, 'organizations'), where('ownerId', '==', user.uid), limit(1)));
+        let org = null;
+        snap.forEach((d) => { if (!org) org = d.data(); });
+        if (org && org.name) {
+          document.getElementById('roleCardTitle').textContent = `${title} · ${org.name}`;
+          if (surface.kind === 'orgProjects') link.href = `org-projects.html?org=${encodeURIComponent(snap.docs[0].id)}`;
+          if (surface.kind === 'orgGeneric') link.href = `organization.html?id=${encodeURIComponent(snap.docs[0].id)}`;
+        }
+      } catch (e) { /* keep the generic title */ }
+    }
+  }
+
+  // Blocks a second pick while the first upload is still running -- each
+  // attempt mints its own Storage path, so overlapping runs would orphan
+  // an object and race over which URL lands on the user document.
+  const acctPhotoGate = createUploadGate();
+
+  function activateTab(name) {
+    document.querySelectorAll('.acct-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    document.querySelectorAll('.acct-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+  }
 
   document.querySelectorAll('.acct-tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.acct-tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.acct-panel').forEach(p => p.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    });
+    tab.addEventListener('click', () => activateTab(tab.dataset.tab));
   });
+
+  // Deep-link support: js/mam-command-registry.js's showSavedProperties()/
+  // openUserProfile() (account.html?tab=favorites / ?tab=settings) send
+  // visitors straight to a specific tab this way -- same switch the click
+  // handler above runs, just triggered programmatically. An unknown or
+  // missing value leaves the markup's own default (Favorites) untouched.
+  const ACCT_TABS = ['favorites', 'submissions', 'requests', 'searches', 'agent', 'settings'];
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  if (requestedTab && ACCT_TABS.includes(requestedTab)) activateTab(requestedTab);
 
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     await signOut(auth);
@@ -236,13 +371,17 @@
     document.getElementById('acctPhotoUpload').addEventListener('change', async function () {
       const file = this.files[0];
       if (!file) return;
+      if (!acctPhotoGate.begin()) return;
       const statusEl = document.getElementById('acctPhotoStatus');
       statusEl.textContent = 'Uploading...';
       statusEl.classList.remove('hidden');
       try {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
         const fileRef = storageRef(storage, `customer-photos/${uid}/${Date.now()}-${safeName}`);
-        await withUploadTimeout(uploadBytes(fileRef, file));
+        // An avatar is never shown above a few hundred px; uploading a raw
+        // 12MP camera file for it is pure latency.
+        const upload = await compressImage(file, PROFILE_IMAGE);
+        await withUploadTimeout(uploadBytes(fileRef, upload));
         const url = await withUploadTimeout(getDownloadURL(fileRef));
         await updateDoc(doc(db, 'users', uid), { photoURL: url });
         setAcctPhoto(url);
@@ -250,6 +389,7 @@
       } catch (err) {
         statusEl.textContent = 'Upload failed: ' + err.message;
       } finally {
+        acctPhotoGate.end();
         this.value = '';
       }
     });
@@ -323,6 +463,69 @@
     });
   }
 
+  // Launch-readiness: the customer-facing half of B2's provider Requests
+  // tab (js/profile-role.js) -- until now a customer who messaged an
+  // engineer/designer/lawyer/cleaner/landscaper/maintenance provider had
+  // no way to see whether that request was ever looked at.
+  //
+  // Goes through the backend (js/backend-api.js listServiceRequests),
+  // not a client-side collectionGroup('requests') query: that query
+  // shape was observed to fail Cloud Firestore's list-safety check
+  // intermittently even for a caller reading only their OWN requests
+  // (customerUid == self) once run alongside the rest of this codebase's
+  // rules test suite -- not conclusively a rules defect, but not
+  // something to build a real "can I see my own data" feature on either.
+  // See PermissionOps.list_service_requests' docstring for the full
+  // reasoning; the backend scopes this from the caller's verified uid,
+  // never from anything this page sends.
+  //
+  // Reuses profile-role.js's own rp.requestStatus* labels (already
+  // translated ku/ar) rather than a second, duplicate set of strings for
+  // the exact same four values a provider can set.
+  const REQUEST_STATUS_LABELS = {
+    pending: () => (window.t && window.t('rp.requestStatusPending')) || 'Pending',
+    accepted: () => (window.t && window.t('rp.requestStatusAccepted')) || 'Accepted',
+    declined: () => (window.t && window.t('rp.requestStatusDeclined')) || 'Declined',
+    completed: () => (window.t && window.t('rp.requestStatusCompleted')) || 'Completed'
+  };
+  const REQUEST_STATUS_CLASS = { pending: 'status-pending', accepted: 'status-active', declined: 'status-declined', completed: 'status-active' };
+
+  async function loadMyRequests(uid) {
+    const list = document.getElementById('requestsList');
+    const empty = document.getElementById('requestsEmpty');
+    list.innerHTML = '';
+    try {
+      const result = await listServiceRequests(auth.currentUser);
+      const rows = result.requests || [];
+      if (!rows.length) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      rows.forEach((r) => {
+        const row = document.createElement('div');
+        row.className = 'fav-card p-4 flex items-center justify-between gap-3';
+        const left = document.createElement('div');
+        left.className = 'min-w-0';
+        const title = document.createElement('p');
+        title.className = 'font-body-md text-[14px] text-on-surface font-medium truncate';
+        title.textContent = r.providerName || '—';
+        const sub = document.createElement('p');
+        sub.className = 'font-body-md text-[12.5px] text-on-surface-variant truncate';
+        sub.textContent = r.message || '';
+        left.append(title, sub);
+        const badge = document.createElement('span');
+        badge.className = 'status-badge ' + (REQUEST_STATUS_CLASS[r.status] || 'status-pending');
+        const labelFn = REQUEST_STATUS_LABELS[r.status];
+        badge.textContent = labelFn ? labelFn() : (r.status || 'pending');
+        row.append(left, badge);
+        list.appendChild(row);
+      });
+    } catch (err) {
+      console.error('[account] loadMyRequests failed', err);
+      empty.textContent = err instanceof BackendResponseError ? err.message
+        : (window.t && window.t('acct.requestsErrorGeneric')) || 'Could not load your requests right now.';
+      empty.classList.remove('hidden');
+    }
+  }
+
   async function loadSearches(uid) {
     const list = document.getElementById('searchesList');
     const empty = document.getElementById('searchesEmpty');
@@ -374,12 +577,30 @@
     }
     const agent = agentSnap.data();
     document.getElementById('agentName').textContent = agent.displayName || 'Darwesh Group Agent';
-    document.getElementById('agentEmail').textContent = agent.email || '';
+    // U1: an agent's email is private now (users/{uid}/privateProfile,
+    // owner/admin only) and the customer never contacts an agent directly
+    // anyway -- every property inquiry goes through Darwesh Group's own
+    // Request Viewing flow. The second line shows the agent's office.
+    const officeLine = document.getElementById('agentEmail');
+    officeLine.textContent = 'Darwesh Group';
+    if (agent.companyId) {
+      try {
+        const companySnap = await getDoc(doc(db, 'companies', agent.companyId));
+        if (companySnap.exists() && companySnap.data().name) officeLine.textContent = companySnap.data().name;
+      } catch (e) { /* keep the group name */ }
+    }
     assigned.classList.remove('hidden');
 
     const grid = document.getElementById('agentListingsGrid');
     const listingsEmpty = document.getElementById('agentListingsEmpty');
-    const q = query(collection(db, 'listings'), where('agentId', '==', profile.assignedAgentId));
+    // AUTHZ-01: agentId alone isn't enough to satisfy firestore.rules for a
+    // non-owner, non-admin viewer (a customer here) -- also constrain to
+    // the agent's public/active listings, matching what this viewer could
+    // legitimately see anyway.
+    const q = query(collection(db, 'listings'),
+      where('agentId', '==', profile.assignedAgentId),
+      where('private', '==', false),
+      where('status', '==', 'active'));
     const snap = await getDocs(q);
     if (snap.empty) { listingsEmpty.classList.remove('hidden'); return; }
     listingsEmpty.classList.add('hidden');
@@ -449,13 +670,17 @@
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('accountContent').classList.remove('hidden');
 
+    renderRoleCard(user, profile);
     loadFavorites(user.uid);
     loadSubmissions(user.uid);
+    loadMyRequests(user.uid);
     loadSearches(user.uid);
     loadMyAgent(profile);
     wireSettings(user, profile);
     wirePhotoUpload(user.uid);
   });
 </script>
+<script type="module" src="./js/verification-rewards.js"></script>
 <script type="module" src="./js/error-monitor.js"></script>
+<script src="./js/i18n.js"></script>
 </body></html>

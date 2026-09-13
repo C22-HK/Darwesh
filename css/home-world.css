@@ -1,0 +1,1339 @@
+/* =========================================================================
+ * DARWESH HOME -- ONE ROOM, ONE CAMERA
+ * =========================================================================
+ * Replaces css/home-luxury.css entirely. That file's failure was structural,
+ * not decorative: it built the page out of ten sections, each painting its
+ * own opaque background, which produced 5 hard seams, 2 flat colour bands
+ * and 688px of dead gap. Measured, exactly 1 element in the whole page ever
+ * crossed a section boundary -- so there was nothing to carry a visitor
+ * across one.
+ *
+ * THE INVERSION. The page is no longer MADE OF sections. It is one
+ * continuous environment, and the movements are content travelling through
+ * it. Movements paint no background at all. There is therefore no y
+ * coordinate at which a background can change: the seam count is zero by
+ * construction rather than by tuning.
+ *
+ * Scoped to `body.world`. Nothing here applies to another page.
+ * ========================================================================= */
+
+body.world {
+  /* --- DARK LUXURY REFINEMENT (color-only restyle, current pass) --------
+     Replaces the light-luxury migration this comment used to describe.
+     The world is dark-dominant again, but unlike the pre-light version,
+     BOTH gradient recipes in .world-field below (.wf-navy / .wf-ivory)
+     now come from the SAME dark family -- there is no true light/white
+     zone left on Home at all. .wf-ivory keeps its old class name (it's
+     an internal hook, not a rendered color) but now means "the lighter
+     of two dark tiers" -- see the ramp comment further down for how that
+     still produces real tonal separation (deep navy/obsidian vs. an
+     elevated, slightly warmer dark) without ever going bright.
+     Because neither tier is ever light, the --on-stone text-flip this
+     file used to drive (ivory ink on navy vs. dark ink on white) has no
+     light state left to flip to. It is pinned to a constant below (see
+     --on-stone) rather than reworking every color-mix() call site that
+     reads it -- each of those keeps its old two-branch shape, but the
+     "on light" branch is now permanently unreachable, called out at each
+     site rather than deleted, so this stays a color/token change and not
+     a structural rewrite of section 2's rules.
+
+     DARK LUXURY CORRECTION (follow-up pass): the dark family above was
+     initially a navy one (#071D33/#0D263B/#132E45), which read as
+     corporate blue at full-page scale -- flagged directly against the
+     Intro overlay, which never used those values and reads correctly.
+     Every hex below is now a genuinely neutral obsidian/charcoal instead
+     (see css/cinematic.css's header comment for the full palette and
+     its git-history/Intro provenance); "--w-navy" keeps its name only
+     because renaming it would touch every consumer in this file for no
+     visual gain -- the value itself is obsidian, never blue. */
+  --w-navy:     #0B0E12;   /* Main Obsidian -- Hero / Services / Departure. Named --w-navy for
+                              historical reasons only; the value is neutral obsidian, never navy
+                              (see the DARK LUXURY CORRECTION note at the top of this file). */
+  --w-navy-hi:  #111315;   /* Deep Charcoal -- soft/raised tier, gradients only */
+  --w-ivory:    #1C1F21;   /* Card Surface Dark -- lightest dark tier (elevated-zone gradient top); NOT a light background any more */
+  --w-ivory-lo: #17191B;   /* Elevated Dark -- elevated-zone gradient's deep stop */
+
+  --w-gold:      #C69A4B;  /* Darwesh Gold */
+  --w-gold-hi:   #D4AF60;  /* Soft Gold */
+  --w-gold-deep: #8A6A38;  /* derived, darkened gold for gradient depth only -- not a brand value */
+
+  /* Type reads against the world. Both tiers are dark now, so text stays
+     in one family (warm ivory on dark) for the whole page -- see
+     --on-stone below for how the old two-family flip is retired without
+     touching every consumer of it. */
+  --w-ink:      #F4EFE7;   /* Warm Ivory -- primary heading/label text */
+  --w-ink-soft: #B8B0A5;   /* body copy on dark */
+  --w-ink-dark: #0B0E12;   /* unreachable now (see --on-stone) -- kept only as color-mix()'s other argument */
+  --w-ink-dark-mute: #111315; /* unreachable now (see --on-stone) -- same reason */
+
+  --w-hair:     rgba(244, 239, 231, 0.16);
+  --w-hair-warm:rgba(198, 154, 75, 0.28);
+
+  --w-ease:     cubic-bezier(0.22, 0.61, 0.36, 1);
+  --w-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --w-fast: 160ms;
+  --w-mid: 340ms;
+  --w-slow: 680ms;
+
+  /* Depth. Three planes, assigned by MEANING (see §3), never by position. */
+  --w-z-fore: 0px;
+  --w-z-mid: -46px;
+  --w-z-back: -130px;
+
+  /* One spacing scale for the whole journey. */
+  --w-air-s: clamp(1.5rem, 3vw, 2.5rem);
+  --w-air-m: clamp(3rem, 6vw, 5.5rem);
+  --w-air-l: clamp(5rem, 10vw, 9rem);
+
+  background: var(--w-navy);
+  color: var(--w-ink);
+}
+/* --journey is written by js/cine-scroll-3d.js onto the ROOT element: 0 at
+   the top of the document, 1 at the bottom. Everything atmospheric derives
+   from it. Declared here (not on body.world) so the JS value inherits down
+   instead of being shadowed by a body-level declaration. */
+:root { --journey: 0; }
+
+/* =========================================================================
+ * 1. THE PERSISTENT WORLD
+ * =========================================================================
+ * One fixed element. It never scrolls, never repeats, and has no edge
+ * anywhere in the document, so no scroll position can reveal a boundary.
+ *
+ * DARK LUXURY REFINEMENT. Both recipes below, .wf-navy and .wf-ivory, are
+ * now from the same dark family -- there is no light station left on this
+ * page at all, so the failure mode the previous two rebuilds each fought
+ * (a text-color flip has to cross a mid-grey-on-mid-grey band somewhere in
+ * a light<->dark crossfade -- measured once at 1.19:1, far below AA) can't
+ * occur here: headings and body copy stay Warm Ivory for the whole journey
+ * (see --on-stone below, now a constant), so nothing about this ramp has
+ * to protect a flip that no longer exists.
+ *
+ * That frees the ramp to go back to FIVE alternating zones purely for
+ * background DEPTH -- "main background -> slightly lighter section ->
+ * dark card -> photographic section -> deep navy CTA", per the dark-
+ * luxury brief's tonal-separation requirement, rather than the single
+ * end-loaded ramp the light-luxury pass used. Only two actual background
+ * recipes exist, .wf-navy (deep navy/obsidian) and .wf-ivory (an
+ * elevated, slightly warmer dark card tone -- see the token block above
+ * for why that name is now misleading but kept), cross-added below via
+ * the same "running difference of cumulative ramps" technique as before:
+ * the four ramps t1..t4 are each a narrow, independent crossfade window,
+ * and because every zone boundary uses the same width, opacity_navy +
+ * opacity_ivory telescopes to exactly 1 at every point in the journey by
+ * construction, so there is still no seam and no darken/bloom at a
+ * handover -- only which dark tier is momentarily dominant changes. */
+/* --t1..--t4 / --navy-mix live on body.world. They no longer strictly have
+   to (--on-stone is a constant now -- see below -- so nothing on this same
+   element reads --navy-mix back), but declaring them here still means
+   every descendant that DOES read them (.world-field's children, several
+   levels down) inherits the value with zero extra wiring, so there is no
+   reason to move them. */
+body.world {
+  /* DARK LUXURY REFINEMENT: back to five alternating zones (as the
+     original pre-light-luxury version used), retuned so the DEEP navy/
+     obsidian tier dominates rather than the elevated one -- per the
+     brief's "55-65% deep navy/obsidian, 20-25% elevated dark/navy
+     surfaces" balance. Zones, by --journey position:
+       navy    [0,     0.12]  Hero
+       elevated[0.20,  0.32]  Intent
+       navy    [0.40,  0.64]  City Discovery + Properties (dark-card zone)
+       elevated[0.72,  0.84]  Installments / Trust
+       navy    [0.92,  1.0 ]  Departure / Footer close
+     with an 0.08-wide crossfade at each boundary (t1..t4). Pure-navy time
+     (.44) plus half of the four transition bands (.16) is ~60% of the
+     journey; pure-elevated (.24) plus its half-share (.16) is ~40% --
+     comfortably inside the target range once real photography (Hero
+     image, city/property cards) supplies its own share of warm-ivory
+     brightness on top. */
+  --t1: clamp(0, calc((var(--journey) - 0.12) / 0.08), 1);
+  --t2: clamp(0, calc((var(--journey) - 0.32) / 0.08), 1);
+  --t3: clamp(0, calc((var(--journey) - 0.64) / 0.08), 1);
+  --t4: clamp(0, calc((var(--journey) - 0.84) / 0.08), 1);
+  --navy-mix: calc(1 - var(--t1) + var(--t2) - var(--t3) + var(--t4));
+}
+.world-field {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--w-navy);
+}
+.world-field > i {
+  position: absolute;
+  inset: 0;
+  display: block;
+  will-change: opacity;
+}
+
+/* DEEP -- Hero, City Discovery + Properties, Departure/Footer close. The
+   dominant recipe, ~60% of the journey per the token block's comment. */
+.world-field .wf-navy {
+  opacity: var(--navy-mix);
+  background:
+    radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.14), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(11, 14, 18, 0.30), transparent 60%),
+    linear-gradient(172deg, #17191B 0%, #111315 55%, #0B0E12 100%);
+}
+/* ELEVATED -- Intent, Installments/Trust. Still dark -- a lighter, warmer
+   dark-card tone than .wf-navy, not a light background -- that's what
+   gives the "slightly lighter section" tonal step the brief asks for. */
+.world-field .wf-ivory {
+  opacity: calc(1 - var(--navy-mix));
+  background:
+    radial-gradient(120% 80% at 76% 6%, rgba(198, 154, 75, 0.10), transparent 56%),
+    radial-gradient(90% 70% at 8% 88%, rgba(11, 14, 18, 0.35), transparent 60%),
+    linear-gradient(172deg, #1C1F21 0%, #17191B 55%, #141619 100%);
+}
+/* A single vignette over the whole world, so the frame is always held and
+   the extremes always read as further away. Both tiers are dark now, so
+   this no longer needs to hide during one of them -- it stays on
+   throughout at a restrained baseline and only deepens a little further
+   during the .wf-navy zones, which is the subtle "edge light" depth cue
+   the brief asks to keep, not a giant vignette bloom. */
+.world-field .wf-vignette {
+  background: radial-gradient(118% 82% at 50% 44%, transparent 42%, rgba(4, 8, 14, 0.6) 100%);
+  opacity: calc(0.3 + var(--navy-mix) * 0.3);
+}
+
+/* Everything the visitor reads sits above the world. */
+body.world main { position: relative; z-index: 1; }
+
+/* THE OLD SCENE SURFACES ARE SWITCHED OFF HERE.
+   css/cinematic.css still gives every [data-cine3d] scene a lit surface
+   plane and an atmosphere layer -- the mechanism from the previous two
+   passes, which is exactly the bordered rounded rectangle per section that
+   this redesign exists to remove. They are neutralised rather than deleted
+   from that file because cinematic.css is shared with login/signup and the
+   other cinematic pages, which still use them correctly. */
+body.world [data-cine3d="rail"]::before,
+body.world [data-cine3d="rail"]::after,
+body.world [data-cine3d="cards"]::before,
+body.world [data-cine3d="cards"]::after,
+body.world [data-cine3d="hero"]::after { content: none; display: none; }
+
+/* AND THE SECTION MOTION ITSELF -- the actual source of the shutter.
+   css/cinematic.css gives every [data-cine3d] scene a scroll-driven
+   transform on the SECTION:
+
+     [data-cine3d="rail"], [data-cine3d="cards"] {
+       transform: perspective(1400px)
+         translate3d(0, calc(var(--e) * 90px - var(--l) * 70px),
+                        calc(var(--d) * -220px))
+         scale(calc(1 - var(--e) * 0.06 - var(--l) * 0.08));
+       opacity: calc(1 - var(--e) * 0.25 - var(--l) * 0.5); }
+
+   90px of vertical travel, 220px of Z and a 0.92 scale, applied to a whole
+   <section>. That is a rectangular panel moving as one object, and it is
+   the largest movement on the page by an order of magnitude -- the
+   `.w-arrive` block motion this pass removed was only ever riding on top of
+   it. Measured before this rule existed: a .mv still carried y=-26.6px
+   z=-41.7px at scrollY 5562 even after every Home-side transform was gone.
+
+   Neutralised here rather than deleted from css/cinematic.css, which is
+   loaded by all 33 pages for its palette and is left untouched by this
+   pass. (index.html is in fact the only page carrying a data-cine3d
+   attribute, so these rules are now inert everywhere -- but removing them
+   is a wider change than fixing Home's scroll, and this pass does not make
+   it.) Home's motion comes from the flow system in section 3 and nowhere
+   else: one mechanism, not two competing ones. */
+body.world [data-cine3d],
+body.world [data-cine3d="hero"],
+body.world [data-cine3d="hero-media"],
+body.world [data-cine3d="rail"],
+body.world [data-cine3d="cards"],
+body.world [data-cine3d="promo"] {
+  transform: none;
+  opacity: 1;
+  isolation: auto;
+}
+/* Note on ordering: .w-hero-plane carries BOTH data-cine3d="hero-media" and
+   data-flow="visual", and the two selectors have identical specificity, so
+   the flow rule wins only because section 3 comes later in this file. Do not
+   move this block below it. Nothing here touches `position`: the hero plane
+   is absolutely positioned and resetting that would drop it out of its
+   composition entirely. */
+
+/* =========================================================================
+ * 2. MOVEMENTS
+ * =========================================================================
+ * A movement has NO background, NO border and NO fill. It is a region of
+ * the journey, not a box. It carries only its own scroll progress (--mp,
+ * 0 entering -> 1 leaving, written by the shared controller) which its
+ * contents use to arrive and recede.
+ *
+ * Movements deliberately OVERLAP: each pulls up into the previous one so
+ * the outgoing composition is still on screen while the next arrives. That
+ * overlap is what replaces the old 688px of dead gap. ==================== */
+body.world .mv {
+  /* A movement is a LAYOUT container and nothing else. It has no progress
+     value, no transform, no opacity and no z-index -- deliberately, because
+     every one of those turns it into an animated rectangle. The old --mp
+     alias (of --section-progress) lived here and drove `.w-arrive` /
+     `.w-recede` / `.w-carry`; all three now read their own element's --fp
+     instead, so nothing on this page is animated per-section any more. */
+  position: relative;
+  padding-block: var(--w-air-l);
+  /* THE OVERLAP. Each movement pulls up into the previous one so the
+     outgoing composition is still on screen while the next arrives -- this
+     is what replaced the old 688px of dead gap between sections.
+     Eased from -2.1x to -1.4x. At -2.1x the overlap (185px at desktop
+     width) exceeded the movement's own top padding (144px), so two content
+     boxes genuinely intersected. That was survivable only while the
+     controller was writing a z-index to decide which won -- which is
+     exactly the mechanism that made sections look like panels sliding over
+     each other, and it is gone. At -1.4x the AIR overlaps and the CONTENT
+     never does, so there is still no gap and nothing to stack. */
+  margin-block-start: calc(var(--w-air-m) * -1.4);
+}
+body.world .mv:first-of-type { margin-block-start: 0; }
+body.world .mv-in {
+  width: 100%;
+  max-width: 1340px;
+  margin-inline: auto;
+  padding-inline: clamp(1.25rem, 4vw, 4.5rem);
+  position: relative;
+}
+
+/* Text tone no longer follows the world. --on-stone used to flip between
+   "dark ink on a light ivory ground" (1) and "light ink on navy" (0) as
+   --navy-mix crossed 0.5 -- see section 1's DARK LUXURY REFINEMENT comment
+   for why that ground no longer exists: both .wf-navy and .wf-ivory are
+   dark now, so there is nothing left to flip to. Pinned to a constant 0
+   instead of deleting every color-mix() call site below: each keeps
+   resolving to its var(--w-ink)/var(--w-ink-soft) ("light ink") branch
+   for the whole journey, and the var(--w-ink-dark)/var(--w-ink-dark-mute)
+   branch is unreachable dead code (documented at its declaration in the
+   token block above), not a bug. */
+body.world { --on-stone: 0; }
+body.world .w-display,
+body.world .w-h2,
+body.world .w-h3 {
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+}
+body.world .w-body {
+  color: color-mix(in oklab, var(--w-ink-soft) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark-mute));
+}
+
+/* The shadow exists for type sitting over photography (Hero), where it is
+   still needed regardless of the world's own tone -- but a dark shadow
+   under dark navy text on an ivory ground reads as a smudge, not depth.
+   Scaled by (1 - on-stone) so it fades to nothing exactly where the text
+   itself has flipped dark. */
+body.world .w-display,
+body.world .w-h2,
+body.world .w-h3,
+body.world .w-body {
+  text-shadow: 0 1px 20px rgba(6, 6, 9, calc((1 - var(--on-stone)) * 0.72));
+}
+/* The eyebrow is the smallest, lightest-weight type on the page and often
+   sits over a carried photograph, so it carries the strongest halo of
+   anything here -- measured, not assumed. */
+body.world .w-label {
+  color: var(--w-gold-hi);
+  /* Scaled by (1 - on-stone), same treatment as headings/body above: full
+     halo over Departure's photography-on-navy, none over the light zones
+     where a heavy black halo behind small gold caps would read as a smudge. */
+  text-shadow:
+    0 1px 3px rgba(6, 6, 9, calc((1 - var(--on-stone)) * 0.95)),
+    0 2px 22px rgba(6, 6, 9, calc((1 - var(--on-stone)) * 0.85));
+}
+
+/* =========================================================================
+ * 3. FLOW -- the scroll choreography. Elements, never sections.
+ * =========================================================================
+ * WHAT THIS REPLACED, AND WHY.
+ *
+ * The previous system animated whole compositions: `.w-arrive` moved an
+ * entire copy block 34px up and 140px back in Z as one object, `.w-recede`
+ * sank the outgoing half the same way, and js/cine-scroll-3d.js gave each
+ * section a scroll-driven z-index so the centred one painted over its
+ * neighbours. Every part of that was deliberate and every part of it was
+ * wrong: a section is a rectangle, so animating one animates a rectangle,
+ * and rectangles sliding over rectangles read as a shop shutter no matter
+ * how gently they are eased. It is not a tuning problem. A block that moves
+ * is a block you can see moving.
+ *
+ * So nothing here animates a `.mv`. Every value below is applied to a
+ * single ELEMENT -- one headline, one photograph, one paragraph -- and each
+ * element derives its progress from ITS OWN box (js/cine-scroll-3d.js's
+ * flowProgress). Two elements in the same movement therefore hold different
+ * progress at the same instant and drift apart by themselves. That is the
+ * mechanism: no shared value exists for a block to move by.
+ *
+ * THE WINDOW. Each element's travel is split into three, and the middle one
+ * is the point of the whole design:
+ *
+ *   0.06 -> 0.30   ENTER   rising in, becoming legible
+ *   0.30 -> 0.74   HOLD    nothing moves at all
+ *   0.74 -> 0.98   EXIT    going quiet as it leaves the top
+ *
+ * The hold spans the entire comfortable reading band, so text is never
+ * moving or fading while it is being read -- the difference between motion
+ * that supports content and motion that competes with it. The exit is what
+ * keeps the promise that old content is gone before new content is
+ * readable: an element only starts leaving once it is ~190px from the top
+ * of the viewport, by which point the next one is still deep in its hold.
+ *
+ * --fp DEFAULTS TO 0.5, deliberately: mid-hold, fully settled, fully
+ * opaque. If the controller never runs -- JS disabled, a script error, a
+ * blocked file -- every element resolves to its finished state and the page
+ * reads perfectly. An entrance animation must never be the thing that
+ * decides whether content exists.
+ *
+ * The per-role windows below are overridden by setting --in-start/--in-len/
+ * --out-start/--out-len rather than by redeclaring --in/--out. Custom
+ * property substitution is lazy, so --in and --out resolve against whatever
+ * the element's own window values are, and a role rule cannot lose a
+ * specificity race with the base rule. ================================== */
+body.world [data-flow] {
+  --fp: 0.5;
+  --fs: 0;            /* per-element stagger, in progress units (0 - 0.10) */
+  --in-start: 0.06;
+  --in-len: 0.18;
+  --out-start: 0.74;
+  --out-len: 0.24;
+  --in:  clamp(0, calc((var(--fp) - var(--in-start) - var(--fs)) / var(--in-len)), 1);
+  --out: clamp(0, calc((var(--fp) - var(--out-start)) / var(--out-len)), 1);
+}
+
+/* PRIMARY HEADLINE. Typography enters and leaves on its own account, with
+   no scale and no depth -- letterforms distort under either and the eye
+   reads it as the page zooming rather than as the line arriving. */
+body.world [data-flow="lead"] {
+  /* The 0.55 FLOOR on the entering half. A headline is content, not an
+     effect: it must be legible from the moment it is on screen, and an
+     entrance is a flourish on top of that. Measured on a 430px phone
+     before this floor existed, "Verified & Recommended" sat at opacity
+     0.887 while 70% of the way down the viewport -- already being read,
+     still fading in. The floor applies only to the enter term, so the exit
+     still takes it all the way down to 0.06 and old content really does
+     leave. */
+  opacity: calc((0.55 + var(--in) * 0.45) * (1 - var(--out) * 0.94));
+  transform: translate3d(0, calc((1 - var(--in)) * 16px + var(--out) * -20px), 0);
+}
+
+/* PRIMARY VISUAL. The image changes crop and weight rather than travelling:
+   a small scale either side of 1 plus a fade, which reads as the camera
+   settling on it and then losing interest, not as a panel sliding past. */
+body.world [data-flow="visual"] {
+  opacity: calc((0.18 + var(--in) * 0.82) * (1 - var(--out) * 0.8));
+  transform: translate3d(0, calc(var(--out) * -12px), 0)
+             scale(calc(1.035 - var(--in) * 0.035 - var(--out) * 0.055));
+}
+
+/* SUPPORTING CONTENT. Leaves EARLIER than the headline it belongs to, so a
+   composition empties in a considered order instead of all at once. */
+body.world [data-flow="support"] {
+  --out-start: 0.68;
+  --out-len: 0.22;
+  opacity: calc(var(--in) * (1 - var(--out)));
+  transform: translate3d(0, calc((1 - var(--in)) * 12px + var(--out) * -14px), 0);
+}
+
+/* QUIET. Eyebrows, labels, fine print. Opacity carries almost all of it --
+   these are the smallest type on the page and any real movement on them
+   registers as flicker. */
+body.world [data-flow="quiet"] {
+  --in-len: 0.18;
+  opacity: calc(var(--in) * (1 - var(--out)));
+  transform: translate3d(0, calc((1 - var(--in)) * 8px), 0);
+}
+
+/* =========================================================================
+ * 3b. DEPTH -- three planes, assigned by meaning
+ * =========================================================================
+ * FOREGROUND  the one thing to read or do now      -- full contrast, crisp
+ * MIDGROUND   supporting content                   -- smaller, quieter
+ * BACKGROUND  the world                            -- always soft
+ * An element's plane is a property of WHAT IT IS, so depth encodes
+ * hierarchy rather than decorating it.
+ *
+ * The Z distances are a third of what they were. At -140/-420px the
+ * midground and background were far enough back to be read as separate
+ * layers sitting behind the page -- literally "content stacked behind
+ * content". Kept shallow, the same cue now reads as one composition with
+ * soft and crisp parts, which is what depth is for here. ================ */
+body.world .w-stage { perspective: 2600px; perspective-origin: 50% 46%; }
+body.world .w-fore { transform: translateZ(var(--w-z-fore)); }
+body.world .w-mid  { transform: translateZ(var(--w-z-mid)); opacity: 0.86; }
+body.world .w-back { transform: translateZ(var(--w-z-back)); opacity: 0.62; filter: blur(1.1px); }
+
+/* =========================================================================
+ * 4. TYPOGRAPHY
+ * ========================================================================= */
+body.world .w-display {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(2.6rem, 6.6vw, 5.6rem);
+  line-height: 1.01;
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+  margin: 0;
+}
+body.world .w-h2 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.85rem, 3.6vw, 3.1rem);
+  line-height: 1.08;
+  letter-spacing: -0.024em;
+  text-wrap: balance;
+  margin: 0;
+}
+body.world .w-h3 {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.05rem, 1.6vw, 1.4rem);
+  line-height: 1.22;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+body.world .w-body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: clamp(0.975rem, 1.1vw, 1.1rem);
+  line-height: 1.64;
+  max-width: 58ch;
+  margin: 0;
+}
+body.world .w-label {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  margin: 0;
+}
+/* Sorani and Arabic are not English with other words in it: joined script
+   sits lower, needs more leading, and is actively damaged by the tight
+   negative tracking that makes the Latin display face architectural.
+   js/i18n.js sets `dir` on <html>, never on <body> (see the note near
+   .w-plane below) -- these rules were written as `body.world[dir="rtl"]`,
+   which can never match, so they silently never applied: Kurdish/Arabic
+   rendered at the Latin-tuned size/tracking/leading instead, which is
+   what let the headline balloon past its intended box. Rescoped to
+   `html[dir="rtl"] body.world`, the one selector shape that actually
+   matches. */
+html[dir="rtl"] body.world .w-display { letter-spacing: 0; line-height: 1.22; font-size: clamp(2.1rem, 5.4vw, 4.5rem); }
+html[dir="rtl"] body.world .w-h2 { letter-spacing: 0; line-height: 1.34; }
+html[dir="rtl"] body.world .w-h3 { letter-spacing: 0; line-height: 1.42; }
+html[dir="rtl"] body.world .w-body { line-height: 1.9; }
+html[dir="rtl"] body.world .w-label { letter-spacing: 0.12em; }
+
+/* =========================================================================
+ * 5. CONTROLS
+ * =========================================================================
+ * The button system from the previous pass tested well and is kept -- the
+ * objection this round was composition, not controls. What changes is
+ * PLACEMENT (one action per movement) and that every variant now reads
+ * against a world that changes tone underneath it. ===================== */
+body.world .w-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6em;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.9375rem; font-weight: 700; line-height: 1;
+  padding: 0.95rem 1.6rem; min-height: 48px;
+  border-radius: 14px; border: 1px solid transparent;
+  cursor: pointer; text-decoration: none;
+  transition: background-color var(--w-fast) var(--w-ease), border-color var(--w-fast) var(--w-ease),
+              color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-btn-arrow { flex: none; transition: transform var(--w-mid) var(--w-ease-out); }
+body.world .w-btn:hover .w-btn-arrow { transform: translateX(3px); }
+html[dir="rtl"] body.world .w-btn-arrow { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-btn:hover .w-btn-arrow { transform: scaleX(-1) translateX(3px); }
+
+/* Primary inverts across the tonal journey so it is always the highest
+   contrast object in the frame, on night and on stone alike. */
+body.world .w-btn--primary {
+  background: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  color: color-mix(in oklab, #0B0E12 calc((1 - var(--on-stone)) * 100%), #F4EFE7);
+}
+body.world .w-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.08); }
+body.world .w-btn--primary:active { transform: translateY(0) scale(0.985); }
+body.world .w-btn--ghost {
+  background: transparent;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  border-color: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.22));
+}
+body.world .w-btn--ghost:hover { border-color: var(--w-gold); }
+
+body.world .w-action {
+  display: inline-flex; align-items: center; gap: 0.5em; position: relative;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in oklab, var(--w-gold) calc((1 - var(--on-stone)) * 100%), var(--w-gold-deep));
+  text-decoration: none; padding: 0.6rem 0; min-height: 44px;
+}
+body.world .w-action::after {
+  content: ''; position: absolute; inset-inline-start: 0; bottom: 0.4rem;
+  width: 100%; height: 1px; background: currentColor;
+  transform: scaleX(0); transform-origin: inline-start;
+  transition: transform var(--w-mid) var(--w-ease-out);
+}
+body.world .w-action:hover::after { transform: scaleX(1); }
+body.world .w-action svg { flex: none; transition: transform var(--w-mid) var(--w-ease-out); }
+body.world .w-action:hover svg { transform: translateX(3px); }
+html[dir="rtl"] body.world .w-action svg { transform: scaleX(-1); }
+
+body.world .w-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; flex: none; border-radius: 50%;
+  border: 1px solid color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.24));
+  background: transparent;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  cursor: pointer;
+  transition: background-color var(--w-fast) var(--w-ease), border-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-icon-btn:hover { border-color: var(--w-gold); }
+body.world .w-icon-btn:active { transform: scale(0.94); }
+body.world .w-icon-btn svg { width: 18px; height: 18px; }
+html[dir="rtl"] body.world .w-icon-btn svg { transform: scaleX(-1); }
+
+body.world .w-btn:focus-visible,
+body.world .w-action:focus-visible,
+body.world .w-icon-btn:focus-visible,
+body.world .w-panel:focus-visible,
+body.world .w-plane:focus-visible {
+  outline: 2px solid var(--w-gold-hi); outline-offset: 3px;
+}
+
+/* =========================================================================
+ * 6. HANDOFFS -- carry, answer, aperture, recede
+ * =========================================================================
+ * The four moves, defined once and reused. Every one of them is an element
+ * that physically spans two movements, which is the mechanism by which the
+ * "elements crossing a boundary" count rises from 1 to one-per-handoff. */
+
+/* CARRY -- an image plane that begins in one movement and is still on
+   screen, deeper and dimmer, in the next. Absolutely positioned so it can
+   extend past its own movement's box without affecting layout. */
+body.world .w-carry {
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+  border-radius: 20px;
+  /* Soft parallax, which the brief allows, rather than a moving plane,
+     which it does not. This used to sit between -260px and -420px in Z and
+     travel -60px: at that distance it was a large perspective plane parked
+     behind the page, exactly the "content stacked behind content" read.
+     Now it drifts +-11px against the scroll with no Z at all -- the
+     background stays visually connected across the two movements it spans,
+     which is the whole point of a carry, without ever becoming an object
+     you can see moving. Driven by the element's own --fp like everything
+     else, so there is one motion system on this page, not two. */
+  opacity: calc(0.10 + var(--in) * 0.10 - var(--out) * 0.14);
+  /* Translate only, no scale. A scale of 1.02-1.04 on this plate pushed it
+     16px past the document's right edge (measured) -- it is absolutely
+     positioned and nothing clips it, and the -260px Z it used to sit at was
+     what had been hiding that by shrinking it perspectively. Vertical
+     parallax is the whole effect anyway; the scale added nothing. */
+  transform: translate3d(0, calc((var(--fp) - 0.5) * -22px), 0);
+  filter: blur(2px);
+  -webkit-mask-image: radial-gradient(72% 72% at 50% 50%, #000 38%, transparent 78%);
+          mask-image: radial-gradient(72% 72% at 50% 50%, #000 38%, transparent 78%);
+}
+
+/* ANSWER -- a hairline plus a line of type that leaves one movement and is
+   picked up by the next. The rule itself spans the boundary. */
+body.world .w-answer {
+  position: absolute;
+  inset-inline-start: clamp(1.25rem, 4vw, 4.5rem);
+  bottom: calc(var(--w-air-m) * -1);
+  height: calc(var(--w-air-m) * 2);
+  width: 1px;
+  background: linear-gradient(180deg,
+    color-mix(in oklab, var(--w-hair-warm) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.22)),
+    transparent);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* APERTURE -- REMOVED, and the class kept only as a plain clipping box.
+   It went through two versions and both were the same mistake twice. The
+   first was a pair of opaque shutters that slid apart. The second replaced
+   them with a scroll-driven radial mask, on the theory that a mask has no
+   edges of its own so it could not read as a shutter. It still did: an
+   opening that widens as you scroll is an iris, an iris is a door, and the
+   content behind it is revealed rather than composed. "No visible edges" is
+   not the same property as "does not behave like a shutter".
+   What is left is a clip, so the gallery's own overflow stays contained on
+   narrow viewports. Nothing about it is animated and no JS writes to it. */
+body.world .w-aperture { overflow: hidden; }
+
+/* =========================================================================
+ * 7. ARRIVAL
+ * ========================================================================= */
+body.world .w-hero {
+  position: relative;
+  min-height: clamp(600px, 88vh, 900px);
+  display: flex;
+  align-items: flex-end;
+  padding-block: clamp(6rem, 12vh, 9rem) var(--w-air-m);
+}
+/* The hero photograph is a PLANE inside the world, not a full-bleed
+   background band -- it has soft edges on every side, so it never draws a
+   rectangle across the page. */
+body.world .w-hero-plane {
+  position: absolute;
+  inset: 0 0 0 34%;
+  z-index: -1;
+  background-size: cover;
+  background-position: center 40%;
+  border-start-start-radius: 28px;
+  /* No transform of its own. The hero photograph is the Arrival movement's
+     primary visual, so its motion comes from [data-flow="visual"] -- a
+     small scale change and a fade, nothing else. It previously sat at
+     translateZ(-200px) scale(1.12), which is the "large Z movement" and
+     "big perspective plane" this pass removes: at that distance it read as
+     a separate slab parked behind the page rather than as part of one
+     composition. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+          mask-composite: intersect;
+}
+/* RTL composition: the image PLANE moves to the left and the text
+   column reflows to the right -- a deliberate mirrored layout, not a
+   mirrored IMAGE. Only position/inset and the mask's fade direction
+   change here; background-image, background-size, background-position,
+   border-radius (already the logical border-start-start-radius, so it
+   auto-follows to the top-right corner) and the vertical mask are
+   untouched, so the photograph itself is never flipped or distorted.
+   (An earlier pass had this exact rule but scoped it as
+   `body.world[dir="rtl"]`, which -- see the .w-display note above --
+   can never match; that's why it silently never applied.) */
+/* 34% (the LTR dark zone's own width, just mirrored) left too little
+   room, for a reason that only shows up once you check the actual
+   anchor points: .w-hero-copy lives inside .mv-in, which caps at
+   max-width:1340px and centers itself (margin-inline:auto) -- so past
+   a 1340px viewport the copy column's right edge gets pulled inward
+   *faster* than the viewport grows (confirmed empirically: the gap
+   from the true right edge to .mv-in's own edge is 108px at 1440 but
+   362px at 1920), while .w-hero-plane's inset is a plain percentage of
+   the full, uncentered .w-hero width and has no such ceiling. A single
+   inset/max-width pairing tuned to look right at one width silently
+   loses its margin at another. Two changes, checked against both
+   1440 and 1920's real measured anchors rather than assumed to scale
+   uniformly: the image claims 58% (was mirroring LTR's 66%, then 60%
+   in an earlier pass that still wasn't enough room), and the mask's
+   own fade completes sooner (15% of the plane's width instead of 26%)
+   so it's fully transparent well inside the reserved zone rather than
+   still visibly fading at its edge. See the .w-hero-copy rule below
+   for the matching cap, sized off the same two measured anchors so
+   there's a real, positive gap (not just a smaller overlap) at both
+   required widths. */
+html[dir="rtl"] body.world .w-hero-plane {
+  inset: 0 42% 0 0;
+  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 15%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+          mask-image: linear-gradient(270deg, transparent 0%, #000 15%, #000 100%),
+                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+}
+/* Companion to the inset/mask change above: sized off the same two
+   measured anchor points (copy column's right edge sits at 1332px @
+   1440 and 1558px @ 1920) so it clears the image's right edge (835px @
+   1440, 1114px @ 1920 at the new 58% inset) by a genuine, checked
+   margin at both -- roughly 100px+ at 1440, 35px+ at 1920, the tighter
+   of the two because of .mv-in's centering above. Not LTR's flat
+   44rem: that number was sized for a dark zone nearly twice as wide
+   (66%) and would eat straight back into the image at RTL's zone. */
+html[dir="rtl"] body.world .w-hero-copy { max-width: clamp(18rem, 22vw, 20rem); }
+body.world .w-hero-copy { max-width: 44rem; display: flex; flex-direction: column; gap: 1.3rem; align-items: flex-start; }
+
+body.world .w-search {
+  display: flex; align-items: center; gap: 0.5rem;
+  width: 100%; max-width: 38rem; margin-top: 0.4rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.15rem;
+  border-radius: 22px;
+  /* DARK LUXURY CORRECTION: an elevated dark-NEUTRAL search surface --
+     #101E2A/#13283A (the first pass's input range) were themselves navy
+     hex, so this moves to the same obsidian ramp as everything else
+     (Elevated Dark), lifted off the Hero's obsidian background with a
+     soft shadow rather than a light card, so it never becomes a bright
+     hole in the dark hero. Border is the neutral default hairline, not
+     gold -- gold appears only on focus. */
+  border: 1px solid #2B2C2A;
+  background: #17191B;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.34);
+  transition: border-color var(--w-fast) var(--w-ease), box-shadow var(--w-fast) var(--w-ease);
+}
+body.world .w-search:focus-within { border-color: var(--w-gold); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 30px rgba(198, 154, 75, 0.16); }
+body.world .w-search-icon { flex: none; color: #B8B0A5; }
+body.world .w-search-input {
+  flex: 1; min-width: 0; height: 50px; border: 0; background: transparent;
+  color: var(--w-ink); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
+  padding-inline: 0.8rem;
+}
+body.world .w-search-input::placeholder { color: #B8B0A5; }
+body.world .w-search-input:focus { outline: none; }
+body.world .w-search .w-btn { min-height: 50px; border-radius: 15px; padding-inline: 1.3rem; }
+body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
+
+/* =========================================================================
+ * 8. INTENT -- one wall, five panels, no cards
+ * =========================================================================
+ * Rejected and removed outright: the "colonnade" version, five separate
+ * apertures with rounded-capsule tops (border-radius: 180px 180px 14px
+ * 14px) standing at staggered depths. However soft-edged, that shape reads
+ * as a door/arch silhouette, and each opening was still its own floating
+ * object with a gap next to its neighbour -- exactly what was rejected.
+ *
+ * This is the replacement: Buy / Rent / Build / Renovate / Sell are five
+ * flex children of ONE full-width row, touching edge-to-edge (a 1px hairline
+ * seam between them, not a gap), square-cornered, no shadow, no radius,
+ * no per-panel depth transform. At rest every panel is equal width, holding
+ * only its image and a centred vertical title. Hovering or keyboard-
+ * focusing a panel is the sole trigger that widens it -- flex-grow is an
+ * animatable number, so the row itself does the layout math every frame;
+ * nothing here computes widths in JS. The other four compress to narrow
+ * strips in the same row; none of them is ever hidden or removed. The
+ * vertical title and the horizontal title+subtitle are two separately
+ * positioned elements, crossfaded by opacity -- writing-mode itself cannot
+ * be transitioned smoothly, so this is a deliberate crossfade, not a
+ * simulated rotation. */
+body.world .w-panels {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: clamp(360px, 44vw, 560px);
+  overflow: hidden;
+}
+body.world .w-panel {
+  position: relative;
+  flex: 1 1 0%;
+  min-width: 0;
+  display: block;
+  text-decoration: none;
+  overflow: hidden;
+  border-inline-end: 1px solid rgba(244, 239, 231, 0.1);
+  transition: flex-grow var(--w-slow) var(--w-ease-out);
+}
+body.world .w-panel:last-child { border-inline-end: 0; }
+body.world .w-panel-media {
+  position: absolute; inset: 0; z-index: 0;
+  background-image: var(--img); background-size: cover; background-position: center;
+  transform: scale(1.05);
+  filter: saturate(0.76) contrast(1.03);
+  transition: transform var(--w-slow) var(--w-ease-out), filter var(--w-mid) var(--w-ease);
+}
+/* Constant, panel-wide overlay so the seam between panels never shows a
+   brightness jump -- it only softens (not disappears) when a panel opens. */
+body.world .w-panel::after {
+  content: ''; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(0deg, rgba(6,6,9,0.88) 0%, rgba(6,6,9,0.48) 46%, rgba(6,6,9,0.3) 100%);
+  transition: background var(--w-mid) var(--w-ease);
+}
+body.world .w-panel-face,
+body.world .w-panel-open {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity var(--w-mid) var(--w-ease);
+}
+body.world .w-panel-vert {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: clamp(0.95rem, 1.5vw, 1.3rem);
+  letter-spacing: 0.05em; color: var(--w-ink);
+}
+body.world .w-panel-open {
+  flex-direction: column; gap: 0.5rem; opacity: 0;
+  padding-inline: 1.5rem; text-align: center;
+}
+body.world .w-panel-title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: clamp(1.35rem, 2.3vw, 2.1rem);
+  letter-spacing: -0.012em; color: var(--w-ink); white-space: nowrap;
+}
+body.world .w-panel-sub {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--w-gold-hi); opacity: 0; transform: translateY(6px);
+  transition: opacity var(--w-mid) var(--w-ease) 0.08s, transform var(--w-mid) var(--w-ease) 0.08s;
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  body.world .w-panel:hover,
+  body.world .w-panel:focus-visible {
+    flex-grow: 3.6;
+  }
+  body.world .w-panel:hover .w-panel-media,
+  body.world .w-panel:focus-visible .w-panel-media {
+    transform: scale(1); filter: saturate(0.95) contrast(1.02);
+  }
+  body.world .w-panel:hover::after,
+  body.world .w-panel:focus-visible::after {
+    background: linear-gradient(0deg, rgba(6,6,9,0.66) 0%, rgba(6,6,9,0.16) 55%, rgba(6,6,9,0.04) 100%);
+  }
+  body.world .w-panel:hover .w-panel-face,
+  body.world .w-panel:focus-visible .w-panel-face { opacity: 0; }
+  body.world .w-panel:hover .w-panel-open,
+  body.world .w-panel:focus-visible .w-panel-open { opacity: 1; }
+  body.world .w-panel:hover .w-panel-sub,
+  body.world .w-panel:focus-visible .w-panel-sub { opacity: 1; transform: translateY(0); }
+}
+
+/* =========================================================================
+ * 9. CITY DISCOVERY -- layered cascade rebuild
+ * =========================================================================
+ * Replaces the rotated-wall version (planes on a curved wall, receding in Z
+ * and rotating in Y) with a flatter, brighter horizontal cascade: the
+ * focused city is the largest card, pinned forward with a gold ring and the
+ * strongest shadow; each step away shrinks, drops back slightly and settles
+ * behind the one before it, overlapping edge-to-edge -- matching the
+ * approved reference (large photographic-feeling cards, layered depth,
+ * active card obviously selected) without ever tipping into a literal 3D
+ * carousel.
+ *
+ * ON IMAGERY -- still the honest part, unchanged in substance. No file in
+ * this repository is a real, licensed photograph of Kirkuk, Erbil, or any
+ * of the other six cities -- there is no per-city photography asset to
+ * draw from at all (confirmed: images/ holds only brand marks and flag
+ * icons). Labelling a stock or placeholder image as a specific city would
+ * be a false claim about a place, so a plane's face is still NOT a
+ * photograph pretending to be that city -- per the brief's own fallback
+ * ("use an honest neutral architectural/city placeholder rather than
+ * misrepresenting another city"), it is a brighter, warmer composed
+ * sky-and-skyline light-field, deterministic per city via --h/--s/--l, with
+ * the city NAME as the dominant readable element. `--img` remains an
+ * optional first layer: the day a real, licensed per-city photograph
+ * exists, dropping it into that one custom property adopts it with no
+ * other redesign. ========================================================= */
+/* The wall fans out from the focused city, so with the first city focused
+   every plane sits to one side and half the frame was empty. Rather than
+   re-centring the wall (which would push the focused city off-axis), the
+   movement itself becomes asymmetric: type holds the near side, the wall
+   occupies the space it actually fans into. */
+body.world .w-city-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
+  align-items: center;
+}
+body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
+@media (max-width: 1023px) {
+  body.world .w-city-layout { grid-template-columns: 1fr; }
+  body.world .w-city-copy { margin-bottom: var(--w-air-s); }
+  /* One column means the wall has no side column to fan into, so it goes
+     back to fanning symmetrically from the centre. */
+  body.world .w-gallery { justify-content: center; }
+}
+
+body.world .w-gallery {
+  position: relative;
+  min-height: clamp(340px, 46vh, 480px);
+  display: flex; align-items: center; justify-content: flex-start;
+  touch-action: pan-y;
+}
+body.world .w-wall {
+  position: relative;
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: flex-start;
+}
+body.world .w-plane {
+  position: absolute;
+  width: clamp(230px, 21vw, 320px);
+  aspect-ratio: 3 / 3.7;
+  border-radius: 20px;
+  overflow: hidden;
+  text-decoration: none;
+  box-shadow: 0 16px 34px -14px rgba(11, 14, 18, 0.28);
+  /* --o is the plane's signed offset from the focused city, written by the
+     gallery controller. Position is a pure function of it: a horizontal
+     cascade, not a rotated wall -- each step away from the focused card
+     shifts sideways by --step (less than the card's own width, so
+     neighbours overlap edge-to-edge like the approved reference), shrinks a
+     touch, and settles a few px lower/behind. z-index falls with distance
+     so the focused card always reads as the one in front.
+     --dir flips the cascade's physical direction for RTL (below): raw
+     translateX is never direction-aware on its own, and the gallery sits on
+     the LEFT of its copy column in RTL (the grid's columns mirror with the
+     page), so without this the cascade would shift cards rightward -- into
+     the copy text -- instead of mirroring away from it as it does in LTR. */
+  --dir: 1;
+  --step: clamp(96px, 9vw, 150px);
+  transform:
+    translateX(calc(var(--o) * var(--step) * var(--dir)))
+    translateY(calc(min(abs(var(--o)), 1) * 10px))
+    scale(calc(1 - min(abs(var(--o)), 4) * 0.1));
+  z-index: calc(30 - abs(var(--o)));
+  opacity: calc(1 - min(abs(var(--o)), 4) * 0.15);
+  transition: transform var(--w-slow) var(--w-ease-out), opacity var(--w-slow) var(--w-ease-out), box-shadow var(--w-mid) var(--w-ease);
+}
+/* html[dir="rtl"], not body[dir="rtl"]: js/i18n.js only ever sets the dir
+   attribute on document.documentElement, never on body (confirmed live --
+   document.body.getAttribute('dir') is null even while its computed
+   direction is rtl), so a body[dir="rtl"] selector here would silently
+   never match. */
+html[dir="rtl"] body.world .w-plane { --dir: -1; }
+/* The face: a real, verified photograph of the city's own named landmark
+   (--img, set per city in js/city-gallery.js), covering and centered like
+   an <img object-fit:cover> would. The radial/linear gradient layers behind
+   it are the pre-photo abstract fallback -- kept only so a plane with no
+   `img` (should one ever be removed) still renders something coherent
+   instead of a transparent hole; they're fully hidden under any real,
+   opaque photo. */
+body.world .w-plane-face {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    var(--img, none),
+    radial-gradient(48% 32% at 74% 16%, hsla(44, 78%, 91%, 0.6), transparent 72%),
+    linear-gradient(180deg,
+      hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 50%)) 0%,
+      hsl(calc(var(--h) - 6) calc(var(--s) * 1%) calc(var(--l) * 1% + 34%)) 48%,
+      hsl(calc(var(--h) - 12) calc(var(--s) * 1%) calc(var(--l) * 1% + 16%)) 100%);
+  background-size: cover;
+  background-position: center;
+}
+/* The one dark note, confined to the lower third so the rest of the card
+   stays bright and fully visible -- "subtle dark gradient ONLY at the
+   bottom of each image", per the brief, replacing the old wash that
+   darkened most of the plane. (The synthetic ground/skyline band that used
+   to sit here for the abstract placeholder is gone now that every plane
+   carries a real photograph -- it would only double up with this scrim and
+   the photo's own real ground.) */
+body.world .w-plane-scrim {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(0deg, rgba(3, 15, 28, 0.86) 0%, rgba(3, 15, 28, 0.4) 34%, transparent 60%);
+}
+body.world .w-plane-body {
+  position: absolute; inset-inline: 0; bottom: 0; z-index: 1;
+  padding: 1.1rem 1.1rem 1.2rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+body.world .w-plane-name {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700; font-size: 1.1rem; letter-spacing: -0.015em; color: #F4EFE7;
+  text-shadow: 0 1px 12px rgba(4,4,7,0.9);
+  transition: font-size var(--w-slow) var(--w-ease-out);
+}
+body.world .w-plane-note {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.625rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  color: rgba(244,239,231,0.7);
+}
+body.world .w-plane-go {
+  margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.45rem;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em;
+  color: var(--w-gold-hi);
+  opacity: 0; transform: translateY(6px);
+  transition: opacity var(--w-mid) var(--w-ease-out), transform var(--w-mid) var(--w-ease-out);
+}
+/* Only the focused plane offers its action, so there is one obvious thing
+   to do rather than eight competing links. It also carries the whole
+   "obviously selected" language on its own: forward (no offset/scale-down),
+   a thin gold ring, and the strongest shadow of the cascade. */
+body.world .w-plane[data-focus="1"] {
+  opacity: 1;
+  box-shadow: 0 30px 56px -16px rgba(11, 14, 18, 0.34), 0 10px 20px -8px rgba(11, 14, 18, 0.2), 0 0 0 2px var(--w-gold) inset;
+}
+body.world .w-plane[data-focus="1"] .w-plane-go { opacity: 1; transform: none; }
+body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.45rem; }
+html[dir="rtl"] body.world .w-plane-go svg { transform: scaleX(-1); }
+
+body.world .w-gallery-nav {
+  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+  margin-top: var(--w-air-s);
+}
+body.world .w-gallery-dots { display: flex; gap: 0.4rem; align-items: center; }
+/* A REAL 44px button that draws a 6px mark, rather than a 6px button with a
+   padded pseudo-element pretending to be one. The padded version measured
+   44px only exactly, and neighbouring dots' expanded areas overlapped each
+   other so a hit test near the edge landed on the wrong dot. A genuine box
+   with the mark drawn inside it has none of those problems and needs no
+   special case in any test. */
+body.world .w-dot {
+  width: 44px; height: 44px; border: 0; padding: 0; cursor: pointer;
+  background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+body.world .w-dot::after {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.28));
+  transition: background-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-dot[aria-current="true"]::after { background: var(--w-gold); transform: scale(1.6); }
+body.world .w-gallery-dots { gap: 0; }
+
+/* =========================================================================
+ * 10. PROPERTIES, SERVICES, OFFER, DEPARTURE
+ * =========================================================================
+ * All open compositions. A property card keeps an edge because a listing IS
+ * a discrete object; nothing else does. */
+body.world .w-rail {
+  display: flex; gap: clamp(1rem, 1.6vw, 1.5rem);
+  overflow-x: auto; scroll-snap-type: x mandatory;
+  /* Programmatic scrolls (the prev/next buttons, keyboard) glide instead of
+     teleporting. Does not affect wheel/trackpad/touch input, which the
+     browser drives natively. */
+  scroll-behavior: smooth;
+  /* A swipe that runs past the last card stays in the rail: it must not
+     chain to the page (sideways page rubber-banding on iOS, back/forward
+     navigation on some trackpads). */
+  overscroll-behavior-x: contain;
+  padding-block: 0.25rem 1rem; scrollbar-width: none;
+}
+body.world .w-rail::-webkit-scrollbar { display: none; }
+body.world .w-rail > * { scroll-snap-align: start; }
+/* The buttons already pass behavior:'auto' under reduced motion; this keeps
+   the CSS layer agreeing, since 'auto' defers to scroll-behavior. */
+@media (prefers-reduced-motion: reduce) {
+  body.world .w-rail { scroll-behavior: auto; }
+}
+
+/* Desktop prev/next rail controls. Absolutely positioned against .mv-in
+   (already position:relative) so they sit beside the section heading
+   without taking part in its box model -- the heading's own layout and
+   spacing are exactly what they were before these exist. Two PHYSICAL
+   buttons (chevron always points the way it sits on screen); which scroll
+   direction each performs is resolved live from text direction in
+   js/carousel.js, so RTL is a behavior swap, never a mirrored icon.
+   Mobile relies on swipe alone, per spec -- hidden below the same
+   min-width:1024px cutoff already used elsewhere in this file (see the
+   max-width:1023px rules above) for the tablet/desktop split. */
+body.world .w-rail-nav { display: none; }
+@media (min-width: 1024px) {
+  body.world .w-rail-nav {
+    display: flex; gap: 0.5rem;
+    position: absolute; top: 0.2rem; inset-inline-end: 0;
+  }
+}
+body.world .w-rail-nav .w-icon-btn:disabled {
+  opacity: 0.35; cursor: default;
+}
+body.world .w-rail-nav .w-icon-btn:disabled:hover { border-color: inherit; }
+
+/* Empty state: no panel, no fill. Type and one action, standing in the
+   world -- so zero listings looks composed rather than broken. */
+body.world .w-empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1.1rem;
+  padding-block: var(--w-air-s);
+  max-width: 34rem;
+}
+body.world .w-empty-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+body.world .w-rail:has(.w-empty) { display: block; overflow: visible; }
+
+/* Services: an editorial column of rules, not a grid of boxes. */
+body.world .w-list { display: flex; flex-direction: column; }
+body.world .w-row {
+  display: flex; align-items: center; gap: 1.1rem;
+  padding: 1.15rem 0;
+  border-block-end: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.14));
+  text-decoration: none;
+  transition: padding-inline-start var(--w-mid) var(--w-ease-out);
+}
+body.world .w-row:first-child { border-block-start: 1px solid color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.14)); }
+body.world .w-row:hover { padding-inline-start: 0.6rem; }
+body.world .w-row svg:first-child { flex: none; color: var(--w-gold); }
+body.world .w-row-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+body.world .w-row-cue { margin-inline-start: auto; flex: none; opacity: 0.5; transition: transform var(--w-mid) var(--w-ease-out), opacity var(--w-fast) var(--w-ease); }
+body.world .w-row:hover .w-row-cue { opacity: 1; transform: translateX(4px); }
+html[dir="rtl"] body.world .w-row-cue { transform: scaleX(-1); }
+html[dir="rtl"] body.world .w-row:hover .w-row-cue { transform: scaleX(-1) translateX(4px); }
+
+/* The offer's own design now lives in css/offer-banner.css, shared by
+   Home, offer.html and the Admin preview. Home only has to give the
+   component room. */
+body.world [data-offer-section] { margin-bottom: var(--w-air-m); }
+
+/* Trust: a typographic list. No hairline grid, no cells, no boxes. */
+body.world .w-trust { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--w-air-s) clamp(1.5rem,4vw,3.5rem); }
+body.world .w-trust-item { display: flex; flex-direction: column; gap: 0.5rem; max-width: 34ch; }
+body.world .w-trust-item svg { color: var(--w-gold); }
+
+/* Departure. Quiet: type and two actions standing in the dusk. */
+body.world .w-departure { display: flex; flex-direction: column; align-items: flex-start; gap: 1.3rem; padding-block: var(--w-air-m); }
+body.world .w-departure-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+
+/* =========================================================================
+ * 11. HEADER
+ * ========================================================================= */
+/* DARK LUXURY CORRECTION: js/site-header.js's own header is neutral
+   obsidian (#0B0E12) on every page including Home, so this file no
+   longer needs to override it at all. The bottom nav (mobile only) gets
+   the same treatment here -- a translucent Elevated Dark instead of the
+   original white bar (or the navy this file briefly used), so Home's
+   mobile chrome matches the rest of the obsidian site. */
+body.world .home-bottomnav {
+  background: rgba(17, 25, 27, 0.92);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid #2B2C2A;
+}
+
+/* =========================================================================
+ * 12. MOBILE -- the same world, fewer planes
+ * =========================================================================
+ * Not a stacked desktop. Continuity, atmosphere, hierarchy and every
+ * handoff survive; what reduces is plane count (2 not 3), travel distance,
+ * and blur cost. The world becomes ABSOLUTE rather than FIXED: a fixed
+ * full-viewport painted layer is the classic mobile scroll-jank trap, and
+ * the continuity requirement is satisfied either way because the element
+ * still has no edge inside the document. ============================== */
+@media (max-width: 767px) {
+  body.world .world-field { position: absolute; height: 100%; }
+  body.world .world-field > i { position: fixed; }
+  body.world .wf-vignette { display: none; }
+
+  body.world .mv { padding-block: var(--w-air-m); margin-block-start: calc(var(--w-air-s) * -1); }
+  body.world .w-hero { min-height: 86svh; padding-block: 5rem var(--w-air-s); }
+  body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+            mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
+  /* The desktop left/right split (html[dir="rtl"] body.world .w-hero-plane,
+     above) has no width guard of its own and would otherwise outrank this
+     mobile full-bleed reset on specificity alone regardless of viewport --
+     same selector shape, just declared later here so source order breaks
+     the tie back in this rule's favor at mobile widths. Kurdish/Arabic
+     stays the same single stacked mobile composition as English, just with
+     RTL text alignment; the desktop image/text swap never applies here. */
+  html[dir="rtl"] body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
+            mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
+  body.world .w-hero-copy { padding-inline-end: 3.2rem; gap: 1rem; }
+  /* The desktop-only clamp(18rem, 22vw, 20rem) cap on .w-hero-copy
+     (above the mobile breakpoint) exists purely to keep the RTL text
+     column clear of the image plane in the two-column split -- at
+     mobile widths that split doesn't happen (this section resets the
+     plane back to full-bleed already), so the same cap has nothing to
+     protect against and only serves to needlessly narrow/shift the
+     text column versus English. Reset it back to parity. */
+  html[dir="rtl"] body.world .w-hero-copy { max-width: 44rem; }
+  body.world .w-search { border-radius: 16px; padding: 0.4rem 0.4rem 0.4rem 0.9rem; }
+  body.world .w-search-input { height: 46px; font-size: 0.975rem; }
+  body.world .w-search .w-btn { min-height: 46px; border-radius: 12px; padding-inline: 0.85rem; }
+  body.world .w-search .w-btn-text { display: none; }
+
+  /* Intent: the panel wall becomes a horizontal snap-scroller. There is no
+     hover on touch, so js/home-intent-panels.js tracks whichever panel
+     sits nearest the row's centre and marks it .is-active -- dominant
+     width, horizontal title. Partial neighbours stay visible either side,
+     so this still reads as one wall being swiped through, not a deck of
+     separate cards, and every panel (the whole tappable area, far past the
+     44px minimum) still navigates on tap regardless of active state. */
+  body.world .w-panels {
+    height: 58vh; min-height: 420px;
+    overflow-x: auto; scroll-snap-type: x mandatory;
+    scroll-padding-inline: 11vw; scrollbar-width: none;
+  }
+  body.world .w-panels::-webkit-scrollbar { display: none; }
+  body.world .w-panel {
+    flex: 0 0 76%; scroll-snap-align: center;
+    transition: flex-basis var(--w-mid) var(--w-ease);
+  }
+  body.world .w-panel.is-active { flex: 0 0 84%; }
+  body.world .w-panel.is-active .w-panel-face { opacity: 0; }
+  body.world .w-panel.is-active .w-panel-open { opacity: 1; }
+  body.world .w-panel.is-active .w-panel-sub { opacity: 1; transform: none; }
+  body.world .w-panel.is-active .w-panel-media { transform: scale(1); filter: saturate(0.95) contrast(1.02); }
+  body.world .w-panel.is-active::after {
+    background: linear-gradient(0deg, rgba(6,6,9,0.7) 0%, rgba(6,6,9,0.2) 55%, rgba(6,6,9,0.05) 100%);
+  }
+
+  /* City gallery keeps its perspective -- this is the moment that must not
+     degrade to a list -- but shows fewer neighbours and swipes. */
+  /* The wall fans out from the focused city, so with the first city focused
+   every plane sits to one side and half the frame was empty. Rather than
+   re-centring the wall (which would push the focused city off-axis), the
+   movement itself becomes asymmetric: type holds the near side, the wall
+   occupies the space it actually fans into. */
+body.world .w-city-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(1.5rem, 3vw, 3rem);
+  align-items: center;
+}
+body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
+@media (max-width: 1023px) {
+  body.world .w-city-layout { grid-template-columns: 1fr; }
+  body.world .w-city-copy { margin-bottom: var(--w-air-s); }
+  /* One column means the wall has no side column to fan into, so it goes
+     back to fanning symmetrically from the centre. */
+  body.world .w-gallery { justify-content: center; }
+}
+
+body.world .w-gallery { min-height: 56vh; }
+  /* Phone: one dominant card with the next city peeking in from the side --
+     the same cascade as desktop, just closer together so a neighbour is
+     still reachable by swipe without ever pushing the active card's own
+     content off-screen or overflowing the viewport. */
+  body.world .w-plane {
+    width: 74vw;
+    aspect-ratio: 3 / 3.9;
+    --step: 60vw;
+    transform:
+      translateX(calc(var(--o) * var(--step) * var(--dir)))
+      translateY(calc(min(abs(var(--o)), 1) * 8px))
+      scale(calc(1 - min(abs(var(--o)), 3) * 0.08));
+    opacity: calc(1 - min(abs(var(--o)), 3) * 0.22);
+  }
+  body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.3rem; }
+
+  body.world .w-trust { grid-template-columns: 1fr; }
+  body.world .w-empty-actions { width: 100%; }
+  body.world .w-empty-actions .w-btn { flex: 1 1 auto; }
+  body.world .w-carry { display: none; }   /* cost without benefit at this size */
+  body.world { padding-bottom: 4.5rem; }   /* clear of the fixed bottom nav */
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* No override needed for .w-panels here: the base five-equal-panel flex
+     row (section 8) already fits this width without hiding any panel,
+     which the old three-column grid + nth-child(n+4){display:none} did. */
+}
+
+/* =========================================================================
+ * 12. FOOTER -- Deep Navy close
+ * =========================================================================
+ * The footer sits AFTER the journey (--journey has already reached 1 by
+ * the time it's on screen, so the world-field is already fully navy
+ * behind it) but it is its own opaque element, not part of the fixed
+ * field -- css/cinematic.css's `.cine-scope .home-footer` rule gives it a
+ * light ivory surface (correct for every OTHER page that reuses the same
+ * component), which this overrides specifically for Home, per the
+ * approved HOME COLOR FLOW ("Footer = Deep Navy"). Text/link colors
+ * inside it get their own explicit on-navy values rather than reading
+ * --on-stone, since the footer never sits anywhere but the end of the
+ * journey -- it has no tonal ambiguity to resolve. ======================= */
+body.world .home-footer {
+  background: var(--w-navy);
+  border-top: 1px solid rgba(244, 239, 231, 0.12);
+}
+body.world .home-footer-word { color: var(--w-gold-hi); }
+body.world .home-footer-tagline,
+body.world .home-footer-link,
+body.world .home-footer-bottom { color: var(--w-ink-soft); }
+body.world .home-footer-heading { color: var(--w-ink); }
+body.world .home-footer-link:hover { color: var(--w-gold); }
+body.world .home-footer-bottom { border-top-color: rgba(244, 239, 231, 0.12); }
+
+/* =========================================================================
+ * 13. REDUCED MOTION
+ * =========================================================================
+ * The world, the tonal journey and every composition remain. Only the
+ * movement stops: planes rest at their designed positions, and the gallery
+ * still changes focus -- instantly instead of gliding. ================== */
+@media (prefers-reduced-motion: reduce) {
+  body.world .w-plane,
+  body.world .w-panel,
+  body.world .w-panel-media,
+  body.world .w-panel-face,
+  body.world .w-panel-open,
+  body.world .w-panel-sub,
+  body.world .w-btn,
+  body.world .w-btn-arrow,
+  body.world .w-action::after,
+  body.world .w-row,
+  body.world .w-row-cue,
+  body.world .w-icon-btn { transition: none; }
+  /* Every choreographed element rests at its finished state. The controller
+     also parks --fp at 0.5 and never attaches a scroll listener, so this is
+     belt and braces rather than the only defence. */
+  body.world [data-flow] { transform: none !important; opacity: 1 !important; }
+  body.world .w-carry { filter: none; }
+}
