@@ -1,3 +1,4 @@
+import './content-editorial.js';
 import { auth, db, getDoc } from './firebase-init.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
 import { doc } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
