@@ -22,6 +22,8 @@ from app.access.handlers import CompanyHandler, OrganizationHandler, PermissionA
 from app.access.organization_ops import OrganizationOps
 from app.access.permission_ops import PermissionOps
 from app.access.professional_ops import ProfessionalOps
+from app.arena.arena_ops import ArenaOps
+from app.arena.handlers import ArenaAdminHandler, ArenaPublicHandler
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import FirestoreRateLimiter, Handler, InMemoryRateLimiter
@@ -40,8 +42,6 @@ from app.otp.firebase_admin_ops import EmailUidResolver, FirebaseAccountOps
 from app.otp.handler import PasswordResetConfirmHandler
 from app.otp.service import OtpService
 from app.otp.store import FirestoreChallengeStore, InMemoryChallengeStore
-from app.arena.arena_ops import ArenaOps
-from app.arena.handlers import ArenaAdminHandler, ArenaPublicHandler
 from app.server import create_app
 from app.verification.archive_ops import ArchiveOps
 from app.verification.handlers import PermissionReader, ReferralPublicHandler, VerificationHandler
@@ -446,9 +446,15 @@ def build_arena_handlers(cfg: Config) -> tuple[ArenaPublicHandler | None, ArenaA
     # or advancing a step is the tightest self-service limit (a script
     # hammering "join" a hundred times a minute is not a real user).
     if cfg.is_production:
-        read_limiter = FirestoreRateLimiter(db, name="arena_read", limit=240, window_seconds=60 * 60, logger=logger)
-        write_limiter = FirestoreRateLimiter(db, name="arena_write", limit=60, window_seconds=60 * 60, logger=logger)
-        admin_limiter = FirestoreRateLimiter(db, name="arena_admin", limit=200, window_seconds=60 * 60, logger=logger)
+        read_limiter = FirestoreRateLimiter(
+            db, name="arena_read", limit=240, window_seconds=60 * 60, logger=logger
+        )
+        write_limiter = FirestoreRateLimiter(
+            db, name="arena_write", limit=60, window_seconds=60 * 60, logger=logger
+        )
+        admin_limiter = FirestoreRateLimiter(
+            db, name="arena_admin", limit=200, window_seconds=60 * 60, logger=logger
+        )
     else:
         read_limiter = InMemoryRateLimiter(limit=240, window_seconds=60 * 60)
         write_limiter = InMemoryRateLimiter(limit=60, window_seconds=60 * 60)
@@ -456,8 +462,12 @@ def build_arena_handlers(cfg: Config) -> tuple[ArenaPublicHandler | None, ArenaA
 
     logger.info("Darwesh Arena endpoints enabled")
     return (
-        ArenaPublicHandler(ops=ops, auth=auth_gate, read_limiter=read_limiter, write_limiter=write_limiter, logger=logger),
-        ArenaAdminHandler(ops=ops, auth=auth_gate, permissions=PermissionReader(db), admin_limiter=admin_limiter, logger=logger),
+        ArenaPublicHandler(
+            ops=ops, auth=auth_gate, read_limiter=read_limiter, write_limiter=write_limiter, logger=logger
+        ),
+        ArenaAdminHandler(
+            ops=ops, auth=auth_gate, permissions=PermissionReader(db), admin_limiter=admin_limiter, logger=logger
+        ),
     )
 
 

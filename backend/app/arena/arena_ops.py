@@ -123,17 +123,32 @@ def _validate_steps(steps: object) -> list[dict]:
         cleaned.append(
             {
                 "key": key,
-                "name": _clean_text(raw.get("name"), field="step.name", max_length=_MAX_NAME_LENGTH, required=True),
-                "description": _clean_text(raw.get("description"), field="step.description", max_length=_MAX_TEXT_FIELD_LENGTH) or "",
-                "requiredAction": _clean_text(raw.get("requiredAction"), field="step.requiredAction", max_length=_MAX_TEXT_FIELD_LENGTH) or "",
+                "name": _clean_text(
+                    raw.get("name"), field="step.name", max_length=_MAX_NAME_LENGTH, required=True
+                ),
+                "description": _clean_text(
+                    raw.get("description"), field="step.description", max_length=_MAX_TEXT_FIELD_LENGTH
+                )
+                or "",
+                "requiredAction": _clean_text(
+                    raw.get("requiredAction"), field="step.requiredAction", max_length=_MAX_TEXT_FIELD_LENGTH
+                )
+                or "",
                 "requiredVerificationBy": verification_by,
-                "requiredPropertyState": _clean_text(raw.get("requiredPropertyState"), field="step.requiredPropertyState", max_length=60),
+                "requiredPropertyState": _clean_text(
+                    raw.get("requiredPropertyState"), field="step.requiredPropertyState", max_length=60
+                ),
                 "points": _clean_points(raw.get("points", 0), field="step.points"),
                 "optional": bool(raw.get("optional", False)),
                 "unlockAfterStepKey": unlock_after,
                 "hint": {
                     "enabled": bool((raw.get("hint") or {}).get("enabled", False)),
-                    "text": _clean_text((raw.get("hint") or {}).get("text"), field="step.hint.text", max_length=_MAX_TEXT_FIELD_LENGTH) or "",
+                    "text": _clean_text(
+                        (raw.get("hint") or {}).get("text"),
+                        field="step.hint.text",
+                        max_length=_MAX_TEXT_FIELD_LENGTH,
+                    )
+                    or "",
                 },
                 "reward": _clean_text(raw.get("reward"), field="step.reward", max_length=400) or "",
             }
@@ -191,7 +206,9 @@ class ArenaOps:
 
         return await asyncio.to_thread(_write)
 
-    async def update_challenge(self, *, challenge_id: str, data: dict, actor_uid: str, actor_is_admin: bool) -> None:
+    async def update_challenge(
+        self, *, challenge_id: str, data: dict, actor_uid: str, actor_is_admin: bool
+    ) -> None:
         if not actor_is_admin:
             raise ForbiddenError("only an admin may edit a challenge")
         payload = self._clean_challenge_payload(data)
@@ -241,7 +258,9 @@ class ArenaOps:
                 if not snap.exists:
                     raise NotFoundError(f"challenge '{challenge_id}' does not exist")
                 previous = snap.get("status")
-                txn.update(ref, {"status": status, "updatedBy": actor_uid, "updatedAt": fb_firestore.SERVER_TIMESTAMP})
+                txn.update(
+                    ref, {"status": status, "updatedBy": actor_uid, "updatedAt": fb_firestore.SERVER_TIMESTAMP}
+                )
                 write_audit(
                     txn,
                     self._db,
@@ -315,7 +334,10 @@ class ArenaOps:
 
         return {
             "name": _clean_text(data.get("name"), field="name", max_length=_MAX_NAME_LENGTH, required=True),
-            "description": _clean_text(data.get("description"), field="description", max_length=_MAX_TEXT_FIELD_LENGTH) or "",
+            "description": _clean_text(
+                data.get("description"), field="description", max_length=_MAX_TEXT_FIELD_LENGTH
+            )
+            or "",
             "artworkUrl": _clean_text(data.get("artworkUrl"), field="artworkUrl", max_length=1000) or "",
             "category": category,
             "difficulty": difficulty,
@@ -325,9 +347,13 @@ class ArenaOps:
             "steps": _validate_steps(data.get("steps")),
             "completionReward": {
                 "points": _clean_points(completion_reward.get("points", 0), field="completionReward.points"),
-                "badge": completion_reward.get("badge") if isinstance(completion_reward.get("badge"), dict) else None,
+                "badge": completion_reward.get("badge")
+                if isinstance(completion_reward.get("badge"), dict)
+                else None,
                 "certificate": bool(completion_reward.get("certificate", False)),
-                "rankBonusXp": _clean_points(completion_reward.get("rankBonusXp", 0), field="completionReward.rankBonusXp"),
+                "rankBonusXp": _clean_points(
+                    completion_reward.get("rankBonusXp", 0), field="completionReward.rankBonusXp"
+                ),
             },
             "unlockRequirements": {
                 "minXp": unlock_requirements.get("minXp"),
@@ -348,16 +374,25 @@ class ArenaOps:
             },
             "mainPrize": _clean_text(data.get("mainPrize"), field="mainPrize", max_length=400) or "",
             "bonusReward": _clean_text(data.get("bonusReward"), field="bonusReward", max_length=400) or "",
-            "rewardsPreview": _clean_text(data.get("rewardsPreview"), field="rewardsPreview", max_length=400) or "",
+            "rewardsPreview": _clean_text(data.get("rewardsPreview"), field="rewardsPreview", max_length=400)
+            or "",
             # Business targets (brief: "90-day acquisition and sales
             # engine" -- these are planning targets an admin sets and the
             # commercial dashboard tracks progress against, never a
             # hardcoded assumption baked into code).
-            "durationDays": data.get("durationDays") if isinstance(data.get("durationDays"), (int, float)) else None,
+            "durationDays": data.get("durationDays")
+            if isinstance(data.get("durationDays"), (int, float))
+            else None,
             "prizePool": data.get("prizePool") if isinstance(data.get("prizePool"), (int, float)) else None,
-            "revenueTarget": data.get("revenueTarget") if isinstance(data.get("revenueTarget"), (int, float)) else None,
-            "closedSalesTarget": data.get("closedSalesTarget") if isinstance(data.get("closedSalesTarget"), (int, float)) else None,
-            "closedVolumeTarget": data.get("closedVolumeTarget") if isinstance(data.get("closedVolumeTarget"), (int, float)) else None,
+            "revenueTarget": data.get("revenueTarget")
+            if isinstance(data.get("revenueTarget"), (int, float))
+            else None,
+            "closedSalesTarget": data.get("closedSalesTarget")
+            if isinstance(data.get("closedSalesTarget"), (int, float))
+            else None,
+            "closedVolumeTarget": data.get("closedVolumeTarget")
+            if isinstance(data.get("closedVolumeTarget"), (int, float))
+            else None,
             # Display-only in Phase 1 (see model.py's docstring on the
             # Step Engine) -- a named timeline shown on the challenge
             # page; does not itself gate step unlocking yet.
@@ -366,7 +401,8 @@ class ArenaOps:
                     "name": _clean_text(p.get("name"), field="phase.name", max_length=200, required=True),
                     "startDay": p.get("startDay") if isinstance(p.get("startDay"), (int, float)) else None,
                     "endDay": p.get("endDay") if isinstance(p.get("endDay"), (int, float)) else None,
-                    "description": _clean_text(p.get("description"), field="phase.description", max_length=400) or "",
+                    "description": _clean_text(p.get("description"), field="phase.description", max_length=400)
+                    or "",
                 }
                 for p in (data.get("phases") or [])
                 if isinstance(p, dict)
@@ -378,7 +414,9 @@ class ArenaOps:
     async def join_challenge(self, *, challenge_id: str, uid: str) -> dict:
         challenge_ref = self._db.collection(model.ARENA_CHALLENGES).document(challenge_id)
         submission_ref = self._db.collection(model.ARENA_SUBMISSIONS).document(f"{challenge_id}__{uid}")
-        state_ref = self._db.collection("users").document(uid).collection("private").document(model.USER_ARENA_STATE)
+        state_ref = (
+            self._db.collection("users").document(uid).collection("private").document(model.USER_ARENA_STATE)
+        )
         user_ref = self._db.collection("users").document(uid)
 
         def _op() -> dict:
@@ -399,7 +437,10 @@ class ArenaOps:
                     raise ConflictError("you have already joined this challenge")
 
                 max_participants = challenge.get("maxParticipants")
-                if isinstance(max_participants, (int, float)) and int(challenge.get("participantCount") or 0) >= max_participants:
+                if (
+                    isinstance(max_participants, (int, float))
+                    and int(challenge.get("participantCount") or 0) >= max_participants
+                ):
                     raise ConflictError("this challenge has reached its participant limit")
 
                 state_snap = state_ref.get(transaction=txn)
@@ -484,7 +525,11 @@ class ArenaOps:
         in the reviewer-only subcollection. Hard-rejects a `listingRef`
         that is already attached to any OTHER arenaSubmission -- the one
         non-negotiable fraud check (brief: "never duplicate them")."""
-        if not isinstance(listing_ref, dict) or not isinstance(listing_ref.get("id"), str) or not listing_ref.get("id"):
+        if (
+            not isinstance(listing_ref, dict)
+            or not isinstance(listing_ref.get("id"), str)
+            or not listing_ref.get("id")
+        ):
             raise ValidationError("'listingRef' must include a real 'id'")
         if listing_ref.get("collection") not in ("listings", "submissions"):
             raise ValidationError("'listingRef.collection' must be 'listings' or 'submissions'")
@@ -525,13 +570,23 @@ class ArenaOps:
                         )
 
                 clean_display = {
-                    "propertyType": _clean_text(display_fields.get("propertyType"), field="propertyType", max_length=60),
+                    "propertyType": _clean_text(
+                        display_fields.get("propertyType"), field="propertyType", max_length=60
+                    ),
                     "city": _clean_text(display_fields.get("city"), field="city", max_length=200),
                     "district": _clean_text(display_fields.get("district"), field="district", max_length=200),
-                    "mapLocation": display_fields.get("mapLocation") if isinstance(display_fields.get("mapLocation"), dict) else None,
-                    "priceDisplay": _clean_text(str(display_fields.get("priceDisplay", "")), field="priceDisplay", max_length=60),
-                    "areaSqm": display_fields.get("areaSqm") if isinstance(display_fields.get("areaSqm"), (int, float)) else None,
-                    "coverImageUrl": _clean_text(display_fields.get("coverImageUrl"), field="coverImageUrl", max_length=1000),
+                    "mapLocation": display_fields.get("mapLocation")
+                    if isinstance(display_fields.get("mapLocation"), dict)
+                    else None,
+                    "priceDisplay": _clean_text(
+                        str(display_fields.get("priceDisplay", "")), field="priceDisplay", max_length=60
+                    ),
+                    "areaSqm": display_fields.get("areaSqm")
+                    if isinstance(display_fields.get("areaSqm"), (int, float))
+                    else None,
+                    "coverImageUrl": _clean_text(
+                        display_fields.get("coverImageUrl"), field="coverImageUrl", max_length=1000
+                    ),
                 }
                 patch = {
                     "listingRef": listing_ref,
@@ -543,8 +598,12 @@ class ArenaOps:
                     phone_hash = _hash(_normalize_phone(owner_info.get("ownerPhone")) or "")
                     lat = _round_coord((clean_display.get("mapLocation") or {}).get("lat"))
                     lng = _round_coord((clean_display.get("mapLocation") or {}).get("lng"))
-                    location_hash = _hash(f"{clean_display.get('city')}|{clean_display.get('district')}|{lat}|{lng}")
-                    patch["ownerPhoneHash"] = phone_hash if _normalize_phone(owner_info.get("ownerPhone")) else None
+                    location_hash = _hash(
+                        f"{clean_display.get('city')}|{clean_display.get('district')}|{lat}|{lng}"
+                    )
+                    patch["ownerPhoneHash"] = (
+                        phone_hash if _normalize_phone(owner_info.get("ownerPhone")) else None
+                    )
                     patch["locationHash"] = location_hash
                 txn.update(submission_ref, patch)
                 write_audit(
@@ -588,9 +647,14 @@ class ArenaOps:
         )
         ref.set(
             {
-                "ownerFullName": _clean_text(owner_info.get("ownerFullName"), field="ownerFullName", max_length=_MAX_NAME_LENGTH) or "",
+                "ownerFullName": _clean_text(
+                    owner_info.get("ownerFullName"), field="ownerFullName", max_length=_MAX_NAME_LENGTH
+                )
+                or "",
                 "ownerPhone": _clean_text(owner_info.get("ownerPhone"), field="ownerPhone", max_length=40) or "",
-                "ownershipDocUrls": [u for u in (owner_info.get("ownershipDocUrls") or []) if isinstance(u, str)][:20],
+                "ownershipDocUrls": [u for u in (owner_info.get("ownershipDocUrls") or []) if isinstance(u, str)][
+                    :20
+                ],
                 "submittedBy": actor_uid,
                 "updatedAt": fb_firestore.SERVER_TIMESTAMP,
             },
@@ -611,11 +675,7 @@ class ArenaOps:
 
             phone_hash = data.get("ownerPhoneHash")
             if phone_hash:
-                q = (
-                    self._db.collection(model.ARENA_SUBMISSIONS)
-                    .where("ownerPhoneHash", "==", phone_hash)
-                    .limit(3)
-                )
+                q = self._db.collection(model.ARENA_SUBMISSIONS).where("ownerPhoneHash", "==", phone_hash).limit(3)
                 if sum(1 for d in q.stream() if d.id != submission_id) > 0:
                     flags.append("duplicate_phone")
 
@@ -645,9 +705,7 @@ class ArenaOps:
                 # _apply_completion_bonus).
                 now = self._clock()
                 self._db.collection(model.ARENA_SUBMISSIONS).document(submission_id).update(
-                    {"fraudFlags": fb_firestore.ArrayUnion(
-                        [{"type": f, "flaggedAt": now} for f in flags]
-                    )}
+                    {"fraudFlags": fb_firestore.ArrayUnion([{"type": f, "flaggedAt": now} for f in flags])}
                 )
         except Exception:  # noqa: BLE001 -- best-effort, must never block the real request
             self._logger.warning("arena fraud heuristics failed for %s", submission_id, exc_info=False)
@@ -705,10 +763,16 @@ class ArenaOps:
                 if current == "locked" and not model.can_unlock_step(step, step_progress):
                     raise ConflictError("this step is not yet unlocked")
 
-                if not model.is_valid_step_transition("available" if current == "locked" else current, target_status):
+                if not model.is_valid_step_transition(
+                    "available" if current == "locked" else current, target_status
+                ):
                     raise ConflictError(f"cannot move step '{step_key}' from '{current}' to '{target_status}'")
 
-                if target_status == "completed" and step.get("requiredVerificationBy") == "admin" and not actor_is_admin:
+                if (
+                    target_status == "completed"
+                    and step.get("requiredVerificationBy") == "admin"
+                    and not actor_is_admin
+                ):
                     raise ForbiddenError("this step requires admin verification")
 
                 already_awarded = (step_progress.get(step_key) or {}).get("pointsAwarded", False)
@@ -749,19 +813,32 @@ class ArenaOps:
                 if target_status == "completed":
                     successor = model.next_step_after(steps, step_key)
                     if successor is not None:
-                        prev = patch_progress.get(successor["key"], {"status": "locked", "completedAt": None, "pointsAwarded": False, "ledgerEntryId": None})
+                        prev = patch_progress.get(
+                            successor["key"],
+                            {
+                                "status": "locked",
+                                "completedAt": None,
+                                "pointsAwarded": False,
+                                "ledgerEntryId": None,
+                            },
+                        )
                         if prev.get("status") == "locked":
                             patch_progress[successor["key"]] = {**prev, "status": "available"}
 
                 overall = submission.get("overallStatus", "joined")
                 if target_status == "verification_pending":
                     overall = "verification_pending"
-                elif target_status in ("in_progress", "completed") and overall in ("joined", "verification_pending"):
+                elif target_status in ("in_progress", "completed") and overall in (
+                    "joined",
+                    "verification_pending",
+                ):
                     overall = "in_progress"
 
                 update_patch: dict = {
                     "stepProgress": patch_progress,
-                    "currentStepKey": step_key if target_status != "completed" else (model.next_step_after(steps, step_key) or {}).get("key", step_key),
+                    "currentStepKey": step_key
+                    if target_status != "completed"
+                    else (model.next_step_after(steps, step_key) or {}).get("key", step_key),
                     "overallStatus": overall,
                     "updatedAt": fb_firestore.SERVER_TIMESTAMP,
                 }
@@ -790,16 +867,26 @@ class ArenaOps:
                         uid=participant_uid,
                         challenge_id=submission["challengeId"],
                         submission_id=submission_id,
-                        activity_type="property_verified" if step_key not in ("sale", "buyer") else "deal_completed",
+                        activity_type="property_verified"
+                        if step_key not in ("sale", "buyer")
+                        else "deal_completed",
                         points_delta=award_points,
                     )
 
                 completion_bonus = None
-                if model.all_required_steps_complete(steps, patch_progress) and submission.get("overallStatus") != "completed":
+                if (
+                    model.all_required_steps_complete(steps, patch_progress)
+                    and submission.get("overallStatus") != "completed"
+                ):
                     completion_bonus = self._apply_completion_bonus(
-                        txn, submission_ref=submission_ref, challenge_ref=challenge_ref,
-                        challenge=challenge, participant_uid=participant_uid,
-                        submission_id=submission_id, actor_uid=actor_uid, actor_is_admin=actor_is_admin,
+                        txn,
+                        submission_ref=submission_ref,
+                        challenge_ref=challenge_ref,
+                        challenge=challenge,
+                        participant_uid=participant_uid,
+                        submission_id=submission_id,
+                        actor_uid=actor_uid,
+                        actor_is_admin=actor_is_admin,
                     )
 
                 return {
@@ -824,7 +911,16 @@ class ArenaOps:
         return result
 
     def _apply_completion_bonus(
-        self, txn, *, submission_ref, challenge_ref, challenge, participant_uid, submission_id, actor_uid, actor_is_admin
+        self,
+        txn,
+        *,
+        submission_ref,
+        challenge_ref,
+        challenge,
+        participant_uid,
+        submission_id,
+        actor_uid,
+        actor_is_admin,
     ) -> dict:
         """Called from inside advance_step's own transaction, once every
         required step is complete. Awards the challenge's
@@ -859,7 +955,10 @@ class ArenaOps:
             # instance's own clock instead, same as everywhere else a
             # wall-clock "now" is needed outside a plain document field.
             txn.update(
-                self._db.collection("users").document(participant_uid).collection("private").document(model.USER_ARENA_STATE),
+                self._db.collection("users")
+                .document(participant_uid)
+                .collection("private")
+                .document(model.USER_ARENA_STATE),
                 {
                     "badgesEarned": fb_firestore.ArrayUnion(
                         [{**badge, "earnedAt": self._clock(), "challengeId": challenge_ref.id}]
@@ -869,13 +968,21 @@ class ArenaOps:
         txn.update(submission_ref, {"overallStatus": "completed", "updatedAt": fb_firestore.SERVER_TIMESTAMP})
         txn.update(challenge_ref, {"completedCount": fb_firestore.Increment(1)})
         self._write_activity(
-            txn, uid=participant_uid, challenge_id=challenge_ref.id, submission_id=submission_id,
-            activity_type="challenge_completed", points_delta=bonus_points,
+            txn,
+            uid=participant_uid,
+            challenge_id=challenge_ref.id,
+            submission_id=submission_id,
+            activity_type="challenge_completed",
+            points_delta=bonus_points,
         )
         if isinstance(badge, dict) and badge.get("id"):
             self._write_activity(
-                txn, uid=participant_uid, challenge_id=challenge_ref.id, submission_id=submission_id,
-                activity_type="badge_unlocked", points_delta=None,
+                txn,
+                uid=participant_uid,
+                challenge_id=challenge_ref.id,
+                submission_id=submission_id,
+                activity_type="badge_unlocked",
+                points_delta=None,
             )
         return {"points": bonus_points, "badge": badge}
 
@@ -912,10 +1019,7 @@ class ArenaOps:
                     lifetime_xp += int(data.get("pointsDelta") or 0)
             lifetime_xp = max(0, lifetime_xp)
 
-            ranks = [
-                {**(r.to_dict() or {}), "id": r.id}
-                for r in self._db.collection(model.ARENA_RANKS).stream()
-            ]
+            ranks = [{**(r.to_dict() or {}), "id": r.id} for r in self._db.collection(model.ARENA_RANKS).stream()]
             rank_progress = model.compute_rank(lifetime_xp, ranks)
             current_rank_order = None
             for r in ranks:
@@ -970,7 +1074,8 @@ class ArenaOps:
             # ever needs to answer "which badges", so that's all it copies.
             public_badges = [
                 {"id": b.get("id"), "name": b.get("name")}
-                for b in badges_earned if isinstance(b, dict) and b.get("id")
+                for b in badges_earned
+                if isinstance(b, dict) and b.get("id")
             ]
             leaderboard_payload = {
                 "uid": uid,
@@ -993,7 +1098,14 @@ class ArenaOps:
         return await asyncio.to_thread(_read_and_write)
 
     async def manual_point_adjustment(
-        self, *, uid: str, points_delta: int, note: str, actor_uid: str, actor_is_admin: bool, is_reversal: bool = False
+        self,
+        *,
+        uid: str,
+        points_delta: int,
+        note: str,
+        actor_uid: str,
+        actor_is_admin: bool,
+        is_reversal: bool = False,
     ) -> dict:
         if not actor_is_admin:
             raise ForbiddenError("only an admin may adjust points manually")
@@ -1040,7 +1152,9 @@ class ArenaOps:
         await asyncio.to_thread(_write)
         return await self.recompute_state(uid)
 
-    async def flag_submission(self, *, submission_id: str, flag_type: str, detail: str | None, actor_uid: str) -> None:
+    async def flag_submission(
+        self, *, submission_id: str, flag_type: str, detail: str | None, actor_uid: str
+    ) -> None:
         """Best-effort. Never raises -- a failure to record a flag must
         never block the caller's real, already-correct action."""
 
@@ -1052,7 +1166,14 @@ class ArenaOps:
                 self._db.collection(model.ARENA_SUBMISSIONS).document(submission_id).update(
                     {
                         "fraudFlags": fb_firestore.ArrayUnion(
-                            [{"type": flag_type[:60], "detail": (detail or "")[:500], "flaggedAt": self._clock(), "flaggedBy": actor_uid}]
+                            [
+                                {
+                                    "type": flag_type[:60],
+                                    "detail": (detail or "")[:500],
+                                    "flaggedAt": self._clock(),
+                                    "flaggedBy": actor_uid,
+                                }
+                            ]
                         )
                     }
                 )
@@ -1061,7 +1182,9 @@ class ArenaOps:
 
         await asyncio.to_thread(_write)
 
-    async def disqualify_participant(self, *, submission_id: str, reason: str, actor_uid: str, actor_is_admin: bool) -> dict:
+    async def disqualify_participant(
+        self, *, submission_id: str, reason: str, actor_uid: str, actor_is_admin: bool
+    ) -> dict:
         if not actor_is_admin:
             raise ForbiddenError("only an admin may disqualify a participant")
         clean_reason = _clean_text(reason, field="reason", max_length=_MAX_TEXT_FIELD_LENGTH, required=True)
@@ -1115,8 +1238,16 @@ class ArenaOps:
             batch = self._db.batch()
             batch.set(ref, payload)
             write_audit(
-                batch, self._db,
-                AuditEntry(actor_uid=actor_uid, actor_role="admin", action="arena_rank_created", target_type="arenaRank", target_id=ref.id, new_value=payload.get("name")),
+                batch,
+                self._db,
+                AuditEntry(
+                    actor_uid=actor_uid,
+                    actor_role="admin",
+                    action="arena_rank_created",
+                    target_type="arenaRank",
+                    target_id=ref.id,
+                    new_value=payload.get("name"),
+                ),
             )
             batch.commit()
             return ref.id
@@ -1139,8 +1270,16 @@ class ArenaOps:
                     raise NotFoundError(f"rank '{rank_id}' does not exist")
                 txn.update(ref, payload)
                 write_audit(
-                    txn, self._db,
-                    AuditEntry(actor_uid=actor_uid, actor_role="admin", action="arena_rank_updated", target_type="arenaRank", target_id=rank_id, changed_fields=sorted(payload.keys())),
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=actor_uid,
+                        actor_role="admin",
+                        action="arena_rank_updated",
+                        target_type="arenaRank",
+                        target_id=rank_id,
+                        changed_fields=sorted(payload.keys()),
+                    ),
                 )
 
             _txn(transaction)
@@ -1166,9 +1305,14 @@ class ArenaOps:
             "minXp": int(min_xp),
             "maxXp": int(max_xp) if max_xp is not None else None,
             "order": int(order),
-            "description": _clean_text(data.get("description"), field="description", max_length=_MAX_TEXT_FIELD_LENGTH) or "",
+            "description": _clean_text(
+                data.get("description"), field="description", max_length=_MAX_TEXT_FIELD_LENGTH
+            )
+            or "",
             "privileges": [p for p in (data.get("privileges") or []) if isinstance(p, str)][:20],
-            "visualTreatment": data.get("visualTreatment") if isinstance(data.get("visualTreatment"), dict) else {},
+            "visualTreatment": data.get("visualTreatment")
+            if isinstance(data.get("visualTreatment"), dict)
+            else {},
             "enabled": bool(data.get("enabled", True)),
         }
 
@@ -1227,8 +1371,16 @@ class ArenaOps:
                     },
                 )
                 write_audit(
-                    txn, self._db,
-                    AuditEntry(actor_uid=actor_uid, actor_role="user", action="arena_deal_created", target_type="arenaDeal", target_id=deal_ref.id, new_value=submission_id),
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=actor_uid,
+                        actor_role="user",
+                        action="arena_deal_created",
+                        target_type="arenaDeal",
+                        target_id=deal_ref.id,
+                        new_value=submission_id,
+                    ),
                 )
                 return {"dealId": deal_ref.id}
 
@@ -1293,8 +1445,14 @@ class ArenaOps:
                 if target_stage == "viewing_completed":
                     patch["viewing.completedAt"] = fb_firestore.SERVER_TIMESTAMP
                 if target_stage == "closed":
-                    rule = commission_rule_snap.to_dict() if commission_rule_snap and commission_rule_snap.exists else {}
-                    commission_percent = rule.get("defaultPercent") if isinstance(rule.get("defaultPercent"), (int, float)) else 0
+                    rule = (
+                        commission_rule_snap.to_dict()
+                        if commission_rule_snap and commission_rule_snap.exists
+                        else {}
+                    )
+                    commission_percent = (
+                        rule.get("defaultPercent") if isinstance(rule.get("defaultPercent"), (int, float)) else 0
+                    )
                     expected = model.compute_expected_commission(sale_value, commission_percent)
                     patch.update(
                         {
@@ -1309,11 +1467,16 @@ class ArenaOps:
                     )
                 txn.update(deal_ref, patch)
                 write_audit(
-                    txn, self._db,
+                    txn,
+                    self._db,
                     AuditEntry(
-                        actor_uid=actor_uid, actor_role="admin" if actor_is_admin else "user",
-                        action="arena_deal_stage_advanced", target_type="arenaDeal", target_id=deal_id,
-                        previous_value=current, new_value=target_stage,
+                        actor_uid=actor_uid,
+                        actor_role="admin" if actor_is_admin else "user",
+                        action="arena_deal_stage_advanced",
+                        target_type="arenaDeal",
+                        target_id=deal_id,
+                        previous_value=current,
+                        new_value=target_stage,
                     ),
                 )
                 return {"dealId": deal_id, "stage": target_stage, "participantUid": deal.get("participantUid")}
@@ -1326,19 +1489,37 @@ class ArenaOps:
         return result
 
     def _write_buyer_info(self, deal_id: str, buyer_info: dict, actor_uid: str) -> None:
-        ref = self._db.collection(model.ARENA_DEALS).document(deal_id).collection(model.ARENA_DEAL_PRIVATE).document("buyerInfo")
+        ref = (
+            self._db.collection(model.ARENA_DEALS)
+            .document(deal_id)
+            .collection(model.ARENA_DEAL_PRIVATE)
+            .document("buyerInfo")
+        )
         ref.set(
             {
-                "buyerName": _clean_text(buyer_info.get("buyerName"), field="buyerName", max_length=_MAX_NAME_LENGTH) or "",
+                "buyerName": _clean_text(
+                    buyer_info.get("buyerName"), field="buyerName", max_length=_MAX_NAME_LENGTH
+                )
+                or "",
                 "buyerPhone": _clean_text(buyer_info.get("buyerPhone"), field="buyerPhone", max_length=40) or "",
-                "buyerSource": buyer_info.get("buyerSource") if buyer_info.get("buyerSource") in model.BUYER_SOURCES else None,
+                "buyerSource": buyer_info.get("buyerSource")
+                if buyer_info.get("buyerSource") in model.BUYER_SOURCES
+                else None,
                 "submittedBy": actor_uid,
                 "updatedAt": fb_firestore.SERVER_TIMESTAMP,
             },
             merge=True,
         )
 
-    async def set_payment_state(self, *, deal_id: str, payment_state: str, actual_commission: float | None, actor_uid: str, actor_is_admin: bool) -> dict:
+    async def set_payment_state(
+        self,
+        *,
+        deal_id: str,
+        payment_state: str,
+        actual_commission: float | None,
+        actor_uid: str,
+        actor_is_admin: bool,
+    ) -> dict:
         if not actor_is_admin:
             raise ForbiddenError("only an admin may record payment state")
         if payment_state not in model.PAYMENT_STATES:
@@ -1356,12 +1537,24 @@ class ArenaOps:
                 if snap.get("stage") != "closed":
                     raise ConflictError("payment state can only be recorded on a closed deal")
                 patch: dict = {"paymentState": payment_state, "updatedAt": fb_firestore.SERVER_TIMESTAMP}
-                if payment_state == "received" and isinstance(actual_commission, (int, float)) and actual_commission >= 0:
+                if (
+                    payment_state == "received"
+                    and isinstance(actual_commission, (int, float))
+                    and actual_commission >= 0
+                ):
                     patch["actualCommission"] = float(actual_commission)
                 txn.update(ref, patch)
                 write_audit(
-                    txn, self._db,
-                    AuditEntry(actor_uid=actor_uid, actor_role="admin", action="arena_deal_payment_recorded", target_type="arenaDeal", target_id=deal_id, new_value=payment_state),
+                    txn,
+                    self._db,
+                    AuditEntry(
+                        actor_uid=actor_uid,
+                        actor_role="admin",
+                        action="arena_deal_payment_recorded",
+                        target_type="arenaDeal",
+                        target_id=deal_id,
+                        new_value=payment_state,
+                    ),
                 )
                 return {"dealId": deal_id, "paymentState": payment_state}
 
@@ -1369,7 +1562,9 @@ class ArenaOps:
 
         return await asyncio.to_thread(_op)
 
-    async def list_deals(self, *, challenge_id: str | None, stage_filter: str | None, uid: str | None, limit: int = 100) -> list[dict]:
+    async def list_deals(
+        self, *, challenge_id: str | None, stage_filter: str | None, uid: str | None, limit: int = 100
+    ) -> list[dict]:
         def _read() -> list[dict]:
             q = self._db.collection(model.ARENA_DEALS)
             if challenge_id:
@@ -1378,17 +1573,32 @@ class ArenaOps:
                 q = q.where("stage", "==", stage_filter)
             if uid:
                 q = q.where("participantUid", "==", uid)
-            return [{"id": s.id, **(s.to_dict() or {})} for s in q.limit(max(1, min(int(limit or 100), 300))).stream()]
+            return [
+                {"id": s.id, **(s.to_dict() or {})} for s in q.limit(max(1, min(int(limit or 100), 300))).stream()
+            ]
 
         return await asyncio.to_thread(_read)
 
     # ---- commission rules (admin CRUD) -----------------------------------
 
-    async def set_commission_rule(self, *, city: str, min_percent: float, max_percent: float, default_percent: float, actor_uid: str, actor_is_admin: bool) -> None:
+    async def set_commission_rule(
+        self,
+        *,
+        city: str,
+        min_percent: float,
+        max_percent: float,
+        default_percent: float,
+        actor_uid: str,
+        actor_is_admin: bool,
+    ) -> None:
         if not actor_is_admin:
             raise ForbiddenError("only an admin may configure commission rules")
         clean_city = _clean_text(city, field="city", max_length=200, required=True)
-        for label, value in (("minPercent", min_percent), ("maxPercent", max_percent), ("defaultPercent", default_percent)):
+        for label, value in (
+            ("minPercent", min_percent),
+            ("maxPercent", max_percent),
+            ("defaultPercent", default_percent),
+        ):
             if not isinstance(value, (int, float)) or value < 0 or value > 100:
                 raise ValidationError(f"'{label}' must be a number between 0 and 100")
         if not (min_percent <= default_percent <= max_percent):
@@ -1400,13 +1610,25 @@ class ArenaOps:
             batch.set(
                 ref,
                 {
-                    "city": clean_city, "minPercent": min_percent, "maxPercent": max_percent,
-                    "defaultPercent": default_percent, "updatedBy": actor_uid, "updatedAt": fb_firestore.SERVER_TIMESTAMP,
+                    "city": clean_city,
+                    "minPercent": min_percent,
+                    "maxPercent": max_percent,
+                    "defaultPercent": default_percent,
+                    "updatedBy": actor_uid,
+                    "updatedAt": fb_firestore.SERVER_TIMESTAMP,
                 },
             )
             write_audit(
-                batch, self._db,
-                AuditEntry(actor_uid=actor_uid, actor_role="admin", action="arena_commission_rule_set", target_type="arenaCommissionRule", target_id=clean_city, new_value=default_percent),
+                batch,
+                self._db,
+                AuditEntry(
+                    actor_uid=actor_uid,
+                    actor_role="admin",
+                    action="arena_commission_rule_set",
+                    target_type="arenaCommissionRule",
+                    target_id=clean_city,
+                    new_value=default_percent,
+                ),
             )
             batch.commit()
 
@@ -1414,7 +1636,10 @@ class ArenaOps:
 
     async def list_commission_rules(self) -> list[dict]:
         def _read() -> list[dict]:
-            return [{"id": s.id, **(s.to_dict() or {})} for s in self._db.collection(model.ARENA_COMMISSION_RULES).stream()]
+            return [
+                {"id": s.id, **(s.to_dict() or {})}
+                for s in self._db.collection(model.ARENA_COMMISSION_RULES).stream()
+            ]
 
         return await asyncio.to_thread(_read)
 
@@ -1432,20 +1657,35 @@ class ArenaOps:
                 raise NotFoundError(f"challenge '{challenge_id}' does not exist")
             challenge = challenge_snap.to_dict() or {}
 
-            submissions = [s.to_dict() or {} for s in self._db.collection(model.ARENA_SUBMISSIONS).where("challengeId", "==", challenge_id).stream()]
+            submissions = [
+                s.to_dict() or {}
+                for s in self._db.collection(model.ARENA_SUBMISSIONS)
+                .where("challengeId", "==", challenge_id)
+                .stream()
+            ]
             total_submissions = len(submissions)
-            verified = sum(1 for s in submissions if s.get("overallStatus") in ("in_progress", "verification_pending", "completed") and s.get("listingRef"))
+            verified = sum(
+                1
+                for s in submissions
+                if s.get("overallStatus") in ("in_progress", "verification_pending", "completed")
+                and s.get("listingRef")
+            )
             rejected = sum(1 for s in submissions if s.get("overallStatus") == "rejected")
             fraud_flagged = sum(1 for s in submissions if s.get("fraudFlags"))
 
-            deals = [d.to_dict() or {} for d in self._db.collection(model.ARENA_DEALS).where("challengeId", "==", challenge_id).stream()]
+            deals = [
+                d.to_dict() or {}
+                for d in self._db.collection(model.ARENA_DEALS).where("challengeId", "==", challenge_id).stream()
+            ]
             stage_counts: dict[str, int] = {}
             for d in deals:
                 stage_counts[d.get("stage", "lead")] = stage_counts.get(d.get("stage", "lead"), 0) + 1
             closed_deals = [d for d in deals if d.get("stage") == "closed"]
             closed_volume = sum(float(d.get("saleValue") or 0) for d in closed_deals)
             expected_commission = sum(float(d.get("expectedCommission") or 0) for d in closed_deals)
-            actual_commission = sum(float(d.get("actualCommission") or 0) for d in closed_deals if d.get("paymentState") == "received")
+            actual_commission = sum(
+                float(d.get("actualCommission") or 0) for d in closed_deals if d.get("paymentState") == "received"
+            )
 
             top_participants: dict[str, dict] = {}
             for s in submissions:
@@ -1458,7 +1698,9 @@ class ArenaOps:
                 uid = d.get("participantUid")
                 if uid and uid in top_participants:
                     top_participants[uid]["closedDeals"] += 1
-            top_participants_list = sorted(top_participants.values(), key=lambda r: (r["closedDeals"], r["submissions"]), reverse=True)[:20]
+            top_participants_list = sorted(
+                top_participants.values(), key=lambda r: (r["closedDeals"], r["submissions"]), reverse=True
+            )[:20]
 
             top_cities: dict[str, int] = {}
             for s in submissions:
@@ -1491,18 +1733,29 @@ class ArenaOps:
 
     # ---- reads -----------------------------------------------------------
 
-    async def list_challenges_for_viewer(self, *, uid: str | None, status_filter: str | None, limit: int = 60) -> list[dict]:
+    async def list_challenges_for_viewer(
+        self, *, uid: str | None, status_filter: str | None, limit: int = 60
+    ) -> list[dict]:
         def _read() -> list[dict]:
             arena_state = {}
             facts: dict = {}
             if uid:
-                state_snap = self._db.collection("users").document(uid).collection("private").document(model.USER_ARENA_STATE).get()
+                state_snap = (
+                    self._db.collection("users")
+                    .document(uid)
+                    .collection("private")
+                    .document(model.USER_ARENA_STATE)
+                    .get()
+                )
                 arena_state = state_snap.to_dict() if state_snap.exists else {}
                 user_snap = self._db.collection("users").document(uid).get()
                 user_data = user_snap.to_dict() if user_snap.exists else {}
                 completed_ids = [
                     s.get("challengeId")
-                    for s in self._db.collection(model.ARENA_SUBMISSIONS).where("participantUid", "==", uid).where("overallStatus", "==", "completed").stream()
+                    for s in self._db.collection(model.ARENA_SUBMISSIONS)
+                    .where("participantUid", "==", uid)
+                    .where("overallStatus", "==", "completed")
+                    .stream()
                 ]
                 facts = {
                     "currentRankOrder": arena_state.get("currentRankOrder"),
@@ -1515,18 +1768,29 @@ class ArenaOps:
 
             now_ms = int(self._clock().timestamp() * 1000)
             results = []
-            for snap in self._db.collection(model.ARENA_CHALLENGES).limit(max(1, min(int(limit or 60), 200))).stream():
+            for snap in (
+                self._db.collection(model.ARENA_CHALLENGES).limit(max(1, min(int(limit or 60), 200))).stream()
+            ):
                 data = snap.to_dict() or {}
                 effective = model.effective_challenge_state(data, now_ms=now_ms)
                 if status_filter and effective != status_filter:
                     continue
-                check = model.evaluate_unlock_requirements(data.get("unlockRequirements"), user_arena_state=arena_state, user_facts=facts) if uid else model.UnlockCheck(False, None)
+                check = (
+                    model.evaluate_unlock_requirements(
+                        data.get("unlockRequirements"), user_arena_state=arena_state, user_facts=facts
+                    )
+                    if uid
+                    else model.UnlockCheck(False, None)
+                )
                 my_submission = None
                 if uid:
                     sub_snap = self._db.collection(model.ARENA_SUBMISSIONS).document(f"{snap.id}__{uid}").get()
                     if sub_snap.exists:
                         sub = sub_snap.to_dict() or {}
-                        my_submission = {"overallStatus": sub.get("overallStatus"), "currentStepKey": sub.get("currentStepKey")}
+                        my_submission = {
+                            "overallStatus": sub.get("overallStatus"),
+                            "currentStepKey": sub.get("currentStepKey"),
+                        }
                 results.append(
                     {
                         "id": snap.id,
@@ -1562,7 +1826,9 @@ class ArenaOps:
 
         return await asyncio.to_thread(_read)
 
-    async def list_submissions_for_review(self, *, status_filter: str | None, challenge_id: str | None, limit: int = 60) -> list[dict]:
+    async def list_submissions_for_review(
+        self, *, status_filter: str | None, challenge_id: str | None, limit: int = 60
+    ) -> list[dict]:
         def _read() -> list[dict]:
             q = self._db.collection(model.ARENA_SUBMISSIONS)
             if challenge_id:
@@ -1597,7 +1863,11 @@ class ArenaOps:
 
     async def list_leaderboard(self, *, limit: int = 50) -> list[dict]:
         def _read() -> list[dict]:
-            q = self._db.collection(model.ARENA_LEADERBOARD_ENTRIES).order_by("lifetimeXp", direction=fb_firestore.Query.DESCENDING).limit(max(1, min(int(limit or 50), 200)))
+            q = (
+                self._db.collection(model.ARENA_LEADERBOARD_ENTRIES)
+                .order_by("lifetimeXp", direction=fb_firestore.Query.DESCENDING)
+                .limit(max(1, min(int(limit or 50), 200)))
+            )
             return [s.to_dict() or {} for s in q.stream()]
 
         return await asyncio.to_thread(_read)
@@ -1612,13 +1882,31 @@ class ArenaOps:
 
     async def get_user_arena_state(self, *, uid: str) -> dict:
         def _read() -> dict:
-            snap = self._db.collection("users").document(uid).collection("private").document(model.USER_ARENA_STATE).get()
-            return snap.to_dict() if snap.exists else {
-                "lifetimeXp": 0, "seasonPoints": 0, "currentRankId": None, "currentRankName": None,
-                "nextRankId": None, "nextRankName": None, "xpToNextRank": None,
-                "verifiedPropertiesCount": 0, "soldPropertiesCount": 0, "challengesJoined": 0,
-                "challengesCompleted": 0, "badgesEarned": [],
-            }
+            snap = (
+                self._db.collection("users")
+                .document(uid)
+                .collection("private")
+                .document(model.USER_ARENA_STATE)
+                .get()
+            )
+            return (
+                snap.to_dict()
+                if snap.exists
+                else {
+                    "lifetimeXp": 0,
+                    "seasonPoints": 0,
+                    "currentRankId": None,
+                    "currentRankName": None,
+                    "nextRankId": None,
+                    "nextRankName": None,
+                    "xpToNextRank": None,
+                    "verifiedPropertiesCount": 0,
+                    "soldPropertiesCount": 0,
+                    "challengesJoined": 0,
+                    "challengesCompleted": 0,
+                    "badgesEarned": [],
+                }
+            )
 
         return await asyncio.to_thread(_read)
 
@@ -1650,19 +1938,25 @@ class ArenaOps:
             q = self._db.collection(model.ARENA_LEDGER)
             if uid_filter:
                 q = q.where("uid", "==", uid_filter)
-            q = q.order_by("createdAt", direction=fb_firestore.Query.DESCENDING).limit(max(1, min(int(limit or 100), 300)))
+            q = q.order_by("createdAt", direction=fb_firestore.Query.DESCENDING).limit(
+                max(1, min(int(limit or 100), 300))
+            )
             return [{**(s.to_dict() or {}), "id": s.id} for s in q.stream()]
 
         return await asyncio.to_thread(_read)
 
-    async def list_activity_feed(self, *, uid: str | None, challenge_id: str | None, limit: int = 40) -> list[dict]:
+    async def list_activity_feed(
+        self, *, uid: str | None, challenge_id: str | None, limit: int = 40
+    ) -> list[dict]:
         def _read() -> list[dict]:
             q = self._db.collection(model.ARENA_ACTIVITY_FEED)
             if uid:
                 q = q.where("uid", "==", uid)
             elif challenge_id:
                 q = q.where("challengeId", "==", challenge_id)
-            q = q.order_by("createdAt", direction=fb_firestore.Query.DESCENDING).limit(max(1, min(int(limit or 40), 100)))
+            q = q.order_by("createdAt", direction=fb_firestore.Query.DESCENDING).limit(
+                max(1, min(int(limit or 40), 100))
+            )
             return [{**(s.to_dict() or {}), "id": s.id} for s in q.stream()]
 
         return await asyncio.to_thread(_read)

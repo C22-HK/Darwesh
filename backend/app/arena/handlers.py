@@ -6,7 +6,6 @@
 # transition or reads a permission from the request body.
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -77,7 +76,9 @@ class ArenaPublicHandler:
 
     async def list_challenges(self, request: Request) -> JSONResponse:
         caller = await self._optional_caller(request)
-        if not await self.read_limiter.allow(caller.uid if caller else request.client.host if request.client else "anon"):
+        if not await self.read_limiter.allow(
+            caller.uid if caller else request.client.host if request.client else "anon"
+        ):
             return _RATE_LIMITED
         status_filter = request.query_params.get("status")
         try:
@@ -122,7 +123,9 @@ class ArenaPublicHandler:
         uid = request.query_params.get("uid")
         challenge_id = request.query_params.get("challengeId")
         try:
-            rows = await self.ops.list_activity_feed(uid=uid, challenge_id=challenge_id, limit=_int_query(request, "limit", 40))
+            rows = await self.ops.list_activity_feed(
+                uid=uid, challenge_id=challenge_id, limit=_int_query(request, "limit", 40)
+            )
         except Exception as exc:  # noqa: BLE001
             self.logger.error("arena activity failed", extra={"error": type(exc).__name__})
             return JSONResponse({"error": "Request failed."}, status_code=400)
@@ -308,7 +311,9 @@ class ArenaAdminHandler:
     admin_limiter: RateLimiter
     logger: logging.Logger
 
-    async def _admin_write(self, request: Request, fn, *, required_permission: str = "arena.manage") -> JSONResponse:
+    async def _admin_write(
+        self, request: Request, fn, *, required_permission: str = "arena.manage"
+    ) -> JSONResponse:
         """`fn`'s third argument is TRUE if the caller may act as an
         Arena admin for this action -- either a real `role=='admin'`, or
         a non-admin holder of `required_permission` (the same granular,
@@ -338,7 +343,9 @@ class ArenaAdminHandler:
 
     async def create_challenge(self, request: Request) -> JSONResponse:
         async def run(body, actor_uid, is_authorized):
-            challenge_id = await self.ops.create_challenge(data=body, actor_uid=actor_uid, actor_is_admin=is_authorized)
+            challenge_id = await self.ops.create_challenge(
+                data=body, actor_uid=actor_uid, actor_is_admin=is_authorized
+            )
             return {"challengeId": challenge_id}
 
         return await self._admin_write(request, run)
@@ -347,7 +354,9 @@ class ArenaAdminHandler:
         challenge_id = request.path_params.get("challengeId", "")
 
         async def run(body, actor_uid, is_authorized):
-            await self.ops.update_challenge(challenge_id=challenge_id, data=body, actor_uid=actor_uid, actor_is_admin=is_authorized)
+            await self.ops.update_challenge(
+                challenge_id=challenge_id, data=body, actor_uid=actor_uid, actor_is_admin=is_authorized
+            )
             return {"challengeId": challenge_id}
 
         return await self._admin_write(request, run)
@@ -356,7 +365,12 @@ class ArenaAdminHandler:
         challenge_id = request.path_params.get("challengeId", "")
 
         async def run(body, actor_uid, is_admin):
-            await self.ops.set_challenge_status(challenge_id=challenge_id, status=body.get("status") or "", actor_uid=actor_uid, actor_is_admin=is_admin)
+            await self.ops.set_challenge_status(
+                challenge_id=challenge_id,
+                status=body.get("status") or "",
+                actor_uid=actor_uid,
+                actor_is_admin=is_admin,
+            )
             return {"challengeId": challenge_id, "status": body.get("status")}
 
         return await self._admin_write(request, run)
@@ -371,7 +385,9 @@ class ArenaAdminHandler:
         authorized = caller.is_admin or "arena.manage" in perms
         challenge_id = request.path_params.get("challengeId", "")
         try:
-            await self.ops.delete_challenge(challenge_id=challenge_id, actor_uid=caller.uid, actor_is_admin=authorized)
+            await self.ops.delete_challenge(
+                challenge_id=challenge_id, actor_uid=caller.uid, actor_is_admin=authorized
+            )
         except (ValidationError, ForbiddenError, NotFoundError, ConflictError) as exc:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
@@ -393,7 +409,9 @@ class ArenaAdminHandler:
         status_filter = request.query_params.get("status")
         challenge_id = request.query_params.get("challengeId")
         try:
-            rows = await self.ops.list_submissions_for_review(status_filter=status_filter, challenge_id=challenge_id)
+            rows = await self.ops.list_submissions_for_review(
+                status_filter=status_filter, challenge_id=challenge_id
+            )
         except Exception as exc:  # noqa: BLE001
             self.logger.error("arena admin list_submissions failed", extra={"error": type(exc).__name__})
             return JSONResponse({"error": "Request failed."}, status_code=400)
@@ -408,7 +426,9 @@ class ArenaAdminHandler:
         perms = await self.permissions.permissions_for(caller)
         submission_id = request.path_params.get("submissionId", "")
         try:
-            result = await self.ops.get_submission(submission_id=submission_id, actor_uid=caller.uid, actor_permissions=perms)
+            result = await self.ops.get_submission(
+                submission_id=submission_id, actor_uid=caller.uid, actor_permissions=perms
+            )
         except (ValidationError, ForbiddenError, NotFoundError) as exc:
             return _map_ops_error(exc)
         except Exception as exc:  # noqa: BLE001
@@ -454,7 +474,12 @@ class ArenaAdminHandler:
         submission_id = request.path_params.get("submissionId", "")
 
         async def run(body, actor_uid, is_authorized):
-            return await self.ops.disqualify_participant(submission_id=submission_id, reason=body.get("reason") or "", actor_uid=actor_uid, actor_is_admin=is_authorized)
+            return await self.ops.disqualify_participant(
+                submission_id=submission_id,
+                reason=body.get("reason") or "",
+                actor_uid=actor_uid,
+                actor_is_admin=is_authorized,
+            )
 
         return await self._admin_write(request, run, required_permission="arena.review")
 
@@ -462,7 +487,12 @@ class ArenaAdminHandler:
         submission_id = request.path_params.get("submissionId", "")
 
         async def run(body, actor_uid, _is_authorized):
-            await self.ops.flag_submission(submission_id=submission_id, flag_type=body.get("flagType") or "manual", detail=body.get("detail"), actor_uid=actor_uid)
+            await self.ops.flag_submission(
+                submission_id=submission_id,
+                flag_type=body.get("flagType") or "manual",
+                detail=body.get("detail"),
+                actor_uid=actor_uid,
+            )
             return {"submissionId": submission_id, "flagged": True}
 
         return await self._admin_write(request, run, required_permission="arena.review")
@@ -479,7 +509,9 @@ class ArenaAdminHandler:
         if "arena.manage" not in perms:
             return _FORBIDDEN
         try:
-            rows = await self.ops.admin_list_ledger(uid_filter=request.query_params.get("uid"), limit=_int_query(request, "limit", 100))
+            rows = await self.ops.admin_list_ledger(
+                uid_filter=request.query_params.get("uid"), limit=_int_query(request, "limit", 100)
+            )
         except Exception as exc:  # noqa: BLE001
             self.logger.error("arena admin list_ledger failed", extra={"error": type(exc).__name__})
             return JSONResponse({"error": "Request failed."}, status_code=400)
@@ -560,8 +592,11 @@ class ArenaAdminHandler:
 
         async def run(body, actor_uid, is_authorized):
             return await self.ops.set_payment_state(
-                deal_id=deal_id, payment_state=body.get("paymentState") or "",
-                actual_commission=body.get("actualCommission"), actor_uid=actor_uid, actor_is_admin=is_authorized,
+                deal_id=deal_id,
+                payment_state=body.get("paymentState") or "",
+                actual_commission=body.get("actualCommission"),
+                actor_uid=actor_uid,
+                actor_is_admin=is_authorized,
             )
 
         return await self._admin_write(request, run)
@@ -587,8 +622,12 @@ class ArenaAdminHandler:
     async def set_commission_rule(self, request: Request) -> JSONResponse:
         async def run(body, actor_uid, is_authorized):
             await self.ops.set_commission_rule(
-                city=body.get("city") or "", min_percent=body.get("minPercent", 0), max_percent=body.get("maxPercent", 0),
-                default_percent=body.get("defaultPercent", 0), actor_uid=actor_uid, actor_is_admin=is_authorized,
+                city=body.get("city") or "",
+                min_percent=body.get("minPercent", 0),
+                max_percent=body.get("maxPercent", 0),
+                default_percent=body.get("defaultPercent", 0),
+                actor_uid=actor_uid,
+                actor_is_admin=is_authorized,
             )
             return {"city": body.get("city")}
 

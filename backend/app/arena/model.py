@@ -41,9 +41,7 @@ ARENA_COMMISSION_RULES = "arenaCommissionRules"  # doc id = city name
 # Step Engine vocabulary
 # ---------------------------------------------------------------------
 
-STEP_STATUSES = frozenset(
-    {"locked", "available", "in_progress", "verification_pending", "completed", "skipped"}
-)
+STEP_STATUSES = frozenset({"locked", "available", "in_progress", "verification_pending", "completed", "skipped"})
 
 # A step may only ever move forward along this graph. There is no
 # transition back to 'locked' once unlocked (a step that was reachable
@@ -61,15 +59,11 @@ STEP_TRANSITIONS: dict[str, frozenset[str]] = {
 
 REQUIRED_VERIFICATION_BY = frozenset({"none", "admin"})
 
-OVERALL_STATUSES = frozenset(
-    {"joined", "in_progress", "verification_pending", "completed", "won", "rejected"}
-)
+OVERALL_STATUSES = frozenset({"joined", "in_progress", "verification_pending", "completed", "won", "rejected"})
 
 POINT_TYPES = frozenset({"lifetimeXp"})  # seasonPoints ledger entries arrive in a later phase
 
-POINT_REASONS = frozenset(
-    {"step_completed", "challenge_completion_bonus", "manual_adjustment", "fraud_reversal"}
-)
+POINT_REASONS = frozenset({"step_completed", "challenge_completion_bonus", "manual_adjustment", "fraud_reversal"})
 
 CHALLENGE_STATUSES = frozenset({"draft", "scheduled", "live", "paused", "ended", "archived"})
 EFFECTIVE_CHALLENGE_STATES = frozenset(
@@ -77,9 +71,7 @@ EFFECTIVE_CHALLENGE_STATES = frozenset(
 )
 
 DIFFICULTIES = frozenset({"easy", "medium", "hard", "elite", "legendary"})
-CATEGORIES = frozenset(
-    {"residential", "commercial", "land", "projects", "city", "special", "partner"}
-)
+CATEGORIES = frozenset({"residential", "commercial", "land", "projects", "city", "special", "partner"})
 VISIBILITIES = frozenset({"public", "private", "invite_only"})
 
 PROPERTY_SOURCES = frozenset({"my_property", "owner_permission", "agency_partner"})
@@ -97,8 +89,16 @@ BUYER_SOURCES = frozenset({"self", "darwesh", "connected"})
 
 DEAL_STAGES = frozenset(
     {
-        "lead", "contacted", "qualified", "matched", "viewing_scheduled",
-        "viewing_completed", "negotiating", "deal_pending", "closed", "lost",
+        "lead",
+        "contacted",
+        "qualified",
+        "matched",
+        "viewing_scheduled",
+        "viewing_completed",
+        "negotiating",
+        "deal_pending",
+        "closed",
+        "lost",
     }
 )
 
@@ -269,7 +269,7 @@ def compute_rank(lifetime_xp: int, ranks: list[dict]) -> RankProgress:
     configured to start at 0."""
     active = sorted(
         (r for r in (ranks or []) if isinstance(r, dict) and r.get("enabled", True)),
-        key=lambda r: (r.get("order") if isinstance(r.get("order"), (int, float)) else 0),
+        key=lambda r: r.get("order") if isinstance(r.get("order"), (int, float)) else 0,
     )
     xp = max(0, int(lifetime_xp or 0))
 
@@ -286,7 +286,9 @@ def compute_rank(lifetime_xp: int, ranks: list[dict]) -> RankProgress:
             break
 
     if current is None:
-        return RankProgress(None, None, active[0].get("id") if active else None, active[0].get("name") if active else None, None)
+        return RankProgress(
+            None, None, active[0].get("id") if active else None, active[0].get("name") if active else None, None
+        )
 
     xp_to_next = None
     if nxt is not None:

@@ -117,8 +117,11 @@ def _seed_property(db, prop_id: str) -> dict:
 async def _join_and_complete_join_step(ops, challenge_id: str, uid: str) -> str:
     submission_id = (await ops.join_challenge(challenge_id=challenge_id, uid=uid))["submissionId"]
     await ops.advance_step(
-        submission_id=submission_id, step_key="join", target_status="completed",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="join",
+        target_status="completed",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
     return submission_id
 
@@ -173,8 +176,11 @@ async def test_advance_step_self_report_completes_none_verification_step(db, ops
     submission_id = (await ops.join_challenge(challenge_id=challenge_id, uid=uid))["submissionId"]
 
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="join", target_status="completed",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="join",
+        target_status="completed",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
     assert result["status"] == "completed"
 
@@ -188,20 +194,29 @@ async def test_advance_step_forbids_non_admin_from_completing_admin_gated_step(d
     uid = _uid("user")
     submission_id = await _join_and_complete_join_step(ops, challenge_id, uid)
     await ops.advance_step(
-        submission_id=submission_id, step_key="submission", target_status="completed",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="submission",
+        target_status="completed",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
 
     with pytest.raises(ForbiddenError):
         await ops.advance_step(
-            submission_id=submission_id, step_key="verification", target_status="completed",
-            actor_uid=uid, actor_is_admin=False,
+            submission_id=submission_id,
+            step_key="verification",
+            target_status="completed",
+            actor_uid=uid,
+            actor_is_admin=False,
         )
 
     # the non-admin path IS allowed to reach 'verification_pending'
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="verification", target_status="verification_pending",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="verification",
+        target_status="verification_pending",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
     assert result["status"] == "verification_pending"
     assert result["pointsAwarded"] == 0
@@ -212,13 +227,19 @@ async def test_advance_step_admin_awards_points_once_and_blocks_double_award(db,
     uid = _uid("user")
     submission_id = await _join_and_complete_join_step(ops, challenge_id, uid)
     await ops.advance_step(
-        submission_id=submission_id, step_key="submission", target_status="completed",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="submission",
+        target_status="completed",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
 
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="verification", target_status="completed",
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        submission_id=submission_id,
+        step_key="verification",
+        target_status="completed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     assert result["pointsAwarded"] == 3
 
@@ -237,8 +258,11 @@ async def test_advance_step_admin_awards_points_once_and_blocks_double_award(db,
     # special-cased re-entrancy guard.
     with pytest.raises(ConflictError):
         await ops.advance_step(
-            submission_id=submission_id, step_key="verification", target_status="completed",
-            actor_uid=ADMIN_UID, actor_is_admin=True,
+            submission_id=submission_id,
+            step_key="verification",
+            target_status="completed",
+            actor_uid=ADMIN_UID,
+            actor_is_admin=True,
         )
 
     state = await ops.get_user_arena_state(uid=uid)
@@ -252,8 +276,11 @@ async def test_advance_step_rejects_a_locked_step(db, ops):
 
     with pytest.raises(ConflictError):
         await ops.advance_step(
-            submission_id=submission_id, step_key="verification", target_status="completed",
-            actor_uid=ADMIN_UID, actor_is_admin=True,
+            submission_id=submission_id,
+            step_key="verification",
+            target_status="completed",
+            actor_uid=ADMIN_UID,
+            actor_is_admin=True,
         )
 
 
@@ -264,8 +291,11 @@ async def test_advance_step_rejects_unknown_step_key(db, ops):
 
     with pytest.raises(ValidationError):
         await ops.advance_step(
-            submission_id=submission_id, step_key="not-a-real-step", target_status="completed",
-            actor_uid=uid, actor_is_admin=False,
+            submission_id=submission_id,
+            step_key="not-a-real-step",
+            target_status="completed",
+            actor_uid=uid,
+            actor_is_admin=False,
         )
 
 
@@ -274,16 +304,25 @@ async def test_completing_all_required_steps_triggers_completion_bonus_exactly_o
     uid = _uid("user")
     submission_id = await _join_and_complete_join_step(ops, challenge_id, uid)
     await ops.advance_step(
-        submission_id=submission_id, step_key="submission", target_status="completed",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="submission",
+        target_status="completed",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
     await ops.advance_step(
-        submission_id=submission_id, step_key="verification", target_status="completed",
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        submission_id=submission_id,
+        step_key="verification",
+        target_status="completed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="sale", target_status="completed",
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        submission_id=submission_id,
+        step_key="sale",
+        target_status="completed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
 
     assert result["completionBonus"] == {"points": 5, "badge": {"id": "deal_maker", "name": "Deal Maker"}}
@@ -314,7 +353,11 @@ async def test_manual_point_adjustment_requires_admin(db, ops):
     uid = _uid("user")
     with pytest.raises(ForbiddenError):
         await ops.manual_point_adjustment(
-            uid=uid, points_delta=5, note="x", actor_uid=uid, actor_is_admin=False,
+            uid=uid,
+            points_delta=5,
+            note="x",
+            actor_uid=uid,
+            actor_is_admin=False,
         )
 
 
@@ -323,19 +366,29 @@ async def test_manual_point_adjustment_reversal_updates_recomputed_total(db, ops
     uid = _uid("user")
     submission_id = await _join_and_complete_join_step(ops, challenge_id, uid)
     await ops.advance_step(
-        submission_id=submission_id, step_key="submission", target_status="completed",
-        actor_uid=uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="submission",
+        target_status="completed",
+        actor_uid=uid,
+        actor_is_admin=False,
     )
     await ops.advance_step(
-        submission_id=submission_id, step_key="verification", target_status="completed",
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        submission_id=submission_id,
+        step_key="verification",
+        target_status="completed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
 
     state = await ops.get_user_arena_state(uid=uid)
     assert state["lifetimeXp"] == 3
 
     await ops.manual_point_adjustment(
-        uid=uid, points_delta=10, note="bonus", actor_uid=ADMIN_UID, actor_is_admin=True,
+        uid=uid,
+        points_delta=10,
+        note="bonus",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     state = await ops.get_user_arena_state(uid=uid)
     assert state["lifetimeXp"] == 13
@@ -344,8 +397,12 @@ async def test_manual_point_adjustment_reversal_updates_recomputed_total(db, ops
     # total must be RECOMPUTED from ledger facts, never decremented in
     # place, so this lands on exactly the right number.
     await ops.manual_point_adjustment(
-        uid=uid, points_delta=-3, note="fraud found on review", actor_uid=ADMIN_UID,
-        actor_is_admin=True, is_reversal=True,
+        uid=uid,
+        points_delta=-3,
+        note="fraud found on review",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
+        is_reversal=True,
     )
     state = await ops.get_user_arena_state(uid=uid)
     assert state["lifetimeXp"] == 10
@@ -388,7 +445,9 @@ def test_evaluate_unlock_requirements_reports_first_unmet_requirement():
     assert check.reason == "min_xp_not_met"
 
     unlocked = model.evaluate_unlock_requirements(
-        {"minXp": 50}, user_arena_state={"lifetimeXp": 50}, user_facts={},
+        {"minXp": 50},
+        user_arena_state={"lifetimeXp": 50},
+        user_facts={},
     )
     assert unlocked.locked is False
     assert unlocked.reason is None
@@ -402,7 +461,8 @@ async def test_recompute_state_sets_current_rank_order_for_unlock_gating(db, ops
     unreachable regardless of a user's actual rank."""
     await ops.create_rank(
         data={"name": "Starter", "minXp": 0, "maxXp": None, "order": 1, "enabled": True},
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     uid = _uid("user")
     state = await ops.recompute_state(uid)
@@ -420,16 +480,24 @@ async def test_attach_property_hard_rejects_duplicate_listing_ref(db, ops):
     sub2 = await _join_and_complete_join_step(ops, challenge_id, uid2)
 
     await ops.attach_property(
-        submission_id=sub1, step_key="submission", listing_ref=prop_ref,
-        display_fields={"city": "Erbil"}, property_source="my_property",
-        owner_info=None, actor_uid=uid1,
+        submission_id=sub1,
+        step_key="submission",
+        listing_ref=prop_ref,
+        display_fields={"city": "Erbil"},
+        property_source="my_property",
+        owner_info=None,
+        actor_uid=uid1,
     )
 
     with pytest.raises(ConflictError):
         await ops.attach_property(
-            submission_id=sub2, step_key="submission", listing_ref=prop_ref,
-            display_fields={"city": "Erbil"}, property_source="my_property",
-            owner_info=None, actor_uid=uid2,
+            submission_id=sub2,
+            step_key="submission",
+            listing_ref=prop_ref,
+            display_fields={"city": "Erbil"},
+            property_source="my_property",
+            owner_info=None,
+            actor_uid=uid2,
         )
 
 
@@ -440,9 +508,13 @@ async def _submission_with_property(ops, db, challenge_id: str, uid: str, *, cit
     submission_id = await _join_and_complete_join_step(ops, challenge_id, uid)
     prop_ref = _seed_property(db, _uid("prop"))
     await ops.attach_property(
-        submission_id=submission_id, step_key="submission", listing_ref=prop_ref,
-        display_fields={"city": city}, property_source="my_property",
-        owner_info=None, actor_uid=uid,
+        submission_id=submission_id,
+        step_key="submission",
+        listing_ref=prop_ref,
+        display_fields={"city": city},
+        property_source="my_property",
+        owner_info=None,
+        actor_uid=uid,
     )
     return submission_id
 
@@ -456,7 +528,9 @@ async def test_advance_deal_stage_refuses_non_admin_past_contacted(db, ops):
     await ops.advance_deal_stage(deal_id=deal_id, target_stage="contacted", actor_uid=uid, actor_is_admin=False)
 
     with pytest.raises(ForbiddenError):
-        await ops.advance_deal_stage(deal_id=deal_id, target_stage="qualified", actor_uid=uid, actor_is_admin=False)
+        await ops.advance_deal_stage(
+            deal_id=deal_id, target_stage="qualified", actor_uid=uid, actor_is_admin=False
+        )
 
 
 async def test_create_deal_requires_a_property_already_attached(db, ops):
@@ -471,13 +545,21 @@ async def test_create_deal_requires_a_property_already_attached(db, ops):
 async def _close_deal(ops, deal_id: str, *, sale_value: float, city: str) -> dict:
     """Drives a deal through every admin-gated stage to 'closed'."""
     for stage in (
-        "qualified", "matched", "viewing_scheduled", "viewing_completed",
-        "negotiating", "deal_pending",
+        "qualified",
+        "matched",
+        "viewing_scheduled",
+        "viewing_completed",
+        "negotiating",
+        "deal_pending",
     ):
         await ops.advance_deal_stage(deal_id=deal_id, target_stage=stage, actor_uid=ADMIN_UID, actor_is_admin=True)
     return await ops.advance_deal_stage(
-        deal_id=deal_id, target_stage="closed", actor_uid=ADMIN_UID, actor_is_admin=True,
-        sale_value=sale_value, city=city,
+        deal_id=deal_id,
+        target_stage="closed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
+        sale_value=sale_value,
+        city=city,
     )
 
 
@@ -488,8 +570,12 @@ async def test_closing_deal_computes_expected_commission_from_configured_rule(db
     submission_id = await _submission_with_property(ops, db, challenge_id, uid, city=city)
     deal_id = (await ops.create_deal(submission_id=submission_id, actor_uid=uid))["dealId"]
     await ops.set_commission_rule(
-        city=city, min_percent=1, max_percent=3, default_percent=2,
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        city=city,
+        min_percent=1,
+        max_percent=3,
+        default_percent=2,
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     await ops.advance_deal_stage(deal_id=deal_id, target_stage="contacted", actor_uid=uid, actor_is_admin=False)
 
@@ -510,8 +596,11 @@ async def test_set_payment_state_requires_a_closed_deal(db, ops):
 
     with pytest.raises(ConflictError):
         await ops.set_payment_state(
-            deal_id=deal_id, payment_state="received", actual_commission=100,
-            actor_uid=ADMIN_UID, actor_is_admin=True,
+            deal_id=deal_id,
+            payment_state="received",
+            actual_commission=100,
+            actor_uid=ADMIN_UID,
+            actor_is_admin=True,
         )
 
 
@@ -526,8 +615,11 @@ async def test_set_payment_state_requires_admin(db, ops):
 
     with pytest.raises(ForbiddenError):
         await ops.set_payment_state(
-            deal_id=deal_id, payment_state="received", actual_commission=1000,
-            actor_uid=uid, actor_is_admin=False,
+            deal_id=deal_id,
+            payment_state="received",
+            actual_commission=1000,
+            actor_uid=uid,
+            actor_is_admin=False,
         )
 
 
@@ -538,8 +630,12 @@ async def test_challenge_commercial_summary_aggregates_real_numbers(db, ops):
     submission_id = await _submission_with_property(ops, db, challenge_id, uid, city=city)
     deal_id = (await ops.create_deal(submission_id=submission_id, actor_uid=uid))["dealId"]
     await ops.set_commission_rule(
-        city=city, min_percent=1, max_percent=3, default_percent=2,
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        city=city,
+        min_percent=1,
+        max_percent=3,
+        default_percent=2,
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     await ops.advance_deal_stage(deal_id=deal_id, target_stage="contacted", actor_uid=uid, actor_is_admin=False)
     await _close_deal(ops, deal_id, sale_value=50000, city=city)
@@ -561,7 +657,9 @@ async def test_challenge_commercial_summary_aggregates_real_numbers(db, ops):
 async def test_create_challenge_requires_admin(ops):
     with pytest.raises(ForbiddenError):
         await ops.create_challenge(
-            data={"name": "x", "steps": REAL_ESTATE_STEPS}, actor_uid="someone", actor_is_admin=False,
+            data={"name": "x", "steps": REAL_ESTATE_STEPS},
+            actor_uid="someone",
+            actor_is_admin=False,
         )
 
 
@@ -577,6 +675,10 @@ async def test_delete_challenge_rejects_when_participants_exist(db, ops):
 async def test_set_commission_rule_requires_admin(ops):
     with pytest.raises(ForbiddenError):
         await ops.set_commission_rule(
-            city="Erbil", min_percent=1, max_percent=3, default_percent=2,
-            actor_uid=_uid("user"), actor_is_admin=False,
+            city="Erbil",
+            min_percent=1,
+            max_percent=3,
+            default_percent=2,
+            actor_uid=_uid("user"),
+            actor_is_admin=False,
         )

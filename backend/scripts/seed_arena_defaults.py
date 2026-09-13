@@ -39,6 +39,7 @@ EXAMPLES
   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 python3 backend/scripts/seed_arena_defaults.py --project demo-darwesh --mode seed
   FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 python3 backend/scripts/seed_arena_defaults.py --project demo-darwesh --mode smoke-test
 """
+
 from __future__ import annotations
 
 import argparse
@@ -71,46 +72,75 @@ RANK_LADDER = [
 CHALLENGE_NAME = "Kurdistan Property Challenge — Season 01"
 CHALLENGE_STEPS = [
     {
-        "key": "join", "name": "Join the Challenge",
+        "key": "join",
+        "name": "Join the Challenge",
         "description": "Accept the Challenge rules and eligibility requirements.",
         "requiredAction": "Read and accept the rules to begin.",
-        "requiredVerificationBy": "none", "requiredPropertyState": None,
-        "points": 0, "optional": False, "unlockAfterStepKey": None,
-        "hint": {"enabled": False, "text": ""}, "reward": "",
+        "requiredVerificationBy": "none",
+        "requiredPropertyState": None,
+        "points": 0,
+        "optional": False,
+        "unlockAfterStepKey": None,
+        "hint": {"enabled": False, "text": ""},
+        "reward": "",
     },
     {
-        "key": "submission", "name": "Submit a Property",
+        "key": "submission",
+        "name": "Submit a Property",
         "description": "Bring a genuine property you own, or have explicit owner permission to market.",
         "requiredAction": "Reference an existing Darwesh listing -- never a duplicate record -- and confirm your right to market it.",
-        "requiredVerificationBy": "none", "requiredPropertyState": "submitted",
-        "points": 0, "optional": False, "unlockAfterStepKey": "join",
-        "hint": {"enabled": True, "text": "Don't have a listing yet? Create one on Sell first, then come back and submit its ID here."},
+        "requiredVerificationBy": "none",
+        "requiredPropertyState": "submitted",
+        "points": 0,
+        "optional": False,
+        "unlockAfterStepKey": "join",
+        "hint": {
+            "enabled": True,
+            "text": "Don't have a listing yet? Create one on Sell first, then come back and submit its ID here.",
+        },
         "reward": "",
     },
     {
-        "key": "verification", "name": "Verification",
+        "key": "verification",
+        "name": "Verification",
         "description": "An admin reviews the property and its ownership evidence.",
         "requiredAction": "Wait for Darwesh Group to verify the property.",
-        "requiredVerificationBy": "admin", "requiredPropertyState": "verified",
-        "points": 3, "optional": False, "unlockAfterStepKey": "submission",
-        "hint": {"enabled": False, "text": ""}, "reward": "",
-    },
-    {
-        "key": "buyer", "name": "Find a Buyer",
-        "description": "Bring your own buyer, or request Darwesh Group buyer matching.",
-        "requiredAction": "Mark this mission done once you're actively working a buyer lead.",
-        "requiredVerificationBy": "none", "requiredPropertyState": None,
-        "points": 0, "optional": False, "unlockAfterStepKey": "verification",
-        "hint": {"enabled": True, "text": "Buyer qualification and closing are always admin-verified -- this step just tracks that you've started."},
+        "requiredVerificationBy": "admin",
+        "requiredPropertyState": "verified",
+        "points": 3,
+        "optional": False,
+        "unlockAfterStepKey": "submission",
+        "hint": {"enabled": False, "text": ""},
         "reward": "",
     },
     {
-        "key": "sale", "name": "Successful Sale",
+        "key": "buyer",
+        "name": "Find a Buyer",
+        "description": "Bring your own buyer, or request Darwesh Group buyer matching.",
+        "requiredAction": "Mark this mission done once you're actively working a buyer lead.",
+        "requiredVerificationBy": "none",
+        "requiredPropertyState": None,
+        "points": 0,
+        "optional": False,
+        "unlockAfterStepKey": "verification",
+        "hint": {
+            "enabled": True,
+            "text": "Buyer qualification and closing are always admin-verified -- this step just tracks that you've started.",
+        },
+        "reward": "",
+    },
+    {
+        "key": "sale",
+        "name": "Successful Sale",
         "description": "An admin verifies the completed real-world transaction.",
         "requiredAction": "Wait for Darwesh Group to confirm the closed sale.",
-        "requiredVerificationBy": "admin", "requiredPropertyState": "sold",
-        "points": 11, "optional": False, "unlockAfterStepKey": "buyer",
-        "hint": {"enabled": False, "text": ""}, "reward": "",
+        "requiredVerificationBy": "admin",
+        "requiredPropertyState": "sold",
+        "points": 11,
+        "optional": False,
+        "unlockAfterStepKey": "buyer",
+        "hint": {"enabled": False, "text": ""},
+        "reward": "",
     },
 ]
 
@@ -143,8 +173,17 @@ async def seed_ranks(ops, db) -> dict[str, str]:
             print(f"  rank '{rank['name']}' already exists, skipping")
             continue
         rank_id = await ops.create_rank(
-            data={**rank, "iconUrl": "", "badgeUrl": "", "description": "", "privileges": [], "visualTreatment": {}, "enabled": True},
-            actor_uid=ADMIN_UID, actor_is_admin=True,
+            data={
+                **rank,
+                "iconUrl": "",
+                "badgeUrl": "",
+                "description": "",
+                "privileges": [],
+                "visualTreatment": {},
+                "enabled": True,
+            },
+            actor_uid=ADMIN_UID,
+            actor_is_admin=True,
         )
         ids[rank["name"]] = rank_id
         print(f"  created rank '{rank['name']}' ({rank_id})")
@@ -200,7 +239,8 @@ async def seed_challenge(ops, db) -> str | None:
             },
             "unlockRequirements": {},
         },
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     print(f"  created challenge '{CHALLENGE_NAME}' ({challenge_id})")
     return challenge_id
@@ -224,6 +264,7 @@ async def run_seed(ops, db) -> str | None:
 # Challenge end to end.
 # ---------------------------------------------------------------------
 
+
 async def run_smoke_test(ops, db, *, auto_seed: bool) -> None:
     from app.access.errors import ForbiddenError
 
@@ -235,7 +276,10 @@ async def run_smoke_test(ops, db, *, auto_seed: bool) -> None:
         challenge_id = await run_seed(ops, db)
         print()
     else:
-        print(f"No challenge named '{CHALLENGE_NAME}' found. Run --mode seed first (or pass --auto-seed).", file=sys.stderr)
+        print(
+            f"No challenge named '{CHALLENGE_NAME}' found. Run --mode seed first (or pass --auto-seed).",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     import uuid
@@ -256,18 +300,24 @@ async def run_smoke_test(ops, db, *, auto_seed: bool) -> None:
 
     print("2. advance_step('join' -> completed) as the participant ...")
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="join", target_status="completed",
-        actor_uid=participant_uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="join",
+        target_status="completed",
+        actor_uid=participant_uid,
+        actor_is_admin=False,
     )
     assert result["status"] == "completed"
     print("   OK -- 'submission' step now unlocked\n")
 
     print("3. attach_property (Submit a Property) as the participant ...")
     await ops.attach_property(
-        submission_id=submission_id, step_key="submission",
+        submission_id=submission_id,
+        step_key="submission",
         listing_ref={"collection": "listings", "id": listing_id},
         display_fields={"propertyType": "apartment", "city": "Erbil", "priceDisplay": "$180,000", "areaSqm": 120},
-        property_source="my_property", owner_info=None, actor_uid=participant_uid,
+        property_source="my_property",
+        owner_info=None,
+        actor_uid=participant_uid,
     )
     sub = db.collection("arenaSubmissions").document(submission_id).get().to_dict()
     assert sub["overallStatus"] == "verification_pending"
@@ -275,8 +325,11 @@ async def run_smoke_test(ops, db, *, auto_seed: bool) -> None:
 
     print("4. participant completes the 'submission' step itself (requiredVerificationBy='none') ...")
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="submission", target_status="completed",
-        actor_uid=participant_uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="submission",
+        target_status="completed",
+        actor_uid=participant_uid,
+        actor_is_admin=False,
     )
     assert result["status"] == "completed"
     print("   OK -- 'verification' step now unlocked\n")
@@ -284,8 +337,11 @@ async def run_smoke_test(ops, db, *, auto_seed: bool) -> None:
     print("5. a non-admin CANNOT complete the admin-gated 'verification' step (must be refused) ...")
     try:
         await ops.advance_step(
-            submission_id=submission_id, step_key="verification", target_status="completed",
-            actor_uid=participant_uid, actor_is_admin=False,
+            submission_id=submission_id,
+            step_key="verification",
+            target_status="completed",
+            actor_uid=participant_uid,
+            actor_is_admin=False,
         )
         raise AssertionError("expected ForbiddenError -- a participant self-completed an admin-gated step!")
     except ForbiddenError:
@@ -293,23 +349,32 @@ async def run_smoke_test(ops, db, *, auto_seed: bool) -> None:
 
     print("6. admin verifies the property (+3 XP) ...")
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="verification", target_status="completed",
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        submission_id=submission_id,
+        step_key="verification",
+        target_status="completed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     assert result["pointsAwarded"] == 3
     print(f"   OK -- awarded {result['pointsAwarded']} XP, 'buyer' step now unlocked\n")
 
     print("7. participant marks 'Find a Buyer' done ...")
     await ops.advance_step(
-        submission_id=submission_id, step_key="buyer", target_status="completed",
-        actor_uid=participant_uid, actor_is_admin=False,
+        submission_id=submission_id,
+        step_key="buyer",
+        target_status="completed",
+        actor_uid=participant_uid,
+        actor_is_admin=False,
     )
     print("   OK -- 'sale' step now unlocked\n")
 
     print("8. admin verifies the closed sale (+11 XP) + challenge completion bonus (+5 XP, badge) ...")
     result = await ops.advance_step(
-        submission_id=submission_id, step_key="sale", target_status="completed",
-        actor_uid=ADMIN_UID, actor_is_admin=True,
+        submission_id=submission_id,
+        step_key="sale",
+        target_status="completed",
+        actor_uid=ADMIN_UID,
+        actor_is_admin=True,
     )
     assert result["pointsAwarded"] == 11
     assert result["completionBonus"] == {"points": 5, "badge": {"id": "deal_maker", "name": "Deal Maker"}}
@@ -336,8 +401,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project", required=True, help="Firebase project id (demo-darwesh for the emulator)")
     parser.add_argument("--mode", choices=["seed", "smoke-test"], default="seed")
-    parser.add_argument("--allow-production", action="store_true", help="required to run without FIRESTORE_EMULATOR_HOST")
-    parser.add_argument("--auto-seed", action="store_true", help="smoke-test: seed automatically if the challenge doesn't exist yet")
+    parser.add_argument(
+        "--allow-production", action="store_true", help="required to run without FIRESTORE_EMULATOR_HOST"
+    )
+    parser.add_argument(
+        "--auto-seed",
+        action="store_true",
+        help="smoke-test: seed automatically if the challenge doesn't exist yet",
+    )
     args = parser.parse_args()
 
     db, target = build_client(args.project, args.allow_production)

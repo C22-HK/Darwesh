@@ -366,8 +366,12 @@ def create_app(
 
     if arena_public_handler is not None:
         app.add_api_route("/api/v1/arena/challenges", arena_public_handler.list_challenges, methods=["GET"])
-        app.add_api_route("/api/v1/arena/challenges/{challengeId}", arena_public_handler.get_challenge, methods=["GET"])
-        app.add_api_route("/api/v1/arena/challenges/{challengeId}/join", arena_public_handler.join_challenge, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/arena/challenges/{challengeId}", arena_public_handler.get_challenge, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/challenges/{challengeId}/join", arena_public_handler.join_challenge, methods=["POST"]
+        )
         app.add_api_route(
             "/api/v1/arena/submissions/{submissionId}/attach-property",
             arena_public_handler.attach_property,
@@ -402,7 +406,9 @@ def create_app(
             methods=["POST"],
         )
         app.add_api_route(
-            "/api/v1/arena/admin/challenges/{challengeId}", arena_admin_handler.delete_challenge, methods=["DELETE"]
+            "/api/v1/arena/admin/challenges/{challengeId}",
+            arena_admin_handler.delete_challenge,
+            methods=["DELETE"],
         )
         app.add_api_route("/api/v1/arena/admin/submissions", arena_admin_handler.list_submissions, methods=["GET"])
         app.add_api_route(
@@ -419,7 +425,9 @@ def create_app(
             methods=["POST"],
         )
         app.add_api_route(
-            "/api/v1/arena/admin/submissions/{submissionId}/flag", arena_admin_handler.flag_submission, methods=["POST"]
+            "/api/v1/arena/admin/submissions/{submissionId}/flag",
+            arena_admin_handler.flag_submission,
+            methods=["POST"],
         )
         app.add_api_route("/api/v1/arena/admin/ledger", arena_admin_handler.list_ledger, methods=["GET"])
         app.add_api_route("/api/v1/arena/admin/points/adjust", arena_admin_handler.adjust_points, methods=["POST"])
