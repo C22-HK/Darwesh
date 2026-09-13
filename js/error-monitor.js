@@ -1,3 +1,5 @@
+import './content-editorial.js';
+
 // Client-side error monitoring (Sentry). This site has no server, so this
 // is the only place JS errors are ever visible -- without it, a bug that
 // breaks a page in production is invisible unless someone reports it.
