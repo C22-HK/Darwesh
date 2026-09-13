@@ -280,6 +280,21 @@ export function initServiceProviderProfile(config) {
         vrHost.innerHTML = '';
       }
     }
+    // Darwesh Arena panel -- same component + same owner-only reasoning as
+    // Verification & Rewards above, mounted explicitly instead of through
+    // [data-arena-panel] for the identical reason: this page is PUBLIC.
+    const arenaHost = el('arenaPanel');
+    if (arenaHost) {
+      if (isOwnerView && auth.currentUser) {
+        arenaHost.hidden = false;
+        import('./arena-panel.js')
+          .then((m) => m.mountArenaPanel(arenaHost, auth.currentUser))
+          .catch(() => { arenaHost.hidden = true; });
+      } else {
+        arenaHost.hidden = true;
+        arenaHost.innerHTML = '';
+      }
+    }
     if (isAdminView) {
       show('adminViewingNote');
       const verifyBtn = el('verifyToggleBtn');
