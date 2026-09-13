@@ -6,21 +6,25 @@ const COPY = {
   en: {
     footer: 'Darwesh Group connects property seekers, owners, professionals and services across Kurdistan and Iraq in one platform.',
     rights: 'All rights reserved.', commercial: 'Commercial Property', searchSuffix: ' on Buy', allTypes: 'All types',
+    roleError: 'Could not update the role. Please try again.', deleteError: 'Could not delete the listing. Please try again.', statusError: 'Could not update the listing status. Please try again.',
     types: { house: 'House', villa: 'Villa', apartment: 'Apartment', land: 'Land', building: 'Building', office: 'Office', shop: 'Shop', commercialProperty: 'Commercial Property' }
   },
   ku: {
     footer: 'دەروێش گروپ گەڕۆکانی موڵک، خاوەن موڵک، پسپۆڕان و خزمەتگوزارییەکان لە کوردستان و عێراق لە یەک پلاتفۆرمدا پێکەوە دەبەستێتەوە.',
     rights: 'هەموو مافەکان پارێزراون.', commercial: 'موڵکی بازرگانی', searchSuffix: ' · گەڕانی کڕین', allTypes: 'هەموو جۆرەکان',
+    roleError: 'نەتوانرا ڕۆڵەکە نوێ بکرێتەوە. تکایە دووبارە هەوڵبدەوە.', deleteError: 'نەتوانرا موڵکەکە بسڕدرێتەوە. تکایە دووبارە هەوڵبدەوە.', statusError: 'نەتوانرا دۆخی موڵکەکە نوێ بکرێتەوە. تکایە دووبارە هەوڵبدەوە.',
     types: { house: 'خانوو', villa: 'ڤیلا', apartment: 'ئاپارتمان', land: 'زەوی', building: 'بینا', office: 'نووسینگە', shop: 'دوکان', commercialProperty: 'موڵکی بازرگانی' }
   },
   ar: {
     footer: 'تربط مجموعة درويش الباحثين عن العقارات والمالكين والمهنيين والخدمات في كردستان والعراق ضمن منصة واحدة.',
     rights: 'جميع الحقوق محفوظة.', commercial: 'عقار تجاري', searchSuffix: ' · بحث الشراء', allTypes: 'كل الأنواع',
+    roleError: 'تعذر تحديث الدور. حاول مرة أخرى.', deleteError: 'تعذر حذف العقار. حاول مرة أخرى.', statusError: 'تعذر تحديث حالة العقار. حاول مرة أخرى.',
     types: { house: 'منزل', villa: 'فيلا', apartment: 'شقة', land: 'أرض', building: 'مبنى', office: 'مكتب', shop: 'محل', commercialProperty: 'عقار تجاري' }
   },
   tr: {
     footer: 'Darwesh Group, Kürdistan ve Irak genelinde emlak arayanları, mülk sahiplerini, profesyonelleri ve hizmetleri tek platformda buluşturur.',
     rights: 'Tüm hakları saklıdır.', commercial: 'Ticari Emlak', searchSuffix: ' · Satın alma araması', allTypes: 'Tüm türler',
+    roleError: 'Rol güncellenemedi. Lütfen tekrar deneyin.', deleteError: 'Emlak silinemedi. Lütfen tekrar deneyin.', statusError: 'Emlak durumu güncellenemedi. Lütfen tekrar deneyin.',
     types: { house: 'Ev', villa: 'Villa', apartment: 'Daire', land: 'Arsa', building: 'Bina', office: 'Ofis', shop: 'Dükkan', commercialProperty: 'Ticari Emlak' }
   }
 };
@@ -64,6 +68,21 @@ function translateSavedSearchLabel(text, c) {
   return base + c.searchSuffix;
 }
 
+let alertWrapped = false;
+function installAlertLocalization() {
+  if (alertWrapped) return;
+  const original = window.alert.bind(window);
+  window.alert = function (message) {
+    const text = String(message || '');
+    const c = COPY[lang()] || COPY.en;
+    if (text.startsWith('Could not update role:')) return original(c.roleError);
+    if (text.startsWith('Could not delete listing:')) return original(c.deleteError);
+    if (text.startsWith('Could not update listing status:')) return original(c.statusError);
+    return original(message);
+  };
+  alertWrapped = true;
+}
+
 function paint() {
   const c = COPY[lang()] || COPY.en;
   setText(document.querySelector('.sf-tagline'), c.footer);
@@ -101,6 +120,7 @@ function schedule() {
   queued = true;
   requestAnimationFrame(() => { queued = false; paint(); });
 }
+installAlertLocalization();
 new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 document.addEventListener('darwesh:langchange', schedule);
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint, { once: true });
