@@ -31,6 +31,8 @@ def create_app(
     voice_handler: object | None = None,
     referral_public_handler: object | None = None,
     verification_handler: object | None = None,
+    arena_public_handler: object | None = None,
+    arena_admin_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -59,7 +61,9 @@ def create_app(
     verification_handler back the Verification, Referral and Reward
     endpoints (see app.verification.handlers) -- gated on the same
     Firebase Admin credential check, since every one of them reads or
-    writes Firestore with the Admin SDK."""
+    writes Firestore with the Admin SDK. arena_public_handler/
+    arena_admin_handler back Darwesh Arena (see app.arena.handlers) --
+    same gating, same reasoning."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -358,6 +362,86 @@ def create_app(
             "/api/v1/access/admin/reward-config",
             verification_handler.admin_save_reward_config,
             methods=["POST"],
+        )
+
+    if arena_public_handler is not None:
+        app.add_api_route("/api/v1/arena/challenges", arena_public_handler.list_challenges, methods=["GET"])
+        app.add_api_route("/api/v1/arena/challenges/{challengeId}", arena_public_handler.get_challenge, methods=["GET"])
+        app.add_api_route("/api/v1/arena/challenges/{challengeId}/join", arena_public_handler.join_challenge, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/arena/submissions/{submissionId}/attach-property",
+            arena_public_handler.attach_property,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/submissions/{submissionId}/steps/{stepKey}/advance",
+            arena_public_handler.advance_step,
+            methods=["POST"],
+        )
+        app.add_api_route("/api/v1/arena/leaderboard", arena_public_handler.leaderboard, methods=["GET"])
+        app.add_api_route("/api/v1/arena/ranks", arena_public_handler.ranks, methods=["GET"])
+        app.add_api_route("/api/v1/arena/activity", arena_public_handler.activity, methods=["GET"])
+        app.add_api_route("/api/v1/arena/me/state", arena_public_handler.my_state, methods=["GET"])
+        app.add_api_route("/api/v1/arena/me/ledger", arena_public_handler.my_ledger, methods=["GET"])
+        app.add_api_route("/api/v1/arena/me/submissions", arena_public_handler.my_submissions, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/submissions/{submissionId}/deals", arena_public_handler.create_deal, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/deals/{dealId}/advance", arena_public_handler.advance_deal_stage, methods=["POST"]
+        )
+
+    if arena_admin_handler is not None:
+        app.add_api_route("/api/v1/arena/admin/challenges", arena_admin_handler.create_challenge, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}", arena_admin_handler.update_challenge, methods=["PATCH"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}/status",
+            arena_admin_handler.set_challenge_status,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}", arena_admin_handler.delete_challenge, methods=["DELETE"]
+        )
+        app.add_api_route("/api/v1/arena/admin/submissions", arena_admin_handler.list_submissions, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}", arena_admin_handler.get_submission, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}/steps/{stepKey}/verify",
+            arena_admin_handler.verify_step,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}/disqualify",
+            arena_admin_handler.disqualify,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}/flag", arena_admin_handler.flag_submission, methods=["POST"]
+        )
+        app.add_api_route("/api/v1/arena/admin/ledger", arena_admin_handler.list_ledger, methods=["GET"])
+        app.add_api_route("/api/v1/arena/admin/points/adjust", arena_admin_handler.adjust_points, methods=["POST"])
+        app.add_api_route("/api/v1/arena/admin/ranks", arena_admin_handler.create_rank, methods=["POST"])
+        app.add_api_route("/api/v1/arena/admin/ranks/{rankId}", arena_admin_handler.update_rank, methods=["PATCH"])
+        app.add_api_route("/api/v1/arena/admin/deals", arena_admin_handler.list_deals, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/admin/deals/{dealId}/advance", arena_admin_handler.verify_deal_stage, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/deals/{dealId}/payment", arena_admin_handler.set_payment_state, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/commission-rules", arena_admin_handler.list_commission_rules, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/commission-rules", arena_admin_handler.set_commission_rule, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}/commercial-summary",
+            arena_admin_handler.commercial_summary,
+            methods=["GET"],
         )
 
     return app

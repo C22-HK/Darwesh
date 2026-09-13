@@ -488,7 +488,8 @@ service cloud.firestore {
       // facts, and a browser that could write it could grant itself 100%.
       // The single writer is ReferralOps.recompute_reward (Admin SDK).
       match /private/{docId} {
-        allow read: if isOwner(uid) || (isAdmin() && hasPermission('rewards.manage'));
+        allow read: if isOwner(uid)
+                    || (isAdmin() && (hasPermission('rewards.manage') || hasPermission('arena.manage')));
         allow write: if false;
       }
 
@@ -2500,6 +2501,105 @@ service cloud.firestore {
       match /private/{docId} {
         allow read, write: if isAdmin();
       }
+    }
+
+    // ---- Darwesh Arena (gamification: challenges, points, ranks) -------
+    // Every Arena collection follows the SAME posture as rewardLedger/
+    // referrals above: points, ranks, leaderboard position and challenge
+    // config are never client-writable, not even by an admin's direct
+    // client-SDK session -- the backend (Admin SDK, app/arena/arena_ops.py)
+    // is the only path in, transactional and audited exactly like
+    // organization_ops.py. This is what makes "clients can never directly
+    // change points/ranks/leaderboard/rewards" true at the rules layer,
+    // not merely a UI convention an admin's own browser console could
+    // bypass.
+    match /arenaChallenges/{challengeId} {
+      // Public-readable: the challenge card grid, detail page and its
+      // step list are browsable by anyone, including signed-out visitors.
+      // Nothing sensitive (owner info, ownership documents) ever lives on
+      // this document.
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /arenaRanks/{rankId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /arenaConfig/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // One doc per user, the public-safe mirror of a user's arenaState --
+    // deliberately contains nothing private (no phone, no ownership docs),
+    // so it's safe to query in bulk for the leaderboard.
+    match /arenaLeaderboardEntries/{uid} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Purpose-built feed events ("Property verified +3", "Deal completed
+    // +11", "Rank increased") -- a competitive/social surface, same
+    // public-read posture as the leaderboard. Never carries a private
+    // field (see arena_ops.py's activity-feed writer).
+    match /arenaActivityFeed/{entryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // A user's own challenge-participation record. Readable by its owner
+    // or an admin reviewing submissions; the ownership-document subdoc
+    // beneath it is reviewer-only, never the participant's own read (they
+    // already know what they submitted -- this subcollection exists to
+    // keep it off every OTHER read of the parent doc, including the
+    // owner's own future reads once documents may no longer be needed).
+    match /arenaSubmissions/{submissionId} {
+      allow read: if isSignedIn()
+                  && (resource.data.participantUid == request.auth.uid
+                      || (isAdmin() && hasPermission('arena.review')));
+      allow write: if false;
+
+      match /private/{docId} {
+        allow read: if isAdmin() && hasPermission('arena.review');
+        allow write: if false;
+      }
+    }
+
+    // Append-only point history -- exact rewardLedger shape.
+    match /arenaLedger/{entryId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('arena.manage')));
+      allow write: if false;
+    }
+
+    // Buyer/deal CRM -- the real business engine (commission revenue),
+    // so this is deliberately STRICTER than arenaSubmissions: the
+    // participant may read their own deal's coarse stage (to know "what
+    // do I do next"), but never the buyer's private contact info (that
+    // subcollection is reviewer-only, same posture as ownerInfo) and
+    // never the commission/financial fields on someone else's deal.
+    match /arenaDeals/{dealId} {
+      allow read: if isSignedIn()
+                  && (resource.data.participantUid == request.auth.uid
+                      || (isAdmin() && hasPermission('arena.review')));
+      allow write: if false;
+
+      match /private/{docId} {
+        allow read: if isAdmin() && hasPermission('arena.review');
+        allow write: if false;
+      }
+    }
+
+    // Configurable per-city commission assumptions -- business-sensitive,
+    // admin-only (never shown to a participant; a Challenge's public
+    // fields carry only what admin chooses to put in mainPrize/
+    // rewardsPreview, never the raw commission percentage).
+    match /arenaCommissionRules/{city} {
+      allow read: if isAdmin() && hasPermission('arena.manage');
+      allow write: if false;
     }
 
     // ---- Home goods / furniture catalog ----

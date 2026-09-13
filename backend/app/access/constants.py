@@ -204,6 +204,12 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
         "rewards.manage",
         "offers.manage",
         "archives.view",
+        # Darwesh Arena (gamification). Granular on the same principle as
+        # verification.* above: reviewing a submission (verifying a step,
+        # confirming a sale) is a much weaker grant than owning challenge
+        # config, rank thresholds and manual point adjustments.
+        "arena.review",
+        "arena.manage",
     }
 )
 

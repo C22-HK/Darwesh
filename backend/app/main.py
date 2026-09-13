@@ -40,6 +40,8 @@ from app.otp.firebase_admin_ops import EmailUidResolver, FirebaseAccountOps
 from app.otp.handler import PasswordResetConfirmHandler
 from app.otp.service import OtpService
 from app.otp.store import FirestoreChallengeStore, InMemoryChallengeStore
+from app.arena.arena_ops import ArenaOps
+from app.arena.handlers import ArenaAdminHandler, ArenaPublicHandler
 from app.server import create_app
 from app.verification.archive_ops import ArchiveOps
 from app.verification.handlers import PermissionReader, ReferralPublicHandler, VerificationHandler
@@ -416,6 +418,49 @@ def build_verification_handlers(
     )
 
 
+def build_arena_handlers(cfg: Config) -> tuple[ArenaPublicHandler | None, ArenaAdminHandler | None]:
+    """Wires up Darwesh Arena's endpoints. Gated on the same Firebase
+    Admin credential check as every other Firestore-backed feature and
+    on nothing else -- same "an undeployed optional binding degrades to
+    a missing route, never a hidden feature" posture as
+    build_verification_handlers."""
+    if not _has_firebase_credential(cfg):
+        logger.info(
+            "Arena endpoints not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or deploy with "
+            "APP_ENV=production to use Application Default Credentials -- to enable them)"
+        )
+        return None, None
+
+    try:
+        clients = AccessFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id)
+    except ValueError as exc:
+        logger.error("Arena endpoints misconfigured, skipping", extra={"error": str(exc)})
+        return None, None
+
+    db = clients.firestore_client
+    auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
+    ops = ArenaOps(db, logger=logger)
+
+    # Same FirestoreRateLimiter-in-production/InMemory-in-development split
+    # as build_verification_handlers, own namespaces. Joining a challenge
+    # or advancing a step is the tightest self-service limit (a script
+    # hammering "join" a hundred times a minute is not a real user).
+    if cfg.is_production:
+        read_limiter = FirestoreRateLimiter(db, name="arena_read", limit=240, window_seconds=60 * 60, logger=logger)
+        write_limiter = FirestoreRateLimiter(db, name="arena_write", limit=60, window_seconds=60 * 60, logger=logger)
+        admin_limiter = FirestoreRateLimiter(db, name="arena_admin", limit=200, window_seconds=60 * 60, logger=logger)
+    else:
+        read_limiter = InMemoryRateLimiter(limit=240, window_seconds=60 * 60)
+        write_limiter = InMemoryRateLimiter(limit=60, window_seconds=60 * 60)
+        admin_limiter = InMemoryRateLimiter(limit=200, window_seconds=60 * 60)
+
+    logger.info("Darwesh Arena endpoints enabled")
+    return (
+        ArenaPublicHandler(ops=ops, auth=auth_gate, read_limiter=read_limiter, write_limiter=write_limiter, logger=logger),
+        ArenaAdminHandler(ops=ops, auth=auth_gate, permissions=PermissionReader(db), admin_limiter=admin_limiter, logger=logger),
+    )
+
+
 def build_mam_provider(cfg: Config) -> ChatProvider | None:
     """Constructs the configured MAM chat provider adapter, or None (safe
     default: deterministic-fallback-only, see intent_resolver.py). Every
@@ -553,6 +598,7 @@ def create_configured_app():
     mam_handler = build_mam_handler(cfg)
     voice_handler = build_voice_handler(cfg)
     referral_public_handler, verification_handler = build_verification_handlers(cfg)
+    arena_public_handler, arena_admin_handler = build_arena_handlers(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -567,6 +613,8 @@ def create_configured_app():
         voice_handler,
         referral_public_handler,
         verification_handler,
+        arena_public_handler,
+        arena_admin_handler,
     )
 
 
