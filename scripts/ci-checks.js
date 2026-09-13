@@ -847,7 +847,7 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
   // and live in Firestore; a sitemap covering them would have to be
   // generated from the database, not from this repository.
   const DETAIL_TEMPLATES = [
-    'agent.html', 'cleaning.html', 'designer.html', 'engineer.html',
+    'agent.html', 'cleaning.html', 'customer.html', 'designer.html', 'engineer.html',
     'landscaping.html', 'lawyer.html', 'listing.html', 'maintenance.html',
     'offer.html', 'office.html', 'organization.html', 'project.html',
     'service.html', 'work.html', 'arena-challenge.html',
