@@ -1,108 +1,215 @@
-// Darwesh Group -- About page scroll choreography.
+// Darwesh Group -- About page scroll choreography (v4, full reset).
 //
-// Exactly two mechanisms, matching css/about-story.css's header comment:
+// PRIMARY PATH: vendored GSAP + ScrollTrigger (vendor/gsap/, see its
+// README) drive every pinned scene's scrub (Hero/Connect/Journey/
+// Ecosystem) and gate every other scene's reveal through
+// ScrollTrigger.create({ once: true, onEnter }) -- a robust replacement
+// for IntersectionObserver that still fires correctly for content already
+// scrolled past on a hash jump or a restored scroll position.
 //
-//   1. The hero's `--hp` (0..1): the ONE scroll-scrubbed "camera" moment on
-//      the page. Computed from `.ab2-hero-pin`'s own bounding rect (the
-//      same "read every rect first, write every style after, one rAF,
-//      dirty-flag gated" discipline as js/cine-scroll-3d.js) rather than
-//      importing that engine -- this page has exactly one flowed element,
-//      not a document-wide `[data-flow]` system, so a dozen lines here
-//      replace what would otherwise be a second, unrelated dependency.
-//   2. Each of the 12 `.ab2-scene` elements gets `.is-active` ONCE, the
-//      first time it is ~30% into the viewport, via a single shared
-//      IntersectionObserver -- never re-triggered, never one observer per
-//      scene. Text itself is revealed by the page's existing
-//      js/reveal.js (.cine-reveal / window.DarweshReveal), already loaded
-//      by about.html; this file only drives each scene's own graphic.
+// FALLBACK PATH: if either vendored script fails to load, every reveal
+// below falls through to a plain IntersectionObserver, and every pinned
+// scene simply renders its final resolved state without a pin (no scrub
+// var is possible without GSAP's scroll math -- the CSS default takes
+// over via each scene's `:not([style*="--xp"])` rule in
+// css/about-story.css). Nothing on this page ever depends on GSAP to be
+// legible.
 //
-// Never calls preventDefault on wheel/touch and never calls scrollTo --
-// native scrolling is untouched throughout. Under prefers-reduced-motion,
-// this script does the least possible: the hero's `--hp` is set once to
-// its resting value and no listener is attached at all; the CSS's own
-// `@media (prefers-reduced-motion: reduce)` block already forces every
-// scene to its finished state with plain selectors (no `.is-active`
-// needed), so skipping the observer there loses nothing.
+// REDUCED MOTION: prefers-reduced-motion skips this file's scene wiring
+// entirely -- css/about-story.css's reduced-motion block already renders
+// every scene's finished state with zero JS involvement.
 (function () {
-  function reducedMotion() {
-    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const HAS_GSAP = !!(window.gsap && window.ScrollTrigger);
+  const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = window.innerWidth < 760;
+
+  if (HAS_GSAP) {
+    window.gsap.registerPlugin(window.ScrollTrigger);
   }
 
-  function clamp01(n) { return n < 0 ? 0 : n > 1 ? 1 : n; }
-
-  function initHero() {
-    const pin = document.querySelector('.ab2-hero-pin');
-    const stage = document.querySelector('.ab2-hero-stage');
-    if (!pin || !stage) return;
-
-    if (reducedMotion()) {
-      stage.style.setProperty('--hp', '0.62');
-      return;
+  // ---------------------------------------------------------------------
+  // Shared reveal helper -- GSAP ScrollTrigger.create when available,
+  // IntersectionObserver otherwise, immediate activation if neither
+  // exists. Used for every "fires once when scrolled into view" moment.
+  // ---------------------------------------------------------------------
+  function onceInView(el, activate, opts) {
+    opts = opts || {};
+    if (!el) return;
+    if (HAS_GSAP) {
+      window.ScrollTrigger.create({
+        trigger: el,
+        start: opts.start || 'top 82%',
+        once: true,
+        onEnter: activate,
+      });
+    } else if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              activate();
+              io.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: opts.threshold || 0.15, rootMargin: '0px 0px -8% 0px' }
+      );
+      io.observe(el);
+    } else {
+      activate();
     }
-
-    let dirty = true;
-    let hidden = false;
-    let rafId = null;
-    let last = -1;
-    const EPSILON = 0.002;
-
-    function frame() {
-      rafId = null;
-      if (!dirty || hidden) return;
-      dirty = false;
-      const rect = pin.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const span = rect.height - vh;
-      const p = span > 0 ? clamp01(-rect.top / span) : 0;
-      if (Math.abs(p - last) >= EPSILON) {
-        last = p;
-        stage.style.setProperty('--hp', p.toFixed(4));
-      }
-    }
-
-    function schedule() {
-      dirty = true;
-      if (rafId == null) rafId = requestAnimationFrame(frame);
-    }
-
-    window.addEventListener('scroll', schedule, { passive: true });
-    window.addEventListener('resize', schedule, { passive: true });
-    document.addEventListener('visibilitychange', () => {
-      hidden = document.hidden;
-      if (!hidden) schedule();
-    });
-    schedule();
   }
 
-  function initScenes() {
-    const scenes = Array.from(document.querySelectorAll('.ab2-scene'));
-    if (!scenes.length) return;
-
-    if (reducedMotion() || !('IntersectionObserver' in window)) {
-      scenes.forEach((el) => el.classList.add('is-active'));
-      return;
-    }
-
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-active');
-          io.unobserve(entry.target);
+  function wireReveal(list, staggerMs) {
+    list.forEach((el, i) => {
+      onceInView(el, () => {
+        if (staggerMs) {
+          setTimeout(() => el.classList.add('is-active'), i * staggerMs);
+        } else {
+          el.classList.add('is-active');
         }
       });
-    }, { rootMargin: '0px 0px -15% 0px', threshold: 0.3 });
-
-    scenes.forEach((el) => io.observe(el));
+    });
   }
 
-  function start() {
-    initHero();
-    initScenes();
+  // Pins a section and scrubs `varName` (0->1) as a CSS custom property on
+  // it -- the one shared mechanic behind Hero/Connect/Journey/Ecosystem.
+  // Every visual step for that scene is pure CSS calc() keyed off the var
+  // (see css/about-story.css), so GSAP never writes inline styles on the
+  // animated elements themselves -- nothing for a stray CSS `transition`
+  // to fight.
+  function pinScrub(id, varName, distance, onUpdate) {
+    const pin = document.getElementById(id);
+    if (!pin || !HAS_GSAP) return;
+    pin.style.setProperty(varName, '0');
+    window.ScrollTrigger.create({
+      trigger: pin,
+      start: 'top top',
+      end: distance,
+      pin: true,
+      pinSpacing: true,
+      scrub: 0.6,
+      onUpdate(self) {
+        pin.style.setProperty(varName, self.progress.toFixed(4));
+        if (onUpdate) onUpdate(self.progress);
+      },
+    });
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
+  // ---------------------------------------------------------------------
+  // Scene 1 -- Hero.
+  // ---------------------------------------------------------------------
+  function initHero() {
+    pinScrub('dwaHeroPin', '--hp', isMobile ? '+=170%' : '+=300%');
   }
+
+  // ---------------------------------------------------------------------
+  // Scene 2 -- Story. Three verbs cross-dissolve once in view, then the
+  // answer settles in.
+  // ---------------------------------------------------------------------
+  function initStory() {
+    const story = document.getElementById('dwaStory');
+    if (!story) return;
+    const verbs = Array.prototype.slice.call(story.querySelectorAll('.dwa-story-verb'));
+    const inner = story.querySelector('.dwa-story-inner');
+
+    function run() {
+      let i = 0;
+      verbs.forEach((v) => v.classList.remove('is-active'));
+      (function step() {
+        verbs.forEach((v) => v.classList.remove('is-active'));
+        if (verbs[i]) verbs[i].classList.add('is-active');
+        i += 1;
+        if (i < verbs.length) {
+          setTimeout(step, 850);
+        } else if (inner) {
+          setTimeout(() => inner.classList.add('is-active'), 500);
+        }
+      })();
+    }
+
+    onceInView(story, run, { start: 'top 75%', threshold: 0.3 });
+  }
+
+  // ---------------------------------------------------------------------
+  // Scene 3 -- Connect. Property/People/Professionals/Services nodes join
+  // via gold lines, scrubbed via --cp.
+  // ---------------------------------------------------------------------
+  function initConnect() {
+    pinScrub('dwaConnectPin', '--cp', isMobile ? '+=90%' : '+=140%');
+  }
+
+  // ---------------------------------------------------------------------
+  // Scene 4 -- Journey. Plan -> Design -> Build -> Live, scrubbed via
+  // --jp; the rail fill and the "current stage" highlight both derive
+  // from the same progress value.
+  // ---------------------------------------------------------------------
+  function initJourney() {
+    const railFill = document.getElementById('dwaJourneyRailFill');
+    const stages = Array.prototype.slice.call(document.querySelectorAll('#dwaJourneyStages .dwa-journey-stage'));
+    pinScrub('dwaJourneyPin', '--jp', isMobile ? '+=140%' : '+=200%', (progress) => {
+      if (railFill) railFill.style.width = (progress * 100).toFixed(1) + '%';
+      const stageIndex = Math.min(stages.length - 1, Math.floor(progress * stages.length));
+      stages.forEach((s, i) => s.classList.toggle('is-current', i === stageIndex));
+    });
+    if (!HAS_GSAP) {
+      if (railFill) railFill.style.width = '100%';
+      stages.forEach((s) => s.classList.add('is-current'));
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Scene 5 -- Ecosystem. Central Darwesh node, real services fan out,
+  // scrubbed via --ep.
+  // ---------------------------------------------------------------------
+  function initEcosystem() {
+    pinScrub('dwaEcosystemPin', '--ep', isMobile ? '+=170%' : '+=240%');
+  }
+
+  // ---------------------------------------------------------------------
+  // Scene 6 -- Professionals. Real cards, staggered reveal.
+  // ---------------------------------------------------------------------
+  function initPros() {
+    wireReveal(Array.prototype.slice.call(document.querySelectorAll('#dwaProsGrid .dwa-pro-card')), 120);
+  }
+
+  // ---------------------------------------------------------------------
+  // Scene 7 -- Technology. The physical world's connections resolve into
+  // a graph once in view.
+  // ---------------------------------------------------------------------
+  function initTech() {
+    const tech = document.getElementById('dwaTech');
+    if (tech) onceInView(tech, () => tech.classList.add('is-active'), { start: 'top 70%', threshold: 0.3 });
+  }
+
+  // ---------------------------------------------------------------------
+  // Scene 8 -- Final. Four pillar labels converge to one statement, then
+  // the five operating principles and the closing frame follow.
+  // ---------------------------------------------------------------------
+  function initFinal() {
+    const pillars = Array.prototype.slice.call(document.querySelectorAll('#dwaFinalPillars .dwa-final-pillar'));
+    const title = document.getElementById('dwaFinalTitle');
+    onceInView(document.getElementById('dwaFinalSyn'), () => {
+      pillars.forEach((p, i) => setTimeout(() => p.classList.add('is-active'), i * 120));
+      setTimeout(() => { if (title) title.classList.add('is-active'); }, pillars.length * 120 + 150);
+    }, { start: 'top 70%', threshold: 0.3 });
+    wireReveal(Array.prototype.slice.call(document.querySelectorAll('#dwaValuesRow .dwa-value')), 80);
+    const cityInner = document.getElementById('dwaFinalCityInner');
+    onceInView(document.getElementById('dwaFinalCity'), () => cityInner && cityInner.classList.add('is-active'), { start: 'top 75%', threshold: 0.3 });
+  }
+
+  if (reduced) {
+    // css/about-story.css's reduced-motion block already renders every
+    // scene's finished state; nothing else on this page needs to run.
+    return;
+  }
+
+  initHero();
+  initStory();
+  initConnect();
+  initJourney();
+  initEcosystem();
+  initPros();
+  initTech();
+  initFinal();
 })();

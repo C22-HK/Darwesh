@@ -1,688 +1,566 @@
-/* Darwesh Group -- About page, cinematic architectural rebuild.
- *
- * Full replacement for the previous particle-field About demo (deleted:
- * css/about-cinematic.css, js/about-particle-scene.js,
- * js/about-particle-shaders.js -- a WebGL/Canvas2D volumetric dust cloud
- * that resolved into a house). That direction was rejected. Nothing here
- * reuses its markup, its class names, or its motion system.
- *
- * WHY THIS PAGE DOES NOT CARRY THE SITE'S DARK "cine-scope" PALETTE:
- * every other public page (see css/cinematic.css's header comment) opts
- * into a dark obsidian body via the `cine-scope` class on <body>. This
- * page's brief asks specifically for "warm white, existing brand colors,
- * and a restrained complementary accent" as the FIELD the content sits
- * on -- a deliberate departure from the rest of the site's dark body
- * chrome, while the shared header/footer (js/site-header.js,
- * js/site-footer.js) stay exactly as they are everywhere else: both are
- * already self-contained "light-luxury" components that do not read the
- * cine-scope tokens at all. `cine-scope` is LEFT on <body> here only
- * because js/site-mobile-nav.js's bottom bar (.home-bottomnav*) is styled
- * exclusively under `.cine-scope .home-bottomnav*` in css/cinematic.css --
- * removing the class would leave that bar unstyled on mobile. Every class
- * below is a fresh `ab2-*` name, never one of the Tailwind semantic color
- * utilities (bg-background, text-on-surface, bg-primary, ...) that
- * cine-scope intercepts -- so its dark overrides never apply to this
- * page's own content, and no specificity fight is needed: an element's
- * own explicit background simply paints over its ancestor's.
- *
- * RENDERING APPROACH (brief section 5): no GLB/GLTF and no rendered video
- * sequence exist anywhere in this repository (checked: zero .glb/.gltf/
- * .mp4/.webm files in the whole tree) and none is fabricated here. Five
- * scenes (05 lawyers, 06 cleaning, 07 landscaping, 09 construction, 10
- * design) use this repo's own real photography (images/services/*.jpg,
- * already used elsewhere on the public site -- services.html's carousel).
- * Every other scene, plus the hero and the closing plan, is built from
- * hand-authored inline SVG line-art -- an architect's-sketch register
- * (thin ink strokes, one warm gold accent, generous paper-like ground)
- * that is honestly a 2D/vector illustration system, not a claim of 3D or
- * photoreal rendering. A true photoreal render sequence or a GLB scene
- * per service is real, asset-dependent future work -- see the delivery
- * report for the exact list; this file's structure (one media slot per
- * scene, `.ab2-scene-media`) is built so dropping in a real render or
- * video later needs no markup change.
- *
- * MOTION: exactly ONE scroll-scrubbed "camera" moment on the whole page --
- * the hero's blueprint -> built-form transition, driven by js/about-
- * story.js reading scroll position passively (one rAF-batched read/write
- * loop, same discipline as js/cine-scroll-3d.js: never a listener per
- * element, never a synchronous layout read inside the scroll handler).
- * Every one of the 12 service scenes below plays ONCE on first entering
- * the viewport (IntersectionObserver, unobserved after firing) and never
- * re-triggers or re-pins -- twelve pinned sections would be exactly the
- * "excessive motion" and "same animation everywhere" the brief warns
- * against. No two scenes share the same reveal mechanism (see the per-
- * scene comments below). Nothing here calls preventDefault on wheel/touch
- * or programmatically scrolls the page -- native scrolling is untouched.
- */
+/* ===========================================================================
+   Darwesh Group -- About page, cinematic scroll experience (v4, full reset).
+   Replaces the previous ab3-* implementation outright -- nothing here reuses
+   its classes, its markup shape, or its band math. New namespace: dwa-*.
 
-.ab2-page {
-  --ab2-bg: #FAF6EE;
-  --ab2-bg-alt: #F1E9DA;
-  --ab2-surface: #FFFFFF;
-  --ab2-ink: #1A160F;
-  --ab2-ink-soft: #6B6152;
-  --ab2-ink-faint: #948A78;
-  --ab2-line: rgba(26, 22, 15, 0.10);
-  --ab2-line-strong: rgba(26, 22, 15, 0.20);
-  --ab2-gold: #AD8845;
-  --ab2-gold-text: #8A6430;
-  --ab2-gold-bright: #D9B368;
-  --ab2-dark: #14110C;
-  --ab2-dark-2: #1D1912;
-  --ab2-dark-ink: #F6F1E4;
-  --ab2-dark-ink-soft: #C9BEA6;
-  --ab2-radius: 22px;
-  --ab2-radius-sm: 12px;
-  --ab2-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --ab2-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
-  --ab2-fast: 220ms;
-  --ab2-med: 620ms;
-  --ab2-slow: 1000ms;
-  --ab2-font-display: 'IBM Plex Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
-  --ab2-font-body: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+   PHILOSOPHY: one continuous scroll-driven sequence, not stacked cards that
+   fade in. Scroll position maps to visual progress the way a scrub bar maps
+   to a video timeline. Three techniques do all the work:
+     1. Pinned scenes (Hero, Connect, Journey, Ecosystem) scrub a single CSS
+        custom property (--hp / --cp / --jp / --ep, each 0->1) written once
+        by a ScrollTrigger onUpdate in js/about-story.js; every visual step
+        is a CSS calc() keyed off that var. No GSAP inline-style writes on
+        the elements themselves, so nothing fights a CSS transition (see the
+        HERO comment below for why that matters).
+     2. Un-pinned scenes (Story, Professionals, Technology, Final) use a
+        lighter scroll-linked reveal (onceInView -> .is-active) plus subtle
+        parallax, so they still feel like part of one continuous shot
+        without the cost of a second full pin per section.
+     3. SVG line-art (pathLength=100 + stroke-dasharray/-offset) draws
+        blueprint/diagram content in as the user scrolls; it is never used
+        to fake a finished photograph -- see the HERO comment.
 
-  background: var(--ab2-bg);
-  color: var(--ab2-ink);
-  font-family: var(--ab2-font-body);
-  position: relative;
-  isolation: isolate; /* keep this page's own stacking context off the header's */
+   IMAGERY HONESTY: the hero's "finished villa" is a real photo/render
+   supplied separately (images/about/hero-villa-final.webp) -- SVG/CSS never
+   simulate finished materials. Everywhere else, real photography already in
+   this repo (images/services/*, images/cities/*) is used as-is; categories
+   with no real photo get the same honest icon-panel treatment the rest of
+   the site already uses (see js/service-catalog.js's `photo: null` rows).
+
+   FALLBACK CONTRACT: prefers-reduced-motion (media block near the bottom)
+   renders every scene's fully-resolved, legible state with zero JS/scrub
+   involvement. `:not([style*="--hp"])` etc. render a sane static state if
+   GSAP never loads. Nothing on this page depends on JS to be legible.
+   =========================================================================== */
+
+.dwa-page {
+  --dwa-ivory: #FAF6EC;
+  --dwa-ivory-deep: #F1E7CF;
+  --dwa-sand: #E3D2A4;
+  --dwa-gold: #AD8748;
+  --dwa-gold-bright: #D9B876;
+  --dwa-ink: #1A150E;
+  --dwa-ink-soft: #4A4030;
+  --dwa-line: rgba(26, 21, 14, 0.14);
+  --dwa-white: #FFFFFF;
+  --dwa-dark: #14100B;
+  --dwa-dark-soft: #241C11;
+  --dwa-dark-line: rgba(255, 255, 255, 0.14);
+  --dwa-display: 'Fraunces', 'IBM Plex Sans', 'Plus Jakarta Sans', serif;
+  --dwa-body: 'Plus Jakarta Sans', 'IBM Plex Sans', 'Inter', sans-serif;
+  background: var(--dwa-ivory);
+  color: var(--dwa-ink);
+  overflow-x: clip;
 }
 
-.ab2-page * { box-sizing: border-box; }
+.dwa-page * { box-sizing: border-box; }
 
-.ab2-container {
-  width: 100%;
-  max-width: 1180px;
-  margin-inline: auto;
-  padding-inline: clamp(20px, 5vw, 64px);
+.dwa-eyebrow {
+  display: block;
+  font: 600 12px/1 var(--dwa-body);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dwa-gold);
+  margin-bottom: 14px;
+}
+.dwa-eyebrow--onDark { color: var(--dwa-gold-bright); }
+
+.dwa-display {
+  font-family: var(--dwa-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 
-.ab2-eyebrow {
+.dwa-link {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-family: var(--ab2-font-body);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--ab2-gold-text);
-  text-transform: uppercase;
+  gap: 8px;
+  font: 600 14px/1 var(--dwa-body);
+  color: var(--dwa-ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--dwa-line);
+  padding-bottom: 3px;
+  transition: border-color 0.2s ease, color 0.2s ease, gap 0.2s ease;
 }
-.ab2-eyebrow::before {
-  content: '';
-  width: 22px;
-  height: 1.5px;
-  background: currentColor;
-  opacity: 0.6;
-}
-[dir="rtl"] .ab2-eyebrow::before { order: 2; }
+.dwa-link svg { width: 16px; height: 16px; transition: transform 0.2s ease; }
+.dwa-link:hover { gap: 12px; border-color: var(--dwa-gold); color: var(--dwa-gold); }
+.dwa-link--onDark { color: var(--dwa-white); border-color: var(--dwa-dark-line); }
+.dwa-link--onDark:hover { color: var(--dwa-gold-bright); border-color: var(--dwa-gold-bright); }
 
-/* =========================================================================
- * 1. HERO -- architectural drawing -> built form, camera-driven by scroll.
- *
- * A tall pin wrapper (`--ab2-hero-span`) holds a `position: sticky` stage
- * (native sticky, never intercepted scroll input) whose progress is
- * written to `--hp` (0..1) by js/about-story.js. Three SVG layers share
- * one coordinate system and cross-fade/scale on that single number:
- *   grid+dimensions (a technical drawing) -> stroke-drawn outline ->
- *   solid gold-filled form -> a soft real photograph settling in behind
- *   it. Text is NOT gated on any of this: full opacity from first paint.
- * ========================================================================= */
-.ab2-hero { position: relative; background: var(--ab2-dark); }
-.ab2-hero-pin {
-  height: 220vh; /* the "camera" travel distance; sticky, not fixed */
+/* ===========================================================================
+   SCENE 01 -- HERO. Blueprint -> structure -> material reveal, pinned and
+   scrubbed via --hp (0->1). Camera-push illusion comes from a slow scale +
+   translateY on .dwa-hero-stage tied to --hp (subtle, 1 -> 1.04), not an
+   actual 3D camera -- cheap, GPU-friendly, reads as forward motion.
+   =========================================================================== */
+.dwa-hero { position: relative; background: var(--dwa-ivory); }
+.dwa-hero-pin {
   position: relative;
+  min-height: 100vh;
+  overflow: clip;
 }
-.ab2-hero-stage-wrap {
-  position: sticky;
-  top: 0;
-  height: 100dvh;
-  min-height: 620px;
-  overflow: hidden;
+.dwa-hero-stage-wrap {
+  position: relative;
+  min-height: 100vh;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  padding: clamp(96px, 13vh, 150px) 24px 0;
 }
-.ab2-hero-stage {
+.dwa-hero-content {
+  position: relative;
+  z-index: 3;
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+}
+.dwa-hero-title {
+  font-size: clamp(32px, 5vw, 56px);
+  line-height: 1.08;
+  margin-bottom: 18px;
+}
+.dwa-hero-intro {
+  font: 400 16px/1.65 var(--dwa-body);
+  color: var(--dwa-ink-soft);
+  max-width: 560px;
+  margin: 0 auto;
+}
+.dwa-scroll-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 26px auto 0;
+  font: 600 11px/1 var(--dwa-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dwa-ink-soft);
+  opacity: 0.7;
+  animation: dwa-cue-bob 2.2s ease-in-out infinite;
+}
+.dwa-scroll-cue svg { width: 16px; height: 16px; }
+@keyframes dwa-cue-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+
+.dwa-hero-stage {
   position: absolute;
   inset: 0;
-  --hp: 0; /* written by js/about-story.js; static 0.62 under reduced-motion */
+  z-index: 1;
+  transform: scale(1) translateY(0);
+  will-change: transform;
 }
-.ab2-hero-photo {
+.dwa-hero-pin[style*="--hp"] .dwa-hero-stage {
+  transform: scale(calc(1 + var(--hp, 0) * 0.045)) translateY(calc(var(--hp, 0) * -14px));
+}
+.dwa-hero-photo {
   position: absolute;
-  inset: -4%;
-  background-image: url('../images/cities/erbil-citadel.jpg');
-  background-size: cover;
-  background-position: center 62%;
-  opacity: calc(var(--hp) * 0.5);
-  filter: saturate(0.75) brightness(0.6) blur(1.5px);
-  transform: scale(calc(1.06 + var(--hp) * 0.05));
-  transition: opacity 60ms linear;
+  inset: 0;
+  background: url('../images/cities/erbil-citadel.jpg') center 62% / cover no-repeat;
+  filter: saturate(0.8) brightness(0.98) blur(0.4px);
+  opacity: 0.5;
 }
-.ab2-hero-stage::after { /* legibility scrim, independent of --hp */
+.dwa-hero-photo::after {
   content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse 900px 640px at 50% 62%, rgba(20,17,12,0.15), rgba(20,17,12,0.72) 68%, rgba(20,17,12,0.92));
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--dwa-ivory) 0%, rgba(250, 246, 236, 0.55) 34%, rgba(250, 246, 236, 0.2) 62%, rgba(250, 246, 236, 0.75) 100%);
 }
-.ab2-hero-svg {
-  position: relative;
-  width: min(78vw, 640px);
-  height: auto;
-  transform: scale(calc(1 + var(--hp) * 0.07)) translateY(calc(var(--hp) * -14px));
-  filter: drop-shadow(0 30px 60px rgba(0,0,0,0.45));
-}
-.ab2-hero-grid line {
-  stroke: rgba(217, 179, 104, 0.28);
-  stroke-width: 0.6;
-  opacity: calc(1 - var(--hp) * 1.4);
-}
-.ab2-hero-dim { stroke: rgba(246, 241, 228, 0.4); stroke-width: 0.8; opacity: calc(0.9 - var(--hp) * 1.3); }
-.ab2-hero-dim-text { fill: rgba(246, 241, 228, 0.55); font-size: 6px; font-family: var(--ab2-font-body); letter-spacing: 0.04em; opacity: calc(0.9 - var(--hp) * 1.5); }
-.ab2-hero-outline {
-  fill: none;
-  stroke: var(--ab2-dark-ink);
-  stroke-width: 1.4;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  stroke-dasharray: 1400;
-  stroke-dashoffset: calc(1400 - min(var(--hp) * 2.4, 1) * 1400);
-  opacity: calc(1 - max(var(--hp) - 0.55, 0) * 2.4);
-}
-.ab2-hero-fill {
-  opacity: calc(max(var(--hp) - 0.4, 0) * 2.1);
-}
-.ab2-hero-fill path { fill: url(#ab2HeroGoldGrad); }
-.ab2-hero-fill .ab2-hero-glow { fill: var(--ab2-gold-bright); opacity: calc(0.5 + var(--hp) * 0.5); }
-.ab2-hero-fill .ab2-hero-window { fill: rgba(217,179,104,0.85); opacity: calc(max(var(--hp) - 0.62, 0) * 3); }
 
-.ab2-hero-content {
-  position: relative;
-  z-index: 2;
+.dwa-house {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(56vh, 66%);
   width: 100%;
-  max-width: 780px;
-  margin-inline: auto;
-  padding-inline: clamp(20px, 6vw, 64px);
+}
+.dwa-house-grid { stroke: var(--dwa-ink); stroke-width: 0.4; opacity: 0.08; }
+.dwa-house-guide { fill: none; stroke: var(--dwa-gold); stroke-width: 0.55; stroke-linecap: round; opacity: 0; stroke-dasharray: 100; stroke-dashoffset: 100; }
+.dwa-house-markers { stroke: var(--dwa-ink-soft); stroke-width: 0.4; opacity: 0; fill: var(--dwa-ink-soft); }
+.dwa-house-ground { fill: none; stroke: var(--dwa-ink-soft); stroke-width: 0.5; opacity: 0.35; stroke-dasharray: 100; stroke-dashoffset: 100; }
+.dwa-house-plaza { fill: url(#dwaHeroPlazaGrad); opacity: 0; }
+.dwa-house-frame,
+.dwa-house-frame2 {
+  fill: none;
+  stroke: var(--dwa-ink);
+  stroke-width: 1.15;
+  stroke-linejoin: miter;
+  opacity: 0;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+}
+.dwa-house-overhang { fill: none; stroke: var(--dwa-ink-soft); stroke-width: 0.7; opacity: 0; stroke-dasharray: 100; stroke-dashoffset: 100; }
+.dwa-house-openings { fill: none; stroke: var(--dwa-ink); stroke-width: 0.85; stroke-linejoin: miter; opacity: 0; stroke-dasharray: 100; stroke-dashoffset: 100; }
+
+/* Final-image layer -- SVG stops at wireframe; the finished villa is a real
+   photograph/render supplied separately, never CSS/SVG-simulated materials.
+   Sits in the exact box as .dwa-house, reveals bottom-up via clip-path as
+   --hp advances while the wireframe recedes to a faint overlay rather than
+   vanishing, so the two read as one continuous drawing-to-real shot.
+
+   TO ADD THE REAL ASSET: drop it at images/about/hero-villa-final.webp --
+   nothing else here changes. Until it exists, only a neutral warm-gradient
+   placeholder shows (never a fabricated house). Target spec: ~1.65:1
+   (~1800x1090px webp), transparent background (villa isolated, no baked
+   sky/ground -- it sits over .dwa-hero-photo), two-volume massing at a
+   gently elevated 3/4 angle, bottom-anchored with ~10-15% foreground
+   margin, warm golden-hour light from upper-left or upper-right. */
+.dwa-hero-final {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: min(56vh, 66%);
+  background:
+    linear-gradient(180deg, rgba(250, 245, 231, 0) 0%, rgba(217, 197, 150, 0.22) 100%),
+    url('../images/about/hero-villa-final.webp') center bottom / cover no-repeat,
+    linear-gradient(160deg, var(--dwa-ivory-deep) 0%, #E4D6AE 100%);
+  border-radius: 2px;
+  opacity: 0;
+  clip-path: inset(100% 0 0 0);
+}
+
+.dwa-house-label {
+  position: absolute;
+  font: 600 10px/1 var(--dwa-body);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dwa-ink-soft);
+  opacity: 0;
+  transition: none;
+}
+.dwa-house-label--idea { left: 4%; top: 30%; }
+.dwa-house-label--plan { right: 4%; top: 30%; }
+.dwa-house-label--build { left: 4%; bottom: 8%; }
+.dwa-house-label--home { right: 4%; bottom: 8%; }
+
+/* --hp bands -- 0..0.22 blueprint guides, 0.15..0.5 structure draws in,
+   0.5..0.58 hold, 0.55..0.85 material reveal (placeholder/future photo). */
+.dwa-hero-pin[style*="--hp"] .dwa-house-guide { opacity: calc(0.6 * min(var(--hp, 0) / 0.12, 1) * (1 - min(max(var(--hp, 0) - 0.3, 0) / 0.14, 1))); stroke-dashoffset: calc(100 - 100 * min(var(--hp, 0) / 0.22, 1)); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-markers { opacity: calc(0.5 * min(max(var(--hp, 0) - 0.1, 0) / 0.15, 1) * (1 - 0.7 * min(max(var(--hp, 0) - 0.55, 0) / 0.3, 1))); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-ground { opacity: calc(0.35 * (1 - 0.5 * min(max(var(--hp, 0) - 0.55, 0) / 0.3, 1))); stroke-dashoffset: calc(100 - 100 * min(var(--hp, 0) / 0.18, 1)); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-plaza { opacity: calc(0.55 * min(max(var(--hp, 0) - 0.12, 0) / 0.2, 1)); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-frame,
+.dwa-hero-pin[style*="--hp"] .dwa-house-frame2 { opacity: calc(0.88 * min(max(var(--hp, 0) - 0.15, 0) / 0.22, 1) * (1 - 0.75 * min(max(var(--hp, 0) - 0.55, 0) / 0.3, 1))); stroke-dashoffset: calc(100 - 100 * min(max(var(--hp, 0) - 0.15, 0) / 0.32, 1)); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-overhang { opacity: calc(0.5 * min(max(var(--hp, 0) - 0.22, 0) / 0.2, 1) * (1 - 0.75 * min(max(var(--hp, 0) - 0.55, 0) / 0.3, 1))); stroke-dashoffset: calc(100 - 100 * min(max(var(--hp, 0) - 0.22, 0) / 0.3, 1)); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-openings { opacity: calc(0.75 * min(max(var(--hp, 0) - 0.3, 0) / 0.22, 1) * (1 - 0.75 * min(max(var(--hp, 0) - 0.55, 0) / 0.3, 1))); stroke-dashoffset: calc(100 - 100 * min(max(var(--hp, 0) - 0.3, 0) / 0.32, 1)); }
+.dwa-hero-pin[style*="--hp"] .dwa-hero-final {
+  opacity: calc(min(max(var(--hp, 0) - 0.52, 0) / 0.1, 1));
+  clip-path: inset(calc(100% - 100% * min(max(var(--hp, 0) - 0.55, 0) / 0.3, 1)) 0 0 0);
+}
+.dwa-hero-pin[style*="--hp"] .dwa-house-label--idea { opacity: calc(min(var(--hp, 0) / 0.08, 1) * (1 - min(max(var(--hp, 0) - 0.2, 0) / 0.08, 1))); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-label--plan { opacity: calc(min(max(var(--hp, 0) - 0.24, 0) / 0.08, 1) * (1 - min(max(var(--hp, 0) - 0.44, 0) / 0.08, 1))); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-label--build { opacity: calc(min(max(var(--hp, 0) - 0.48, 0) / 0.08, 1) * (1 - min(max(var(--hp, 0) - 0.68, 0) / 0.08, 1))); }
+.dwa-hero-pin[style*="--hp"] .dwa-house-label--home { opacity: min(max(var(--hp, 0) - 0.74, 0) / 0.1, 1); }
+.dwa-hero-pin[style*="--hp"] .dwa-hero-content { opacity: calc(1 - min(var(--hp, 0) / 0.16, 1) * 0.85); transform: translateY(calc(min(var(--hp, 0) / 0.16, 1) * -14px)); }
+.dwa-hero-pin[style*="--hp"] .dwa-scroll-cue { opacity: calc(1 - min(var(--hp, 0) / 0.05, 1)); }
+
+/* No-JS fallback: fully resolved static state. */
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-guide,
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-markers { opacity: 0; }
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-ground,
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-frame,
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-frame2,
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-overhang,
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-openings { stroke-dashoffset: 0; opacity: 0.22; }
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-plaza { opacity: 0.4; }
+.dwa-hero-pin:not([style*="--hp"]) .dwa-hero-final { opacity: 1; clip-path: inset(0 0 0 0); }
+.dwa-hero-pin:not([style*="--hp"]) .dwa-house-label { opacity: 1; }
+
+/* ===========================================================================
+   SCENE 02 -- STORY. "Why does Darwesh Group exist?" Dark, atmospheric,
+   text rises from depth (scale+translateY) once in view; three verbs
+   cross-dissolve on a fixed timed sequence (nothing to scrub -- one beat).
+   =========================================================================== */
+.dwa-story {
+  position: relative;
+  background: var(--dwa-dark);
+  color: var(--dwa-white);
+  padding: clamp(90px, 16vh, 180px) 24px;
+  overflow: clip;
+}
+.dwa-story-photo {
+  position: absolute;
+  inset: 0;
+  background: url('../images/cities/sulaymaniyah-city.jpg') center 40% / cover no-repeat;
+  opacity: 0.28;
+  filter: saturate(0.7) brightness(0.7);
+}
+.dwa-story-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, var(--dwa-dark) 0%, rgba(20, 16, 11, 0.55) 40%, var(--dwa-dark) 100%); }
+.dwa-story-verbs {
+  position: relative;
   text-align: center;
+  font-family: var(--dwa-display);
+  font-size: clamp(44px, 9vw, 108px);
+  font-weight: 500;
+  color: var(--dwa-gold-bright);
+  height: 1.2em;
+  margin-bottom: 28px;
+}
+.dwa-story-verb { position: absolute; inset: 0; opacity: 0; transform: translateY(14px) scale(0.97); transition: opacity 0.6s ease, transform 0.6s ease; }
+.dwa-story-verb.is-active { opacity: 1; transform: translateY(0) scale(1); }
+.dwa-story-inner { position: relative; max-width: 680px; margin: 0 auto; text-align: center; opacity: 0; transform: translateY(24px) scale(0.98); transition: opacity 0.9s ease, transform 0.9s ease; }
+.dwa-story-inner.is-active { opacity: 1; transform: translateY(0) scale(1); }
+.dwa-story-title { font-size: clamp(26px, 4vw, 42px); line-height: 1.15; margin-bottom: 16px; }
+.dwa-story-body { font: 400 16px/1.65 var(--dwa-body); color: rgba(255, 255, 255, 0.72); }
+
+/* ===========================================================================
+   SCENE 03 -- CONNECT. Property / People / Professionals / Services --
+   four nodes joined by gold lines that draw in as --cp advances (light pin).
+   =========================================================================== */
+.dwa-connect { position: relative; background: var(--dwa-dark-soft); color: var(--dwa-white); }
+.dwa-connect-pin { position: relative; min-height: 88vh; display: flex; align-items: center; padding: 60px 24px; }
+.dwa-connect-inner { position: relative; max-width: 1040px; margin: 0 auto; width: 100%; }
+.dwa-connect-head { text-align: center; max-width: 560px; margin: 0 auto 8vh; }
+.dwa-connect-title { font-size: clamp(24px, 3.4vw, 38px); line-height: 1.2; }
+.dwa-connect-body { font: 400 15px/1.6 var(--dwa-body); color: rgba(255, 255, 255, 0.68); margin-top: 12px; }
+.dwa-connect-diagram { position: relative; width: 100%; max-width: 720px; margin: 0 auto; aspect-ratio: 16 / 9; }
+.dwa-connect-lines { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: var(--dwa-gold); stroke-width: 1; opacity: 0.7; }
+.dwa-connect-lines path { stroke-dasharray: 100; stroke-dashoffset: 100; pathLength: 100; }
+.dwa-connect-node {
+  position: absolute;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
-  color: var(--ab2-dark-ink);
-}
-.ab2-hero-content .ab2-eyebrow { color: var(--ab2-gold-bright); }
-.ab2-hero-title {
-  font-family: var(--ab2-font-display);
-  font-weight: 700;
-  font-size: clamp(2.15rem, 4.6vw + 0.6rem, 3.8rem);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-  margin: 0;
-}
-.ab2-hero-intro {
-  font-size: clamp(1rem, 0.5vw + 0.92rem, 1.2rem);
-  line-height: 1.7;
-  color: var(--ab2-dark-ink-soft);
-  max-width: 58ch;
-  margin: 0;
-}
-.ab2-scroll-cue {
-  margin-top: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--ab2-dark-ink-soft);
-  text-transform: uppercase;
-}
-.ab2-scroll-cue svg { width: 15px; height: 15px; animation: ab2-cue-bob 2.2s var(--ab2-ease) infinite; }
-@keyframes ab2-cue-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
-
-/* =========================================================================
- * 2. SERVICE SCENES -- shared scaffolding.
- * ========================================================================= */
-.ab2-services { position: relative; background: var(--ab2-bg); }
-
-.ab2-scene {
-  padding-block: clamp(64px, 9vw, 128px);
-  border-top: 1px solid var(--ab2-line);
-}
-.ab2-scene--alt { background: var(--ab2-bg-alt); }
-.ab2-scene-inner {
-  max-width: 1180px;
-  margin-inline: auto;
-  padding-inline: clamp(20px, 5vw, 64px);
-  display: grid;
-  gap: clamp(32px, 5vw, 56px);
-}
-.ab2-scene--split .ab2-scene-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
-.ab2-scene--split.ab2-scene--media-left .ab2-scene-media { order: 1; }
-.ab2-scene--split.ab2-scene--media-left .ab2-scene-copy { order: 2; }
-.ab2-scene--split.ab2-scene--media-right .ab2-scene-media { order: 2; }
-.ab2-scene--split.ab2-scene--media-right .ab2-scene-copy { order: 1; }
-.ab2-scene--center .ab2-scene-inner { justify-items: center; text-align: center; max-width: 900px; }
-.ab2-scene--center .ab2-scene-media { width: 100%; }
-.ab2-scene--full .ab2-scene-inner { display: block; padding-inline: 0; max-width: none; }
-
-.ab2-scene-num {
-  display: block;
-  font-family: var(--ab2-font-display);
-  font-weight: 700;
-  font-size: 0.9rem;
-  letter-spacing: 0.14em;
-  color: var(--ab2-ink-faint);
-  margin-bottom: 10px;
-}
-.ab2-scene-title {
-  font-family: var(--ab2-font-display);
-  font-weight: 700;
-  font-size: clamp(1.5rem, 1.6vw + 1rem, 2.15rem);
-  line-height: 1.25;
-  margin: 0 0 14px;
-  text-wrap: balance;
-}
-.ab2-scene-body {
-  font-size: clamp(0.98rem, 0.3vw + 0.9rem, 1.08rem);
-  line-height: 1.75;
-  color: var(--ab2-ink-soft);
-  margin: 0 0 22px;
-  max-width: 46ch;
-}
-.ab2-scene--center .ab2-scene-body { max-width: 52ch; }
-.ab2-scene-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: var(--ab2-gold-text);
-  text-decoration: none;
-  border-bottom: 1.5px solid transparent;
-  padding-bottom: 2px;
-  transition: border-color var(--ab2-fast) var(--ab2-ease), gap var(--ab2-fast) var(--ab2-ease);
-}
-.ab2-scene-link:hover, .ab2-scene-link:focus-visible { border-color: var(--ab2-gold-text); gap: 12px; }
-.ab2-scene-link svg { width: 16px; height: 16px; flex: none; }
-[dir="rtl"] .ab2-scene-link svg { transform: scaleX(-1); }
-.ab2-scene-link:focus-visible { outline: 2px solid var(--ab2-gold-text); outline-offset: 4px; border-radius: 3px; }
-
-.ab2-scene-media {
-  position: relative;
-  aspect-ratio: 4 / 3;
-  border-radius: var(--ab2-radius);
-  overflow: hidden;
-  background: var(--ab2-surface);
-  border: 1px solid var(--ab2-line);
-}
-.ab2-scene--center .ab2-scene-media { aspect-ratio: 16 / 9; max-width: 760px; }
-
-/* Play-once entrance: opacity + a small, honest translate. Handled by the
- * shared js/reveal.js (.cine-reveal/.cine-in-view, one IntersectionObserver
- * for the whole page) -- this file only supplies THIS page's pre-reveal
- * offsets so text is never gated behind the scene's own internal motion. */
-.ab2-scene .cine-reveal { transition-duration: var(--ab2-med); }
-
-/* ---- 01 Buyer-seller mediation: two outlines converge ------------------ */
-.ab2-s01-svg { width: 100%; height: 100%; }
-.ab2-s01-a, .ab2-s01-b {
-  fill: none; stroke: var(--ab2-ink); stroke-width: 1.6; stroke-linejoin: round;
-  transition: transform var(--ab2-slow) var(--ab2-ease-enter), opacity var(--ab2-slow) var(--ab2-ease-enter);
-}
-.ab2-s01-a { transform: translateX(-26px); opacity: 0.55; }
-.ab2-s01-b { transform: translateX(26px); opacity: 0.55; stroke: var(--ab2-gold-text); }
-.ab2-s01-link {
-  stroke: var(--ab2-gold-text); stroke-width: 1.4; stroke-dasharray: 220; stroke-dashoffset: 220;
-  transition: stroke-dashoffset 900ms var(--ab2-ease-enter) 200ms;
-}
-.ab2-scene--01.is-active .ab2-s01-a { transform: translateX(-6px); opacity: 1; }
-.ab2-scene--01.is-active .ab2-s01-b { transform: translateX(6px); opacity: 1; }
-.ab2-scene--01.is-active .ab2-s01-link { stroke-dashoffset: 0; }
-
-/* ---- 02 Apartments: facade -> cutaway interior via clip reveal --------- */
-.ab2-s02-facade { position: absolute; inset: 0; background: var(--ab2-bg-alt); }
-.ab2-s02-facade svg { width: 100%; height: 100%; }
-.ab2-s02-facade rect.ab2-win { fill: var(--ab2-surface); stroke: var(--ab2-line-strong); }
-.ab2-s02-cutaway {
-  position: absolute; inset: 0;
-  clip-path: circle(0% at 72% 42%);
-  transition: clip-path 1100ms var(--ab2-ease-enter);
-  background: var(--ab2-surface);
-}
-.ab2-s02-cutaway svg { width: 100%; height: 100%; }
-.ab2-scene--02.is-active .ab2-s02-cutaway { clip-path: circle(85% at 72% 42%); }
-
-/* ---- 03 Residential communities: eye-level -> wide community reveal --- */
-.ab2-s03-photo {
-  position: absolute; inset: 0;
-  background-image: url('../images/cities/sulaymaniyah-city.jpg');
-  background-size: cover; background-position: center 70%;
-  transform: scale(1.16); filter: saturate(0.94);
-  transition: transform 1400ms var(--ab2-ease-enter);
-}
-.ab2-scene--03.is-active .ab2-s03-photo { transform: scale(1); }
-.ab2-s03-caption {
-  position: absolute; inset-inline: 0; bottom: 0;
-  padding: 14px 18px;
-  font-size: 0.72rem; color: rgba(255,255,255,0.8);
-  background: linear-gradient(0deg, rgba(15,13,9,0.6), transparent);
-}
-.ab2-s03-fore {
-  position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;
-  transform: scale(1.5); transform-origin: bottom center; opacity: 1;
-  transition: transform 1200ms var(--ab2-ease-enter), opacity 900ms var(--ab2-ease-enter);
-}
-.ab2-s03-fore svg { width: 46%; opacity: 0.9; }
-.ab2-scene--03.is-active .ab2-s03-fore { transform: scale(1); opacity: 0; }
-
-/* ---- 04 Rentals: a real hinge, a door that opens ----------------------- */
-.ab2-s04-room {
-  position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 60% 50% at 68% 38%, rgba(217,179,104,0.35), transparent 70%),
-    linear-gradient(160deg, #EFE2C4, var(--ab2-bg-alt));
-}
-.ab2-s04-window {
-  position: absolute; inset-inline-end: 16%; top: 20%; width: 16%; aspect-ratio: 3 / 4;
-  border: 2px solid var(--ab2-ink); background: rgba(255,255,255,0.5);
-}
-.ab2-s04-window::before, .ab2-s04-window::after {
-  content: ''; position: absolute; background: var(--ab2-ink);
-}
-.ab2-s04-window::before { inset-inline: 0; top: 50%; height: 2px; }
-.ab2-s04-window::after { inset-block: 0; left: 50%; width: 2px; }
-.ab2-s04-floor { position: absolute; inset-inline: 12%; bottom: 12%; height: 2px; background: var(--ab2-ink); opacity: 0.7; }
-.ab2-s04-frame { position: absolute; inset: 12%; border: 3px solid var(--ab2-ink); border-radius: 4px; }
-.ab2-s04-door {
-  position: absolute; inset-block: 12%; inset-inline-start: 12%; width: 38%;
-  background: linear-gradient(120deg, #7A5A32, #5E4525);
-  transform-origin: left center; transform: perspective(900px) rotateY(0deg);
-  transition: transform 1300ms var(--ab2-ease-enter);
-  box-shadow: 2px 0 14px rgba(0,0,0,0.25);
-  border-radius: 2px 10px 10px 2px;
-}
-[dir="rtl"] .ab2-s04-door { transform-origin: right center; inset-inline-start: auto; inset-inline-end: 12%; }
-.ab2-s04-handle { position: absolute; inset-inline-end: 8%; top: 48%; width: 7px; height: 7px; border-radius: 50%; background: var(--ab2-gold-bright); }
-.ab2-scene--04.is-active .ab2-s04-door { transform: perspective(900px) rotateY(-108deg); }
-[dir="rtl"] .ab2-scene--04.is-active .ab2-s04-door { transform: perspective(900px) rotateY(108deg); }
-
-/* ---- 05 Lawyers: real photo, a focus pull, a floating glass card ------- */
-.ab2-s05-photo {
-  position: absolute; inset: 0;
-  background-image: url('../images/services/legal-services.jpg');
-  background-size: cover; background-position: center;
-  filter: blur(6px) brightness(0.9) saturate(0.9);
-  transform: scale(1.04);
-  transition: filter 1000ms var(--ab2-ease-enter), transform 1000ms var(--ab2-ease-enter);
-}
-.ab2-scene--05.is-active .ab2-s05-photo { filter: blur(0) brightness(1) saturate(1); transform: scale(1); }
-.ab2-s05-card {
-  position: absolute; left: 6%; bottom: 8%; max-width: 240px;
-  background: rgba(250,246,238,0.86);
-  backdrop-filter: blur(10px) saturate(140%);
-  -webkit-backdrop-filter: blur(10px) saturate(140%);
-  border: 1px solid rgba(255,255,255,0.5);
-  border-radius: var(--ab2-radius-sm);
-  padding: 14px 16px;
-  opacity: 0; transform: translateY(14px);
-  transition: opacity 700ms var(--ab2-ease-enter) 300ms, transform 700ms var(--ab2-ease-enter) 300ms;
-}
-[dir="rtl"] .ab2-s05-card { left: auto; right: 6%; }
-.ab2-scene--05.is-active .ab2-s05-card { opacity: 1; transform: translateY(0); }
-.ab2-s05-card-label { font-size: 0.72rem; font-weight: 700; color: var(--ab2-ink); letter-spacing: 0.02em; }
-
-/* ---- 06 Cleaning: controlled before/after, one clip-path wipe ---------- */
-.ab2-scene--06 .ab2-scene-media { aspect-ratio: 21 / 9; max-width: none; border-radius: 0; }
-.ab2-s06-after {
-  position: absolute; inset: 0;
-  background-image: url('../images/services/cleaning.jpg');
-  background-size: cover; background-position: center;
-}
-.ab2-s06-before {
-  position: absolute; inset: 0;
-  background-image: url('../images/services/cleaning.jpg');
-  background-size: cover; background-position: center;
-  filter: saturate(0.25) brightness(0.72) contrast(0.9);
-  clip-path: inset(0 0% 0 0);
-  transition: clip-path 1300ms var(--ab2-ease-enter) 150ms;
-}
-.ab2-scene--06.is-active .ab2-s06-before { clip-path: inset(0 100% 0 0); }
-.ab2-s06-divider {
-  position: absolute; inset-block: 0; left: 0%; width: 2px; background: var(--ab2-gold-bright);
-  box-shadow: 0 0 12px rgba(217,179,104,0.7);
-  transition: left 1300ms var(--ab2-ease-enter) 150ms;
-}
-.ab2-scene--06.is-active .ab2-s06-divider { left: 100%; }
-.ab2-s06-copy { position: relative; padding-inline: clamp(20px, 5vw, 64px); margin-top: 28px; }
-
-/* ---- 07 Landscaping: planting plan fades into the real garden --------- */
-.ab2-s07-photo {
-  position: absolute; inset: 0;
-  background-image: url('../images/services/landscaping.jpg');
-  background-size: cover; background-position: center;
-  opacity: 0; filter: saturate(0.7);
-  transition: opacity 1200ms var(--ab2-ease-enter), filter 1200ms var(--ab2-ease-enter);
-}
-.ab2-scene--07.is-active .ab2-s07-photo { opacity: 1; filter: saturate(1); }
-.ab2-s07-plan { position: absolute; inset: 0; background: var(--ab2-bg-alt); }
-.ab2-s07-plan svg { width: 100%; height: 100%; }
-.ab2-s07-plan circle, .ab2-s07-plan .ab2-s07-grid { stroke: var(--ab2-ink-soft); }
-.ab2-s07-plan { transition: opacity 1000ms var(--ab2-ease-enter) 200ms; }
-.ab2-scene--07.is-active .ab2-s07-plan { opacity: 0; }
-.ab2-s07-leaf { transform-origin: bottom center; animation: ab2-leaf-sway 6s ease-in-out infinite; }
-.ab2-s07-leaf:nth-child(2) { animation-delay: -2s; }
-.ab2-s07-leaf:nth-child(3) { animation-delay: -4s; }
-@keyframes ab2-leaf-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
-
-/* ---- 08 Installments: a restrained, readable, drawn timeline ---------- */
-.ab2-s08-svg { width: 100%; height: 100%; }
-.ab2-s08-track { stroke: var(--ab2-line-strong); stroke-width: 2; fill: none; }
-.ab2-s08-progress {
-  stroke: var(--ab2-gold-text); stroke-width: 2; fill: none;
-  stroke-dasharray: 640; stroke-dashoffset: 640;
-  transition: stroke-dashoffset 1400ms var(--ab2-ease-enter);
-}
-.ab2-scene--08.is-active .ab2-s08-progress { stroke-dashoffset: 0; }
-.ab2-s08-node circle { fill: var(--ab2-surface); stroke: var(--ab2-ink); stroke-width: 1.4; }
-.ab2-s08-node text { fill: var(--ab2-ink-soft); font-size: 8px; font-family: var(--ab2-font-body); font-weight: 600; }
-.ab2-s08-node { opacity: 0; transform: translateY(8px); transition: opacity 600ms var(--ab2-ease-enter), transform 600ms var(--ab2-ease-enter); }
-/* :nth-of-type, not :nth-child -- the two <path> siblings (track/progress)
-   that precede these <g> nodes would otherwise be counted as children 1-2,
-   pushing every node's stagger two slots later than intended and reversing
-   the visible reading order (confirmed live: the last two nodes appeared
-   first, the first two stayed invisible well past a second). All four
-   .ab2-s08-node elements are the SVG's only <g> siblings, so nth-of-type
-   counts exactly them. */
-.ab2-s08-node:nth-of-type(1) { transition-delay: 120ms; } .ab2-s08-node:nth-of-type(2) { transition-delay: 420ms; }
-.ab2-s08-node:nth-of-type(3) { transition-delay: 720ms; } .ab2-s08-node:nth-of-type(4) { transition-delay: 1020ms; }
-.ab2-scene--08.is-active .ab2-s08-node { opacity: 1; transform: translateY(0); }
-
-/* ---- 09 Construction: foundation -> structure -> facade -> finish ----- */
-.ab2-scene--09 .ab2-scene-media { aspect-ratio: 21 / 9; max-width: none; border-radius: 0; }
-.ab2-s09-photo {
-  position: absolute; inset: 0;
-  background-image: url('../images/services/engineering.jpg');
-  background-size: cover; background-position: center;
-  opacity: 0; transition: opacity 900ms var(--ab2-ease-enter) 1400ms;
-}
-.ab2-scene--09.is-active .ab2-s09-photo { opacity: 1; }
-.ab2-s09-stage { position: absolute; inset: 0; background: var(--ab2-dark); }
-.ab2-s09-stage svg { width: 100%; height: 100%; }
-.ab2-s09-layer { opacity: 0; transform: translateY(16px); transition: opacity 620ms var(--ab2-ease-enter), transform 620ms var(--ab2-ease-enter); }
-.ab2-scene--09.is-active .ab2-s09-layer { opacity: 1; transform: translateY(0); }
-.ab2-scene--09.is-active .ab2-s09-l1 { transition-delay: 80ms; }
-.ab2-scene--09.is-active .ab2-s09-l2 { transition-delay: 340ms; }
-.ab2-scene--09.is-active .ab2-s09-l3 { transition-delay: 600ms; }
-.ab2-scene--09.is-active .ab2-s09-l4 { transition-delay: 860ms; }
-.ab2-scene--09.is-active .ab2-s09-stage { transition: opacity 700ms var(--ab2-ease-enter) 1400ms; opacity: 0; }
-.ab2-s09-copy { position: relative; padding-inline: clamp(20px, 5vw, 64px); margin-top: 28px; }
-
-/* ---- 10 Design: same room, material + light shift on the real photo --- */
-.ab2-s10-photo {
-  position: absolute; inset: 0;
-  background-image: url('../images/services/interior-design.jpg');
-  background-size: cover; background-position: center;
-}
-.ab2-s10-duotone {
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(70,86,92,0.55), rgba(38,45,50,0.65));
-  mix-blend-mode: color;
-  opacity: 1;
-  transition: opacity 1300ms var(--ab2-ease-enter);
-}
-.ab2-scene--10.is-active .ab2-s10-duotone { opacity: 0; }
-.ab2-s10-warm {
-  position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(217,179,104,0.16), transparent 60%);
-  opacity: 0; transition: opacity 1300ms var(--ab2-ease-enter) 200ms;
-}
-.ab2-scene--10.is-active .ab2-s10-warm { opacity: 1; }
-
-/* ---- 11 Furniture: close-up grain pulls back to a composed room ------- */
-.ab2-s11-room { position: absolute; inset: 0; background: var(--ab2-bg-alt); }
-.ab2-s11-room svg { width: 100%; height: 100%; opacity: 0; transition: opacity 900ms var(--ab2-ease-enter) 500ms; }
-.ab2-scene--11.is-active .ab2-s11-room svg { opacity: 1; }
-.ab2-s11-swatch {
-  position: absolute; inset: 0;
-  background:
-    repeating-linear-gradient(100deg, rgba(120,86,46,0.35) 0 3px, rgba(160,120,68,0.28) 3px 7px, rgba(120,86,46,0.35) 7px 11px),
-    linear-gradient(160deg, #8A6635, #6B4E27);
-  transform: scale(2.4);
-  transition: transform 1300ms var(--ab2-ease-enter);
-}
-.ab2-scene--11.is-active .ab2-s11-swatch { transform: scale(1); }
-
-/* ---- 12 House & garden plans: overhead plan draws, then tilts to 3D --- */
-.ab2-scene--12 .ab2-scene-media { aspect-ratio: 1 / 1; max-width: 620px; }
-.ab2-s12-plan { position: absolute; inset: 0; background: var(--ab2-surface); }
-.ab2-s12-plan svg { width: 100%; height: 100%; }
-.ab2-s12-plan .ab2-s12-draw {
-  fill: none; stroke: var(--ab2-ink); stroke-width: 1.3;
-  stroke-dasharray: 1100; stroke-dashoffset: 1100;
-  transition: stroke-dashoffset 1600ms var(--ab2-ease-enter);
-}
-.ab2-scene--12.is-active .ab2-s12-plan .ab2-s12-draw { stroke-dashoffset: 0; }
-.ab2-s12-iso {
-  position: absolute; inset: 0;
-  perspective: 900px;
-  opacity: 0;
-  transition: opacity 800ms var(--ab2-ease-enter) 1500ms;
-}
-.ab2-scene--12.is-active .ab2-s12-iso { opacity: 1; }
-.ab2-s12-iso svg {
-  width: 100%; height: 100%;
-  transform: rotateX(46deg) rotateZ(-4deg) scale(0.92);
-  transform-origin: center;
-}
-.ab2-s12-iso rect, .ab2-s12-iso path { stroke: var(--ab2-ink); stroke-width: 1; }
-
-/* =========================================================================
- * 3. CLOSING
- * ========================================================================= */
-.ab2-closing {
-  background: var(--ab2-dark);
-  color: var(--ab2-dark-ink);
-  padding-block: clamp(72px, 10vw, 140px);
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-.ab2-closing::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse 900px 500px at 50% 0%, rgba(217,179,104,0.14), transparent 60%);
-  pointer-events: none;
-}
-.ab2-closing-inner { position: relative; max-width: 720px; margin-inline: auto; padding-inline: clamp(20px, 5vw, 64px); }
-.ab2-closing-title {
-  font-family: var(--ab2-font-display);
-  font-weight: 700;
-  font-size: clamp(1.9rem, 3vw + 0.8rem, 2.9rem);
-  line-height: 1.2;
-  margin: 0 0 32px;
-  text-wrap: balance;
-}
-.ab2-cta {
-  display: inline-flex;
-  align-items: center;
   gap: 10px;
+  transform: translate(-50%, -50%) scale(0.85);
+  opacity: 0;
+  width: 132px;
+  text-align: center;
+}
+.dwa-connect-node-icon {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: 1px solid var(--dwa-dark-line);
+  background: rgba(255, 255, 255, 0.04);
+  display: flex; align-items: center; justify-content: center;
+}
+.dwa-connect-node-icon svg { width: 24px; height: 24px; stroke: var(--dwa-gold-bright); }
+.dwa-connect-node span { font: 600 12px/1.3 var(--dwa-body); letter-spacing: 0.02em; color: rgba(255, 255, 255, 0.85); }
+.dwa-connect-node[data-node="property"] { left: 50%; top: 4%; }
+.dwa-connect-node[data-node="people"] { left: 96%; top: 50%; }
+.dwa-connect-node[data-node="professionals"] { left: 50%; top: 96%; }
+.dwa-connect-node[data-node="services"] { left: 4%; top: 50%; }
+
+.dwa-connect-pin[style*="--cp"] .dwa-connect-lines path { stroke-dashoffset: calc(100 - 100 * min(var(--cp, 0) / 0.6, 1)); }
+.dwa-connect-pin[style*="--cp"] .dwa-connect-node { opacity: calc(min(max(var(--cp, 0) - 0.05, 0) / 0.35, 1)); transform: translate(-50%, -50%) scale(calc(0.85 + 0.15 * min(max(var(--cp, 0) - 0.05, 0) / 0.35, 1))); }
+.dwa-connect-pin:not([style*="--cp"]) .dwa-connect-lines path { stroke-dashoffset: 0; }
+.dwa-connect-pin:not([style*="--cp"]) .dwa-connect-node { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+
+/* ===========================================================================
+   SCENE 04 -- JOURNEY. Plan -> Design -> Build -> Live, pinned and scrubbed
+   via --jp (0->1); a progress rail fills as each stage takes its turn.
+   =========================================================================== */
+.dwa-journey { position: relative; background: var(--dwa-ivory-deep); }
+.dwa-journey-pin { position: relative; min-height: 92vh; display: flex; align-items: center; padding: 60px 24px; }
+.dwa-journey-inner { max-width: 1040px; margin: 0 auto; width: 100%; }
+.dwa-journey-head { text-align: center; max-width: 560px; margin: 0 auto 7vh; }
+.dwa-journey-title { font-size: clamp(24px, 3.4vw, 38px); line-height: 1.2; }
+.dwa-journey-body { font: 400 15px/1.6 var(--dwa-body); color: var(--dwa-ink-soft); margin-top: 10px; }
+.dwa-journey-rail { position: relative; height: 2px; background: var(--dwa-line); margin: 0 auto 6vh; max-width: 760px; }
+.dwa-journey-rail-fill { position: absolute; inset: 0; width: 0%; background: var(--dwa-gold); transform-origin: left; }
+.dwa-journey-stages { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; max-width: 900px; margin: 0 auto; }
+.dwa-journey-stage { text-align: center; opacity: 0.3; transform: translateY(10px) scale(0.96); transition: opacity 0.25s ease, transform 0.25s ease; }
+.dwa-journey-stage.is-current { opacity: 1; transform: translateY(0) scale(1); }
+.dwa-journey-num { display: inline-block; font: 500 13px/1 var(--dwa-display); color: var(--dwa-gold); margin-bottom: 10px; }
+.dwa-journey-label { display: block; font: 600 16px/1 var(--dwa-body); letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 8px; color: var(--dwa-ink); }
+.dwa-journey-desc { font: 400 13px/1.5 var(--dwa-body); color: var(--dwa-ink-soft); }
+
+/* ===========================================================================
+   SCENE 05 -- ECOSYSTEM. Central Darwesh node, gold lines fan out to 9
+   service panels that rise into place; pinned and scrubbed via --ep.
+   =========================================================================== */
+.dwa-ecosystem { position: relative; background: var(--dwa-ivory); }
+.dwa-ecosystem-pin { position: relative; min-height: 110vh; display: flex; flex-direction: column; justify-content: center; padding: 70px 24px; }
+.dwa-ecosystem-head { text-align: center; max-width: 560px; margin: 0 auto 5vh; }
+.dwa-ecosystem-title { font-size: clamp(24px, 3.4vw, 38px); line-height: 1.2; }
+.dwa-ecosystem-body { font: 400 15px/1.6 var(--dwa-body); color: var(--dwa-ink-soft); margin-top: 10px; }
+.dwa-ecosystem-stage { position: relative; max-width: 1180px; margin: 0 auto; width: 100%; }
+.dwa-ecosystem-node {
+  position: relative;
+  width: 76px; height: 76px;
+  margin: 0 auto 32px;
+  border-radius: 50%;
+  background: var(--dwa-ink);
+  color: var(--dwa-gold-bright);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--dwa-display); font-size: 26px; font-weight: 600;
+  box-shadow: 0 12px 28px -14px rgba(26, 21, 14, 0.5);
+  opacity: 0; transform: scale(0.8);
+}
+.dwa-ecosystem-lines { position: absolute; left: 50%; top: 38px; width: 1px; height: 0; background: var(--dwa-gold); transform: translateX(-50%); opacity: 0.5; }
+.dwa-ecosystem-panels { display: flex; gap: 14px; overflow-x: auto; padding: 6px 4px 16px; scroll-snap-type: x proximity; }
+.dwa-ecosystem-panel {
+  scroll-snap-align: start;
+  position: relative;
+  flex: 0 0 auto;
+  width: 148px;
+  height: 260px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--dwa-ink);
+  opacity: 0;
+  transform: translateY(46px) scale(0.92);
+}
+.dwa-ecosystem-panel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.82; }
+.dwa-ecosystem-panel-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--dwa-ink-soft); }
+.dwa-ecosystem-panel-icon svg { width: 40px; height: 40px; stroke: var(--dwa-sand); opacity: 0.8; }
+.dwa-ecosystem-panel::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20, 16, 11, 0) 40%, rgba(20, 16, 11, 0.86) 100%); }
+.dwa-ecosystem-panel-label {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 14px;
+  color: var(--dwa-white);
+  font: 600 13px/1.3 var(--dwa-body);
+  z-index: 1;
+}
+.dwa-ecosystem-foot { text-align: center; margin-top: 5vh; }
+.dwa-ecosystem-foot-mark { font: 500 15px/1 var(--dwa-display); color: var(--dwa-ink); }
+.dwa-ecosystem-foot-tag { display: block; font: 600 11px/1 var(--dwa-body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--dwa-ink-soft); margin-top: 6px; }
+
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-node { opacity: min(var(--ep, 0) / 0.12, 1); transform: scale(calc(0.8 + 0.2 * min(var(--ep, 0) / 0.12, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-lines { height: calc(min(max(var(--ep, 0) - 0.1, 0) / 0.2, 1) * 20px); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(1) { opacity: min(max(var(--ep, 0) - 0.18, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.18, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.18, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(2) { opacity: min(max(var(--ep, 0) - 0.22, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.22, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.22, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(3) { opacity: min(max(var(--ep, 0) - 0.26, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.26, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.26, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(4) { opacity: min(max(var(--ep, 0) - 0.3, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.3, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.3, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(5) { opacity: min(max(var(--ep, 0) - 0.34, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.34, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.34, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(6) { opacity: min(max(var(--ep, 0) - 0.38, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.38, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.38, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(7) { opacity: min(max(var(--ep, 0) - 0.42, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.42, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.42, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(8) { opacity: min(max(var(--ep, 0) - 0.46, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.46, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.46, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-panel:nth-child(9) { opacity: min(max(var(--ep, 0) - 0.5, 0) / 0.18, 1); transform: translateY(calc(46px * (1 - min(max(var(--ep, 0) - 0.5, 0) / 0.18, 1)))) scale(calc(0.92 + 0.08 * min(max(var(--ep, 0) - 0.5, 0) / 0.18, 1))); }
+.dwa-ecosystem-pin[style*="--ep"] .dwa-ecosystem-foot { opacity: min(max(var(--ep, 0) - 0.68, 0) / 0.2, 1); }
+.dwa-ecosystem-pin:not([style*="--ep"]) .dwa-ecosystem-node,
+.dwa-ecosystem-pin:not([style*="--ep"]) .dwa-ecosystem-panel { opacity: 1; transform: none; }
+.dwa-ecosystem-pin:not([style*="--ep"]) .dwa-ecosystem-lines { height: 20px; }
+.dwa-ecosystem-pin:not([style*="--ep"]) .dwa-ecosystem-foot { opacity: 1; }
+.dwa-ecosystem-foot { opacity: 0; transition: none; }
+
+/* ===========================================================================
+   SCENE 06 -- PROFESSIONALS. Scroll reveal, no pin -- three real cards.
+   =========================================================================== */
+.dwa-pros { position: relative; background: var(--dwa-ivory); padding: clamp(80px, 13vh, 150px) 24px; }
+.dwa-pros-inner { max-width: 1180px; margin: 0 auto; }
+.dwa-pros-head { max-width: 560px; margin: 0 auto 6vh; text-align: center; }
+.dwa-pros-title { font-size: clamp(24px, 3.4vw, 38px); line-height: 1.2; }
+.dwa-pros-body { font: 400 15px/1.6 var(--dwa-body); color: var(--dwa-ink-soft); margin-top: 10px; }
+.dwa-pros-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.dwa-pro-card { position: relative; border-radius: 16px; overflow: hidden; background: var(--dwa-ink); aspect-ratio: 4/5; opacity: 0; transform: translateY(28px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.dwa-pro-card.is-active { opacity: 1; transform: translateY(0); }
+.dwa-pro-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.86; }
+.dwa-pro-card-plan { position: absolute; inset: 0; background: var(--dwa-ivory-deep); display: flex; align-items: center; justify-content: center; }
+.dwa-pro-card-plan svg { width: 70%; height: 70%; }
+.dwa-pro-card::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20, 16, 11, 0) 42%, rgba(20, 16, 11, 0.9) 100%); }
+.dwa-pro-badge { position: absolute; top: 14px; left: 14px; z-index: 1; display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: rgba(20, 16, 11, 0.55); backdrop-filter: blur(4px); font: 600 10px/1 var(--dwa-body); color: var(--dwa-sand); }
+.dwa-pro-badge svg { width: 12px; height: 12px; }
+.dwa-pro-copy { position: absolute; left: 16px; right: 16px; bottom: 16px; z-index: 1; }
+.dwa-pro-name { font: 600 16px/1.25 var(--dwa-display); color: var(--dwa-white); margin-bottom: 4px; }
+.dwa-pro-desc { font: 400 12px/1.45 var(--dwa-body); color: rgba(255, 255, 255, 0.78); margin-bottom: 8px; }
+
+/* ===========================================================================
+   SCENE 07 -- TECHNOLOGY. Physical world's connections resolve into a
+   digital interface -- graph lines draw in on reveal.
+   =========================================================================== */
+.dwa-tech { position: relative; background: var(--dwa-dark); color: var(--dwa-white); padding: clamp(80px, 13vh, 150px) 24px; }
+.dwa-tech-inner { max-width: 1080px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+.dwa-tech-graph { position: relative; aspect-ratio: 1; }
+.dwa-tech-graph svg { width: 100%; height: 100%; }
+.dwa-tech-graph line { stroke: var(--dwa-gold); stroke-width: 1; opacity: 0; stroke-dasharray: 200; stroke-dashoffset: 200; transition: opacity 0.6s ease, stroke-dashoffset 1s ease; }
+.dwa-tech-graph circle { opacity: 0; transform: scale(0.6); transform-origin: center; transition: opacity 0.5s ease, transform 0.5s ease; }
+.dwa-tech.is-active .dwa-tech-graph line { opacity: 0.7; stroke-dashoffset: 0; }
+.dwa-tech.is-active .dwa-tech-graph circle { opacity: 1; transform: scale(1); }
+.dwa-tech.is-active .dwa-tech-graph circle:nth-of-type(2) { transition-delay: 0.15s; }
+.dwa-tech.is-active .dwa-tech-graph circle:nth-of-type(3) { transition-delay: 0.25s; }
+.dwa-tech.is-active .dwa-tech-graph circle:nth-of-type(4) { transition-delay: 0.35s; }
+.dwa-tech.is-active .dwa-tech-graph circle:nth-of-type(5) { transition-delay: 0.45s; }
+.dwa-tech-copy { opacity: 0; transform: translateY(20px); transition: opacity 0.8s ease, transform 0.8s ease; }
+.dwa-tech.is-active .dwa-tech-copy { opacity: 1; transform: translateY(0); }
+.dwa-tech-title { font-size: clamp(24px, 3.4vw, 38px); line-height: 1.2; margin-bottom: 14px; }
+.dwa-tech-body { font: 400 15px/1.6 var(--dwa-body); color: rgba(255, 255, 255, 0.72); margin-bottom: 22px; }
+.dwa-tech-ctas { display: flex; flex-wrap: wrap; gap: 20px; }
+
+/* ===========================================================================
+   SCENE 08 -- FINAL. Four pillars converge to one statement, five operating
+   principles, wide city visual, closing CTA -- one continuous close.
+   =========================================================================== */
+.dwa-final { position: relative; background: var(--dwa-ink); color: var(--dwa-white); }
+.dwa-final-syn { padding: clamp(90px, 15vh, 170px) 24px 6vh; text-align: center; }
+.dwa-final-syn-pillars { display: flex; justify-content: center; gap: clamp(20px, 5vw, 64px); margin-bottom: 40px; flex-wrap: wrap; }
+.dwa-final-pillar { display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 0; transform: translateY(16px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.dwa-final-pillar.is-active { opacity: 1; transform: translateY(0); }
+.dwa-final-pillar svg { width: 26px; height: 26px; stroke: var(--dwa-gold-bright); }
+.dwa-final-pillar span { font: 600 11px/1 var(--dwa-body); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255, 255, 255, 0.75); }
+.dwa-final-title { max-width: 760px; margin: 0 auto; font-size: clamp(22px, 3.6vw, 40px); line-height: 1.25; opacity: 0; transform: translateY(16px) scale(0.98); transition: opacity 0.8s ease, transform 0.8s ease; }
+.dwa-final-title.is-active { opacity: 1; transform: translateY(0) scale(1); }
+
+.dwa-values-row { max-width: 1080px; margin: 0 auto; padding: 0 24px 8vh; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+.dwa-value { text-align: center; opacity: 0; transform: translateY(14px); transition: opacity 0.5s ease, transform 0.5s ease; }
+.dwa-value.is-active { opacity: 1; transform: translateY(0); }
+.dwa-value-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, 0.06); color: var(--dwa-gold-bright); margin-bottom: 10px; }
+.dwa-value-title { font: 600 13px/1.3 var(--dwa-body); margin-bottom: 6px; }
+.dwa-value-body { font: 400 12px/1.5 var(--dwa-body); color: rgba(255, 255, 255, 0.62); }
+
+.dwa-final-city {
+  position: relative;
+  min-height: 62vh;
+  background: url('../images/cities/sulaymaniyah-city.jpg') center 46% / cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+  padding: 60px 24px;
+}
+.dwa-final-city::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, var(--dwa-ink) 0%, rgba(20, 16, 11, 0.35) 30%, rgba(20, 16, 11, 0.35) 70%, var(--dwa-ink) 100%); }
+.dwa-final-city-inner { position: relative; max-width: 620px; opacity: 0; transform: scale(0.96); transition: opacity 0.9s ease, transform 0.9s ease; }
+.dwa-final-city-inner.is-active { opacity: 1; transform: scale(1); }
+.dwa-closing-title { font-size: clamp(24px, 4vw, 44px); line-height: 1.2; margin-bottom: 26px; }
+.dwa-cta {
+  display: inline-block;
   padding: 15px 34px;
   border-radius: 999px;
-  background: var(--ab2-gold-bright);
-  color: var(--ab2-dark);
-  font-weight: 700;
-  font-size: 0.98rem;
+  background: var(--dwa-gold);
+  color: var(--dwa-ink);
+  font: 700 14px/1 var(--dwa-body);
   text-decoration: none;
-  transition: transform var(--ab2-fast) var(--ab2-ease), box-shadow var(--ab2-fast) var(--ab2-ease);
-  box-shadow: 0 10px 30px rgba(217,179,104,0.25);
+  transition: background 0.2s ease, transform 0.2s ease;
 }
-.ab2-cta:hover, .ab2-cta:focus-visible { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(217,179,104,0.35); }
-.ab2-cta:focus-visible { outline: 2px solid var(--ab2-dark-ink); outline-offset: 3px; }
+.dwa-cta:hover { background: var(--dwa-gold-bright); transform: translateY(-1px); }
 
-/* =========================================================================
- * 4. RESPONSIVE
- * ========================================================================= */
+/* ===========================================================================
+   Responsive -- shorter pinned distances (set in JS), fewer simultaneous
+   decorative layers, single-column grids below 860px.
+   =========================================================================== */
 @media (max-width: 860px) {
-  .ab2-scene--split .ab2-scene-inner { grid-template-columns: 1fr; }
-  .ab2-scene--split .ab2-scene-media,
-  .ab2-scene--split .ab2-scene-copy { order: initial !important; }
-  .ab2-hero-pin { height: 190vh; }
-  .ab2-hero-stage-wrap { min-height: 560px; }
-  .ab2-s05-card { max-width: none; left: 5%; right: 5%; bottom: 6%; }
-  [dir="rtl"] .ab2-s05-card { right: 5%; }
-}
-@media (max-width: 560px) {
-  .ab2-hero-title { font-size: clamp(1.85rem, 8vw, 2.6rem); }
-  .ab2-scene { padding-block: 52px; }
-  .ab2-scene-media { aspect-ratio: 4 / 3.4; }
-  .ab2-scene--06 .ab2-scene-media, .ab2-scene--09 .ab2-scene-media { aspect-ratio: 4 / 5; }
-  .ab2-hero-pin { height: 175vh; }
+  .dwa-house-markers, .dwa-house-label { display: none; }
+  .dwa-house, .dwa-hero-final { height: min(42vh, 56%); }
+  .dwa-connect-node { width: 100px; }
+  .dwa-connect-node-icon { width: 42px; height: 42px; }
+  .dwa-journey-stages { grid-template-columns: repeat(2, 1fr); gap: 24px 16px; }
+  .dwa-ecosystem-panel { width: 122px; height: 210px; }
+  .dwa-pros-grid { grid-template-columns: 1fr; max-width: 380px; margin: 0 auto; }
+  .dwa-tech-inner { grid-template-columns: 1fr; text-align: center; gap: 32px; }
+  .dwa-tech-graph { max-width: 220px; margin: 0 auto; }
+  .dwa-tech-ctas { justify-content: center; }
+  .dwa-final-syn-pillars { gap: 20px 28px; }
+  .dwa-values-row { grid-template-columns: repeat(2, 1fr); }
 }
 
-/* =========================================================================
- * 5. REDUCED MOTION -- every scene renders at its resting, final state; no
- * IntersectionObserver-driven class is required for content to be fully
- * visible (js/about-story.js also skips attaching one), and the hero's
- * sticky pin collapses to a normal static section.
- * ========================================================================= */
+@media (max-width: 520px) {
+  .dwa-values-row { grid-template-columns: 1fr; }
+  .dwa-journey-stages { grid-template-columns: 1fr; max-width: 260px; margin: 0 auto; }
+}
+
+/* ===========================================================================
+   Reduced motion -- every scene's finished, legible state, no scrub/pin.
+   =========================================================================== */
 @media (prefers-reduced-motion: reduce) {
-  .ab2-page * { animation: none !important; transition: none !important; }
-  .ab2-hero-pin { height: auto; }
-  .ab2-hero-stage-wrap { position: relative; height: auto; min-height: 0; padding-block: 96px 64px; }
-  .ab2-hero-stage { position: relative; --hp: 0.62; }
-  .ab2-hero-svg { position: relative; }
-  .ab2-s01-a, .ab2-s01-b { transform: none; opacity: 1; }
-  .ab2-s01-link { stroke-dashoffset: 0; }
-  .ab2-s02-cutaway { clip-path: circle(85% at 72% 42%); }
-  .ab2-s03-photo { transform: scale(1); }
-  .ab2-s03-fore { opacity: 0; }
-  .ab2-s04-door { transform: perspective(900px) rotateY(-108deg); }
-  [dir="rtl"] .ab2-s04-door { transform: perspective(900px) rotateY(108deg); }
-  .ab2-s05-photo { filter: none; transform: none; }
-  .ab2-s05-card { opacity: 1; transform: none; }
-  .ab2-s06-before { clip-path: inset(0 100% 0 0); }
-  .ab2-s06-divider { left: 100%; }
-  .ab2-s07-photo { opacity: 1; filter: none; }
-  .ab2-s07-plan { opacity: 0; }
-  .ab2-s08-progress { stroke-dashoffset: 0; }
-  .ab2-s08-node { opacity: 1; transform: none; }
-  .ab2-s09-photo { opacity: 1; }
-  .ab2-s09-stage { opacity: 0; }
-  .ab2-s09-layer { opacity: 1; transform: none; }
-  .ab2-s10-duotone { opacity: 0; }
-  .ab2-s10-warm { opacity: 1; }
-  .ab2-s11-room svg { opacity: 1; }
-  .ab2-s11-swatch { transform: scale(1); }
-  .ab2-s12-plan .ab2-s12-draw { stroke-dashoffset: 0; }
-  .ab2-s12-iso { opacity: 1; }
+  .dwa-hero-pin, .dwa-connect-pin, .dwa-journey-pin, .dwa-ecosystem-pin { min-height: auto; }
+  .dwa-hero-stage { transform: none !important; }
+  .dwa-house-ground, .dwa-house-frame, .dwa-house-frame2, .dwa-house-overhang, .dwa-house-openings { stroke-dashoffset: 0 !important; }
+  .dwa-house-guide, .dwa-house-markers { opacity: 0 !important; }
+  .dwa-house-plaza, .dwa-house-label, .dwa-hero-content, .dwa-scroll-cue { opacity: 1 !important; transform: none !important; }
+  .dwa-hero-final { opacity: 1 !important; clip-path: inset(0 0 0 0) !important; }
+  .dwa-story-verb:last-child, .dwa-story-inner { opacity: 1 !important; transform: none !important; }
+  .dwa-story-verb:not(:last-child) { display: none; }
+  .dwa-connect-lines path { stroke-dashoffset: 0 !important; }
+  .dwa-connect-node { opacity: 1 !important; transform: translate(-50%, -50%) scale(1) !important; }
+  .dwa-journey-rail-fill { width: 100% !important; }
+  .dwa-journey-stage { opacity: 1 !important; transform: none !important; }
+  .dwa-ecosystem-node, .dwa-ecosystem-panel, .dwa-ecosystem-foot { opacity: 1 !important; transform: none !important; }
+  .dwa-ecosystem-lines { height: 20px !important; }
+  .dwa-pro-card, .dwa-tech-copy, .dwa-tech-graph line, .dwa-tech-graph circle,
+  .dwa-final-pillar, .dwa-final-title, .dwa-value, .dwa-final-city-inner { opacity: 1 !important; transform: none !important; stroke-dashoffset: 0 !important; }
 }
-
-/* =========================================================================
- * 6. RTL -- content mirrors; every left/right pixel value above already has
- * an explicit [dir="rtl"] counterpart. Gold/ink/layout tokens are direction-
- * agnostic so nothing else needs a mirrored rule.
- * ========================================================================= */
-[dir="rtl"] .ab2-scene-num,
-[dir="rtl"] .ab2-scene-title,
-[dir="rtl"] .ab2-scene-body { text-align: right; }
