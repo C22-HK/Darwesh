@@ -60,8 +60,8 @@
   };
   var routes = {
     properties: 'buy.html', projects: 'projects.html', designService: 'design.html',
-    engineering: 'engineer.html', legalService: 'lawyer.html', cleaning: 'cleaning.html',
-    landscaping: 'landscaping.html', moving: 'services.html', furniture: 'services.html',
+    engineering: 'service.html?type=engineer', legalService: 'service.html?type=lawyer', cleaning: 'service.html?type=cleaning',
+    landscaping: 'service.html?type=landscaping', moving: 'services.html', furniture: 'services.html',
   };
   function t(key) {
     return (window.t && window.t('about.' + key)) || EN[key] || key;
