@@ -7,7 +7,7 @@ const COPY = {
     footer: 'Darwesh Group connects property seekers, owners, professionals and services across Kurdistan and Iraq in one platform.',
     rights: 'All rights reserved.', commercial: 'Commercial Property', searchSuffix: ' on Buy', allTypes: 'All types',
     roleError: 'Could not update the role. Please try again.', deleteError: 'Could not delete the listing. Please try again.', statusError: 'Could not update the listing status. Please try again.',
-    breadcrumb: 'Breadcrumb', coverImage: 'Cover image',
+    breadcrumb: 'Breadcrumb', coverImage: 'Cover image', askingPrice: 'Asking Price', reviewListing: 'Review Listing', reviewListingSub: 'Review your property details before submitting', centralAc: 'Central A/C', yearExample: 'e.g. 2020', selectCondition: 'Select condition', lawyerWork: 'Cases & Work', maintenanceWork: 'Work',
     intents: { buy: 'Buy — homes, apartments and land', rent: 'Rent — available homes and properties', build: 'Build — work with property professionals', renovate: 'Renovate — improve your property', sell: 'Sell — list your property' },
     types: { house: 'House', villa: 'Villa', apartment: 'Apartment', land: 'Land', building: 'Building', office: 'Office', shop: 'Shop', commercialProperty: 'Commercial Property' }
   },
@@ -15,7 +15,7 @@ const COPY = {
     footer: 'دەروێش گروپ گەڕۆکانی موڵک، خاوەن موڵک، پسپۆڕان و خزمەتگوزارییەکان لە کوردستان و عێراق لە یەک پلاتفۆرمدا پێکەوە دەبەستێتەوە.',
     rights: 'هەموو مافەکان پارێزراون.', commercial: 'موڵکی بازرگانی', searchSuffix: ' · گەڕانی کڕین', allTypes: 'هەموو جۆرەکان',
     roleError: 'نەتوانرا ڕۆڵەکە نوێ بکرێتەوە. تکایە دووبارە هەوڵبدەوە.', deleteError: 'نەتوانرا موڵکەکە بسڕدرێتەوە. تکایە دووبارە هەوڵبدەوە.', statusError: 'نەتوانرا دۆخی موڵکەکە نوێ بکرێتەوە. تکایە دووبارە هەوڵبدەوە.',
-    breadcrumb: 'ڕێڕەوی پەڕە', coverImage: 'وێنەی سەرەکی',
+    breadcrumb: 'ڕێڕەوی پەڕە', coverImage: 'وێنەی سەرەکی', askingPrice: 'نرخی داواکراو', reviewListing: 'پێداچوونەوەی موڵک', reviewListingSub: 'پێش ناردن، زانیارییەکانی موڵکەکەت بپشکنەوە', centralAc: 'کۆندیشنی ناوەندی', yearExample: 'بۆ نموونە: 2020', selectCondition: 'دۆخ هەڵبژێرە', lawyerWork: 'کەیس و کارەکان', maintenanceWork: 'کارەکان',
     intents: { buy: 'کڕین — خانوو، ئاپارتمان و زەوی', rent: 'کرێ — خانوو و موڵکی بەردەست', build: 'دروستکردن — کارکردن لەگەڵ پسپۆڕانی خانووبەرە', renovate: 'نوێکردنەوە — باشترکردنی موڵکەکەت', sell: 'فرۆشتن — تۆمارکردنی موڵکەکەت' },
     types: { house: 'خانوو', villa: 'ڤیلا', apartment: 'ئاپارتمان', land: 'زەوی', building: 'بینا', office: 'نووسینگە', shop: 'دوکان', commercialProperty: 'موڵکی بازرگانی' }
   },
@@ -23,7 +23,7 @@ const COPY = {
     footer: 'تربط مجموعة درويش الباحثين عن العقارات والمالكين والمهنيين والخدمات في كردستان والعراق ضمن منصة واحدة.',
     rights: 'جميع الحقوق محفوظة.', commercial: 'عقار تجاري', searchSuffix: ' · بحث الشراء', allTypes: 'كل الأنواع',
     roleError: 'تعذر تحديث الدور. حاول مرة أخرى.', deleteError: 'تعذر حذف العقار. حاول مرة أخرى.', statusError: 'تعذر تحديث حالة العقار. حاول مرة أخرى.',
-    breadcrumb: 'مسار التنقل', coverImage: 'صورة الغلاف',
+    breadcrumb: 'مسار التنقل', coverImage: 'صورة الغلاف', askingPrice: 'السعر المطلوب', reviewListing: 'مراجعة العقار', reviewListingSub: 'راجع تفاصيل عقارك قبل الإرسال', centralAc: 'تكييف مركزي', yearExample: 'مثال: 2020', selectCondition: 'اختر الحالة', lawyerWork: 'القضايا والأعمال', maintenanceWork: 'الأعمال',
     intents: { buy: 'شراء — منازل وشقق وأراضٍ', rent: 'إيجار — منازل وعقارات متاحة', build: 'بناء — العمل مع مختصي العقارات', renovate: 'تجديد — تحسين عقارك', sell: 'بيع — إدراج عقارك' },
     types: { house: 'منزل', villa: 'فيلا', apartment: 'شقة', land: 'أرض', building: 'مبنى', office: 'مكتب', shop: 'محل', commercialProperty: 'عقار تجاري' }
   },
@@ -31,7 +31,7 @@ const COPY = {
     footer: 'Darwesh Group, Kürdistan ve Irak genelinde emlak arayanları, mülk sahiplerini, profesyonelleri ve hizmetleri tek platformda buluşturur.',
     rights: 'Tüm hakları saklıdır.', commercial: 'Ticari Emlak', searchSuffix: ' · Satın alma araması', allTypes: 'Tüm türler',
     roleError: 'Rol güncellenemedi. Lütfen tekrar deneyin.', deleteError: 'Emlak silinemedi. Lütfen tekrar deneyin.', statusError: 'Emlak durumu güncellenemedi. Lütfen tekrar deneyin.',
-    breadcrumb: 'Gezinme yolu', coverImage: 'Kapak görseli',
+    breadcrumb: 'Gezinme yolu', coverImage: 'Kapak görseli', askingPrice: 'İstenen Fiyat', reviewListing: 'Emlakı İncele', reviewListingSub: 'Göndermeden önce emlak bilgilerinizi gözden geçirin', centralAc: 'Merkezi Klima', yearExample: 'Örnek: 2020', selectCondition: 'Durum seçin', lawyerWork: 'Davalar ve Çalışmalar', maintenanceWork: 'Çalışmalar',
     intents: { buy: 'Satın al — evler, daireler ve arsalar', rent: 'Kirala — mevcut evler ve emlaklar', build: 'İnşa et — emlak profesyonelleriyle çalış', renovate: 'Yenile — emlakınızı geliştirin', sell: 'Sat — emlakınızı listeleyin' },
     types: { house: 'Ev', villa: 'Villa', apartment: 'Daire', land: 'Arsa', building: 'Bina', office: 'Ofis', shop: 'Dükkan', commercialProperty: 'Ticari Emlak' }
   }
@@ -117,6 +117,24 @@ function paintAccessibleNames(c) {
   }
 }
 
+function paintSemanticText(c) {
+  const exact = {
+    'sell.askingPrice': c.askingPrice,
+    'sell.step5Heading': c.reviewListing,
+    'sell.step5.subheading': c.reviewListingSub,
+    'sell.amenity.centralAc': c.centralAc,
+    'lawyer.tabProjects': c.lawyerWork,
+    'maintenance.tabProjects': c.maintenanceWork
+  };
+  Object.entries(exact).forEach(([key, value]) => {
+    document.querySelectorAll(`[data-i18n="${key}"]`).forEach((el) => setText(el, value));
+  });
+  const year = document.getElementById('yearBuiltInput');
+  if (year && year.getAttribute('placeholder') !== c.yearExample) year.setAttribute('placeholder', c.yearExample);
+  const conditionPlaceholder = document.querySelector('#conditionSelect option[value=""]');
+  if (conditionPlaceholder) setText(conditionPlaceholder, c.selectCondition);
+}
+
 function paint() {
   const c = COPY[lang()] || COPY.en;
   setText(document.querySelector('.sf-tagline'), c.footer);
@@ -148,6 +166,7 @@ function paint() {
     if (next) setText(el, next);
   });
   paintAccessibleNames(c);
+  paintSemanticText(c);
 }
 let queued = false;
 function schedule() {
