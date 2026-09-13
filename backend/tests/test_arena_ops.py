@@ -299,6 +299,13 @@ async def test_completing_all_required_steps_triggers_completion_bonus_exactly_o
     badge_ids = [b["id"] for b in state["badgesEarned"]]
     assert badge_ids.count("deal_maker") == 1
 
+    # The public leaderboard mirror gets the same badge, id+name only --
+    # this is what the public Arena summary component reads (never the
+    # private arenaState doc, which also carries earnedAt/challengeId).
+    public_entry = db.collection(model.ARENA_LEADERBOARD_ENTRIES).document(uid).get().to_dict()
+    assert public_entry["badges"] == [{"id": "deal_maker", "name": "Deal Maker"}]
+    assert public_entry["badgeCount"] == 1
+
 
 # ---- points: recompute + manual adjustment ---------------------------------
 

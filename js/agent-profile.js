@@ -137,10 +137,13 @@ function render() {
 
   if (isOwnerView) show('manageListingsBtn');
 
-  // Darwesh Arena panel -- owner-only, same component + same reasoning as
-  // js/profile-role.js: this page is PUBLIC, so it is mounted explicitly
-  // (never through [data-arena-panel] auto-mount) and only for the agent
-  // looking at their own profile, never a visitor.
+  // Darwesh Arena -- the agent looking at their own profile sees the full
+  // private panel (same component + same reasoning as js/profile-role.js:
+  // mounted explicitly, never through [data-arena-panel], since this page
+  // is PUBLIC); a visitor sees the public-safe summary instead, reusing
+  // the same host slot. arena-summary.js reads only the public
+  // arenaLeaderboardEntries/{uid} doc -- never this agent's private Arena
+  // state, missions, or ledger.
   const arenaHost = el('arenaPanel');
   if (arenaHost) {
     if (isOwnerView && currentUser) {
@@ -149,8 +152,9 @@ function render() {
         .then((m) => m.mountArenaPanel(arenaHost, currentUser))
         .catch(() => { arenaHost.hidden = true; });
     } else {
-      arenaHost.hidden = true;
-      arenaHost.innerHTML = '';
+      import('./arena-summary.js')
+        .then((m) => m.mountArenaSummary(arenaHost, agentId))
+        .catch(() => { arenaHost.hidden = true; arenaHost.innerHTML = ''; });
     }
   }
 }

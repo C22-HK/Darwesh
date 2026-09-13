@@ -963,6 +963,15 @@ class ArenaOps:
 
             user_snap = self._db.collection("users").document(uid).get()
             user_data = user_snap.to_dict() if user_snap.exists else {}
+            badges_earned = existing.get("badgesEarned") or []
+            # Public-safe projection: id + name only. badgesEarned itself
+            # (in the PRIVATE arenaState doc above) also carries earnedAt/
+            # challengeId -- neither is sensitive, but this mirror only
+            # ever needs to answer "which badges", so that's all it copies.
+            public_badges = [
+                {"id": b.get("id"), "name": b.get("name")}
+                for b in badges_earned if isinstance(b, dict) and b.get("id")
+            ]
             leaderboard_payload = {
                 "uid": uid,
                 "displayName": user_data.get("displayName") or "",
@@ -974,7 +983,8 @@ class ArenaOps:
                 "rankName": rank_progress.current_rank_name,
                 "verifiedPropertiesCount": verified_count,
                 "soldPropertiesCount": sold_count,
-                "badgeCount": len(existing.get("badgesEarned") or []),
+                "badgeCount": len(badges_earned),
+                "badges": public_badges,
                 "updatedAt": fb_firestore.SERVER_TIMESTAMP,
             }
             self._db.collection(model.ARENA_LEADERBOARD_ENTRIES).document(uid).set(leaderboard_payload, merge=True)
