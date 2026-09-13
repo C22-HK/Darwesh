@@ -451,14 +451,20 @@
       show('logoUploadLabel');
       show('coverUploadLabel');
     }
-    // Darwesh Arena panel -- owner-only, same component + same reasoning
-    // as js/profile-role.js: this page is PUBLIC, so it is mounted
-    // explicitly (never through [data-arena-panel] auto-mount). Gated on
-    // the STRICT ownerId match (isOwnerView), not canEditProfile -- Arena
-    // state belongs to the signed-in individual, not the organization, so
-    // a team member with 'manage_organization_profile' (who can edit this
-    // page but is not its owner) never sees the profile owner's personal
-    // Arena progress rendered under their own edit session.
+    // Darwesh Arena -- the owner sees their own full private panel
+    // (mounted explicitly, never through [data-arena-panel], since this
+    // page is PUBLIC). Gated on the STRICT ownerId match (isOwnerView),
+    // not canEditProfile -- Arena state belongs to the signed-in
+    // individual, not the organization, so a team member with
+    // 'manage_organization_profile' (who can edit this page but is not
+    // its owner) never sees the profile owner's personal Arena progress
+    // rendered under their own edit session. A visitor sees the OWNER's
+    // public-safe Arena summary instead -- the same trust signal a
+    // personal profile shows, surfaced here because an organization has
+    // no Arena identity of its own, only the individual who owns it.
+    // arena-summary.js reads only the public arenaLeaderboardEntries/
+    // {uid} doc -- never this owner's private Arena state, missions, or
+    // ledger.
     const arenaHost = el('arenaPanel');
     if (arenaHost) {
       if (isOwnerView && currentUser) {
@@ -466,6 +472,10 @@
         import('./js/arena-panel.js')
           .then((m) => m.mountArenaPanel(arenaHost, currentUser))
           .catch(() => { arenaHost.hidden = true; });
+      } else if (orgData.ownerId) {
+        import('./js/arena-summary.js')
+          .then((m) => m.mountArenaSummary(arenaHost, orgData.ownerId))
+          .catch(() => { arenaHost.hidden = true; arenaHost.innerHTML = ''; });
       } else {
         arenaHost.hidden = true;
         arenaHost.innerHTML = '';

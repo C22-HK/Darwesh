@@ -442,11 +442,16 @@
       show('editProfileBtn');
       show('logoUploadLabel');
     }
-    // Darwesh Arena panel -- owner-only, same component + same reasoning
-    // as js/profile-role.js: this page is PUBLIC, so it is mounted
-    // explicitly (never through [data-arena-panel] auto-mount) and only
-    // for the office owner looking at their own profile, never a visitor
-    // or a staff member with edit permissions.
+    // Darwesh Arena -- the office owner sees their own full private panel
+    // (same component + same reasoning as js/profile-role.js: mounted
+    // explicitly, never through [data-arena-panel], since this page is
+    // PUBLIC; never a staff member with edit permissions, only the real
+    // ownerId match). A visitor sees the OWNER's public-safe Arena
+    // summary instead -- the same trust signal a personal profile shows,
+    // surfaced here because an office has no Arena identity of its own,
+    // only the individual who owns it. arena-summary.js reads only the
+    // public arenaLeaderboardEntries/{uid} doc -- never this owner's
+    // private Arena state, missions, or ledger.
     const arenaHost = el('arenaPanel');
     if (arenaHost) {
       if (isOwnerView && currentUser) {
@@ -454,6 +459,10 @@
         import('./js/arena-panel.js')
           .then((m) => m.mountArenaPanel(arenaHost, currentUser))
           .catch(() => { arenaHost.hidden = true; });
+      } else if (companyData.ownerId) {
+        import('./js/arena-summary.js')
+          .then((m) => m.mountArenaSummary(arenaHost, companyData.ownerId))
+          .catch(() => { arenaHost.hidden = true; arenaHost.innerHTML = ''; });
       } else {
         arenaHost.hidden = true;
         arenaHost.innerHTML = '';
