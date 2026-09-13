@@ -2560,7 +2560,7 @@ const translations = {
     'admin.nv.unavailable': 'ئەم تایبەتمەندییە هێشتا لە پڕۆدەکشن چالاک نەکراوە.',
     'admin.nv.loadFailed': 'ناتوانین ئێستا ئەم زانیارییانە بخوێنینەوە.',
 
-    'arena.navLabel': 'داراوێش ئەرینا',
+    'arena.navLabel': 'پێشبڕکێ',
     'acct.tabArena': 'داراوێش ئەرینا',
     'arena.hero.eyebrow': 'گروپی داراوێش',
     'arena.hero.title': 'داراوێش ئەرینا',
@@ -5251,7 +5251,7 @@ const translations = {
     'admin.nv.unavailable': 'هذه الميزة غير مفعّلة في الإنتاج بعد.',
     'admin.nv.loadFailed': 'تعذّر تحميل هذه البيانات الآن.',
 
-    'arena.navLabel': 'دارويش أرينا',
+    'arena.navLabel': 'التحدي',
     'acct.tabArena': 'دارويش أرينا',
     'arena.hero.eyebrow': 'مجموعة دارويش',
     'arena.hero.title': 'دارويش أرينا',
@@ -7897,7 +7897,7 @@ const translations = {
     'admin.nv.unavailable': 'Bu özellik henüz üretimde etkin değil.',
     'admin.nv.loadFailed': 'Bu veriler şu anda yüklenemedi.',
 
-    'arena.navLabel': 'Darwesh Arena',
+    'arena.navLabel': 'Yarışma',
     'acct.tabArena': 'Darwesh Arena',
     'arena.hero.eyebrow': 'Darwesh Group',
     'arena.hero.title': 'Darwesh Arena',
