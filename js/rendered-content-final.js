@@ -7,24 +7,32 @@ const COPY = {
     footer: 'Darwesh Group connects property seekers, owners, professionals and services across Kurdistan and Iraq in one platform.',
     rights: 'All rights reserved.', commercial: 'Commercial Property', searchSuffix: ' on Buy', allTypes: 'All types',
     roleError: 'Could not update the role. Please try again.', deleteError: 'Could not delete the listing. Please try again.', statusError: 'Could not update the listing status. Please try again.',
+    breadcrumb: 'Breadcrumb', coverImage: 'Cover image',
+    intents: { buy: 'Buy — homes, apartments and land', rent: 'Rent — available homes and properties', build: 'Build — work with property professionals', renovate: 'Renovate — improve your property', sell: 'Sell — list your property' },
     types: { house: 'House', villa: 'Villa', apartment: 'Apartment', land: 'Land', building: 'Building', office: 'Office', shop: 'Shop', commercialProperty: 'Commercial Property' }
   },
   ku: {
     footer: 'دەروێش گروپ گەڕۆکانی موڵک، خاوەن موڵک، پسپۆڕان و خزمەتگوزارییەکان لە کوردستان و عێراق لە یەک پلاتفۆرمدا پێکەوە دەبەستێتەوە.',
     rights: 'هەموو مافەکان پارێزراون.', commercial: 'موڵکی بازرگانی', searchSuffix: ' · گەڕانی کڕین', allTypes: 'هەموو جۆرەکان',
     roleError: 'نەتوانرا ڕۆڵەکە نوێ بکرێتەوە. تکایە دووبارە هەوڵبدەوە.', deleteError: 'نەتوانرا موڵکەکە بسڕدرێتەوە. تکایە دووبارە هەوڵبدەوە.', statusError: 'نەتوانرا دۆخی موڵکەکە نوێ بکرێتەوە. تکایە دووبارە هەوڵبدەوە.',
+    breadcrumb: 'ڕێڕەوی پەڕە', coverImage: 'وێنەی سەرەکی',
+    intents: { buy: 'کڕین — خانوو، ئاپارتمان و زەوی', rent: 'کرێ — خانوو و موڵکی بەردەست', build: 'دروستکردن — کارکردن لەگەڵ پسپۆڕانی خانووبەرە', renovate: 'نوێکردنەوە — باشترکردنی موڵکەکەت', sell: 'فرۆشتن — تۆمارکردنی موڵکەکەت' },
     types: { house: 'خانوو', villa: 'ڤیلا', apartment: 'ئاپارتمان', land: 'زەوی', building: 'بینا', office: 'نووسینگە', shop: 'دوکان', commercialProperty: 'موڵکی بازرگانی' }
   },
   ar: {
     footer: 'تربط مجموعة درويش الباحثين عن العقارات والمالكين والمهنيين والخدمات في كردستان والعراق ضمن منصة واحدة.',
     rights: 'جميع الحقوق محفوظة.', commercial: 'عقار تجاري', searchSuffix: ' · بحث الشراء', allTypes: 'كل الأنواع',
     roleError: 'تعذر تحديث الدور. حاول مرة أخرى.', deleteError: 'تعذر حذف العقار. حاول مرة أخرى.', statusError: 'تعذر تحديث حالة العقار. حاول مرة أخرى.',
+    breadcrumb: 'مسار التنقل', coverImage: 'صورة الغلاف',
+    intents: { buy: 'شراء — منازل وشقق وأراضٍ', rent: 'إيجار — منازل وعقارات متاحة', build: 'بناء — العمل مع مختصي العقارات', renovate: 'تجديد — تحسين عقارك', sell: 'بيع — إدراج عقارك' },
     types: { house: 'منزل', villa: 'فيلا', apartment: 'شقة', land: 'أرض', building: 'مبنى', office: 'مكتب', shop: 'محل', commercialProperty: 'عقار تجاري' }
   },
   tr: {
     footer: 'Darwesh Group, Kürdistan ve Irak genelinde emlak arayanları, mülk sahiplerini, profesyonelleri ve hizmetleri tek platformda buluşturur.',
     rights: 'Tüm hakları saklıdır.', commercial: 'Ticari Emlak', searchSuffix: ' · Satın alma araması', allTypes: 'Tüm türler',
     roleError: 'Rol güncellenemedi. Lütfen tekrar deneyin.', deleteError: 'Emlak silinemedi. Lütfen tekrar deneyin.', statusError: 'Emlak durumu güncellenemedi. Lütfen tekrar deneyin.',
+    breadcrumb: 'Gezinme yolu', coverImage: 'Kapak görseli',
+    intents: { buy: 'Satın al — evler, daireler ve arsalar', rent: 'Kirala — mevcut evler ve emlaklar', build: 'İnşa et — emlak profesyonelleriyle çalış', renovate: 'Yenile — emlakınızı geliştirin', sell: 'Sat — emlakınızı listeleyin' },
     types: { house: 'Ev', villa: 'Villa', apartment: 'Daire', land: 'Arsa', building: 'Bina', office: 'Ofis', shop: 'Dükkan', commercialProperty: 'Ticari Emlak' }
   }
 };
@@ -34,6 +42,9 @@ function lang() {
 }
 function setText(el, value) {
   if (el && value && el.textContent !== value) el.textContent = value;
+}
+function setAria(el, value) {
+  if (el && value && el.getAttribute('aria-label') !== value) el.setAttribute('aria-label', value);
 }
 
 const SEARCH_SUFFIX_RE = /(?: on Buy| · گەڕانی کڕین| · بحث الشراء| · Satın alma araması)$/;
@@ -83,6 +94,29 @@ function installAlertLocalization() {
   alertWrapped = true;
 }
 
+function paintAccessibleNames(c) {
+  document.querySelectorAll('[aria-label="Breadcrumb"], [data-editorial-breadcrumb="1"]').forEach((el) => {
+    el.dataset.editorialBreadcrumb = '1';
+    setAria(el, c.breadcrumb);
+  });
+  document.querySelectorAll('[aria-label="Cover image"], [data-editorial-cover-image="1"]').forEach((el) => {
+    el.dataset.editorialCoverImage = '1';
+    setAria(el, c.coverImage);
+  });
+
+  if ((location.pathname.split('/').pop() || 'index.html') === 'index.html') {
+    document.querySelectorAll('.w-panel[data-i18n-aria]').forEach((el) => {
+      const href = (el.getAttribute('href') || '').split('?')[0];
+      const key = href === 'buy.html' ? 'buy'
+        : href === 'rent.html' ? 'rent'
+          : href === 'build.html' ? 'build'
+            : href === 'renovate.html' ? 'renovate'
+              : href === 'sell.html' ? 'sell' : null;
+      if (key) setAria(el, c.intents[key]);
+    });
+  }
+}
+
 function paint() {
   const c = COPY[lang()] || COPY.en;
   setText(document.querySelector('.sf-tagline'), c.footer);
@@ -113,6 +147,7 @@ function paint() {
     const next = translateSavedSearchLabel((el.textContent || '').trim(), c);
     if (next) setText(el, next);
   });
+  paintAccessibleNames(c);
 }
 let queued = false;
 function schedule() {
@@ -121,7 +156,7 @@ function schedule() {
   requestAnimationFrame(() => { queued = false; paint(); });
 }
 installAlertLocalization();
-new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-label'] });
 document.addEventListener('darwesh:langchange', schedule);
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint, { once: true });
 else paint();
