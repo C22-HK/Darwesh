@@ -596,6 +596,157 @@ export function correctReferrer(user, { referredUid, code, reason }) {
   });
 }
 
+// ---- Darwesh Arena --------------------------------------------------------
+//
+// Every wrapper here is a request to app/arena/arena_ops.py (the only
+// writer of any Arena collection -- see firestore.rules) or one of its
+// fully-public reads. `user` may be null for the signed-out-safe reads
+// (challenge browsing, leaderboard, ranks, activity) -- those work exactly
+// the same as GET /api/v1/arena/challenges without a token, just without
+// the viewer's own `locked`/`mySubmission` annotations.
+
+async function arenaGet(user, path, query) {
+  if (user) return authedRequest(user, 'GET', path, { query });
+  const url = new URL(BACKEND_BASE_URL + path);
+  if (query) {
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, v);
+    }
+  }
+  let response;
+  try {
+    response = await fetch(url);
+  } catch {
+    throw new BackendUnavailableError();
+  }
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    throw new BackendUnavailableError();
+  }
+  if (!response.ok) {
+    throw new BackendResponseError(response.status, (data && data.error) || 'Request failed.');
+  }
+  return data;
+}
+
+export function listArenaChallenges(user, status) {
+  return arenaGet(user, '/api/v1/arena/challenges', { status });
+}
+export function getArenaChallenge(user, challengeId) {
+  return arenaGet(user, `/api/v1/arena/challenges/${encodeURIComponent(challengeId)}`);
+}
+export function getArenaLeaderboard(limit) {
+  return arenaGet(null, '/api/v1/arena/leaderboard', { limit });
+}
+export function listArenaRanks() {
+  return arenaGet(null, '/api/v1/arena/ranks');
+}
+export function listArenaActivity({ uid, challengeId, limit } = {}) {
+  return arenaGet(null, '/api/v1/arena/activity', { uid, challengeId, limit });
+}
+export function getMyArenaState(user) {
+  return authedRequest(user, 'GET', '/api/v1/arena/me/state');
+}
+export function getMyArenaLedger(user, limit) {
+  return authedRequest(user, 'GET', '/api/v1/arena/me/ledger', { query: { limit } });
+}
+export function getMyArenaSubmissions(user) {
+  return authedRequest(user, 'GET', '/api/v1/arena/me/submissions');
+}
+export function joinArenaChallenge(user, challengeId) {
+  return authedRequest(user, 'POST', `/api/v1/arena/challenges/${encodeURIComponent(challengeId)}/join`, { body: {} });
+}
+export function attachArenaProperty(user, submissionId, { stepKey, listingRef, displayFields, propertySource, ownerInfo }) {
+  return authedRequest(user, 'POST', `/api/v1/arena/submissions/${encodeURIComponent(submissionId)}/attach-property`, {
+    body: { stepKey, listingRef, displayFields, propertySource, ownerInfo }
+  });
+}
+export function advanceArenaStep(user, submissionId, stepKey, { targetStatus, note } = {}) {
+  return authedRequest(
+    user, 'POST',
+    `/api/v1/arena/submissions/${encodeURIComponent(submissionId)}/steps/${encodeURIComponent(stepKey)}/advance`,
+    { body: { targetStatus, note } },
+  );
+}
+export function createArenaDeal(user, submissionId) {
+  return authedRequest(user, 'POST', `/api/v1/arena/submissions/${encodeURIComponent(submissionId)}/deals`, { body: {} });
+}
+export function advanceArenaDealStage(user, dealId, { targetStage, note, buyerInfo } = {}) {
+  return authedRequest(user, 'POST', `/api/v1/arena/deals/${encodeURIComponent(dealId)}/advance`, {
+    body: { targetStage, note, buyerInfo }
+  });
+}
+
+// ---- Admin: Arena (Challenge Builder, review queues, ledger, commercial) --
+
+export function createArenaChallenge(user, data) {
+  return authedRequest(user, 'POST', '/api/v1/arena/admin/challenges', { body: data });
+}
+export function updateArenaChallenge(user, challengeId, data) {
+  return authedRequest(user, 'PATCH', `/api/v1/arena/admin/challenges/${encodeURIComponent(challengeId)}`, { body: data });
+}
+export function setArenaChallengeStatus(user, challengeId, status) {
+  return authedRequest(user, 'POST', `/api/v1/arena/admin/challenges/${encodeURIComponent(challengeId)}/status`, { body: { status } });
+}
+export function deleteArenaChallenge(user, challengeId) {
+  return authedRequest(user, 'DELETE', `/api/v1/arena/admin/challenges/${encodeURIComponent(challengeId)}`, { body: {} });
+}
+export function listArenaSubmissionsForReview(user, { status, challengeId } = {}) {
+  return authedRequest(user, 'GET', '/api/v1/arena/admin/submissions', { query: { status, challengeId } });
+}
+export function getArenaSubmissionForReview(user, submissionId) {
+  return authedRequest(user, 'GET', `/api/v1/arena/admin/submissions/${encodeURIComponent(submissionId)}`);
+}
+export function verifyArenaStep(user, submissionId, stepKey, { targetStatus, note } = {}) {
+  return authedRequest(
+    user, 'POST',
+    `/api/v1/arena/admin/submissions/${encodeURIComponent(submissionId)}/steps/${encodeURIComponent(stepKey)}/verify`,
+    { body: { targetStatus: targetStatus || 'completed', note } },
+  );
+}
+export function disqualifyArenaParticipant(user, submissionId, reason) {
+  return authedRequest(user, 'POST', `/api/v1/arena/admin/submissions/${encodeURIComponent(submissionId)}/disqualify`, { body: { reason } });
+}
+export function flagArenaSubmission(user, submissionId, flagType, detail) {
+  return authedRequest(user, 'POST', `/api/v1/arena/admin/submissions/${encodeURIComponent(submissionId)}/flag`, { body: { flagType, detail } });
+}
+export function listArenaLedgerAdmin(user, { uid, limit } = {}) {
+  return authedRequest(user, 'GET', '/api/v1/arena/admin/ledger', { query: { uid, limit } });
+}
+export function adjustArenaPoints(user, { uid, pointsDelta, note, isReversal }) {
+  return authedRequest(user, 'POST', '/api/v1/arena/admin/points/adjust', { body: { uid, pointsDelta, note, isReversal } });
+}
+export function createArenaRank(user, data) {
+  return authedRequest(user, 'POST', '/api/v1/arena/admin/ranks', { body: data });
+}
+export function updateArenaRank(user, rankId, data) {
+  return authedRequest(user, 'PATCH', `/api/v1/arena/admin/ranks/${encodeURIComponent(rankId)}`, { body: data });
+}
+export function listArenaDealsAdmin(user, { challengeId, stage, uid } = {}) {
+  return authedRequest(user, 'GET', '/api/v1/arena/admin/deals', { query: { challengeId, stage, uid } });
+}
+export function verifyArenaDealStage(user, dealId, { targetStage, note, buyerInfo, saleValue, city } = {}) {
+  return authedRequest(user, 'POST', `/api/v1/arena/admin/deals/${encodeURIComponent(dealId)}/advance`, {
+    body: { targetStage, note, buyerInfo, saleValue, city }
+  });
+}
+export function setArenaDealPaymentState(user, dealId, { paymentState, actualCommission } = {}) {
+  return authedRequest(user, 'POST', `/api/v1/arena/admin/deals/${encodeURIComponent(dealId)}/payment`, {
+    body: { paymentState, actualCommission }
+  });
+}
+export function listArenaCommissionRules(user) {
+  return authedRequest(user, 'GET', '/api/v1/arena/admin/commission-rules');
+}
+export function setArenaCommissionRule(user, { city, minPercent, maxPercent, defaultPercent }) {
+  return authedRequest(user, 'POST', '/api/v1/arena/admin/commission-rules', { body: { city, minPercent, maxPercent, defaultPercent } });
+}
+export function getArenaCommercialSummary(user, challengeId) {
+  return authedRequest(user, 'GET', `/api/v1/arena/admin/challenges/${encodeURIComponent(challengeId)}/commercial-summary`);
+}
+
 export function getRewardConfig(user) {
   return authedRequest(user, 'GET', '/api/v1/access/admin/reward-config');
 }

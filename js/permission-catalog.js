@@ -105,6 +105,14 @@ export const PERMISSION_GROUPS = [
     { key: 'rewards.manage', rules: true },
     { key: 'offers.manage' },
     { key: 'archives.view', rules: true }
+  ] },
+  // Darwesh Arena. Same granular principle as verification above:
+  // reviewing a submission/deal (verifying a step, confirming a sale) is a
+  // much weaker grant than owning challenge config, rank thresholds and
+  // manual point adjustments.
+  { key: 'arena', labelKey: 'admin.rd.groupArena', fallback: 'Darwesh Arena', permissions: [
+    { key: 'arena.review', rules: true },
+    { key: 'arena.manage', rules: true }
   ] }
 ];
 

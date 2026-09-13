@@ -1,6 +1,7 @@
 // Darwesh shared site header -- the ONE canonical top nav bar (flag
 // language selector, wordmark, Home / Properties Map / Sell / MAM AI /
-// About / Profile / notifications) for every public content page. There is
+// Darwesh Arena / About / Profile / notifications) for every public
+// content page. There is
 // deliberately ONE public property map (map.html) -- the earlier
 // "Buy/Rent Map" + "Explore Map" pairing competed for the same job and
 // was consolidated into one "Properties Map" link; a follow-up pass then
@@ -188,6 +189,7 @@
             propertiesMapItem +
             '<a class="' + navClass('sell') + '" href="sell.html" data-i18n="nav.sell"' + ariaCurrent('sell') + '>Sell</a>' +
             '<a class="' + navClass('mamai') + '" href="mam-ai.html" data-i18n="mamai.navLabel"' + ariaCurrent('mamai') + '>MAM AI</a>' +
+            '<a class="' + navClass('arena') + '" href="arena.html" data-i18n="arena.navLabel"' + ariaCurrent('arena') + '>Darwesh Arena</a>' +
           '</div>' +
           '<div class="flex items-center gap-6">' +
             // "Services" was removed as a standalone nav item -- the

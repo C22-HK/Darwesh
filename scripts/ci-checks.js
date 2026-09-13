@@ -824,6 +824,7 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
     'renovate.html': '/renovate.html',
     'design.html': '/design.html',
     'mam-ai.html': '/mam-ai.html',
+    'arena.html': '/arena.html',
   };
 
   // Signed-in, admin-only, or internal. Each MUST carry a robots noindex
@@ -849,7 +850,7 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
     'agent.html', 'cleaning.html', 'designer.html', 'engineer.html',
     'landscaping.html', 'lawyer.html', 'listing.html', 'maintenance.html',
     'offer.html', 'office.html', 'organization.html', 'project.html',
-    'service.html', 'work.html',
+    'service.html', 'work.html', 'arena-challenge.html',
   ];
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');

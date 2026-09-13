@@ -58,6 +58,9 @@
     { key: 'marketing', labelKey: 'admin.nav.groupMarketing', labelText: 'Marketing', items: [
       { tab: 'offers', icon: 'sell', labelKey: 'admin.nav.offers', labelText: 'Offers & Discounts' }
     ] },
+    { key: 'arena', labelKey: 'admin.nav.groupArena', labelText: 'Darwesh Arena', items: [
+      { tab: 'arena', icon: 'military_tech', labelKey: 'admin.nav.arena', labelText: 'Challenges & Rewards' }
+    ] },
     { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance & Reports', items: [
       { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true },
       { tab: 'reports', icon: 'monitoring', labelKey: 'admin.nav.reports', labelText: 'Reports', soon: true }
