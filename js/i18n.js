@@ -1103,6 +1103,7 @@ const translations = {
     'admin.nav.offersShort': 'ئۆفەرەکان',
     'admin.nav.permissions': 'مۆڵەتەکان',
     'admin.roadmap.servicesHub': 'دیمەنێکی هەموو پسپۆڕانی خزمەتگوزاری -- یاسانووس، ئەندازیار، دیزاینەر، پاکژکردنەوە، باخچەکاری، گواستنەوە، چاککردنەوە و پەیمانکار -- بەسەر داواکارییە پسپۆڕییەکانی ئێستادا لە فرۆشتن ← داواکارییەکان.',
+    'admin.people.desc': 'هەژمار، پشتڕاستکردنەوە، ڕێکخراوەکان، پسپۆڕان، و تۆڕی بریکارانت.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---
@@ -4019,6 +4020,7 @@ const translations = {
     'admin.nav.offersShort': 'العروض',
     'admin.nav.permissions': 'الصلاحيات',
     'admin.roadmap.servicesHub': 'عرض فئوي لكل محترفي الخدمات -- محامون، مهندسون، مصممون، تنظيف، تنسيق حدائق، نقل، صيانة ومقاولون -- فوق طلبات مقدمي الخدمات المتتبعة بالفعل ضمن المبيعات ← الطلبات.',
+    'admin.people.desc': 'الحسابات والتوثيق والمؤسسات والمحترفون وشبكة وكلائك.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---
@@ -6902,6 +6904,7 @@ const translations = {
     'admin.nav.offersShort': 'Kampanyalar',
     'admin.nav.permissions': 'İzinler',
     'admin.roadmap.servicesHub': 'Avukatlar, mühendisler, tasarımcılar, temizlik, peyzaj, nakliye, bakım ve müteahhitler dahil tüm hizmet uzmanlarının kategori görünümü -- Satış → Talepler altında zaten takip edilen hizmet sağlayıcı taleplerinin üzerine kurulu.',
+    'admin.people.desc': 'Hesaplar, doğrulama, kurumlar, uzmanlar ve temsilci ağınız.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---

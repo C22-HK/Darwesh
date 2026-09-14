@@ -446,14 +446,14 @@ change is not meant to make. -->
 
     <div class="flex border-b border-outline-variant mb-6 flex-wrap" id="adminTabBarLegacy">
       <button class="admin-tab active" data-tab="dashboard" type="button" data-i18n="admin.dashboardTab">Dashboard</button>
-      <button class="admin-tab" data-tab="users" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
       <button class="admin-tab" data-tab="projects" type="button" data-i18n="admin.projectsTab">Projects</button>
       <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
-      <button class="admin-tab" data-tab="branches" type="button" data-i18n="admin.branchesTab">Branches</button>
-      <button class="admin-tab" data-tab="agents" type="button" data-i18n="admin.agentsTab">Agents</button>
-      <button class="admin-tab" data-tab="network" type="button" data-i18n="admin.networkTab">Network</button>
-      <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.branchesTab">Branches</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.agentsTab">Agents</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.networkTab">Network</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
       <button class="admin-tab" data-tab="map" type="button" data-i18n="admin.nav.mapManagement">Map Management</button>
@@ -547,55 +547,143 @@ change is not meant to make. -->
      in bulk with no treatment at all) instead of carrying it forward. -->
 
     <!-- TAB: Users & Roles -->
-    <section id="tab-users" class="admin-tab-panel">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div class="stat-mini"><p class="label" data-i18n="admin.totalUsers">Total users</p><p class="value" id="statTotalUsers">0</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.agentsStat">Agents</p><p class="value" id="statTotalAgents">0</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.customersStat">Customers</p><p class="value" id="statTotalCustomers">0</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.companiesStat">Companies</p><p class="value" id="statTotalCompanies">0</p></div>
-      </div>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thUser">User</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thJoined">Joined</th><th data-i18n="admin.thRole">Role</th></tr></thead>
-            <tbody id="usersBody"></tbody>
-          </table>
-        </div>
-        <p id="usersEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noUsersYet">No users yet.</p>
-      </div>
-      <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
+    <!-- TAB: People (redesign Phase 2) -- consolidates the 8 former
+         top-level destinations (Users & Roles, Network Verification,
+         Organizations, Professionals, Agents, Branches, Network,
+         Leaderboard) into one hub with an AdminPageHeader + AdminTabs bar.
+         Every sub-panel below keeps its EXACT original id/content
+         untouched -- renderUsers()/renderAgentsTab()/renderBranchesTab()/
+         renderNetworkTab()/renderLeaderboardTab() (defined further down in
+         this same module script) and renderOrgsTab()/renderProsTab()/
+         renderVerificationTab() (imported from js/admin-orgs-pros.js/
+         js/admin-verification.js) all still find their mount point via
+         document.getElementById('tab-<name>'), so nesting that element one
+         level deeper here changes nothing about how they render. See
+         renderPeopleHub()/renderPeopleSubtab() below for the sub-tab
+         switch, and the "System" hub's Permissions nav item (js/admin-
+         shell.js) also targets tab:'people' -- it lands on this same
+         Accounts sub-tab, which is where the Role Defaults panel already
+         lives. -->
+    <section id="tab-people" class="admin-tab-panel">
+      <div id="peopleHeaderMount"></div>
+      <div id="peopleTabsMount"></div>
 
-      <!-- Role permission defaults (launch-readiness fix C2). What every
-           account of a given accountType may do by default -- the
-           rolePermissionDefaults/{accountType} documents firestore.rules'
-           hasPermission()/hasOrgPermission() consult. Readable here,
-           written only through the backend (see the module script). -->
-      <div id="roleDefaultsPanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mt-6">
-        <p class="font-headline-md text-[16px] text-on-surface font-bold" data-i18n="admin.rd.title">Role permission defaults</p>
-        <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1 mb-4" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
-        <div class="flex flex-wrap items-end gap-3 mb-4">
-          <!-- flex-basis 260px keeps the roomy width this control wants on a
-               normal screen, but `width:auto` previously let the <select>
-               grow to its LONGEST option instead (436px in English, 421px in
-               Kurdish, 388px in Arabic), and as an unshrinkable flex item it
-               dragged the whole Users tab past the viewport on a phone. The
-               basis expresses the same preference while still allowing the
-               control to shrink when there isn't room. -->
-          <label class="block" style="flex:1 1 260px;min-width:0;">
-            <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
-            <select id="rdAccountType" class="admin-input" style="width:100%;"></select>
-          </label>
-          <button type="button" id="rdApplyRecommended" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
-          <button type="button" id="rdClearAll" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.clearAll">Clear all</button>
-          <button type="button" id="rdSave" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.rd.save">Save defaults</button>
-          <p id="rdStatus" class="font-body-md text-[12.5px] w-full" role="status" aria-live="polite"></p>
+      <div class="ash-people-subpanel" id="tab-users">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div class="stat-mini"><p class="label" data-i18n="admin.totalUsers">Total users</p><p class="value" id="statTotalUsers">0</p></div>
+          <div class="stat-mini"><p class="label" data-i18n="admin.agentsStat">Agents</p><p class="value" id="statTotalAgents">0</p></div>
+          <div class="stat-mini"><p class="label" data-i18n="admin.customersStat">Customers</p><p class="value" id="statTotalCustomers">0</p></div>
+          <div class="stat-mini"><p class="label" data-i18n="admin.companiesStat">Companies</p><p class="value" id="statTotalCompanies">0</p></div>
         </div>
-        <div id="rdDiffPanel" class="hidden bg-surface-container border border-outline-variant rounded-lg p-3 mb-4">
-          <p class="font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
-          <ul id="rdDiffList" class="font-body-md text-[12.5px] text-on-surface list-disc pl-5 space-y-0.5"></ul>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table">
+              <thead><tr><th data-i18n="admin.thUser">User</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thJoined">Joined</th><th data-i18n="admin.thRole">Role</th></tr></thead>
+              <tbody id="usersBody"></tbody>
+            </table>
+          </div>
+          <p id="usersEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noUsersYet">No users yet.</p>
         </div>
-        <div id="rdGroups" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-        <p class="font-body-md text-[12px] text-on-surface-variant mt-4" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+        <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
+
+        <!-- Role permission defaults (launch-readiness fix C2). What every
+             account of a given accountType may do by default -- the
+             rolePermissionDefaults/{accountType} documents firestore.rules'
+             hasPermission()/hasOrgPermission() consult. Readable here,
+             written only through the backend (see the module script).
+             Also where the System hub's "Permissions" nav item lands. -->
+        <div id="roleDefaultsPanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mt-6">
+          <p class="font-headline-md text-[16px] text-on-surface font-bold" data-i18n="admin.rd.title">Role permission defaults</p>
+          <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1 mb-4" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
+          <div class="flex flex-wrap items-end gap-3 mb-4">
+            <!-- flex-basis 260px keeps the roomy width this control wants on a
+                 normal screen, but `width:auto` previously let the <select>
+                 grow to its LONGEST option instead (436px in English, 421px in
+                 Kurdish, 388px in Arabic), and as an unshrinkable flex item it
+                 dragged the whole Users tab past the viewport on a phone. The
+                 basis expresses the same preference while still allowing the
+                 control to shrink when there isn't room. -->
+            <label class="block" style="flex:1 1 260px;min-width:0;">
+              <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
+              <select id="rdAccountType" class="admin-input" style="width:100%;"></select>
+            </label>
+            <button type="button" id="rdApplyRecommended" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
+            <button type="button" id="rdClearAll" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.clearAll">Clear all</button>
+            <button type="button" id="rdSave" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.rd.save">Save defaults</button>
+            <p id="rdStatus" class="font-body-md text-[12.5px] w-full" role="status" aria-live="polite"></p>
+          </div>
+          <div id="rdDiffPanel" class="hidden bg-surface-container border border-outline-variant rounded-lg p-3 mb-4">
+            <p class="font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
+            <ul id="rdDiffList" class="font-body-md text-[12.5px] text-on-surface list-disc pl-5 space-y-0.5"></ul>
+          </div>
+          <div id="rdGroups" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          <p class="font-body-md text-[12px] text-on-surface-variant mt-4" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+        </div>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-verification"></div>
+      <div class="ash-people-subpanel" id="tab-organizations"></div>
+      <div class="ash-people-subpanel" id="tab-professionals"></div>
+
+      <div class="ash-people-subpanel" id="tab-agents">
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.agentsNote">Everyone with the Agent role, with their real listing counts across the shared database.</p>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table">
+              <thead><tr><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th><th data-i18n="admin.thJoined">Joined</th></tr></thead>
+              <tbody id="agentsBody"></tbody>
+            </table>
+          </div>
+          <p id="agentsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+        </div>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-branches">
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.branchesNote">Every company using this platform — created automatically the first time someone signs up under that name. Each row is real, computed from your agents and listings.</p>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table">
+              <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th data-i18n="admin.thAgentsCount">Agents</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
+              <tbody id="branchesBody"></tbody>
+            </table>
+          </div>
+          <p id="branchesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noBranchesYet">No branches yet.</p>
+        </div>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-network">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+          <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.networkNote">Every branch and every agent on the platform, grouped by company — add a new agent directly from here.</p>
+          <button id="openAddAgentBtn" type="button" class="flex-none inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
+            <span class="material-symbols-outlined text-[18px]">person_add</span>
+            <span data-i18n="admin.addAgentBtn">Add Agent</span>
+          </button>
+        </div>
+        <div class="relative mb-4">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+          <input id="networkSearch" type="text" class="admin-input" style="padding-left:36px;" data-i18n-placeholder="admin.networkSearchPlaceholder" placeholder="Search agents or branches…"/>
+        </div>
+        <p class="font-body-md text-[12px] text-on-surface-variant mb-3" data-i18n="admin.networkTreeHint">Click a branch to open it and see its agents inside.</p>
+        <div id="networkTreePanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-x-auto" style="padding: 32px 16px;">
+          <div id="networkTreeWrap" class="relative mx-auto" style="min-height:200px;">
+            <svg id="networkTreeSvg" class="absolute" style="top:0; left:0; pointer-events:none;"></svg>
+            <div id="networkTreeNodes"></div>
+          </div>
+        </div>
+        <p id="networkEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-leaderboard">
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.leaderboardNote">Ranked by number of active listings — the most direct measure of contribution this platform can verify.</p>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table">
+              <thead><tr><th data-i18n="admin.thRank">Rank</th><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th></tr></thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+          <p id="leaderboardEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+        </div>
       </div>
     </section>
 
@@ -636,14 +724,9 @@ change is not meant to make. -->
          Organizations/Professionals (js/admin-orgs-pros.js). -->
     <section id="tab-map" class="admin-tab-panel"></section>
 
-    <!-- TAB: Network Verification Center -- identity review, the referral
-         graph and the reward policy. Rendered by js/admin-verification.js
-         on first click, same lazy-mount pattern as the Map / Offers /
-         Organizations tabs. Every decision it offers is a request to the
-         audited backend: firestore.rules makes verificationCases,
-         referrals and rewardConfig unwritable by every client session,
-         admins included. -->
-    <section id="tab-verification" class="admin-tab-panel"></section>
+    <!-- #tab-verification moved into the People hub above (redesign Phase 2)
+         -- js/admin-verification.js's renderVerificationTab() still targets
+         that same id, now nested one level deeper. -->
 
     <!-- TAB: Darwesh Arena -- Challenge Builder (Step Engine), submission
          review queue, buyer/deal CRM, points ledger, ranks, commission
@@ -962,79 +1045,16 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- TAB: Branches -->
-    <section id="tab-branches" class="admin-tab-panel">
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.branchesNote">Every company using this platform — created automatically the first time someone signs up under that name. Each row is real, computed from your agents and listings.</p>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th data-i18n="admin.thAgentsCount">Agents</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
-            <tbody id="branchesBody"></tbody>
-          </table>
-        </div>
-        <p id="branchesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noBranchesYet">No branches yet.</p>
-      </div>
-    </section>
+    <!-- #tab-branches/#tab-agents/#tab-network/#tab-leaderboard/
+         #tab-organizations/#tab-professionals all moved into the People
+         hub above (redesign Phase 2) -- their render functions
+         (renderBranchesTab/renderAgentsTab/renderNetworkTab/
+         renderLeaderboardTab, defined further down; renderOrgsTab/
+         renderProsTab from js/admin-orgs-pros.js) still target those same
+         ids, now nested one level deeper.
 
-    <!-- TAB: Agents -->
-    <section id="tab-agents" class="admin-tab-panel">
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.agentsNote">Everyone with the Agent role, with their real listing counts across the shared database.</p>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th><th data-i18n="admin.thJoined">Joined</th></tr></thead>
-            <tbody id="agentsBody"></tbody>
-          </table>
-        </div>
-        <p id="agentsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
-      </div>
-    </section>
-
-    <!-- TAB: Network -->
-    <section id="tab-network" class="admin-tab-panel">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-        <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.networkNote">Every branch and every agent on the platform, grouped by company — add a new agent directly from here.</p>
-        <button id="openAddAgentBtn" type="button" class="flex-none inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
-          <span class="material-symbols-outlined text-[18px]">person_add</span>
-          <span data-i18n="admin.addAgentBtn">Add Agent</span>
-        </button>
-      </div>
-      <div class="relative mb-4">
-        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
-        <input id="networkSearch" type="text" class="admin-input" style="padding-left:36px;" data-i18n-placeholder="admin.networkSearchPlaceholder" placeholder="Search agents or branches…"/>
-      </div>
-      <p class="font-body-md text-[12px] text-on-surface-variant mb-3" data-i18n="admin.networkTreeHint">Click a branch to open it and see its agents inside.</p>
-      <div id="networkTreePanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-x-auto" style="padding: 32px 16px;">
-        <div id="networkTreeWrap" class="relative mx-auto" style="min-height:200px;">
-          <svg id="networkTreeSvg" class="absolute" style="top:0; left:0; pointer-events:none;"></svg>
-          <div id="networkTreeNodes"></div>
-        </div>
-      </div>
-      <p id="networkEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
-    </section>
-
-    <!-- TAB: Leaderboard -->
-    <section id="tab-leaderboard" class="admin-tab-panel">
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.leaderboardNote">Ranked by number of active listings — the most direct measure of contribution this platform can verify.</p>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thRank">Rank</th><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th></tr></thead>
-            <tbody id="leaderboardBody"></tbody>
-          </table>
-        </div>
-        <p id="leaderboardEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
-      </div>
-    </section>
-
-    <!-- Roadmap placeholders: Phase 1 shipped the full information
-         architecture (sidebar) up front; Organizations and Professionals
-         got their real screens in Phase 2 (js/admin-orgs-pros.js, built the
-         first time each tab is opened -- data-ash-built guards the
-         rebuild). The remaining seven still ship as an honest "planned"
-         state below, not a dead link or fabricated data. -->
-    <section id="tab-organizations" class="admin-tab-panel"></section>
-    <section id="tab-professionals" class="admin-tab-panel"></section>
+         Roadmap placeholders: the remaining destinations ship as an honest
+         "planned" state below, not a dead link or fabricated data. -->
     <!-- Services hub (redesign Phase 1): a category-card landing over
          provider requests (lawyers/engineers/designers/cleaning/
          landscaping/moving/maintenance/contractors) doesn't exist yet --
@@ -1619,25 +1639,79 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'listings') renderListingsTable();
-    if (tab.dataset.tab === 'users') renderUsers();
+    if (tab.dataset.tab === 'people') renderPeopleHub(tab.dataset.peopleSubtab || null);
     if (tab.dataset.tab === 'projects') renderProjectsTab();
     if (tab.dataset.tab === 'services') { renderServicesTab(); renderProviderRequestsTab(); }
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
-    if (tab.dataset.tab === 'branches') renderBranchesTab();
-    if (tab.dataset.tab === 'agents') renderAgentsTab();
-    if (tab.dataset.tab === 'network') renderNetworkTab();
-    if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
     if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
-    if (tab.dataset.tab === 'organizations') renderOrgsTab();
-    if (tab.dataset.tab === 'professionals') renderProsTab();
     if (tab.dataset.tab === 'map') renderMapTab();
     if (tab.dataset.tab === 'offers') renderOffersTab();
-    if (tab.dataset.tab === 'verification') renderVerificationTab();
     if (tab.dataset.tab === 'arena') renderArenaTab();
     if (tab.dataset.tab === 'alerts') renderAlertsTab();
     if (tab.dataset.tab === 'brokerage') renderBrokerageTab();
   });
 });
+
+// ---------------------------------------------------------------------
+// People hub (redesign Phase 2) -- consolidates the 8 former top-level
+// People & Organizations destinations into one hub with an
+// AdminPageHeader + AdminTabs bar. Every render*()/renderXTab() call
+// below is completely unchanged -- this only decides WHICH sub-panel is
+// visible and WHICH render function runs for the currently-selected
+// sub-tab; the render functions themselves still fully own their own
+// data fetch/DOM writes inside their own #tab-<name> element, wherever
+// that element now lives in the DOM.
+// ---------------------------------------------------------------------
+const PEOPLE_SUBTABS = [
+  { key: 'users', icon: 'group', label: () => trAdmin('admin.nav.accounts', 'Accounts') },
+  { key: 'verification', icon: 'verified_user', label: () => trAdmin('admin.nav.verification', 'Verification') },
+  { key: 'organizations', icon: 'domain', label: () => trAdmin('admin.nav.organizations', 'Organizations') },
+  { key: 'professionals', icon: 'engineering', label: () => trAdmin('admin.nav.professionals', 'Professionals') },
+  { key: 'agents', icon: 'badge', label: () => trAdmin('admin.agentsTab', 'Agents') },
+  { key: 'branches', icon: 'account_tree', label: () => trAdmin('admin.branchesTab', 'Branches') },
+  { key: 'network', icon: 'hub', label: () => trAdmin('admin.networkTab', 'Network') },
+  { key: 'leaderboard', icon: 'leaderboard', label: () => trAdmin('admin.nav.topAgents', 'Top Agents') },
+];
+let peopleTabsCtrl = null;
+
+function renderPeopleSubtab(key) {
+  document.querySelectorAll('.ash-people-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + key);
+  });
+  if (key === 'users') renderUsers();
+  else if (key === 'verification') renderVerificationTab();
+  else if (key === 'organizations') renderOrgsTab();
+  else if (key === 'professionals') renderProsTab();
+  else if (key === 'agents') renderAgentsTab();
+  else if (key === 'branches') renderBranchesTab();
+  else if (key === 'network') renderNetworkTab();
+  else if (key === 'leaderboard') renderLeaderboardTab();
+}
+
+function renderPeopleHub(forceSubtab) {
+  const section = document.getElementById('tab-people');
+  if (!section.dataset.ashBuilt) {
+    section.dataset.ashBuilt = '1';
+    window.AdminPageHeader.mount(document.getElementById('peopleHeaderMount'), {
+      icon: 'group',
+      title: () => trAdmin('admin.nav.groupPeople', 'People'),
+      description: () => trAdmin('admin.people.desc', 'Accounts, verification, organizations, professionals, and your agent network.'),
+    });
+    peopleTabsCtrl = window.AdminTabs.create({
+      mount: document.getElementById('peopleTabsMount'),
+      tabs: PEOPLE_SUBTABS,
+      active: 'users',
+      onChange: renderPeopleSubtab,
+    });
+  }
+  // A nav item that aliases into a specific sub-tab (System -> Permissions
+  // wants Accounts, where the Role Defaults panel lives) always lands
+  // there, regardless of whatever sub-tab was last active in this hub --
+  // `force: true` re-fires onChange even if that's already the active key.
+  if (forceSubtab) peopleTabsCtrl.setActive(forceSubtab, true);
+  else renderPeopleSubtab(peopleTabsCtrl.getActive());
+}
+document.addEventListener('darwesh:langchange', () => { if (peopleTabsCtrl) peopleTabsCtrl.refresh(); });
 
 document.querySelectorAll('.filter-chip').forEach(chip => {
   chip.addEventListener('click', () => {

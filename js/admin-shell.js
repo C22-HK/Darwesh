@@ -49,14 +49,7 @@
       { tab: 'dashboard', icon: 'dashboard', labelKey: 'admin.dashboardTab', labelText: 'Dashboard' }
     ] },
     { key: 'people', labelKey: 'admin.nav.groupPeople', labelText: 'People', items: [
-      { tab: 'users', icon: 'group', labelKey: 'admin.nav.accounts', labelText: 'Accounts' },
-      { tab: 'verification', icon: 'verified_user', labelKey: 'admin.nav.verification', labelText: 'Verification' },
-      { tab: 'organizations', icon: 'domain', labelKey: 'admin.nav.organizations', labelText: 'Organizations' },
-      { tab: 'professionals', icon: 'engineering', labelKey: 'admin.nav.professionals', labelText: 'Professionals' },
-      { tab: 'agents', icon: 'badge', labelKey: 'admin.agentsTab', labelText: 'Agents' },
-      { tab: 'branches', icon: 'account_tree', labelKey: 'admin.branchesTab', labelText: 'Branches' },
-      { tab: 'network', icon: 'hub', labelKey: 'admin.networkTab', labelText: 'Network' },
-      { tab: 'leaderboard', icon: 'leaderboard', labelKey: 'admin.nav.topAgents', labelText: 'Top Agents' }
+      { tab: 'people', icon: 'group', labelKey: 'admin.nav.groupPeople', labelText: 'People' }
     ] },
     { key: 'properties', labelKey: 'admin.nav.groupProperties', labelText: 'Properties', items: [
       { tab: 'listings', icon: 'home_work', labelKey: 'admin.listingsTab', labelText: 'Listings' },
@@ -92,7 +85,7 @@
       { tab: 'reports', icon: 'monitoring', labelKey: 'admin.nav.reports', labelText: 'Reports', soon: true }
     ] },
     { key: 'system', labelKey: 'admin.nav.groupSystem', labelText: 'System', items: [
-      { tab: 'users', icon: 'admin_panel_settings', labelKey: 'admin.nav.permissions', labelText: 'Permissions', alias: true, requires: ['manage_permissions', 'manage_roles'] },
+      { tab: 'people', subtab: 'users', icon: 'admin_panel_settings', labelKey: 'admin.nav.permissions', labelText: 'Permissions', alias: true, requires: ['manage_permissions', 'manage_roles'] },
       { tab: 'scanlog', icon: 'qr_code_scanner', labelKey: 'admin.scanLogTab', labelText: 'Scan Log' },
       { tab: 'content', icon: 'edit_note', labelKey: 'admin.nav.content', labelText: 'Content Management', soon: true },
       { tab: 'notifications', icon: 'notifications', labelKey: 'admin.nav.notifications', labelText: 'Notifications', soon: true },
@@ -110,6 +103,7 @@
     return (
       '<button type="button" class="admin-tab ash-nav-item' + (item.tab === 'dashboard' ? ' active' : '') + '"' +
         ' data-tab="' + item.tab + '"' +
+        (item.subtab ? ' data-people-subtab="' + item.subtab + '"' : '') +
         (item.requires ? ' data-requires="' + item.requires.join(',') + '"' : '') +
         ' data-nav-id="n' + idx + '"' +
         ' title="' + esc(label) + '">' +

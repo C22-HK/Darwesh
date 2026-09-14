@@ -71,7 +71,11 @@
     render();
 
     return {
-      setActive: function (key) { setActive(key, false); },
+      // `force`: re-render + re-fire onChange even if `key` is already the
+      // active tab -- used when a DIFFERENT nav entry (e.g. an alias like
+      // System -> Permissions) wants to guarantee landing on a specific
+      // sub-tab regardless of whatever was last active there.
+      setActive: function (key, force) { setActive(key, !!force); },
       getActive: function () { return active; },
       refresh: render,
     };
