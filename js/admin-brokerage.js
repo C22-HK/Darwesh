@@ -19,6 +19,8 @@ import {
   listBrokerageAccounts, getBrokerageAccount, setBrokerageDiscount, disableBrokerageDiscount,
   enableBrokerageDiscount, removeBrokerageDiscount, bulkSetBrokerageDiscount, listBrokerageHistory,
   computeBrokerageFee, localizeBackendError, isEndpointUnavailable,
+  listBrokeragePolicies, createBrokeragePolicy, updateBrokeragePolicy, setBrokeragePolicyStatus,
+  listBrokeragePolicyHistory, previewBrokeragePolicyMatches,
 } from './backend-api.js';
 import { SELF_ACCOUNT_TYPES } from './permission-catalog.js';
 
@@ -132,6 +134,7 @@ const SUB_TABS = [
   { key: 'discounted', label: () => tr('brokerage.tabDiscounted', 'Discounted Accounts') },
   { key: 'nodiscount', label: () => tr('brokerage.tabNoDiscount', 'No Discount') },
   { key: 'history', label: () => tr('brokerage.tabHistory', 'History') },
+  { key: 'policies', label: () => tr('brokerage.policy.tab', 'Policies') },
 ];
 
 const state = {
@@ -146,6 +149,8 @@ const state = {
   hasMore: false,
   selected: new Set(),
   history: { uid: '', rows: [], loading: false, error: null },
+  policies: { rows: [], loading: false, error: null },
+  policyPreview: { accounts: [], count: 0 },
 };
 
 function panel() { return document.getElementById('tab-brokerage'); }
@@ -183,6 +188,7 @@ function renderSubPanel() {
   const el = document.getElementById('bdSubPanel');
   if (!el) return;
   if (state.subTab === 'history') return mountHistoryPanel(el);
+  if (state.subTab === 'policies') return mountPoliciesPanel(el);
   return mountAccountsPanel(el, state.subTab);
 }
 
@@ -768,6 +774,13 @@ function renderDetailBody(account) {
     <div>
       <div class="ash-detail-section-title" data-i18n="brokerage.detailSectionDiscount">Brokerage Discount</div>
       <p class="ash-detail-note-text">${esc(tr('brokerage.detailCurrent', 'Current:'))} <strong>${hasDiscount ? esc(String(account.discountPercent)) + '%' : esc(tr('brokerage.notConfigured', 'Not configured'))}</strong> ${hasDiscount ? discountBadgeHtml(account) : ''}</p>
+      <p class="ash-detail-note-text" style="opacity:.85">${esc(tr('brokerage.policy.sourceLabel', 'Effective discount:'))} <strong>${esc(String(account.effectiveDiscountPercent ?? 0))}%</strong> — ${
+        account.discountSource === 'override'
+          ? esc(tr('brokerage.policy.sourceOverride', 'Manually set'))
+          : account.discountSource === 'policy'
+            ? esc(tr('brokerage.policy.sourceInherited', 'Inherited from policy: {name}').replace('{name}', account.policyName || account.policyId || '—'))
+            : esc(tr('brokerage.policy.sourceNone', 'No override or matching policy'))
+      }</p>
       <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
         <label class="block">
           <span class="admin-label" data-i18n="brokerage.customPercent">Custom %</span>
@@ -880,6 +893,421 @@ function renderDetailBody(account) {
       host.innerHTML = `<p class="ash-detail-note-text" style="color:var(--ash-error)">${esc(describeError(err))}</p>`;
     }
   })();
+}
+
+// ---------------------------------------------------------------------
+// Policies sub-tab (Phase 2: policy engine)
+// ---------------------------------------------------------------------
+const POLICY_STATE_LABELS = {
+  draft: ['brokerage.policy.stateDraft', 'Draft'],
+  scheduled: ['brokerage.policy.stateScheduled', 'Scheduled'],
+  active: ['brokerage.policy.stateActive', 'Active'],
+  paused: ['brokerage.policy.statePaused', 'Paused'],
+  expired: ['brokerage.policy.stateExpired', 'Expired'],
+  archived: ['brokerage.policy.stateArchived', 'Archived'],
+};
+const POLICY_STATE_BADGE = {
+  draft: 'badge-private', scheduled: 'badge-pending', active: 'badge-active',
+  paused: 'badge-suspended', expired: 'badge-rejected', archived: 'badge-private',
+};
+function policyStateBadgeHtml(s) {
+  const e = POLICY_STATE_LABELS[s] || POLICY_STATE_LABELS.draft;
+  const cls = POLICY_STATE_BADGE[s] || 'badge-private';
+  return `<span class="badge ${cls}">${esc(tr(e[0], e[1]))}</span>`;
+}
+
+const POLICY_HISTORY_ACTION_LABELS = {
+  create: ['brokerage.policy.historyCreate', 'Created'],
+  update: ['brokerage.policy.historyUpdate', 'Updated'],
+  status_change: ['brokerage.policy.historyStatusChange', 'Status changed'],
+};
+function policyHistoryActionLabel(action) {
+  const e = POLICY_HISTORY_ACTION_LABELS[action];
+  return e ? tr(e[0], e[1]) : (action || '—');
+}
+
+// JS twin of backend/app/brokerage/model.py's effective_policy_state() --
+// same contract as js/offers.js's effectiveState(offer, now): `now` is
+// injectable so the form's live preview can be tested without touching
+// the clock. Kept in lockstep with the Python version deliberately, not
+// imported from it (this module has no backend import boundary).
+function effectivePolicyState(policy, now = Date.now()) {
+  if (!policy) return 'archived';
+  const stored = ['draft', 'active', 'paused', 'archived'].includes(policy.status) ? policy.status : 'draft';
+  if (stored !== 'active') return stored;
+  const start = policy.startAt ? new Date(policy.startAt).getTime() : null;
+  const end = policy.endAt ? new Date(policy.endAt).getTime() : null;
+  if (start !== null && now < start) return 'scheduled';
+  if (end !== null && now >= end) return 'expired';
+  return 'active';
+}
+
+function toDatetimeLocalValue(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function fromDatetimeLocalValue(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+function mountPoliciesPanel(el) {
+  if (el.dataset.bdMode !== 'policies') {
+    el.dataset.bdMode = 'policies';
+    delete el.dataset.bdSubtab;
+    buildPoliciesShell(el);
+    fetchPolicies();
+  } else {
+    renderPoliciesList();
+  }
+}
+
+function buildPoliciesShell(el) {
+  el.innerHTML = `
+    <p class="ash-detail-note-text" style="opacity:.75; margin-bottom:10px;" data-i18n="brokerage.policy.intro">Default rules for accounts with no manually-set discount. An explicit per-account override always wins over every policy.</p>
+    <div class="ash-entity-toolbar">
+      <span class="ash-entity-count" id="bdPolicyCount"></span>
+      <button type="button" class="ash-detail-btn ash-detail-btn-primary" id="bdPolicyNewBtn" data-i18n="brokerage.policy.new">New policy</button>
+    </div>
+    <div class="ash-entity-table-wrap bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="admin-table">
+          <thead><tr>
+            <th data-i18n="brokerage.policy.thName">Name</th>
+            <th data-i18n="brokerage.policy.thScope">Scope</th>
+            <th data-i18n="brokerage.policy.thPercent">Percent</th>
+            <th data-i18n="brokerage.policy.thWindow">Campaign window</th>
+            <th data-i18n="brokerage.policy.thState">State</th>
+            <th data-i18n="brokerage.thLastUpdated">Last Updated</th>
+            <th data-i18n="brokerage.thActions">Actions</th>
+          </tr></thead>
+          <tbody id="bdPolicyTableBody"></tbody>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('bdPolicyNewBtn').addEventListener('click', () => openPolicyForm(null));
+  const tbody = document.getElementById('bdPolicyTableBody');
+  tbody.addEventListener('click', (e) => {
+    const row = e.target.closest('tr[data-policy-id]');
+    if (!row) return;
+    const id = row.dataset.policyId;
+    if (e.target.closest('[data-policy-edit]')) { openPolicyForm(id); return; }
+    if (e.target.closest('[data-policy-activate]')) { setPolicyStatusAction(id, 'active'); return; }
+    if (e.target.closest('[data-policy-pause]')) { setPolicyStatusAction(id, 'paused'); return; }
+    if (e.target.closest('[data-policy-archive]')) { setPolicyStatusAction(id, 'archived'); return; }
+  });
+}
+
+async function fetchPolicies() {
+  if (!user()) return;
+  state.policies.loading = true;
+  state.policies.error = null;
+  renderPoliciesList();
+  try {
+    const res = await listBrokeragePolicies(user(), { limit: 100 });
+    state.policies.rows = res.policies || [];
+  } catch (err) {
+    state.policies.error = err;
+  } finally {
+    state.policies.loading = false;
+    renderPoliciesList();
+  }
+}
+
+function policyScopeHtml(p) {
+  const parts = [];
+  if (p.accountType) parts.push(`<span class="badge badge-active">${esc(accountTypeLabel(p.accountType))}</span>`);
+  if (p.city) parts.push(`<span class="badge badge-active">${esc(p.city)}</span>`);
+  if (!parts.length) return `<span class="badge badge-private">${esc(tr('brokerage.policy.scopeAny', 'Any account'))}</span>`;
+  return parts.join(' ');
+}
+
+function policyWindowLabel(p) {
+  if (!p.startAt && !p.endAt) return tr('brokerage.policy.noWindow', 'No end date');
+  return `${p.startAt ? fmtDateTime(p.startAt) : '—'} → ${p.endAt ? fmtDateTime(p.endAt) : '—'}`;
+}
+
+function policyRowHtml(p) {
+  const eff = effectivePolicyState(p);
+  return `
+    <tr data-policy-id="${esc(p.id)}">
+      <td>${esc(p.name || '—')}</td>
+      <td>${policyScopeHtml(p)}</td>
+      <td>${esc(String(p.percent))}%</td>
+      <td>${esc(policyWindowLabel(p))}</td>
+      <td>${policyStateBadgeHtml(eff)}</td>
+      <td>${esc(fmtDateTime(p.updatedAt))}</td>
+      <td>
+        <div class="bd-row-actions">
+          <button type="button" class="ash-detail-btn" data-policy-edit>${esc(tr('brokerage.policy.edit', 'Edit'))}</button>
+          ${p.status !== 'active' ? `<button type="button" class="ash-detail-btn" data-policy-activate>${esc(tr('brokerage.policy.activate', 'Activate'))}</button>` : ''}
+          ${p.status === 'active' ? `<button type="button" class="ash-detail-btn" data-policy-pause>${esc(tr('brokerage.policy.pause', 'Pause'))}</button>` : ''}
+          ${p.status !== 'archived' ? `<button type="button" class="ash-detail-btn ash-detail-btn-danger" data-policy-archive>${esc(tr('brokerage.policy.archive', 'Archive'))}</button>` : ''}
+        </div>
+      </td>
+    </tr>`;
+}
+
+function renderPoliciesList() {
+  const tbody = document.getElementById('bdPolicyTableBody');
+  const countEl = document.getElementById('bdPolicyCount');
+  if (!tbody) return;
+  if (state.policies.loading && !state.policies.rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="ash-entity-loading">${esc(tr('brokerage.loading', 'Loading…'))}</td></tr>`;
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  if (state.policies.error) {
+    tbody.innerHTML = `<tr><td colspan="7" class="ash-entity-error">
+      ${esc(describeError(state.policies.error))}
+      <div><button type="button" class="ash-entity-retry" id="bdPolicyRetryBtn">${esc(tr('brokerage.retry', 'Try again'))}</button></div>
+    </td></tr>`;
+    document.getElementById('bdPolicyRetryBtn')?.addEventListener('click', fetchPolicies);
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  if (!state.policies.rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="ash-entity-empty">${esc(tr('brokerage.policy.empty', 'No policies yet.'))}</td></tr>`;
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  if (countEl) countEl.textContent = tr('brokerage.policy.countLabel', '{n} policies').replace('{n}', String(state.policies.rows.length));
+  tbody.innerHTML = state.policies.rows.map(policyRowHtml).join('');
+}
+
+async function setPolicyStatusAction(id, status) {
+  const p = state.policies.rows.find((r) => r.id === id);
+  const name = (p && p.name) || id;
+  const stateLabelEntry = POLICY_STATE_LABELS[status];
+  const stateLabel = stateLabelEntry ? tr(stateLabelEntry[0], stateLabelEntry[1]) : status;
+  const msg = tr('brokerage.policy.confirmStatus', 'Change "{name}" to {status}?').replace('{name}', name).replace('{status}', stateLabel);
+  if (!window.confirm(msg)) return;
+  try {
+    await setBrokeragePolicyStatus(user(), id, status);
+    toast(tr('brokerage.policy.toastStatusChanged', 'Policy updated.'), 'success');
+    await fetchPolicies();
+  } catch (err) {
+    toast(describeError(err), 'error');
+  }
+}
+
+// ---- Policy create/edit form overlay ----
+let policyBackdrop = null;
+function ensurePolicyOverlay() {
+  if (policyBackdrop) return policyBackdrop;
+  policyBackdrop = document.createElement('div');
+  policyBackdrop.className = 'ash-detail-backdrop';
+  policyBackdrop.style.display = 'none';
+  policyBackdrop.innerHTML = `
+    <div class="ash-detail-panel" role="dialog" aria-modal="true">
+      <div class="ash-detail-head">
+        <div><div class="ash-detail-title" id="bdPolicyFormTitle"></div></div>
+        <button type="button" class="ash-detail-close" id="bdPolicyFormClose" aria-label="Close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+      </div>
+      <div class="ash-detail-body" id="bdPolicyFormBody"></div>
+    </div>`;
+  document.body.appendChild(policyBackdrop);
+  policyBackdrop.addEventListener('click', (e) => { if (e.target === policyBackdrop) closePolicyForm(); });
+  document.getElementById('bdPolicyFormClose').addEventListener('click', closePolicyForm);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && policyBackdrop.style.display !== 'none') closePolicyForm(); });
+  return policyBackdrop;
+}
+function closePolicyForm() { if (policyBackdrop) policyBackdrop.style.display = 'none'; }
+
+function openPolicyForm(policyId) {
+  ensurePolicyOverlay();
+  policyBackdrop.style.display = 'flex';
+  const existing = policyId ? state.policies.rows.find((r) => r.id === policyId) : null;
+  renderPolicyForm(existing);
+}
+
+function readPolicyFormFields() {
+  return {
+    name: document.getElementById('bdPolicyName').value.trim(),
+    accountType: document.getElementById('bdPolicyAccountType').value || undefined,
+    city: document.getElementById('bdPolicyCity').value.trim() || undefined,
+    percent: Number(document.getElementById('bdPolicyPercent').value),
+    status: document.getElementById('bdPolicyStatus').value,
+    startAt: fromDatetimeLocalValue(document.getElementById('bdPolicyStartAt').value),
+    endAt: fromDatetimeLocalValue(document.getElementById('bdPolicyEndAt').value),
+    reason: document.getElementById('bdPolicyReason').value.trim() || undefined,
+  };
+}
+
+function renderPolicyForm(existing) {
+  const p = existing || { id: null, name: '', accountType: '', city: '', percent: 10, status: 'draft', startAt: null, endAt: null };
+  document.getElementById('bdPolicyFormTitle').textContent = existing ? (existing.name || existing.id) : tr('brokerage.policy.new', 'New policy');
+  document.getElementById('bdPolicyFormBody').innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldName">Name</span>
+        <input type="text" class="admin-input" id="bdPolicyName" value="${esc(p.name || '')}" maxlength="160">
+      </label>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldAccountType">Account type</span>
+        <select class="admin-input" id="bdPolicyAccountType"></select>
+      </label>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldCity">City</span>
+        <input type="text" class="admin-input" id="bdPolicyCity" value="${esc(p.city || '')}" data-i18n-placeholder="brokerage.policy.cityAnyPlaceholder" placeholder="Any city">
+      </label>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldPercent">Percent</span>
+        <input type="number" class="admin-input" id="bdPolicyPercent" min="0" max="100" value="${esc(String(p.percent ?? 10))}">
+      </label>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldStatus">Status</span>
+        <select class="admin-input" id="bdPolicyStatus">
+          <option value="draft"${p.status === 'draft' ? ' selected' : ''} data-i18n="brokerage.policy.stateDraft">Draft</option>
+          <option value="active"${p.status === 'active' ? ' selected' : ''} data-i18n="brokerage.policy.stateActive">Active</option>
+          <option value="paused"${p.status === 'paused' ? ' selected' : ''} data-i18n="brokerage.policy.statePaused">Paused</option>
+          <option value="archived"${p.status === 'archived' ? ' selected' : ''} data-i18n="brokerage.policy.stateArchived">Archived</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldStartAt">Start (optional)</span>
+        <input type="datetime-local" class="admin-input" id="bdPolicyStartAt" value="${esc(toDatetimeLocalValue(p.startAt))}">
+      </label>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.policy.fieldEndAt">End (optional)</span>
+        <input type="datetime-local" class="admin-input" id="bdPolicyEndAt" value="${esc(toDatetimeLocalValue(p.endAt))}">
+      </label>
+      <p class="ash-detail-note-text"><span data-i18n="brokerage.policy.previewStateLabel">Preview state:</span> <span id="bdPolicyLivePreview"></span></p>
+      <label class="block">
+        <span class="admin-label" data-i18n="brokerage.detailReasonLabel">Reason (optional)</span>
+        <textarea class="ash-detail-textarea" id="bdPolicyReason"></textarea>
+      </label>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button type="button" class="ash-detail-btn ash-detail-btn-primary" id="bdPolicySaveBtn" data-i18n="brokerage.policy.save">Save policy</button>
+        <button type="button" class="ash-detail-btn" id="bdPolicyPreviewBtn" data-i18n="brokerage.policy.previewMatches">Preview matching accounts</button>
+      </div>
+      <div id="bdPolicyPreviewResult"></div>
+      ${existing ? `<div>
+        <div class="ash-detail-section-title" data-i18n="brokerage.policy.historyTitle">Policy history</div>
+        <div id="bdPolicyHistoryHost"><p class="ash-detail-note-text" style="opacity:.6">${esc(tr('brokerage.loading', 'Loading…'))}</p></div>
+      </div>` : ''}
+    </div>`;
+
+  const typeSel = document.getElementById('bdPolicyAccountType');
+  typeSel.innerHTML = `<option value="">${esc(tr('brokerage.policy.scopeAnyType', 'Any account type'))}</option>` +
+    SELF_ACCOUNT_TYPES.map((t) => `<option value="${t}"${p.accountType === t ? ' selected' : ''}>${esc(accountTypeLabel(t))}</option>`).join('');
+
+  const updateLivePreview = () => {
+    const draft = {
+      status: document.getElementById('bdPolicyStatus').value,
+      startAt: fromDatetimeLocalValue(document.getElementById('bdPolicyStartAt').value),
+      endAt: fromDatetimeLocalValue(document.getElementById('bdPolicyEndAt').value),
+    };
+    document.getElementById('bdPolicyLivePreview').innerHTML = policyStateBadgeHtml(effectivePolicyState(draft));
+  };
+  ['bdPolicyStatus', 'bdPolicyStartAt', 'bdPolicyEndAt'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', updateLivePreview);
+  });
+  updateLivePreview();
+
+  document.getElementById('bdPolicySaveBtn').addEventListener('click', (e) => savePolicyForm(existing, e.currentTarget));
+  document.getElementById('bdPolicyPreviewBtn').addEventListener('click', (e) => previewPolicyForm(existing, e.currentTarget));
+
+  if (existing) {
+    (async () => {
+      const host = document.getElementById('bdPolicyHistoryHost');
+      try {
+        const res = await listBrokeragePolicyHistory(user(), existing.id, { limit: 50 });
+        const rows = res.history || [];
+        if (!rows.length) {
+          host.innerHTML = `<p class="ash-detail-note-text" style="opacity:.7">${esc(tr('brokerage.detailNoHistory', 'No discount changes recorded yet.'))}</p>`;
+          return;
+        }
+        host.innerHTML = `<div class="ash-detail-timeline">` + rows.map((h) => `
+          <div class="ash-detail-timeline-item">
+            <span class="ash-detail-timeline-dot"></span>
+            <div>
+              <div>${esc(policyHistoryActionLabel(h.action))}</div>
+              <div class="ash-detail-timeline-time">${esc(h.changedBy || '—')} · ${esc(fmtDateTime(h.changedAt))}${h.reason ? ' · ' + esc(h.reason) : ''}</div>
+            </div>
+          </div>`).join('') + `</div>`;
+      } catch (err) {
+        host.innerHTML = `<p class="ash-detail-note-text" style="color:var(--ash-error)">${esc(describeError(err))}</p>`;
+      }
+    })();
+  }
+}
+
+async function savePolicyForm(existing, btn) {
+  const fields = readPolicyFormFields();
+  if (!fields.name) { toast(tr('brokerage.policy.errNameRequired', 'Name is required.'), 'error'); return; }
+  if (!Number.isFinite(fields.percent) || fields.percent < 0 || fields.percent > 100) {
+    toast(tr('brokerage.invalidPercent', 'Enter a percentage between 0 and 100.'), 'error');
+    return;
+  }
+  try {
+    if (existing) {
+      await withBusy(btn, () => updateBrokeragePolicy(user(), existing.id, fields));
+    } else {
+      await withBusy(btn, () => createBrokeragePolicy(user(), fields));
+    }
+    toast(tr('brokerage.policy.toastSaved', 'Policy saved.'), 'success');
+    closePolicyForm();
+    await fetchPolicies();
+  } catch (err) {
+    toast(describeError(err), 'error');
+  }
+}
+
+async function previewPolicyForm(existing, btn) {
+  const fields = readPolicyFormFields();
+  if (!Number.isFinite(fields.percent) || fields.percent < 0 || fields.percent > 100) {
+    toast(tr('brokerage.invalidPercent', 'Enter a percentage between 0 and 100.'), 'error');
+    return;
+  }
+  const host = document.getElementById('bdPolicyPreviewResult');
+  host.innerHTML = `<p class="ash-detail-note-text" style="opacity:.7">${esc(tr('brokerage.loading', 'Loading…'))}</p>`;
+  try {
+    const res = await withBusy(btn, () => previewBrokeragePolicyMatches(user(), {
+      accountType: fields.accountType,
+      city: fields.city,
+      percent: fields.percent,
+      startAt: fields.startAt,
+      endAt: fields.endAt,
+      excludePolicyId: existing ? existing.id : undefined,
+      limit: 200,
+    }));
+    state.policyPreview = { accounts: res.accounts || [], count: res.count || 0 };
+    if (!state.policyPreview.accounts.length) {
+      host.innerHTML = `<p class="ash-detail-note-text">${esc(tr('brokerage.policy.previewEmpty', 'No un-overridden accounts currently match this policy.'))}</p>`;
+      return;
+    }
+    host.innerHTML = `
+      <p class="ash-detail-note-text">${esc(tr('brokerage.policy.previewCount', '{n} accounts would receive this discount:').replace('{n}', String(state.policyPreview.count)))}</p>
+      <ul class="bd-preview-list">${state.policyPreview.accounts.slice(0, 25).map((a) => `<li>${esc(a.displayName || a.uid)} — ${esc(accountTypeLabel(a.accountType))}${a.city ? ' · ' + esc(a.city) : ''}</li>`).join('')}</ul>
+      ${state.policyPreview.accounts.length > 25 ? `<p class="ash-detail-note-text" style="opacity:.6">${esc(tr('brokerage.policy.previewMore', '+ {n} more').replace('{n}', String(state.policyPreview.accounts.length - 25)))}</p>` : ''}
+      <button type="button" class="ash-detail-btn ash-detail-btn-primary" id="bdPolicyApplyToBulkBtn" data-i18n="brokerage.policy.applyToBulk">Apply to these accounts…</button>`;
+    document.getElementById('bdPolicyApplyToBulkBtn').addEventListener('click', () => {
+      closePolicyForm();
+      applyPreviewToBulk();
+    });
+  } catch (err) {
+    host.innerHTML = `<p class="ash-detail-note-text" style="color:var(--ash-error)">${esc(describeError(err))}</p>`;
+  }
+}
+
+// Hands the previewed uids off to the EXISTING Phase 1 All Accounts bulk
+// bar -- no new bulk-write UI or endpoint, exactly per the plan.
+function applyPreviewToBulk() {
+  const uids = (state.policyPreview.accounts || []).map((a) => a.uid);
+  if (!uids.length) return;
+  state.subTab = 'all';
+  renderSubTabs();
+  renderSubPanel();
+  uids.forEach((u) => state.selected.add(u));
+  renderAccountsList();
+  toast(tr('brokerage.policy.previewAppliedToBulk', '{n} accounts added below -- choose a percentage to apply.').replace('{n}', String(uids.length)), 'success');
 }
 
 // ---------------------------------------------------------------------

@@ -230,3 +230,149 @@ class BrokerageAdminHandler:
             self.logger.error("brokerage compute_fee failed", extra={"error": type(exc).__name__})
             return JSONResponse({"error": "Request failed."}, status_code=400)
         return JSONResponse(result)
+
+    # ---- Phase 2: policy engine -------------------------------------------
+
+    async def list_policies(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        try:
+            result = await self.ops.list_policies(
+                status=request.query_params.get("status"),
+                cursor=request.query_params.get("cursor"),
+                limit=_int_query(request, "limit", 50),
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage list_policies failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse(result)
+
+    async def get_policy(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        policy_id = request.path_params.get("policy_id", "")
+        try:
+            result = await self.ops.get_policy(policy_id=policy_id)
+        except (ValidationError, NotFoundError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage get_policy failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse(result)
+
+    async def create_policy(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        try:
+            result = await self.ops.create_policy(
+                admin_uid=caller.uid,
+                admin_role=caller.role or "admin",
+                name=body.get("name"),
+                account_type=body.get("accountType"),
+                city=body.get("city"),
+                percent=body.get("percent"),
+                status=body.get("status") or "draft",
+                start_at=body.get("startAt"),
+                end_at=body.get("endAt"),
+                reason=body.get("reason"),
+            )
+        except (ValidationError, NotFoundError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage create_policy failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse(result)
+
+    async def update_policy(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        policy_id = request.path_params.get("policy_id", "")
+        try:
+            result = await self.ops.update_policy(
+                admin_uid=caller.uid,
+                admin_role=caller.role or "admin",
+                policy_id=policy_id,
+                name=body.get("name"),
+                account_type=body.get("accountType"),
+                city=body.get("city"),
+                percent=body.get("percent"),
+                status=body.get("status"),
+                start_at=body.get("startAt"),
+                end_at=body.get("endAt"),
+                reason=body.get("reason"),
+            )
+        except (ValidationError, NotFoundError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage update_policy failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse(result)
+
+    async def set_policy_status(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        policy_id = request.path_params.get("policy_id", "")
+        try:
+            result = await self.ops.set_policy_status(
+                admin_uid=caller.uid,
+                admin_role=caller.role or "admin",
+                policy_id=policy_id,
+                status=body.get("status"),
+                reason=body.get("reason"),
+            )
+        except (ValidationError, NotFoundError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage set_policy_status failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse(result)
+
+    async def list_policy_history(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        policy_id = request.path_params.get("policy_id")
+        try:
+            rows = await self.ops.list_policy_history(policy_id=policy_id, limit=_int_query(request, "limit", 50))
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage list_policy_history failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse({"history": rows})
+
+    async def preview_policy_matches(self, request: Request) -> JSONResponse:
+        caller, err = await self._admin_caller(request)
+        if err is not None:
+            return err
+        body = await _parse_json_body(request)
+        if body is None:
+            return _BAD_BODY
+        try:
+            result = await self.ops.preview_policy_matches(
+                account_type=body.get("accountType"),
+                city=body.get("city"),
+                percent=body.get("percent"),
+                start_at=body.get("startAt"),
+                end_at=body.get("endAt"),
+                exclude_policy_id=body.get("excludePolicyId"),
+                limit=int(body.get("limit") or 200),
+            )
+        except (ValidationError, NotFoundError) as exc:
+            return _map_ops_error(exc)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("brokerage preview_policy_matches failed", extra={"error": type(exc).__name__})
+            return JSONResponse({"error": "Request failed."}, status_code=400)
+        return JSONResponse(result)

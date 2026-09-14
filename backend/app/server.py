@@ -493,6 +493,28 @@ def create_app(
         )
         app.add_api_route("/api/v1/brokerage/history", brokerage_admin_handler.list_history, methods=["GET"])
         app.add_api_route("/api/v1/brokerage/compute-fee", brokerage_admin_handler.compute_fee, methods=["POST"])
+        # Phase 2: policy engine (role/city default percentages, campaigns).
+        app.add_api_route("/api/v1/brokerage/policies", brokerage_admin_handler.list_policies, methods=["GET"])
+        app.add_api_route("/api/v1/brokerage/policies", brokerage_admin_handler.create_policy, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/brokerage/policies/preview", brokerage_admin_handler.preview_policy_matches, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/policies/{policy_id}", brokerage_admin_handler.get_policy, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/policies/{policy_id}", brokerage_admin_handler.update_policy, methods=["PATCH"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/policies/{policy_id}/status",
+            brokerage_admin_handler.set_policy_status,
+            methods=["PATCH"],
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/policies/{policy_id}/history",
+            brokerage_admin_handler.list_policy_history,
+            methods=["GET"],
+        )
 
     return app
 

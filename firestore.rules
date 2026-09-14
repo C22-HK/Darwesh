@@ -2775,6 +2775,21 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---- Brokerage Fee Discount system (Phase 2: policy engine) -------
+    // Same Pattern B posture as the two collections above -- admin-defined
+    // default rules (role/city percentages, dated campaigns) that only
+    // ever apply to an account with no explicit per-account override
+    // (brokerage_ops.py's precedence rule); no client SDK caller,
+    // including an admin's own session, may ever write either collection.
+    match /brokerageDiscountPolicies/{policyId} {
+      allow read: if isAdmin() && hasPermission('brokerage.manage');
+      allow write: if false;
+    }
+    match /brokerageDiscountPolicyHistory/{entryId} {
+      allow read: if isAdmin() && hasPermission('brokerage.manage');
+      allow write: if false;
+    }
+
     // ---- Email OTP storage (backend-only) ----
     // Written and read exclusively by the backend's Firebase Admin SDK
     // credential (see backend/app/otp/store.py's FirestoreChallengeStore),
