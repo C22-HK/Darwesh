@@ -244,7 +244,7 @@ function buildAccountsShell(el, subTab) {
     <div id="bdBulkBar"></div>
     <div class="ash-entity-table-wrap bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden" style="margin-top:12px;">
       <div class="overflow-x-auto">
-        <table class="admin-table">
+        <table class="admin-table ash-table-sticky">
           <thead><tr>
             <th><input type="checkbox" id="bdSelectAll" aria-label="${esc(tr('brokerage.selectAll', 'Select all'))}"></th>
             <th data-i18n="brokerage.thPhoto">Photo</th>
@@ -252,7 +252,7 @@ function buildAccountsShell(el, subTab) {
             <th data-i18n="brokerage.thAccountType">Account Type</th>
             <th data-i18n="brokerage.thCity">City</th>
             <th data-i18n="brokerage.thVerification">Verification</th>
-            <th data-i18n="brokerage.thDiscount">Discount</th>
+            <th class="ash-cell-num" data-i18n="brokerage.thDiscount">Discount</th>
             <th data-i18n="brokerage.thStatus">Status</th>
             <th data-i18n="brokerage.thLastUpdated">Last Updated</th>
             <th data-i18n="brokerage.thUpdatedBy">Updated By</th>
@@ -310,6 +310,7 @@ function buildAccountsShell(el, subTab) {
     if (!cb) return;
     const uid = cb.dataset.bdSelect;
     if (cb.checked) state.selected.add(uid); else state.selected.delete(uid);
+    e.target.closest('tr')?.classList.toggle('is-selected', cb.checked);
     renderBulkBar();
     const selectAll = document.getElementById('bdSelectAll');
     if (selectAll) selectAll.checked = state.accounts.length > 0 && state.accounts.every((a) => state.selected.has(a.uid));
@@ -320,17 +321,35 @@ function buildAccountsShell(el, subTab) {
     const uid = rowEl.dataset.uid;
     const presetBtn = e.target.closest('[data-row-preset]');
     const customBtn = e.target.closest('[data-row-custom-apply]');
-    const toggleBtn = e.target.closest('[data-row-toggle]');
-    const removeBtn = e.target.closest('[data-row-remove]');
-    const viewBtn = e.target.closest('[data-row-view]');
     if (presetBtn) { applyRowPreset(uid, Number(presetBtn.dataset.rowPreset)); return; }
     if (customBtn) { applyRowCustom(uid, rowEl); return; }
-    if (toggleBtn) { toggleRowActive(uid, toggleBtn.dataset.active === 'true'); return; }
-    if (removeBtn) { removeRowDiscount(uid); return; }
-    if (viewBtn) { openDetail(uid); return; }
     if (e.target.closest('.bd-row-actions') || e.target.closest('[data-bd-select]')) return;
     openDetail(uid);
   });
+  // Stage 3: disable/re-enable, remove and view move into the shared
+  // AdminActionMenu -- the preset/custom controls above stay inline since
+  // they're this table's primary action, not a secondary one.
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(tbody, (trigger) => {
+      const uid = trigger.closest('tr').dataset.uid;
+      const a = state.accountsById.get(uid);
+      if (!a) return [];
+      const hasDiscount = a.discountPercent !== null && a.discountPercent !== undefined;
+      const isActive = a.discountActive !== false;
+      const items = [
+        { label: () => tr('brokerage.actionView', 'View'), icon: 'visibility', onClick: () => openDetail(uid) },
+      ];
+      if (hasDiscount) {
+        items.push({
+          label: () => (isActive ? tr('brokerage.actionDisable', 'Disable') : tr('brokerage.actionEnable', 'Re-enable')),
+          icon: isActive ? 'toggle_off' : 'toggle_on',
+          onClick: () => toggleRowActive(uid, isActive),
+        });
+        items.push({ label: () => tr('brokerage.actionRemove', 'Remove'), icon: 'delete', danger: true, onClick: () => removeRowDiscount(uid) });
+      }
+      return items;
+    });
+  }
 }
 
 function subTabParams(subTab) {
@@ -386,9 +405,15 @@ function discountBadgeHtml(a) {
     : `<span class="badge badge-active">${esc(tr('brokerage.statusActive', 'Active'))}</span>`;
 }
 
+// Stage 3: the preset/custom-percent controls stay inline, deliberately --
+// setting a discount IS the primary purpose of this table, not a secondary
+// row action, so collapsing them into a "..." menu would slow down the
+// exact workflow this screen exists for. Only the lower-frequency actions
+// (disable/re-enable, remove, view) move into the shared AdminActionMenu,
+// matching the brief's "collapse secondary actions" intent without hiding
+// the primary one.
 function rowActionsHtml(a) {
   const hasDiscount = a.discountPercent !== null && a.discountPercent !== undefined;
-  const isActive = a.discountActive !== false;
   return `
     <div class="bd-row-actions">
       <div class="bd-preset-group">
@@ -398,22 +423,20 @@ function rowActionsHtml(a) {
         <input type="number" class="bd-custom-input" min="0" max="100" placeholder="${esc(tr('brokerage.customPercent', 'Custom %'))}" value="${hasDiscount ? esc(String(a.discountPercent)) : ''}">
         <button type="button" class="ash-detail-btn" data-row-custom-apply>${esc(tr('brokerage.set', 'Set'))}</button>
       </div>
-      ${hasDiscount ? `<button type="button" class="ash-detail-btn" data-row-toggle data-active="${isActive}">${esc(isActive ? tr('brokerage.actionDisable', 'Disable') : tr('brokerage.actionEnable', 'Re-enable'))}</button>` : ''}
-      ${hasDiscount ? `<button type="button" class="ash-detail-btn ash-detail-btn-danger" data-row-remove>${esc(tr('brokerage.actionRemove', 'Remove'))}</button>` : ''}
-      <button type="button" class="ash-detail-btn" data-row-view>${esc(tr('brokerage.actionView', 'View'))}</button>
+      <button type="button" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${esc(tr('admin.rowActions', 'Row actions'))}"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></button>
     </div>`;
 }
 
 function accountRowHtml(a) {
   return `
-    <tr data-uid="${esc(a.uid)}">
+    <tr data-uid="${esc(a.uid)}" class="${state.selected.has(a.uid) ? 'is-selected' : ''}">
       <td><input type="checkbox" data-bd-select="${esc(a.uid)}" ${state.selected.has(a.uid) ? 'checked' : ''}></td>
       <td>${avatarHtml(a)}</td>
-      <td>${esc(a.displayName || a.uid)}</td>
+      <td class="ash-cell-entity-title">${esc(a.displayName || a.uid)}</td>
       <td>${esc(accountTypeLabel(a.accountType))}</td>
       <td>${esc(a.city || '—')}</td>
       <td>${verificationBadgeHtml(a.verificationStatus)}</td>
-      <td>${a.discountPercent === null || a.discountPercent === undefined ? '—' : `${esc(String(a.effectiveDiscountPercent))}%`}</td>
+      <td class="ash-cell-num">${a.discountPercent === null || a.discountPercent === undefined ? '—' : `${esc(String(a.effectiveDiscountPercent))}%`}</td>
       <td>${discountBadgeHtml(a)}</td>
       <td>${esc(fmtDateTime(a.discountUpdatedAt))}</td>
       <td>${esc(a.discountUpdatedBy || '—')}</td>

@@ -346,8 +346,8 @@ change is not meant to make. -->
         </div>
         <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
-            <table class="admin-table">
-              <thead><tr><th data-i18n="admin.thUser">User</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thJoined">Joined</th><th data-i18n="admin.thRole">Role</th></tr></thead>
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thUser">User</th><th data-i18n="admin.thCompany">Company</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thJoined">Joined</th><th data-i18n="admin.thRole">Role</th></tr></thead>
               <tbody id="usersBody"></tbody>
             </table>
           </div>
@@ -677,8 +677,8 @@ change is not meant to make. -->
         <div class="lg:col-span-3">
           <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
-              <table class="admin-table">
-                <thead><tr><th data-i18n="agentDash.thListing">Listing</th><th data-i18n="agentDash.thAgent">Agent</th><th data-i18n="agentDash.thType">Type</th><th data-i18n="agentDash.thPrice">Price</th><th data-i18n="agentDash.thFlags">Flags</th><th></th></tr></thead>
+              <table class="admin-table ash-table-sticky">
+                <thead><tr><th data-i18n="agentDash.thListing">Listing</th><th data-i18n="agentDash.thAgent">Agent</th><th data-i18n="agentDash.thType">Type</th><th class="ash-cell-num" data-i18n="agentDash.thPrice">Price</th><th data-i18n="agentDash.thFlags">Flags</th><th></th></tr></thead>
                 <tbody id="listingsBody"></tbody>
               </table>
             </div>
@@ -939,6 +939,11 @@ change is not meant to make. -->
      these. Classic scripts, same loading style as admin-shell.js. -->
 <script src="./js/admin-tabs.js"></script>
 <script src="./js/admin-page-header.js"></script>
+<!-- Shared interaction primitives (redesign Stage 3) -- one shared action
+     menu and one shared confirmation dialog for every hub, same loading
+     style as the rest of this block. -->
+<script src="./js/admin-action-menu.js"></script>
+<script src="./js/admin-dialog.js"></script>
 
 <!-- Customer Services: full request detail -->
 <div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="requestDetailOverlay">
@@ -1719,11 +1724,11 @@ async function renderUsers() {
       : '';
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(u.email)}</p>
+        <p class="ash-cell-entity-title">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
+        <p class="ash-cell-entity-meta">${escapeAdmin(u.email)}</p>
       </td>
       <td>${escapeAdmin(companyNames[u.companyId]) || escapeAdmin(u.companyId) || '—'}</td>
-      <td>${listingCount}</td>
+      <td class="ash-cell-num">${listingCount}</td>
       <td>${joined}</td>
       <td></td>
     `;
@@ -1766,7 +1771,13 @@ async function onRoleChange(u, selectEl) {
   const confirmMsg = grantingCompany
     ? `Change ${name}'s role to "${roleLabel}" and grant access to "${u.requestedCompanyName || u.requestedCompanyId}"? This gives them that company's team-scoped listing access.`
     : `Change ${name}'s role to "${roleLabel}"?` + (newRole === 'admin' ? ' This grants full admin access.' : '');
-  const ok = confirm(confirmMsg);
+  const ok = await window.AdminDialog.confirm({
+    title: () => trAdmin('admin.changeRoleTitle', 'Change role?'),
+    body: () => confirmMsg,
+    confirmLabel: () => trAdmin('admin.changeRoleConfirm', 'Change role'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+    danger: newRole === 'admin',
+  });
   if (!ok) { renderUsers(); return; }
   try {
     const update = { role: newRole };
@@ -2401,41 +2412,44 @@ async function renderListingsTable() {
   body.innerHTML = '';
   allListingsCache.forEach(l => {
     const tr = document.createElement('tr');
+    tr.dataset.listingId = l.id;
     tr.innerHTML = `
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(l.title)}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
+        <p class="ash-cell-entity-title">${escapeAdmin(l.title)}</p>
+        <p class="ash-cell-entity-meta">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
       </td>
       <td>${escapeAdmin(l.agentName) || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
       <td>
         <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent')}</span>
         <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeAdmin(l.propertyType)}</div>
       </td>
-      <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
+      <td class="ash-cell-num">$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
       <td>
-        ${l.status === 'closed' ? '<span class="badge" style="background:#e5e8ee; color:#181c20;">' + (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) + '</span>' : ''}
+        ${l.status === 'closed' ? '<span class="badge badge-closed">' + (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) + '</span>' : ''}
         ${l.verified ? '<span class="badge badge-verified">' + trAdmin('common.verified','Verified') + '</span>' : ''}
         ${l.private ? '<span class="badge badge-private">' + trAdmin('map.privateListing','Private') + '</span>' : ''}
       </td>
-      <td></td>
+      <td><button type="button" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${escapeAdmin(trAdmin('admin.rowActions', 'Row actions'))}"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></button></td>
     `;
-    const statusBtn = document.createElement('button');
-    statusBtn.className = 'icon-btn'; statusBtn.type = 'button';
+    body.appendChild(tr);
+  });
+}
+
+// Stage 3: one shared "..." menu per row instead of 3 separate icon
+// buttons (mark sold/active, edit, delete) -- wired once via delegation,
+// not per-row, so it keeps working across every re-render.
+if (window.AdminActionMenu) {
+  window.AdminActionMenu.attach(document.getElementById('listingsBody'), (trigger) => {
+    const id = trigger.closest('tr').dataset.listingId;
+    const l = allListingsCache.find((x) => x.id === id);
+    if (!l) return [];
     const isClosed = l.status === 'closed';
     const closeLabel = l.dealType === 'rent' ? trAdmin('admin.markRented', 'Mark as Rented') : trAdmin('admin.markSold', 'Mark as Sold');
-    statusBtn.title = isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel;
-    statusBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:18px;">${isClosed ? 'restart_alt' : 'sell'}</span>`;
-    statusBtn.addEventListener('click', () => window.toggleListingStatus(l.id));
-    const editBtn = document.createElement('button');
-    editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = trAdmin('common.edit','Edit');
-    editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
-    editBtn.addEventListener('click', () => window.editListing(l.id));
-    const delBtn = document.createElement('button');
-    delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = trAdmin('common.delete','Delete');
-    delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
-    delBtn.addEventListener('click', () => window.deleteListing(l.id));
-    tr.lastElementChild.append(statusBtn, editBtn, delBtn);
-    body.appendChild(tr);
+    return [
+      { label: () => (isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel), icon: isClosed ? 'restart_alt' : 'sell', onClick: () => window.toggleListingStatus(id) },
+      { label: () => trAdmin('common.edit', 'Edit'), icon: 'edit', onClick: () => window.editListing(id) },
+      { label: () => trAdmin('common.delete', 'Delete'), icon: 'delete', danger: true, onClick: () => window.deleteListing(id) },
+    ];
   });
 }
 
