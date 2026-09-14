@@ -136,6 +136,16 @@ violation reporting. -->
     .filter-dropdown-btn:focus-visible, #saveSearchBtn:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
     .filter-dropdown-menu { position: fixed; z-index: 1200; }
     .filter-dropdown-btn svg, #saveSearchBtn svg { flex: none; }
+    /* Select Area -- the one clearly-visible, always-on-screen entry point
+       into the circle/radius draw gesture (see setDrawMode() below). Three
+       states, distinguished by color so no icon-swapping is needed: idle
+       outline, gold-filled while armed (drawMode), and a quieter gold
+       outline once a circle is committed -- matching the accent already
+       used for .filter-dropdown-btn.active and the map's own circle color. */
+    #selectAreaBtn.active { border-color: #B89A63; color: #090A0A; background: #B89A63; }
+    #selectAreaBtn.select-area-set { border-color: #8E7448; color: #B89A63; background: #221E15; }
+    #selectAreaBtn:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
+    #selectAreaRadiusBadge { font-variant-numeric: tabular-nums; }
 
     /* ---- Buy / Rent / Sell segmented control -------------------------
      * Same three real controls as before (`.type-toggle` buttons still
@@ -471,6 +481,18 @@ violation reporting. -->
 <button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="areaDesc" aria-pressed="false"><span data-i18n="map.sortArea">Largest Area</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 </div>
 </div>
+<!-- Select Area -- the primary, always-visible entry point into the
+     circle/radius draw gesture. Previously this was only reachable via
+     "Draw Area" tucked inside the edge-drawer's hidden tool list; this
+     button does the exact same thing (setDrawMode(), see below) but sits
+     right in the main toolbar next to Save Search / Save as Alert, so
+     nobody has to discover a hidden control first. Label/color/radius
+     badge track drawMode/searchCircle via updateSelectAreaButton(). -->
+<button id="selectAreaBtn" type="button" class="flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-pressed="false" title="Tap to pick a center, then drag to set the radius" data-i18n-title="map.selectAreaHint">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/></svg>
+<span id="selectAreaLabel" data-i18n="map.selectArea">Select Area</span>
+<span id="selectAreaRadiusBadge" class="hidden font-data-mono text-data-mono"></span>
+</button>
 <button id="saveSearchBtn" type="button" class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M9.5 6.5h5M12 4v5"/></svg>
 <span data-i18n="map.saveSearch">Save Search</span>
@@ -485,6 +507,16 @@ violation reporting. -->
 </button>
 <span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
 </div>
+<!-- Small, always-in-flow helper line (NOT inside the horizontally
+     scrolling toolbar above, so it can never scroll out of view) --
+     shown only while Save as Alert is disabled, i.e. neither a drawn
+     circle nor a typed city is set yet. Kept in sync from the same
+     currentAlertArea() check as the button itself -- see
+     updateSaveAlertButton(). -->
+<p id="saveAlertHelperMsg" class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop pb-2 -mt-1 flex items-center gap-1.5 font-body-md text-body-md text-on-surface-variant text-[12px]">
+<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+<span data-i18n="alerts.selectAreaFirst">Select an area on the map first</span>
+</p>
 </div>
 
 <!-- Main split view -->
@@ -1437,7 +1469,10 @@ function describeAlertArea(area) {
 function updateSaveAlertButton() {
   const btn = document.getElementById('saveAlertBtn');
   if (!btn) return;
-  btn.disabled = !currentAlertArea();
+  const hasArea = !!currentAlertArea();
+  btn.disabled = !hasArea;
+  const helper = document.getElementById('saveAlertHelperMsg');
+  if (helper) helper.classList.toggle('hidden', hasArea);
 }
 
 function openSaveAlertModal() {
@@ -3198,6 +3233,34 @@ function updateAreaControls() {
   redrawSearchAreaBtn.style.display = hasCircle ? 'flex' : 'none';
   clearSearchAreaBtn.style.display = (hasCircle || viewportSearchBounds) ? 'flex' : 'none';
   if (typeof updateSaveAlertButton === 'function') updateSaveAlertButton();
+  if (typeof updateSelectAreaButton === 'function') updateSelectAreaButton();
+}
+
+// The main-toolbar counterpart to drawSearchBtn/redrawSearchAreaBtn --
+// one always-visible button instead of two hidden inside the edge drawer.
+// Same three states as those two put together, told apart by color/label
+// alone (no icon swap): idle outline, gold-filled while armed, and a
+// quieter gold outline plus the committed radius once a circle exists.
+function updateSelectAreaButton() {
+  const btn = document.getElementById('selectAreaBtn');
+  if (!btn) return;
+  const label = document.getElementById('selectAreaLabel');
+  const radiusBadge = document.getElementById('selectAreaRadiusBadge');
+  const hasCircle = !!searchCircle;
+  btn.classList.toggle('active', drawMode);
+  btn.classList.toggle('select-area-set', hasCircle && !drawMode);
+  btn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
+  if (drawMode) {
+    label.textContent = tr('map.cancelSelectArea', 'Cancel');
+    radiusBadge.classList.add('hidden');
+  } else if (hasCircle) {
+    label.textContent = tr('map.changeArea', 'Change Area');
+    radiusBadge.textContent = fmtRadius(searchCircle.radius);
+    radiusBadge.classList.remove('hidden');
+  } else {
+    label.textContent = tr('map.selectArea', 'Select Area');
+    radiusBadge.classList.add('hidden');
+  }
 }
 
 function showRadiusBadge(metres) {
@@ -3258,6 +3321,18 @@ function setDrawMode(on) {
 
 drawSearchBtn.addEventListener('click', () => setDrawMode(!drawMode));
 redrawSearchAreaBtn.addEventListener('click', () => setDrawMode(true));
+
+// Select Area -- the discoverable, always-visible twin of drawSearchBtn
+// above (identical setDrawMode(!drawMode) toggle: arms, redraws, or
+// cancels depending on the current state). On mobile the map may be
+// hidden behind the List view (mobileView, see the viewToggle listener
+// further up), and a user cannot tap a map they cannot see -- so arming
+// switches to Map view first, exactly as if they had pressed the
+// existing List/Map toggle themselves.
+document.getElementById('selectAreaBtn').addEventListener('click', () => {
+  if (!drawMode && mobileView === 'list') viewToggle.click();
+  setDrawMode(!drawMode);
+});
 
 // ---- the gesture itself ---------------------------------------------
 // Bound to the map container rather than to Leaflet's own event bus so
