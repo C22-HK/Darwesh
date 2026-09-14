@@ -146,6 +146,72 @@ violation reporting. -->
     #selectAreaBtn.select-area-set { border-color: #8E7448; color: #B89A63; background: #221E15; }
     #selectAreaBtn:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
     #selectAreaRadiusBadge { font-variant-numeric: tabular-nums; }
+    /* Two-line "Selected area / {radius}" readout once a circle is set --
+       replaces the old single run-on "Change Area 433.0 km" string with a
+       small muted caption over a calmer value line. #selectAreaLabel's
+       text content is unchanged (still "Change Area", read by screen
+       readers/aria-label as before); only its visual weight drops once
+       the caption appears, so "Change" reads as a quiet trailing action
+       rather than the headline. */
+    .select-area-copy { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.2; }
+    .select-area-caption {
+      font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: .06em;
+      text-transform: uppercase; opacity: .6;
+    }
+    .select-area-main { display: flex; align-items: baseline; gap: 6px; }
+    #selectAreaBtn.select-area-set #selectAreaLabel { font-size: 10.5px; opacity: .8; }
+    #selectAreaBtn.select-area-set .select-area-radius { font-size: 13px; font-weight: 700; }
+
+    /* ---- Toolbar groups (desktop/tablet filter bar) ----------------------
+       Three logical clusters -- type/mode, filters, area+alerts -- each its
+       own flex row, separated by a thin vertical divider instead of one
+       long run of equally-weighted pills. Purely visual grouping: every
+       button inside keeps its original id/handler. */
+    .toolbar-group { display: flex; align-items: center; gap: 8px; flex: none; }
+    .toolbar-divider { width: 1px; align-self: stretch; margin-block: 8px; background: rgba(255,255,255,0.09); flex: none; }
+    /* Save Search: intentionally quieter than before (no border/fill of its
+       own) -- it sits beside the promoted Save-as-Alert action and should
+       read as the lesser-used secondary option, per the toolbar hierarchy
+       the redesign calls for. */
+    .toolbar-btn-quiet { color: #A79F91; background: transparent; }
+    .toolbar-btn-quiet:hover { color: #F2EEE5; background: rgba(255,255,255,0.06); }
+    /* Save as Alert: the toolbar's one promoted "special action" -- a
+       gold wash instead of a plain outline pill, so it reads as distinct
+       from Select Area/Save Search at a glance without shouting. */
+    .save-alert-btn-primary { color: #E7D2A6; background: rgba(184,154,99,0.14); border: 1px solid rgba(184,154,99,0.4); }
+    .save-alert-btn-primary:hover:not(:disabled) { background: rgba(184,154,99,0.22); border-color: rgba(184,154,99,0.6); }
+    .save-alert-btn-primary:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
+    .save-alert-btn-primary:disabled { background: transparent; border-color: #5D482B; color: #A79F91; }
+
+    /* ---- Listings pane data states (loading / error / empty) --------
+       Shared shell for #cardList's three non-listing states, replacing
+       the old bare single-line <p> messages that left one sentence
+       floating in an otherwise-empty dark pane. Centered, bounded width,
+       icon + title + optional subtitle + optional action row -- only
+       real, pre-existing actions (adjust filters / clear area / retry)
+       are ever rendered here. */
+    .listpanel-state {
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      gap: 6px; max-width: 280px; margin: 15% auto 0; padding: 32px 20px;
+      color: #A79F91;
+    }
+    .listpanel-state-icon {
+      font-size: 34px; width: 56px; height: 56px; line-height: 56px; border-radius: 50%;
+      background: rgba(184,154,99,0.1); color: #B89A63; margin-bottom: 6px;
+    }
+    .listpanel-state-icon-spin { animation: listpanel-state-spin 1.1s linear infinite; }
+    @keyframes listpanel-state-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .listpanel-state-title { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 700; color: #F2EEE5; margin: 0; }
+    .listpanel-state-subtitle { font-family: 'Inter', sans-serif; font-size: 13px; line-height: 1.4; color: #A79F91; margin: 0; }
+    .listpanel-state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+    .listpanel-state-btn {
+      font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 600; color: #F2EEE5;
+      background: transparent; border: 1px solid rgba(255,255,255,0.16); border-radius: 999px;
+      padding: 8px 16px; cursor: pointer; transition: background-color .15s, border-color .15s;
+    }
+    .listpanel-state-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.28); }
+    .listpanel-state-btn-primary { color: #E7D2A6; background: rgba(184,154,99,0.14); border-color: rgba(184,154,99,0.4); }
+    .listpanel-state-btn-primary:hover { background: rgba(184,154,99,0.22); border-color: rgba(184,154,99,0.6); }
 
     /* ---- Buy / Rent / Sell segmented control -------------------------
      * Same three real controls as before (`.type-toggle` buttons still
@@ -299,6 +365,27 @@ violation reporting. -->
       border-radius: 8px; cursor: pointer;
     }
     #citySuggestList button:hover, #citySuggestList button:focus-visible { background: #221E15; color: #B89A63; }
+    /* ---- Explicit layer scale (map layout-repair pass) -------------------
+       Named z-index tiers for this page's own overlay system, all real CSS
+       classes rather than Tailwind arbitrary-value utilities -- see the
+       #saveAlertModal comment in the body for why that distinction matters
+       here specifically (this site's Tailwind build is pre-compiled, not
+       JIT; an arbitrary z-[N] class added to markup without a `npm run
+       build:css` afterward silently produces no rule at all). Existing
+       component-scoped z-index values elsewhere in this file (.map-overlay-
+       controls, .map-search-chip, .search-this-area-chip, .draw-radius-
+       badge, .map-toast, .map-edge-handle/.map-drawer/.map-drawer-scrim in
+       css/cinematic.css) are UNCHANGED -- they already used real classes,
+       already sit correctly beneath these two, and this pass does not
+       revisit values that were never the bug. Only the two genuinely-
+       broken arbitrary-value instances are converted here. Kept roughly in
+       step with the filter bar's `z-40` and #viewingModalOverlay's
+       `z-[70]` (already-compiled Tailwind classes, left as-is):
+         basemap/controls   ~10-1160  (unchanged, component-scoped, above)
+         map edit bar       1200      (.map-edit-bar-layer, below)
+         save-alert modal   1300      (.map-modal-layer, below) */
+    .map-edit-bar-layer { z-index: 1200; }
+    .map-modal-layer { z-index: 1300; }
     .map-popup-card .leaflet-popup-content-wrapper { padding: 0; border-radius: 12px; overflow: hidden; }
     .map-popup-card .leaflet-popup-content { margin: 0; width: 240px !important; }
     .map-popup-card .listing-card { border-radius: 0; border: none; box-shadow: none; cursor: default; }
@@ -576,9 +663,14 @@ violation reporting. -->
 <script src="./js/site-mobile-nav.js"></script>
 <script src="./js/currency.js"></script>
 
-<!-- Filter Bar -->
+<!-- Filter Bar -- three logical groups (mode / filters / area+alerts),
+     separated by thin dividers instead of every control competing at
+     equal visual weight. Every id/data-attribute below is unchanged from
+     before this pass -- this is a grouping + de-emphasis/promotion
+     restyle only, no control was added, removed, or rewired. -->
 <div id="filterBarWrap" class="fixed top-16 left-0 w-full z-40 bg-surface-container-lowest border-b border-outline-variant">
-<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-3 flex items-center gap-3 overflow-x-auto hide-scrollbar">
+<div class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-3 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+<div class="toolbar-group" role="group" aria-label="Listing type" data-i18n-aria="map.toolbarGroupType">
 <div id="typeSeg" class="flex items-center bg-surface-container rounded-full p-1 flex-none">
 <div id="typeSegIndicator" aria-hidden="true"></div>
 <button data-type-filter="sale" class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center transition-colors bg-primary text-on-primary" data-i18n="map.buyToggle">Buy</button>
@@ -593,6 +685,9 @@ violation reporting. -->
 <button id="mapModeExploreBtn" type="button" class="map-mode-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center transition-colors bg-primary text-on-primary" aria-pressed="true" data-i18n="map.mode.explore">Explore</button>
 <button id="mapModeMyPropertiesBtn" type="button" class="map-mode-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center transition-colors text-on-surface-variant" aria-pressed="false" data-i18n="map.mode.myProperties">My Properties</button>
 </div>
+</div>
+<div class="toolbar-divider" aria-hidden="true"></div>
+<div class="toolbar-group" role="group" aria-label="Filters" data-i18n-aria="map.toolbarGroupFilters">
 <div class="relative flex-none">
 <button id="cityTriggerBtn" type="button" class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" style="max-width:180px;">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -617,30 +712,44 @@ violation reporting. -->
 <button type="button" class="sort-option w-full text-left px-4 py-2 font-body-md text-body-md text-on-surface hover:bg-surface-container" data-sort="areaDesc" aria-pressed="false"><span data-i18n="map.sortArea">Largest Area</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></button>
 </div>
 </div>
+</div>
+<div class="toolbar-divider" aria-hidden="true"></div>
+<div class="toolbar-group" role="group" aria-label="Area and alerts" data-i18n-aria="map.toolbarGroupArea">
 <!-- Select Area -- the primary, always-visible entry point into the
      circle/radius draw gesture. Previously this was only reachable via
      "Draw Area" tucked inside the edge-drawer's hidden tool list; this
      button does the exact same thing (setDrawMode(), see below) but sits
      right in the main toolbar next to Save Search / Save as Alert, so
      nobody has to discover a hidden control first. Label/color/radius
-     badge track drawMode/searchCircle via updateSelectAreaButton(). -->
-<button id="selectAreaBtn" type="button" class="flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-pressed="false" aria-label="Select Area" data-i18n-aria="map.selectArea" title="Tap to pick a center, then drag to set the radius" data-i18n-title="map.selectAreaHint">
-<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/></svg>
+     badge track drawMode/searchCircle via updateSelectAreaButton(). Once
+     an area is set, #selectAreaCaption (toggled by that same function)
+     turns this into a calm two-line "Selected area / {radius}" readout
+     instead of a single run-on "Change Area 433.0 km" string -- the
+     button itself, and what it does on click, are unchanged. -->
+<button id="selectAreaBtn" type="button" class="select-area-btn flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-pressed="false" aria-label="Select Area" data-i18n-aria="map.selectArea" title="Tap to pick a center, then drag to set the radius" data-i18n-title="map.selectAreaHint">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="flex-none"><circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/></svg>
+<span class="select-area-copy">
+<span id="selectAreaCaption" class="select-area-caption" hidden data-i18n="map.selectedAreaCaption">Selected area</span>
+<span class="select-area-main">
 <span id="selectAreaLabel" data-i18n="map.selectArea">Select Area</span>
-<span id="selectAreaRadiusBadge" class="hidden font-data-mono text-data-mono"></span>
+<span id="selectAreaRadiusBadge" class="hidden font-data-mono text-data-mono select-area-radius"></span>
+</span>
+</span>
 </button>
-<button id="saveSearchBtn" type="button" class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors">
+<button id="saveSearchBtn" type="button" class="toolbar-btn-quiet flex-none flex items-center gap-1 rounded-full px-3 py-2 font-label-caps text-label-caps transition-colors">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M9.5 6.5h5M12 4v5"/></svg>
-<span data-i18n="map.saveSearch">Save Search</span>
+<span class="hidden lg:inline" data-i18n="map.saveSearch">Save Search</span>
 </button>
-<!-- Property Watch / Area Alerts: same trigger position as Save Search,
-     enabled once a draw-circle area or a city is set (see
+<!-- Property Watch / Area Alerts: the one "special action" this toolbar
+     promotes above the rest (a gold wash, not just another outline pill)
+     -- enabled once a draw-circle area or a city is set (see
      updateSaveAlertButton()). Opens #saveAlertModal rather than writing
      immediately -- the alert needs a name and a notify-mode choice. -->
-<button id="saveAlertBtn" type="button" disabled class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint">
+<button id="saveAlertBtn" type="button" disabled class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
 <span data-i18n="alerts.saveButton">Save as Alert</span>
 </button>
+</div>
 <span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
 </div>
 <!-- Small, always-in-flow helper line (NOT inside the horizontally
@@ -664,7 +773,7 @@ violation reporting. -->
      active (My Properties' "Edit Location" action). Owns Save/Cancel and
      the lat/lng readout; the shared component (js/darwesh-location-edit.js)
      owns only the pin/click/drag interaction on the map itself. -->
-<div id="locationEditBar" class="hidden absolute left-1/2 -translate-x-1/2 bottom-4 z-[1100] w-[calc(100%-2rem)] max-w-md bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-lg p-3">
+<div id="locationEditBar" class="map-edit-bar-layer hidden absolute left-1/2 -translate-x-1/2 bottom-4 w-[calc(100%-2rem)] max-w-md bg-surface-container-lowest border border-outline-variant rounded-2xl shadow-lg p-3">
 <p class="font-body-md text-body-md text-on-surface-variant text-[12.5px] mb-2" data-i18n="map.editLocationInstruction">Tap the map to place the pin, then drag to fine-tune.</p>
 <p id="locationEditReadout" class="font-data-mono text-data-mono text-on-surface text-[12px] mb-2"></p>
 <div class="flex gap-2">
@@ -905,12 +1014,51 @@ violation reporting. -->
 </div>
 </aside>
 <div class="map-toast" id="mapToast"></div>
+</div>
+<!-- List panel -- the property wheel lives in #cardList, its own fixed-
+     height scroll-snap container; #listPanel itself no longer scrolls
+     (it's a flex column: static title/count header + #cardList filling
+     the rest), so the wheel's spacer/centering math in wireWheel() has a
+     real, stable viewport height to measure against. -->
+<div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden flex flex-col md:flex">
+<p class="font-headline-md text-headline-md text-on-surface mb-1 flex-none" data-i18n="map.pageTitle">Kurdistan Region Listings</p>
+<p id="resultCountMobile" class="font-body-md text-body-md text-on-surface-variant mb-4 flex-none"></p>
+<div id="cardList" class="flex-1 min-h-0"></div>
+</div>
+</main>
 
 <!-- Property Watch / Area Alerts: Save-as-Alert dialog. Built fresh each
      open by openSaveAlertModal() -- reads the CURRENT drawn circle/city +
      filters at open time, never stale state carried over from a previous
-     open. -->
-<div id="saveAlertModal" class="fixed inset-0 z-[1300] hidden items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="saveAlertModalTitle">
+     open.
+
+     Lives as a direct child of <body> (a real overlay root, alongside
+     #viewingModalOverlay below), not nested inside #mapPanel/#mainSplit
+     -- moved here during the map layout-repair pass as defense-in-depth:
+     `position: fixed` on this element already escapes any ancestor's
+     normal layout regardless of where it sits in the DOM (only an
+     ancestor with its own transform/filter/perspective would trap it,
+     and none here have one), but nesting it three levels inside the map
+     panel is exactly the kind of thing a future transform/animation on
+     an ancestor could break by accident, same class of bug this pass
+     root-caused elsewhere on this page (see .map-modal-layer below).
+     Keeping every top-level dialog as a body-level sibling removes that
+     risk entirely rather than relying on nobody ever adding one.
+
+     z-index: uses a real CSS class (.map-modal-layer), not a Tailwind
+     arbitrary-value utility (the previous `z-[1300]` class) -- the
+     ROOT CAUSE of the modal-behind-map bug this pass fixes. This site's
+     Tailwind build is a committed, pre-compiled css/tailwind.css (see
+     package.json's build:css), not a runtime JIT: a class that exists in
+     an .html file's markup but wasn't present when that file was last
+     built produces NO rule at all, silently computing to z-index:auto.
+     `z-[1300]` and `#locationEditBar`'s `z-[1100]` (fixed the same way,
+     see .map-edit-bar-layer above) were exactly that -- confirmed via
+     `grep -o 'z-\[1300\]{[^}]*}' css/tailwind.css` returning nothing
+     before this pass's `npm run build:css` re-sync. Real classes in this
+     file's own <style> block can never silently drift out of sync with
+     a forgotten build step the way an arbitrary-value utility class can. -->
+<div id="saveAlertModal" class="map-modal-layer fixed inset-0 hidden items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="saveAlertModalTitle">
 <div class="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-xl p-5">
 <h2 id="saveAlertModalTitle" class="font-headline-sm text-headline-sm text-on-surface mb-1" data-i18n="alerts.saveModal.title">Save as Property Alert</h2>
 <p id="saveAlertAreaSummary" class="font-body-sm text-body-sm text-on-surface-variant mb-4"></p>
@@ -934,18 +1082,6 @@ violation reporting. -->
 </div>
 </div>
 </div>
-</div>
-<!-- List panel -- the property wheel lives in #cardList, its own fixed-
-     height scroll-snap container; #listPanel itself no longer scrolls
-     (it's a flex column: static title/count header + #cardList filling
-     the rest), so the wheel's spacer/centering math in wireWheel() has a
-     real, stable viewport height to measure against. -->
-<div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden flex flex-col md:flex">
-<p class="font-headline-md text-headline-md text-on-surface mb-1 flex-none" data-i18n="map.pageTitle">Kurdistan Region Listings</p>
-<p id="resultCountMobile" class="font-body-md text-body-md text-on-surface-variant mb-4 flex-none"></p>
-<div id="cardList" class="flex-1 min-h-0"></div>
-</div>
-</main>
 
 <!-- Mobile List/Map toggle -->
 <button id="viewToggle" class="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-primary text-on-primary px-6 py-3 rounded-full shadow-lg font-label-caps text-label-caps flex items-center gap-2">
@@ -1627,6 +1763,13 @@ function updateSaveAlertButton() {
   if (helper) helper.classList.toggle('hidden', hasArea);
 }
 
+// Focus that was on the page right before the modal opened -- restored on
+// close so keyboard/screen-reader users land back where they were instead
+// of at the top of the document (the browser default once the previously-
+// focused element -- the toolbar's #saveAlertBtn -- is still in the DOM
+// and focusable, so this is always a real, reachable element to return to).
+let saveAlertModalReturnFocusEl = null;
+
 function openSaveAlertModal() {
   if (!favAuth || !favAuth.currentUser) {
     showToast(tr('map.loginToSaveSearch', 'Log in to save searches'), 'bookmark_add');
@@ -1640,6 +1783,7 @@ function openSaveAlertModal() {
   document.getElementById('saveAlertNameInput').value = '';
   document.getElementById('saveAlertError').classList.add('hidden');
   modal.querySelector('input[name="saveAlertNotifyMode"][value="instant"]').checked = true;
+  saveAlertModalReturnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   modal.classList.remove('hidden');
   modal.classList.add('flex');
   document.getElementById('saveAlertNameInput').focus();
@@ -1647,9 +1791,41 @@ function openSaveAlertModal() {
 
 function closeSaveAlertModal() {
   const modal = document.getElementById('saveAlertModal');
+  if (modal.classList.contains('hidden')) return;
   modal.classList.add('hidden');
   modal.classList.remove('flex');
+  const returnEl = saveAlertModalReturnFocusEl;
+  saveAlertModalReturnFocusEl = null;
+  // Only re-focus an element that's still actually there and focusable --
+  // openSaveAlertModal() guards this same way, so a stale/removed
+  // reference just falls back to doing nothing rather than throwing.
+  if (returnEl && document.body.contains(returnEl) && typeof returnEl.focus === 'function') {
+    returnEl.focus();
+  }
 }
+
+// Focus trap: Tab/Shift+Tab cycle only among the modal's own focusable
+// elements while it's open, so a keyboard user can never tab out onto the
+// map or listings behind it. Scoped to keydown on the modal itself (event
+// delegation, no per-open listener add/remove needed) and a no-op whenever
+// the modal is hidden.
+document.getElementById('saveAlertModal').addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const modal = document.getElementById('saveAlertModal');
+  if (modal.classList.contains('hidden')) return;
+  const focusable = Array.from(modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter((el) => !el.disabled && el.getClientRects().length > 0);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
 
 async function confirmSaveAlert() {
   const errEl = document.getElementById('saveAlertError');
@@ -2428,7 +2604,13 @@ function renderList() {
   const loaded = currentMapMode === 'explore' ? listingsLoaded : myPropertiesLoaded;
   const loadError = currentMapMode === 'explore' ? listingsLoadError : myPropertiesLoadError;
   if (!loaded) {
-    document.getElementById('cardList').innerHTML = `<p class="col-span-full text-center text-on-surface-variant py-8">${tr('map.loadingListings','Loading listings…')}</p>`;
+    // Deliberate loading state -- a centered icon + message, not a bare
+    // sentence floating in an otherwise-empty pane (see the empty/error
+    // states just below, which share the same .listpanel-state shell).
+    document.getElementById('cardList').innerHTML = `<div class="listpanel-state">
+      <span class="material-symbols-outlined listpanel-state-icon listpanel-state-icon-spin" aria-hidden="true">progress_activity</span>
+      <p class="listpanel-state-title">${tr('map.loadingListings','Loading listings…')}</p>
+    </div>`;
     document.getElementById('resultCount').textContent = '';
     document.getElementById('resultCountMobile').textContent = '';
     return;
@@ -2441,9 +2623,11 @@ function renderList() {
     const errorMsg = currentMapMode === 'explore'
       ? tr('buy.loadError', "Couldn't load listings. Please check your connection and try again.")
       : tr('map.myPropertiesLoadFailed', 'Could not load your properties — try again');
-    document.getElementById('cardList').innerHTML = `<div class="col-span-full text-center py-8">
-      <p class="text-on-surface-variant mb-3">${errorMsg}</p>
-      <button id="mapRetryBtn" type="button" class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">${tr('common.retry', 'Retry')}</button>
+    document.getElementById('cardList').innerHTML = `<div class="listpanel-state">
+      <span class="material-symbols-outlined listpanel-state-icon" aria-hidden="true">wifi_off</span>
+      <p class="listpanel-state-title">${tr('map.loadErrorTitle', "Couldn't load listings")}</p>
+      <p class="listpanel-state-subtitle">${errorMsg}</p>
+      <button id="mapRetryBtn" type="button" class="listpanel-state-btn listpanel-state-btn-primary">${tr('common.retry', 'Retry')}</button>
     </div>`;
     document.getElementById('resultCount').textContent = '';
     document.getElementById('resultCountMobile').textContent = '';
@@ -2457,14 +2641,36 @@ function renderList() {
   const list = filteredListings();
   const cardListEl = document.getElementById('cardList');
   if (!list.length) {
-    // Honest empty state, never an empty wheel -- matches the pre-
-    // existing "0 matched" copy exactly, just no spacers/observer wired
-    // since there is nothing to center.
+    // Honest, deliberate empty state -- never an empty wheel, and never
+    // just one sentence floating alone: an icon, a real title, a
+    // subtitle, and only the actions that actually exist on this page
+    // (Adjust filters opens the same filters drawer group the toolbar's
+    // own filter controls live in; Reset area calls the exact same
+    // clearSpatialFilter() the toolbar's own Clear-area button calls --
+    // neither is new functionality). Reset area only shows when there is
+    // an actual area constraint to reset, same condition #clearSearchAreaBtn
+    // itself already uses.
     teardownWheel();
     const emptyMsg = currentMapMode === 'explore'
       ? tr('map.noListingsYet','No listings match yet — check back soon or adjust your filters.')
       : tr('map.myPropertiesEmpty', "You don't have any properties to manage yet.");
-    cardListEl.innerHTML = `<p class="col-span-full text-center text-on-surface-variant py-8">${emptyMsg}</p>`;
+    const hasAreaToReset = !!(searchCircle || viewportSearchBounds);
+    cardListEl.innerHTML = `<div class="listpanel-state">
+      <span class="material-symbols-outlined listpanel-state-icon" aria-hidden="true">home_work</span>
+      <p class="listpanel-state-title">${tr('map.noResultsTitle', 'No properties found')}</p>
+      <p class="listpanel-state-subtitle">${emptyMsg}</p>
+      <div class="listpanel-state-actions">
+        ${currentMapMode === 'explore' ? `<button id="emptyAdjustFiltersBtn" type="button" class="listpanel-state-btn">${tr('map.adjustFilters', 'Adjust filters')}</button>` : ''}
+        ${currentMapMode === 'explore' && hasAreaToReset ? `<button id="emptyResetAreaBtn" type="button" class="listpanel-state-btn">${tr('map.clearSearchArea', 'Clear area')}</button>` : ''}
+      </div>
+    </div>`;
+    document.getElementById('emptyAdjustFiltersBtn')?.addEventListener('click', () => setDrawerOpen(true));
+    document.getElementById('emptyResetAreaBtn')?.addEventListener('click', () => {
+      clearSpatialFilter();
+      showToast(tr('map.searchAreaCleared', 'Search area cleared'), 'close');
+      updateUrlState(true);
+      refresh();
+    });
     document.getElementById('resultCount').textContent = '';
     document.getElementById('resultCountMobile').textContent = '';
     activeId = null;
@@ -3279,9 +3485,14 @@ mapDrawerScrim.addEventListener('click', () => { if (drawerOpen) setDrawerOpen(f
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  // Escape backs out of the innermost thing first: the Request Viewing
-  // dialog (a modal over everything else), then an armed/in-flight
+  // Escape backs out of the innermost thing first: the Save-as-Alert
+  // dialog (the true top-most layer, see .map-modal-layer), then the
+  // Request Viewing dialog, then an armed/in-flight
   // circle, then the drawer.
+  if (!document.getElementById('saveAlertModal').classList.contains('hidden')) {
+    closeSaveAlertModal();
+    return;
+  }
   if (!document.getElementById('viewingModalOverlay').classList.contains('hidden')) {
     closeViewingModal();
     return;
@@ -3403,6 +3614,10 @@ function updateSelectAreaButton() {
   btn.classList.toggle('active', drawMode);
   btn.classList.toggle('select-area-set', hasCircle && !drawMode);
   btn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
+  // Two-line "Selected area" caption only makes sense once a circle is
+  // actually committed and not mid-gesture -- same condition as the
+  // .select-area-set class above, kept in sync with it here.
+  document.getElementById('selectAreaCaption')?.toggleAttribute('hidden', !(hasCircle && !drawMode));
   if (drawerBtn) {
     drawerBtn.classList.toggle('active', drawMode);
     drawerBtn.classList.toggle('select-area-set', hasCircle && !drawMode);
