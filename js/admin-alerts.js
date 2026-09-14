@@ -7,6 +7,14 @@
 // a scaled-down version of it -- there is no per-user alert browsing and
 // no buyer-identifying data anywhere in this view, by construction: the
 // backend's admin_summary() never returns a per-user or per-alert row.
+//
+// Admin redesign Phase 3: this is still the ONE real Demand destination
+// today (confirmed via repo-wide grep -- listAreaAlertMatches() in
+// backend-api.js has zero callers anywhere, admin or customer-facing).
+// A "Matches" or "Map" sub-tab is deliberately NOT built here: it would
+// either be fake (no such UI exists) or violate the privacy boundary
+// above by exposing per-alert match rows. Only an AdminPageHeader was
+// added -- no AdminTabs, same single-item-hub treatment as Overview.
 import { auth } from './firebase-init.js';
 import { getAreaAlertsAdminSummary, localizeBackendError } from './backend-api.js';
 
@@ -16,11 +24,20 @@ const state = { mounted: false };
 
 function panel() { return document.getElementById('tab-alerts'); }
 
+function mountHeader() {
+  window.AdminPageHeader.mount(document.getElementById('aaHeaderMount'), {
+    icon: 'notifications_active',
+    title: () => tr('admin.nav.groupDemand', 'Demand'),
+    description: () => tr('admin.demand.desc', 'Aggregate demand insight from saved Area Alerts, city by city.'),
+  });
+}
+
 function ensureShell() {
   const root = panel();
   if (!root || state.mounted) return root;
   root.innerHTML = `
     <div class="ash-alerts">
+      <div id="aaHeaderMount"></div>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div class="kpi-card">
           <p class="kpi-label" data-i18n="admin.alerts.kpiActive">Active Alerts</p>
@@ -36,9 +53,11 @@ function ensureShell() {
       <p id="aaEmpty" class="hidden font-body-md text-[13px] text-on-surface-variant py-6 text-center" data-i18n="admin.alerts.noCityAlerts">No city or neighborhood alerts saved yet.</p>
       <p id="aaError" class="hidden font-body-md text-[13px] text-error py-4"></p>
     </div>`;
+  mountHeader();
   state.mounted = true;
   return root;
 }
+document.addEventListener('darwesh:langchange', () => { if (state.mounted) mountHeader(); });
 
 function renderCityBars(rows) {
   const container = document.getElementById('aaCityBars');

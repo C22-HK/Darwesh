@@ -81,6 +81,7 @@ text-on-surface-variant/etc. classes would start resolving through, a
 real, wide-reaching visual change (89+ uses on this page alone) this
 change is not meant to make. -->
 <link href="css/cinematic.css" rel="stylesheet"/>
+<link href="css/admin-tokens.css" rel="stylesheet"/>
 <link href="css/admin-shell.css" rel="stylesheet"/>
 <link href="css/admin-verification.css" rel="stylesheet"/>
 <link href="css/arena.css" rel="stylesheet"/>
@@ -92,8 +93,15 @@ change is not meant to make. -->
      Explore, My Properties, and this page's own Map Management tab) --
      see css/darwesh-marker.css's own header comment. -->
 <link href="css/darwesh-marker.css" rel="stylesheet"/>
+<!-- Stage 2 of the visual redesign (docs/admin-ui-research.md): every rule
+     that used to live in this file's own inline <style> block, migrated
+     onto the --ash-* token system. See that file's own header comment for
+     what changed and why. -->
+<link href="css/admin-legacy.css" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&amp;family=IBM+Plex+Sans:wght@600&amp;family=Inter:wght@400;500&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Self-hosted (redesign: People/Accounts pass, item 11) -- was a Google
+     Fonts <link>; see css/icon-font.css for why. -->
+<link href="./css/icon-font.css" rel="stylesheet"/>
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
 <!-- Shared map modules -- same four classic scripts map.html loads,
@@ -105,244 +113,6 @@ change is not meant to make. -->
 <script src="./js/leaflet-map-helpers.js"></script>
 <script src="./js/darwesh-listing-access.js"></script>
 <script src="./js/darwesh-location-edit.js"></script>
-<style>
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    body { min-height: max(884px, 100dvh); }
-    /* Tailwind's preflight (img,video{max-width:100%;height:auto}) is a
-       well-documented conflict with Google Maps' own internally-rendered
-       <img> tiles/UI assets under .gm-style (Estate Intelligence map, once
-       a key is configured) -- Google's own troubleshooting guidance for
-       this framework-reset class of issue is to scope an override back to
-       their own markup. Purely additive, zero effect outside .gm-style
-       (this page's Leaflet picker map is unaffected -- Leaflet doesn't use
-       this class). */
-    .gm-style img { max-width: none; }
-
-    .admin-tab {
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      color: #756e65;
-      padding: 12px 4px;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-      background: none;
-      border-left: none; border-right: none; border-top: none;
-      margin-right: 28px;
-    }
-    .admin-tab.active { color: #031d39; border-bottom-color: #c69a4b; }
-    .admin-tab-panel { display: none; }
-    .admin-tab-panel.active { display: block; }
-
-    /* ---- Navy shell (color migration) --------------------------------
-     * Admin content stays light/ivory (inherits from tailwind.config.js's
-     * new palette automatically, no override needed) -- only the top
-     * header becomes the "~15% navy shell" the brief asks for, with gold
-     * for its one accent (the icon) and active-tab underline above. This
-     * is the one place admin.html needs page-specific overrides: its
-     * header reuses Tailwind's on-surface-variant/primary utility classes,
-     * which are correct everywhere else on this page (light content) but
-     * need an explicit light-on-navy pairing here since they'd otherwise
-     * still resolve to the light-surface values. Scoped to the header
-     * only, nothing else on this page is touched. */
-    #adminContent > header { background: #031d39 !important; border-color: rgba(251,248,242,0.14) !important; }
-    #adminContent > header .text-primary { color: #c69a4b; }
-    #adminContent > header .font-headline-md { color: #fbf8f2; }
-    #adminContent > header .text-on-surface-variant { color: rgba(251,248,242,0.75); }
-    #adminContent > header a.text-on-surface-variant:hover,
-    #adminContent > header button.text-on-surface-variant:hover,
-    #adminContent > header .lang-toggle-btn:hover { color: #fbf8f2; }
-    #adminContent > header #logoutBtn:hover { color: #ff8a80; }
-
-    .filter-chip {
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      color: #44474c;
-      padding: 6px 14px;
-      border-radius: 999px;
-      border: 1px solid #e5e8ee;
-      background: #ffffff;
-      cursor: pointer;
-    }
-    .filter-chip.active { background: #031d39; color: #ffffff; border-color: #031d39; }
-    /* U5: identical look to .filter-chip under its own class -- the
-       existing document.querySelectorAll('.filter-chip') handler binds
-       directly to every matching element present at page load, so reusing
-       that class here would silently attach it (and its wrong servicesFilter/
-       renderServicesRows() side effect) to these buttons too. */
-    .pr-filter-chip { font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; padding: 6px 14px; border-radius: 999px; border: 1px solid #e5e8ee; background: #ffffff; cursor: pointer; }
-    .pr-filter-chip.active { background: #031d39; color: #ffffff; border-color: #031d39; }
-
-    .local-notice {
-      background: #fef6e6;
-      border: 1px solid #d9b76a;
-      border-radius: 10px;
-      padding: 12px 16px;
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      font-family: 'Inter', sans-serif;
-      font-size: 13px;
-      color: #25231f;
-    }
-
-    .stat-mini { background: #ffffff; border: 1px solid #e5e8ee; border-radius: 10px; padding: 14px; }
-    .stat-mini .label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #44474c; }
-    .stat-mini .value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 22px; font-weight: 700; color: #181c20; }
-
-    .admin-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13.5px; }
-    .admin-table th, .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e5e8ee; vertical-align: middle; }
-    .admin-table th { color: #44474c; font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
-    .admin-table td { color: #181c20; }
-    .admin-table tbody tr:hover { background: #f7f9ff; }
-
-    .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
-    .badge-sale { background: #d2e4fb; color: #0b1d2d; }
-    .badge-rent { background: #d9b76a; color: #25231f; }
-    .badge-verified { background: #003115; color: #4ae183; }
-    .badge-private { background: #e5e8ee; color: #44474c; }
-    .badge-pending { background: #d9b76a; color: #25231f; }
-
-    .icon-btn { padding: 6px; border-radius: 8px; cursor: pointer; color: #44474c; background: none; border: none; }
-    .icon-btn:hover { background: #ebeef3; }
-    .icon-btn.danger:hover { background: #ffdad6; color: #ba1a1a; }
-
-    .admin-input {
-      width: 100%;
-      border: 1px solid #c4c6cd;
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-family: 'Inter', sans-serif;
-      font-size: 14px;
-      color: #181c20;
-      background: #ffffff;
-    }
-    .admin-input:focus { outline: 2px solid #8a6a38; outline-offset: 1px; }
-    .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: #44474c; display: block; margin-bottom: 5px; }
-
-    /* Network tab — org-chart tree */
-    .net-node { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
-    .net-node-circle { position: relative; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; color: #ffffff; box-shadow: 0 2px 6px rgba(7,27,47,0.18); overflow: hidden; transition: transform .15s ease; }
-    .net-node-root .net-node-circle { background: #071b2f; border: 3px solid #d9b76a; font-size: 11px; }
-    .net-node-branch .net-node-circle { background: #071b2f; font-size: 15px; cursor: pointer; }
-    .net-node-branch .net-node-circle:hover { transform: scale(1.08); }
-    .net-node-agent .net-node-circle { background: #4f6073; font-size: 12.5px; cursor: pointer; }
-    .net-node-agent .net-node-circle:hover { transform: scale(1.1); }
-    .net-node-circle img { width: 100%; height: 100%; object-fit: cover; }
-    .net-node-label { margin-top: 6px; font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 500; color: #181c20; text-align: center; max-width: 108px; line-height: 1.25; }
-    .net-node-sub { font-family: 'Inter', sans-serif; font-size: 10px; color: #8a6a38; font-weight: 600; margin-top: 1px; }
-    .net-node.dim { opacity: .3; }
-    .net-node.match-ring .net-node-circle { box-shadow: 0 0 0 3px #d9b76a, 0 2px 6px rgba(7,27,47,.18); }
-    .net-badge { position: absolute; top: -3px; right: -3px; background: #d9b76a; color: #25231f; font-size: 10px; font-weight: 700; border-radius: 9999px; min-width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid #ffffff; }
-    .net-empty-slot { font-family: 'Inter', sans-serif; font-size: 11px; color: #9aa1ab; font-style: italic; white-space: nowrap; }
-    #netAgentPopover { position: fixed; z-index: 80; background: #ffffff; border: 1px solid #e0e3e8; border-radius: 10px; box-shadow: 0 8px 24px rgba(7,27,47,.2); padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #181c20; width: 220px; }
-
-    .dash-dark-wrap {
-      background:
-        linear-gradient(#f5f0e7, #f5f0e7),
-        linear-gradient(rgba(3,29,57,0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(3,29,57,0.035) 1px, transparent 1px);
-      background-size: auto, 28px 28px, 28px 28px;
-      border: 1px solid #e7ded0;
-    }
-    .kpi-card {
-      position: relative;
-      background: #ffffff;
-      border: 1px solid #e7ded0;
-      border-radius: 14px;
-      padding: 16px 18px;
-      overflow: hidden;
-      transition: border-color .15s ease;
-      box-shadow: 0 1px 3px rgba(3,29,57,0.05);
-    }
-    .kpi-card:hover { border-color: #c69a4b; }
-    .kpi-card::after {
-      content: ''; position: absolute; top: -34px; right: -34px;
-      width: 96px; height: 96px; border-radius: 999px;
-      background: radial-gradient(circle, rgba(198,154,75,0.14) 0%, transparent 72%);
-      pointer-events: none;
-    }
-    .kpi-icon {
-      width: 32px; height: 32px; border-radius: 9px;
-      background: rgba(198,154,75,0.14); border: 1px solid rgba(198,154,75,0.35);
-      display: flex; align-items: center; justify-content: center;
-      color: #a9822f; margin-bottom: 12px; position: relative;
-    }
-    .kpi-icon .material-symbols-outlined { font-size: 17px; }
-    .kpi-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #756e65; margin-bottom: 4px; position: relative; }
-    .kpi-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 27px; font-weight: 700; color: #031d39; line-height: 1.15; position: relative; }
-    .kpi-sub { font-family: 'Inter', sans-serif; font-size: 11px; color: #1e7a45; margin-top: 7px; position: relative; }
-    .kpi-sub.neutral { color: #756e65; }
-    .dash-panel { background: #ffffff; border: 1px solid #e7ded0; border-radius: 14px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(3,29,57,0.05); }
-    .dash-panel-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
-    .dash-panel-title-row .material-symbols-outlined { font-size: 16px; color: #c69a4b; }
-    .dash-panel-title { font-family: 'IBM Plex Sans', sans-serif; font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #031d39; }
-    .dash-panel-caption { font-family: 'Inter', sans-serif; font-size: 11.5px; color: #756e65; margin-bottom: 12px; }
-    .city-bar-row { display: flex; align-items: center; gap: 10px; }
-    .city-bar-label { width: 100px; flex: none; display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #031d39; }
-    .city-bar-label .material-symbols-outlined { font-size: 14px; color: #756e65; }
-    .city-bar-track { flex: 1; background: #e7ded0; border-radius: 999px; height: 7px; overflow: hidden; }
-    .city-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #a9822f, #c69a4b); }
-    .city-bar-count { width: 26px; flex: none; text-align: right; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; color: #031d39; }
-    .activity-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: #f5f0e7; border: 1px solid #e7ded0; border-radius: 9px; padding: 8px 10px; transition: background .15s ease; }
-    .activity-item:hover { background: #e7ded0; }
-    .activity-icon { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex: none; }
-    .activity-icon .material-symbols-outlined { font-size: 15px; }
-    .dash-city-tab {
-      font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
-      color: #756e65; padding: 5px 12px; border-radius: 999px; border: 1px solid #e7ded0; background: #ffffff; cursor: pointer;
-    }
-    .dash-city-tab.active { background: #c69a4b; color: #031d39; border-color: #c69a4b; }
-    .dash-mini-stat { background: #f5f0e7; border-radius: 10px; padding: 12px 14px; }
-    .dash-mini-stat .lbl { font-family: 'IBM Plex Sans', sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #756e65; margin-bottom: 4px; }
-    .dash-mini-stat .val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700; color: #031d39; }
-    .trend-card { background: #ffffff; border: 1px solid #e7ded0; border-radius: 12px; padding: 14px; position: relative; overflow: hidden; }
-    .trend-card .grid-bg {
-      position: absolute; inset: 0; opacity: 0.05; pointer-events: none;
-      background-image: linear-gradient(#031d39 1px, transparent 1px), linear-gradient(90deg, #031d39 1px, transparent 1px);
-      background-size: 20px 20px;
-    }
-    .trend-city { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: #031d39; letter-spacing: 0.02em; }
-    .trend-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 700; color: #031d39; }
-    .trend-chip { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 2px; }
-    .trend-chip.up { background: rgba(30,122,69,0.12); color: #1e7a45; }
-    .trend-chip.down { background: rgba(186,26,26,0.10); color: #ba1a1a; }
-    .trend-chip.flat { background: rgba(3,29,57,0.06); color: #756e65; }
-    .trend-chart-wrap { height: 84px; position: relative; margin: 10px 0 6px; }
-    .trend-empty { display: flex; align-items: center; justify-content: center; height: 84px; font-family: 'Inter', sans-serif; font-size: 11.5px; color: #9aa1ab; text-align: center; padding: 0 10px; }
-
-    .amenity-origin-pulse { position: relative; width: 16px; height: 16px; }
-    .amenity-origin-pulse::before, .amenity-origin-pulse::after {
-      content: ''; position: absolute; inset: 0; border-radius: 999px; background: #d9b76a;
-    }
-    .amenity-origin-pulse::before { animation: amenity-pulse 2s ease-out infinite; }
-    .amenity-origin-pulse::after { inset: 3px; box-shadow: 0 0 0 2px #ffffff; }
-    @keyframes amenity-pulse {
-      0% { transform: scale(1); opacity: 0.55; }
-      100% { transform: scale(2.6); opacity: 0; }
-    }
-    .amenity-dist-chip {
-      display: flex; align-items: center; gap: 4px;
-      background: rgba(7,27,47,0.92); border-radius: 999px; padding: 3px 8px 3px 3px;
-      font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; color: #ffffff;
-      white-space: nowrap; box-shadow: 0 2px 6px rgba(7,27,47,0.35);
-    }
-    .amenity-dist-chip .dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
-    .amenity-row-chip {
-      display: flex; align-items: center; gap: 8px;
-      background: #071b2f; border-radius: 8px; padding: 6px 10px;
-      font-family: 'Inter', sans-serif; font-size: 12px; color: #ffffff;
-    }
-    .amenity-row-chip .material-symbols-outlined { font-size: 15px; flex: none; }
-    .amenity-row-chip .name { flex: 1; color: #d2e4fb; }
-    .amenity-row-chip .km { font-family: 'Inter', sans-serif; font-weight: 700; color: #ffffff; flex: none; }
-  </style>
 </head>
 <body class="admin-shell bg-background text-on-surface font-body-md antialiased overflow-x-hidden">
 <h1 class="sr-only" data-i18n="admin.pageH1">Darwesh Group admin dashboard</h1>
@@ -438,40 +208,62 @@ change is not meant to make. -->
   </header>
 
   <main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-6">
-    <div class="local-notice mb-6">
-      <span class="material-symbols-outlined" style="font-size:18px;">info</span>
-      <span data-i18n-html="admin.notice">Users, Roles, and Listings below are read from and written to the real Darwesh Group database — visible from any device, for every agent and admin. Only the <strong>Scan Log</strong> tab stays local to this browser.</span>
+    <!-- Compact dismissible database notice (redesign v2, item 10) -- was
+         a full-width gold-bordered callout with the whole explanation
+         inline, competing with the page title above every hub. Now one
+         short line + a Details disclosure for the full text, and a
+         per-browser dismiss (localStorage) since this is a standing fact
+         about the page, not a one-time alert worth re-showing forever. -->
+    <div class="local-notice mb-6" id="dbNotice">
+      <span class="material-symbols-outlined" style="font-size:16px;">info</span>
+      <span class="local-notice-short" data-i18n="admin.noticeShort">Data on this page is synchronized with the Darwesh Group database.</span>
+      <button type="button" id="dbNoticeDetailsBtn" class="local-notice-details-btn" aria-expanded="false" aria-controls="dbNoticeBody" data-i18n="admin.noticeDetailsLink">Details</button>
+      <button type="button" id="dbNoticeDismissBtn" class="local-notice-dismiss" aria-label="Dismiss" data-i18n-aria="admin.noticeDismiss">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+      <p id="dbNoticeBody" class="local-notice-body hidden" data-i18n-html="admin.notice">Users, Roles, and Listings below are read from and written to the real Darwesh Group database — visible from any device, for every agent and admin. Only the <strong>Scan Log</strong> tab stays local to this browser.</p>
     </div>
 
     <div class="flex border-b border-outline-variant mb-6 flex-wrap" id="adminTabBarLegacy">
       <button class="admin-tab active" data-tab="dashboard" type="button" data-i18n="admin.dashboardTab">Dashboard</button>
-      <button class="admin-tab" data-tab="users" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
-      <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
-      <button class="admin-tab" data-tab="projects" type="button" data-i18n="admin.projectsTab">Projects</button>
-      <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
-      <button class="admin-tab" data-tab="branches" type="button" data-i18n="admin.branchesTab">Branches</button>
-      <button class="admin-tab" data-tab="agents" type="button" data-i18n="admin.agentsTab">Agents</button>
-      <button class="admin-tab" data-tab="network" type="button" data-i18n="admin.networkTab">Network</button>
-      <button class="admin-tab" data-tab="leaderboard" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.listingsTab">Listings</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.projectsTab">Projects</button>
+      <button class="admin-tab" data-tab="sales" type="button" data-i18n="admin.servicesTab">Customer Services</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.branchesTab">Branches</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.agentsTab">Agents</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.networkTab">Network</button>
+      <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
-      <button class="admin-tab" data-tab="map" type="button" data-i18n="admin.nav.mapManagement">Map Management</button>
-      <button class="admin-tab" data-tab="estatedata" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.nav.mapManagement">Map Management</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
     </div>
 
-    <!-- TAB: Dashboard -->
+    <!-- TAB: Dashboard (Overview hub, redesign Phase 2) -- single-item hub,
+         lowest risk: only an AdminPageHeader is added above the existing
+         KPI/chart content below, which is otherwise completely unchanged. -->
     <section id="tab-dashboard" class="admin-tab-panel active">
+      <div id="overviewHeaderMount"></div>
       <div class="dash-dark-wrap rounded-2xl p-5 md:p-6">
-        <div class="flex flex-col md:flex-row justify-between md:items-end gap-3 mb-6">
-          <div>
-            <p class="font-headline-md text-[24px]" style="color:#031d39;" data-i18n="admin.dashboardTitle">Darwesh Group Overview</p>
-            <p class="font-body-md text-[13px]" style="color:#756e65;" data-i18n="admin.dashboardSubtitle">A real-time snapshot of your listings, requests, and network.</p>
-          </div>
+        <!-- Title/subtitle moved to the AdminPageHeader above (redesign
+             Phase 2) -- only the live-status badge stays here, since it's
+             distinct status info, not page identification. -->
+        <div class="flex justify-end mb-6">
           <div class="flex items-center gap-2 self-start bg-white/5 border rounded-full px-4 py-2" style="border-color:#4f6073;">
             <span class="w-2 h-2 rounded-full" style="background:#4ae183; box-shadow:0 0 6px #4ae183;"></span>
             <span class="font-data-mono text-[11px] tracking-wide" style="color:#4ae183;" data-i18n="admin.dashboardLiveNote">LIVE FROM YOUR DATABASE</span>
           </div>
         </div>
+
+        <!-- Stage 4: Needs Attention -- real pending-item counts, surfaced
+             before the KPI wall so the page answers "what needs action
+             today" before "how big is the business," per the approved
+             Overview hierarchy. Built entirely from data this dashboard
+             already fetches (submissions) plus two cheap collection reads
+             (organizations, projects) using the exact same pending-state
+             logic their own hubs already use. -->
+        <div id="dashNeedsAttention" class="mb-5"></div>
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
           <div class="kpi-card">
@@ -546,55 +338,228 @@ change is not meant to make. -->
      in bulk with no treatment at all) instead of carrying it forward. -->
 
     <!-- TAB: Users & Roles -->
-    <section id="tab-users" class="admin-tab-panel">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div class="stat-mini"><p class="label" data-i18n="admin.totalUsers">Total users</p><p class="value" id="statTotalUsers">0</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.agentsStat">Agents</p><p class="value" id="statTotalAgents">0</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.customersStat">Customers</p><p class="value" id="statTotalCustomers">0</p></div>
-        <div class="stat-mini"><p class="label" data-i18n="admin.companiesStat">Companies</p><p class="value" id="statTotalCompanies">0</p></div>
-      </div>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thUser">User</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thJoined">Joined</th><th data-i18n="admin.thRole">Role</th></tr></thead>
-            <tbody id="usersBody"></tbody>
-          </table>
-        </div>
-        <p id="usersEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noUsersYet">No users yet.</p>
-      </div>
-      <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
+    <!-- TAB: People (redesign Phase 2) -- consolidates the 8 former
+         top-level destinations (Users & Roles, Network Verification,
+         Organizations, Professionals, Agents, Branches, Network,
+         Leaderboard) into one hub with an AdminPageHeader + AdminTabs bar.
+         Every sub-panel below keeps its EXACT original id/content
+         untouched -- renderUsers()/renderAgentsTab()/renderBranchesTab()/
+         renderNetworkTab()/renderLeaderboardTab() (defined further down in
+         this same module script) and renderOrgsTab()/renderProsTab()/
+         renderVerificationTab() (imported from js/admin-orgs-pros.js/
+         js/admin-verification.js) all still find their mount point via
+         document.getElementById('tab-<name>'), so nesting that element one
+         level deeper here changes nothing about how they render. See
+         renderPeopleHub()/renderPeopleSubtab() below for the sub-tab
+         switch, and the "System" hub's Permissions nav item (js/admin-
+         shell.js) also targets tab:'people' -- it lands on this same
+         Accounts sub-tab, which is where the Role Defaults panel already
+         lives. -->
+    <section id="tab-people" class="admin-tab-panel">
+      <div id="peopleHeaderMount"></div>
+      <div id="peopleTabsMount"></div>
 
-      <!-- Role permission defaults (launch-readiness fix C2). What every
-           account of a given accountType may do by default -- the
-           rolePermissionDefaults/{accountType} documents firestore.rules'
-           hasPermission()/hasOrgPermission() consult. Readable here,
-           written only through the backend (see the module script). -->
-      <div id="roleDefaultsPanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mt-6">
-        <p class="font-headline-md text-[16px] text-on-surface font-bold" data-i18n="admin.rd.title">Role permission defaults</p>
-        <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1 mb-4" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
-        <div class="flex flex-wrap items-end gap-3 mb-4">
-          <!-- flex-basis 260px keeps the roomy width this control wants on a
-               normal screen, but `width:auto` previously let the <select>
-               grow to its LONGEST option instead (436px in English, 421px in
-               Kurdish, 388px in Arabic), and as an unshrinkable flex item it
-               dragged the whole Users tab past the viewport on a phone. The
-               basis expresses the same preference while still allowing the
-               control to shrink when there isn't room. -->
-          <label class="block" style="flex:1 1 260px;min-width:0;">
-            <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
-            <select id="rdAccountType" class="admin-input" style="width:100%;"></select>
-          </label>
-          <button type="button" id="rdApplyRecommended" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
-          <button type="button" id="rdClearAll" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.clearAll">Clear all</button>
-          <button type="button" id="rdSave" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.rd.save">Save defaults</button>
-          <p id="rdStatus" class="font-body-md text-[12.5px] w-full" role="status" aria-live="polite"></p>
+      <div class="ash-people-subpanel" id="tab-users">
+        <!-- Compact metrics strip (redesign v2, item 8) -- replaces 4
+             full kpi-card/stat-mini boxes (each its own bordered/shadowed
+             surface, heavy even at value=0) with one thin strip and
+             hairline dividers between figures. Same ids, so renderUsers()
+             above needs no change. -->
+        <div class="ash-metrics-strip mb-6">
+          <div class="ash-metrics-item"><span class="ash-metrics-value" id="statTotalUsers">0</span><span class="ash-metrics-label" data-i18n="admin.totalUsers">Total users</span></div>
+          <div class="ash-metrics-item"><span class="ash-metrics-value" id="statTotalAgents">0</span><span class="ash-metrics-label" data-i18n="admin.agentsStat">Agents</span></div>
+          <div class="ash-metrics-item"><span class="ash-metrics-value" id="statTotalCustomers">0</span><span class="ash-metrics-label" data-i18n="admin.customersStat">Customers</span></div>
+          <div class="ash-metrics-item"><span class="ash-metrics-value" id="statTotalCompanies">0</span><span class="ash-metrics-label" data-i18n="admin.companiesStat">Companies</span></div>
         </div>
-        <div id="rdDiffPanel" class="hidden bg-surface-container border border-outline-variant rounded-lg p-3 mb-4">
-          <p class="font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
-          <ul id="rdDiffList" class="font-body-md text-[12.5px] text-on-surface list-disc pl-5 space-y-0.5"></ul>
+        <!-- Stage 3 table system (standardized on the same .ash-entity-*
+             toolbar/pagination/skeleton primitives js/admin-orgs-pros.js
+             already established, plus .ash-checkbox/.ash-bulk-bar shared
+             with Properties/Discounts -- see js/admin-table-kit.js). Row
+             rendering, filtering, pagination and bulk-select all happen
+             in renderUsers() below; ids here are the mount points it
+             targets. -->
+        <div class="ash-entity-toolbar">
+          <div class="ash-entity-search">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <input type="text" id="usersSearchInput" data-i18n-placeholder="admin.people.searchPlaceholder" placeholder="Search by name or email…"/>
+          </div>
+          <select id="usersRoleFilter" class="ash-entity-select"></select>
+          <select id="usersSortSelect" class="ash-entity-select"></select>
+          <span class="ash-entity-count" id="usersCount"></span>
         </div>
-        <div id="rdGroups" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-        <p class="font-body-md text-[12px] text-on-surface-variant mt-4" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+        <div id="usersBulkBar"></div>
+        <div class="ash-entity-table-wrap bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table ash-table-sticky">
+              <thead><tr>
+                <th class="ash-cell-check"><input type="checkbox" class="ash-checkbox" id="usersSelectAll" aria-label="Select all accounts"/></th>
+                <th data-i18n="admin.thUser">Account</th>
+                <th data-i18n="admin.thCompany">Organization</th>
+                <th data-i18n="admin.thRole">Role</th>
+                <th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th>
+                <th data-i18n="admin.thJoined">Joined</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="usersBody"></tbody>
+            </table>
+          </div>
+          <!-- Proper empty state (redesign v2, item 9) -- was a bare "No
+               users yet." row; still the same #usersEmpty id renderUsers()
+               toggles via classList, just richer markup inside it now. -->
+          <div id="usersEmpty" class="hidden ash-empty-block">
+            <span class="material-symbols-outlined ash-empty-block-icon" aria-hidden="true">group</span>
+            <p class="ash-empty-block-title" data-i18n="admin.people.emptyAccountsTitle">No accounts found</p>
+            <p class="ash-empty-block-body" data-i18n="admin.people.emptyAccountsBody">Accounts will appear here when they are created or invited.</p>
+          </div>
+        </div>
+        <div class="ash-entity-cards" id="usersCards"></div>
+        <div id="usersPagination" class="ash-entity-pagination"></div>
+        <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
+
+        <!-- Role permission defaults (launch-readiness fix C2; visual
+             redesign into a "Permission Workspace"). What every account of
+             a given accountType may do by default -- the
+             rolePermissionDefaults/{accountType} documents firestore.rules'
+             hasPermission()/hasOrgPermission() consult. Readable here,
+             written only through the backend (see the module script).
+             Also where the System hub's "Permissions" nav item lands.
+             Every id below is unchanged from the previous layout except
+             where noted -- this is a markup/CSS/behavior rework of the
+             SAME panel, not a new feature; permission keys, Firestore
+             behavior, save/recommended/clear-all logic are all preserved. -->
+        <div id="roleDefaultsPanel" class="ash-pstudio mt-6">
+          <div class="ash-perm-head">
+            <div>
+              <p class="ash-perm-title" data-i18n="admin.rd.title">Role permission defaults</p>
+              <p class="ash-perm-subtitle" data-i18n="admin.rd.subtitle">Define the default capabilities assigned to each account type.</p>
+            </div>
+            <button type="button" id="rdLearnMoreBtn" class="ash-perm-learnmore" aria-expanded="false" aria-controls="rdLearnMoreBody">
+              <span class="material-symbols-outlined" aria-hidden="true">info</span>
+              <span data-i18n="admin.rd.learnMore">Learn more</span>
+            </button>
+          </div>
+          <p id="rdLearnMoreBody" class="ash-perm-learnmore-body hidden" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
+
+          <!-- Compact account-type header (redesign v2, item 3): one row,
+               no 3-4 heavy buttons -- account picker, preset/enabled/
+               modified readouts, then [Apply recommended] [•••]. -->
+          <div class="ash-pstudio-acchead">
+            <label class="ash-pstudio-accfield">
+              <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
+              <select id="rdAccountType" class="admin-input"></select>
+            </label>
+            <div class="ash-pstudio-accmeta">
+              <span class="ash-perm-status" id="rdStatusPill" data-tone="none"><span class="ash-perm-status-dot"></span><span id="rdStatusPillText"></span></span>
+              <span class="ash-pstudio-accmeta-item"><span data-i18n="admin.rd.enabledLabel">Enabled</span>: <span dir="ltr"><span id="rdSumEnabled">0</span> <span data-i18n="admin.rd.ofWord">of</span> <span id="rdSumTotal">0</span></span></span>
+              <span class="ash-pstudio-accmeta-item"><span data-i18n="admin.rd.modifiedLabel">Modified</span>: <span id="rdSumModified">0</span></span>
+              <span class="ash-perm-summary-lastsaved" id="rdLastSaved"></span>
+            </div>
+            <div class="ash-perm-actions">
+              <button type="button" id="rdApplyRecommended" class="ash-detail-btn" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
+              <button type="button" id="rdMoreMenuBtn" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="More actions">
+                <span class="material-symbols-outlined" aria-hidden="true">more_vert</span>
+              </button>
+            </div>
+          </div>
+
+          <p id="rdStatus" role="status" aria-live="polite" class="ash-perm-inline-status"></p>
+          <div id="rdDiffPanel" class="hidden ash-perm-diff">
+            <p class="ash-perm-diff-title" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
+            <ul id="rdDiffList"></ul>
+          </div>
+
+          <!-- Cross-group search (redesign v2, item 5): searches every
+               group's permissions, not just the one currently open;
+               clicking a result opens the right group and highlights it. -->
+          <div class="ash-pstudio-search-wrap" id="rdSearchWrap">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <input type="search" id="rdSearch" class="ash-pstudio-search" role="combobox" aria-expanded="false" aria-controls="rdSearchResults" aria-autocomplete="list" autocomplete="off" data-i18n-placeholder="admin.rd.searchPlaceholder" placeholder="Search permissions…"/>
+            <div id="rdSearchResults" class="ash-pstudio-search-results" role="listbox" hidden></div>
+          </div>
+
+          <!-- Permission Studio: split nav rail + single active group's
+               workspace (redesign v2, items 1-4) -- replaces the 14-group
+               accordion. Only the selected group's rows render at a time. -->
+          <div class="ash-pstudio-body">
+            <div id="rdGroupNav" class="ash-pstudio-nav" role="tablist" aria-label="Permission groups" data-i18n-aria="admin.rd.groupNavLabel"></div>
+            <div id="rdGroupPanel" class="ash-pstudio-panel" role="tabpanel" tabindex="0"></div>
+          </div>
+
+          <p class="ash-perm-ruleshint" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+
+          <div class="ash-perm-footer" id="rdFooter" hidden>
+            <span id="rdFooterCount" class="ash-perm-footer-count"></span>
+            <div class="ash-perm-footer-actions">
+              <button type="button" id="rdCancelBtn" class="ash-detail-btn" data-i18n="admin.rd.cancelChanges">Cancel changes</button>
+              <button type="button" id="rdSave" class="ash-detail-btn ash-detail-btn-primary" data-i18n="admin.rd.save">Save defaults</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-verification"></div>
+      <div class="ash-people-subpanel" id="tab-organizations"></div>
+      <div class="ash-people-subpanel" id="tab-professionals"></div>
+
+      <div class="ash-people-subpanel" id="tab-agents">
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.agentsNote">Everyone with the Agent role, with their real listing counts across the shared database.</p>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th class="ash-cell-num" data-i18n="admin.thVerifiedCount">Verified</th><th data-i18n="admin.thJoined">Joined</th></tr></thead>
+              <tbody id="agentsBody"></tbody>
+            </table>
+          </div>
+          <p id="agentsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+        </div>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-branches">
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.branchesNote">Every company using this platform — created automatically the first time someone signs up under that name. Each row is real, computed from your agents and listings.</p>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th class="ash-cell-num" data-i18n="admin.thAgentsCount">Agents</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th class="ash-cell-num" data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
+              <tbody id="branchesBody"></tbody>
+            </table>
+          </div>
+          <p id="branchesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noBranchesYet">No branches yet.</p>
+        </div>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-network">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
+          <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.networkNote">Every branch and every agent on the platform, grouped by company — add a new agent directly from here.</p>
+          <button id="openAddAgentBtn" type="button" class="flex-none inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
+            <span class="material-symbols-outlined text-[18px]">person_add</span>
+            <span data-i18n="admin.addAgentBtn">Add Agent</span>
+          </button>
+        </div>
+        <div class="relative mb-4">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
+          <input id="networkSearch" type="text" class="admin-input" style="padding-left:36px;" data-i18n-placeholder="admin.networkSearchPlaceholder" placeholder="Search agents or branches…"/>
+        </div>
+        <p class="font-body-md text-[12px] text-on-surface-variant mb-3" data-i18n="admin.networkTreeHint">Click a branch to open it and see its agents inside.</p>
+        <div id="networkTreePanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-x-auto" style="padding: 32px 16px;">
+          <div id="networkTreeWrap" class="relative mx-auto" style="min-height:200px;">
+            <svg id="networkTreeSvg" class="absolute" style="top:0; left:0; pointer-events:none;"></svg>
+            <div id="networkTreeNodes"></div>
+          </div>
+        </div>
+        <p id="networkEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+      </div>
+
+      <div class="ash-people-subpanel" id="tab-leaderboard">
+        <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.leaderboardNote">Ranked by number of active listings — the most direct measure of contribution this platform can verify.</p>
+        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thRank">Rank</th><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th class="ash-cell-num" data-i18n="admin.thVerifiedCount">Verified</th></tr></thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+          <p id="leaderboardEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+        </div>
       </div>
     </section>
 
@@ -620,29 +585,13 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- TAB: Map Management -- replaces the old #estateIntelMap (Google
-         Maps "Estate Intelligence" tab, deleted outright -- Google-Maps-
-         specific, not ported) and #dashRequestsMap (see the removal note
-         above the Users &amp; Roles tab). One shared foundation with
-         map.html's Explore/My Properties modes (window.DarweshMarker /
-         DarweshLeafletHelpers / DarweshListingAccess / DarweshLocationEdit),
-         plus the admin-only capability layer: bulk view at approximate
-         coordinates only, precise coordinates fetched on demand for the
-         one listing open in the detail panel, cross-account visibility,
-         and the estate/transaction-history section ported from the old
-         tab's renderEiSidePanel() (real Firestore data only). Built by
-         js/admin-map.js the same lazy-init-on-first-click way as
-         Organizations/Professionals (js/admin-orgs-pros.js). -->
-    <section id="tab-map" class="admin-tab-panel"></section>
+    <!-- #tab-map moved into the Properties hub below (redesign Phase 2) --
+         js/admin-map.js's lazy-init still targets that same id, now nested
+         one level deeper. -->
 
-    <!-- TAB: Network Verification Center -- identity review, the referral
-         graph and the reward policy. Rendered by js/admin-verification.js
-         on first click, same lazy-mount pattern as the Map / Offers /
-         Organizations tabs. Every decision it offers is a request to the
-         audited backend: firestore.rules makes verificationCases,
-         referrals and rewardConfig unwritable by every client session,
-         admins included. -->
-    <section id="tab-verification" class="admin-tab-panel"></section>
+    <!-- #tab-verification moved into the People hub above (redesign Phase 2)
+         -- js/admin-verification.js's renderVerificationTab() still targets
+         that same id, now nested one level deeper. -->
 
     <!-- TAB: Darwesh Arena -- Challenge Builder (Step Engine), submission
          review queue, buyer/deal CRM, points ledger, ranks, commission
@@ -680,18 +629,9 @@ change is not meant to make. -->
          tabs above. -->
     <section id="tab-offers" class="admin-tab-panel"></section>
 
-    <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
-         Reads only -- every write this page can trigger still goes
-         through firestore.rules exactly as any other client write would;
-         nothing here is a privileged bypass. -->
-    <section id="tab-estatedata" class="admin-tab-panel">
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <input id="edSearchInput" type="text" class="flex-1 min-w-[220px] bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-body-md text-body-md" data-i18n-placeholder="admin.ed.searchPlaceholder" placeholder="Search by Estate ID, Listing ID, office, agent, project, unit, or location..."/>
-        <button id="edSearchBtn" type="button" class="bg-primary text-on-primary rounded-full px-5 py-2.5 font-label-caps text-label-caps" data-i18n="common.search">Search</button>
-      </div>
-      <p id="edEmptyState" class="text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="admin.ed.searchHint">Search for an Estate above to view its full record.</p>
-      <div id="edRecord" class="hidden space-y-4"></div>
-    </section>
+    <!-- #tab-estatedata moved into the Properties hub below (redesign
+         Phase 2) -- renderEstateDataTab() still targets that same id, now
+         nested one level deeper. -->
 
     <!-- TAB: Market Overview -->
     <section id="tab-market" class="admin-tab-panel">
@@ -707,8 +647,19 @@ change is not meant to make. -->
       </a>
     </section>
 
-    <!-- TAB: Listings -->
-    <section id="tab-listings" class="admin-tab-panel">
+    <!-- TAB: Properties (redesign Phase 2 -- consolidates the old flat
+         Listings/Projects/Approvals-alias/Map Management/Estate Data
+         destinations into one hub with internal AdminTabs sub-navigation,
+         the same pattern already proven for the People hub above). Every
+         sub-panel below keeps its original element id and inner content
+         unchanged -- js/admin-map.js's lazy getElementById('tab-map') and
+         renderListingsTable()/renderProjectsTab()/renderEstateDataTab()
+         all still find their same targets, just nested one level deeper. -->
+    <section id="tab-properties" class="admin-tab-panel">
+      <div id="propertiesHeaderMount"></div>
+      <div id="propertiesTabsMount"></div>
+
+      <div class="ash-properties-subpanel" id="tab-listings">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.listingsNote">This is the same shared listings database every agent's Agent Dashboard reads and writes. As an admin, you can edit or delete any listing here, not just your own.</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -829,23 +780,53 @@ change is not meant to make. -->
           </div>
         </form>
 
-        <!-- List -->
+        <!-- List (Stage 3 table system -- same .ash-entity-* toolbar/
+             pagination/skeleton + .ash-checkbox/.ash-bulk-bar primitives
+             as People/Accounts; see js/admin-table-kit.js and
+             renderListingsTable() below.) -->
         <div class="lg:col-span-3">
-          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="ash-entity-toolbar">
+            <div class="ash-entity-search">
+              <span class="material-symbols-outlined" aria-hidden="true">search</span>
+              <input type="text" id="listingsSearchInput" data-i18n-placeholder="admin.listings.searchPlaceholder" placeholder="Search by title or address…"/>
+            </div>
+            <select id="listingsCityFilter" class="ash-entity-select"></select>
+            <select id="listingsTypeFilter" class="ash-entity-select"></select>
+            <select id="listingsStatusFilter" class="ash-entity-select"></select>
+            <select id="listingsSortSelect" class="ash-entity-select"></select>
+            <span class="ash-entity-count" id="listingsCount"></span>
+          </div>
+          <div id="listingsBulkBar"></div>
+          <div class="ash-entity-table-wrap bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
-              <table class="admin-table">
-                <thead><tr><th data-i18n="agentDash.thListing">Listing</th><th data-i18n="agentDash.thAgent">Agent</th><th data-i18n="agentDash.thType">Type</th><th data-i18n="agentDash.thPrice">Price</th><th data-i18n="agentDash.thFlags">Flags</th><th></th></tr></thead>
+              <table class="admin-table ash-table-sticky">
+                <thead><tr>
+                  <th class="ash-cell-check"><input type="checkbox" class="ash-checkbox" id="listingsSelectAll" aria-label="Select all listings"/></th>
+                  <th data-i18n="agentDash.thListing">Listing</th>
+                  <th data-i18n="admin.listings.thCity">City</th>
+                  <th data-i18n="agentDash.thAgent">Owner / Agent</th>
+                  <th class="ash-cell-num" data-i18n="agentDash.thPrice">Price</th>
+                  <th data-i18n="agentDash.thFlags">Status</th>
+                  <th data-i18n="admin.listings.thUpdated">Updated</th>
+                  <th></th>
+                </tr></thead>
                 <tbody id="listingsBody"></tbody>
               </table>
             </div>
-            <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noListingsYet2">No listings yet. Use the form to add one.</p>
+            <div id="listingsEmpty" class="hidden ash-empty-block">
+              <span class="material-symbols-outlined ash-empty-block-icon" aria-hidden="true">home_work</span>
+              <p class="ash-empty-block-title" data-i18n="admin.listings.emptyTitle">No properties found</p>
+              <p class="ash-empty-block-body" data-i18n="admin.listings.emptyBody">Try changing your filters or search criteria, or use the form to add one.</p>
+            </div>
           </div>
+          <div class="ash-entity-cards" id="listingsCards"></div>
+          <div id="listingsPagination" class="ash-entity-pagination"></div>
         </div>
       </div>
-    </section>
+      </div>
 
-    <!-- TAB: Projects (admin-approval-before-publication + mark-as-sold) -->
-    <section id="tab-projects" class="admin-tab-panel">
+      <!-- TAB: Projects (admin-approval-before-publication + mark-as-sold) -->
+      <div class="ash-properties-subpanel" id="tab-projects">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.projectsNote">Developer/residential-community projects and revisions awaiting review, and unit sale reports awaiting confirmation. Nothing here becomes public until you approve it.</p>
 
       <h3 class="font-headline-md text-[15px] font-bold mb-3" data-i18n="admin.pendingProjectsHeading">Pending Projects &amp; Revisions</h3>
@@ -868,6 +849,35 @@ change is not meant to make. -->
           </table>
         </div>
         <p id="saleReportsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noSaleReports">No sale reports awaiting confirmation.</p>
+      </div>
+      </div>
+
+      <!-- TAB: Map Management -- replaces the old #estateIntelMap (Google
+           Maps "Estate Intelligence" tab, deleted outright -- Google-Maps-
+           specific, not ported) and #dashRequestsMap (see the removal note
+           above the Users &amp; Roles tab). One shared foundation with
+           map.html's Explore/My Properties modes (window.DarweshMarker /
+           DarweshLeafletHelpers / DarweshListingAccess / DarweshLocationEdit),
+           plus the admin-only capability layer: bulk view at approximate
+           coordinates only, precise coordinates fetched on demand for the
+           one listing open in the detail panel, cross-account visibility,
+           and the estate/transaction-history section ported from the old
+           tab's renderEiSidePanel() (real Firestore data only). Built by
+           js/admin-map.js the same lazy-init-on-first-click way as
+           Organizations/Professionals (js/admin-orgs-pros.js). -->
+      <div class="ash-properties-subpanel" id="tab-map"></div>
+
+      <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
+           Reads only -- every write this page can trigger still goes
+           through firestore.rules exactly as any other client write would;
+           nothing here is a privileged bypass. -->
+      <div class="ash-properties-subpanel" id="tab-estatedata">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <input id="edSearchInput" type="text" class="flex-1 min-w-[220px] bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-body-md text-body-md" data-i18n-placeholder="admin.ed.searchPlaceholder" placeholder="Search by Estate ID, Listing ID, office, agent, project, unit, or location..."/>
+          <button id="edSearchBtn" type="button" class="bg-primary text-on-primary rounded-full px-5 py-2.5 font-label-caps text-label-caps" data-i18n="common.search">Search</button>
+        </div>
+        <p id="edEmptyState" class="text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="admin.ed.searchHint">Search for an Estate above to view its full record.</p>
+        <div id="edRecord" class="hidden space-y-4"></div>
       </div>
     </section>
 
@@ -907,7 +917,21 @@ change is not meant to make. -->
       </div>
     </div>
 
-    <section id="tab-services" class="admin-tab-panel">
+    <!-- TAB: Sales (redesign Phase 3) -- consolidates the former flat
+         "Customer Services" destination (Sell/Map requests + Provider
+         Requests oversight, both already in one panel) into a hub with
+         AdminPageHeader + AdminTabs, same pattern as People/Properties/
+         Sales above. No Buyers/Leads/Deals/Closings sub-tabs -- that
+         pipeline doesn't exist as a general admin destination in this
+         codebase; the only real deal/lead/negotiation tracking is Arena's
+         own Buyer/Deal CRM sub-tab (js/admin-arena.js), out of scope this
+         phase. Every render*()/renderXTab() call below is unchanged --
+         this only decides which sub-panel is visible. -->
+    <section id="tab-sales" class="admin-tab-panel">
+      <div id="salesHeaderMount"></div>
+      <div id="salesTabsMount"></div>
+
+      <div class="ash-sales-subpanel" id="tab-requests">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.servicesNote">Property submissions from Sell and viewing requests from the Map, all in one place. Update a request's status as your team works through it.</p>
 
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -933,6 +957,7 @@ change is not meant to make. -->
         </div>
         <p id="servicesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
       </div>
+      </div>
 
       <!-- U5 (launch-readiness): every serviceProviders/{id}/requests/{id}
            document across every provider, in one place -- previously only
@@ -940,7 +965,7 @@ change is not meant to make. -->
            Requests tab). Read-only here: a provider still owns updating
            their own request's status; this is oversight, not a second
            write surface. -->
-      <p class="font-headline-md text-[16px] text-on-surface font-bold mt-8 mb-1" data-i18n="admin.providerRequestsTitle">Provider Requests</p>
+      <div class="ash-sales-subpanel" id="tab-providerrequests">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-4" data-i18n="admin.providerRequestsNote">Every request sent to an engineer, designer, lawyer, cleaner, landscaper or maintenance provider, across every provider profile. Status is set by the provider -- this list is for oversight only.</p>
       <div class="flex gap-2 mb-4 flex-wrap" id="providerRequestsFilterBar">
         <button class="pr-filter-chip active" data-filter="all" type="button" data-i18n="admin.filterAll">All</button>
@@ -959,81 +984,34 @@ change is not meant to make. -->
         <p id="providerRequestsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
         <p id="providerRequestsError" class="hidden p-6 text-center font-body-md text-[13px]" style="color:#E5787A;"></p>
       </div>
-    </section>
-
-    <!-- TAB: Branches -->
-    <section id="tab-branches" class="admin-tab-panel">
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.branchesNote">Every company using this platform — created automatically the first time someone signs up under that name. Each row is real, computed from your agents and listings.</p>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th data-i18n="admin.thAgentsCount">Agents</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
-            <tbody id="branchesBody"></tbody>
-          </table>
-        </div>
-        <p id="branchesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noBranchesYet">No branches yet.</p>
       </div>
     </section>
 
-    <!-- TAB: Agents -->
-    <section id="tab-agents" class="admin-tab-panel">
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.agentsNote">Everyone with the Agent role, with their real listing counts across the shared database.</p>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th><th data-i18n="admin.thJoined">Joined</th></tr></thead>
-            <tbody id="agentsBody"></tbody>
-          </table>
-        </div>
-        <p id="agentsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
+    <!-- #tab-branches/#tab-agents/#tab-network/#tab-leaderboard/
+         #tab-organizations/#tab-professionals all moved into the People
+         hub above (redesign Phase 2) -- their render functions
+         (renderBranchesTab/renderAgentsTab/renderNetworkTab/
+         renderLeaderboardTab, defined further down; renderOrgsTab/
+         renderProsTab from js/admin-orgs-pros.js) still target those same
+         ids, now nested one level deeper.
+
+         Roadmap placeholders: the remaining destinations ship as an honest
+         "planned" state below, not a dead link or fabricated data. -->
+    <!-- Services hub (redesign Phase 1): a category-card landing over
+         provider requests (lawyers/engineers/designers/cleaning/
+         landscaping/moving/maintenance/contractors) doesn't exist yet --
+         that data lives inside Sales/Requests' "Provider Requests" table
+         today (#tab-services). Ships as a placeholder now, same honest
+         "Planned" pattern as the rest of this list, until Phase 4 builds
+         the real category-card view over that existing table. -->
+    <section id="tab-services2" class="admin-tab-panel">
+      <div class="ash-empty-state">
+        <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">engineering</span>
+        <p class="font-headline-md text-headline-md ash-empty-title" data-i18n="admin.nav.groupServices">Services</p>
+        <p class="font-body-md text-[13px] ash-empty-desc" data-i18n="admin.roadmap.servicesHub">A category view of every service professional -- lawyers, engineers, designers, cleaning, landscaping, moving, maintenance and contractors -- over the provider requests already tracked under Sales &rarr; Requests.</p>
+        <span class="ash-empty-badge" data-i18n="admin.roadmap.plannedBadge">Planned</span>
       </div>
     </section>
-
-    <!-- TAB: Network -->
-    <section id="tab-network" class="admin-tab-panel">
-      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-        <p class="font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.networkNote">Every branch and every agent on the platform, grouped by company — add a new agent directly from here.</p>
-        <button id="openAddAgentBtn" type="button" class="flex-none inline-flex items-center gap-2 bg-primary text-on-primary px-5 py-2.5 rounded-full font-label-caps text-label-caps hover:bg-primary-container transition-colors">
-          <span class="material-symbols-outlined text-[18px]">person_add</span>
-          <span data-i18n="admin.addAgentBtn">Add Agent</span>
-        </button>
-      </div>
-      <div class="relative mb-4">
-        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-on-surface-variant">search</span>
-        <input id="networkSearch" type="text" class="admin-input" style="padding-left:36px;" data-i18n-placeholder="admin.networkSearchPlaceholder" placeholder="Search agents or branches…"/>
-      </div>
-      <p class="font-body-md text-[12px] text-on-surface-variant mb-3" data-i18n="admin.networkTreeHint">Click a branch to open it and see its agents inside.</p>
-      <div id="networkTreePanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-x-auto" style="padding: 32px 16px;">
-        <div id="networkTreeWrap" class="relative mx-auto" style="min-height:200px;">
-          <svg id="networkTreeSvg" class="absolute" style="top:0; left:0; pointer-events:none;"></svg>
-          <div id="networkTreeNodes"></div>
-        </div>
-      </div>
-      <p id="networkEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
-    </section>
-
-    <!-- TAB: Leaderboard -->
-    <section id="tab-leaderboard" class="admin-tab-panel">
-      <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.leaderboardNote">Ranked by number of active listings — the most direct measure of contribution this platform can verify.</p>
-      <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="admin-table">
-            <thead><tr><th data-i18n="admin.thRank">Rank</th><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th></tr></thead>
-            <tbody id="leaderboardBody"></tbody>
-          </table>
-        </div>
-        <p id="leaderboardEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noAgentsYet">No agents yet.</p>
-      </div>
-    </section>
-
-    <!-- Roadmap placeholders: Phase 1 shipped the full information
-         architecture (sidebar) up front; Organizations and Professionals
-         got their real screens in Phase 2 (js/admin-orgs-pros.js, built the
-         first time each tab is opened -- data-ash-built guards the
-         rebuild). The remaining seven still ship as an honest "planned"
-         state below, not a dead link or fabricated data. -->
-    <section id="tab-organizations" class="admin-tab-panel"></section>
-    <section id="tab-professionals" class="admin-tab-panel"></section>
     <section id="tab-financial" class="admin-tab-panel">
       <div class="ash-empty-state">
         <span class="material-symbols-outlined ash-empty-icon" aria-hidden="true">payments</span>
@@ -1093,6 +1071,16 @@ change is not meant to make. -->
   </main>
 </div>
 <script src="./js/admin-shell.js"></script>
+<!-- Shared hub primitives (redesign Phase 1) -- not wired into any hub yet;
+     Phase 2+ hub shells (People, Properties, Finance, System) consume
+     these. Classic scripts, same loading style as admin-shell.js. -->
+<script src="./js/admin-tabs.js"></script>
+<script src="./js/admin-page-header.js"></script>
+<!-- Shared interaction primitives (redesign Stage 3) -- one shared action
+     menu and one shared confirmation dialog for every hub, same loading
+     style as the rest of this block. -->
+<script src="./js/admin-action-menu.js"></script>
+<script src="./js/admin-dialog.js"></script>
 
 <!-- Customer Services: full request detail -->
 <div class="hidden fixed inset-0 z-[70] flex items-end md:items-center justify-center" id="requestDetailOverlay">
@@ -1236,7 +1224,7 @@ import { publicCoordsFrom, fetchPreciseLocation, writePreciseLocation } from './
 // writes ONLY through the backend endpoint (the collection is never
 // client-writable, admin sessions included).
 import { setRoleDefaults, listServiceRequests, getMyPermissions, BackendResponseError } from './js/backend-api.js';
-import { SELF_ACCOUNT_TYPES, PERMISSION_GROUPS, RECOMMENDED_ROLE_DEFAULTS } from './js/permission-catalog.js';
+import { SELF_ACCOUNT_TYPES, PERMISSION_GROUPS, RECOMMENDED_ROLE_DEFAULTS, KNOWN_PERMISSIONS } from './js/permission-catalog.js';
 // Admin Panel Phase 2: Organizations & Professionals tabs -- a separate
 // module (not inlined into this already-large script) since it owns its
 // own state/rendering for two full tabs; it imports firebase-init.js and
@@ -1255,6 +1243,7 @@ import { renderVerificationTab } from './js/admin-verification.js';
 import { renderArenaTab } from './js/admin-arena.js';
 import { renderAlertsTab } from './js/admin-alerts.js';
 import { renderBrokerageTab } from './js/admin-brokerage.js';
+import { renderPagination as ashPaginate, renderBulkBar as ashBulkBar, skeletonRows as ashSkeletonRows } from './js/admin-table-kit.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
 // Bulk views (the Map Management tab, hundreds of listings at a time)
@@ -1350,6 +1339,27 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   window.location.href = 'index.html';
 });
 
+// Compact database notice (redesign v2, item 10) -- Details toggles the
+// full explanation; dismiss hides the whole strip for this browser only
+// (a standing fact about the page, not a one-time alert -- never lost for
+// good, just not re-shown until localStorage is cleared).
+const DB_NOTICE_DISMISS_KEY = 'darwesh_admin_notice_dismissed';
+(function initDbNotice() {
+  const notice = document.getElementById('dbNotice');
+  if (!notice) return;
+  if (localStorage.getItem(DB_NOTICE_DISMISS_KEY) === '1') { notice.classList.add('hidden'); return; }
+  document.getElementById('dbNoticeDetailsBtn').addEventListener('click', () => {
+    const body = document.getElementById('dbNoticeBody');
+    const open = body.classList.contains('hidden');
+    body.classList.toggle('hidden', !open);
+    document.getElementById('dbNoticeDetailsBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.getElementById('dbNoticeDismissBtn').addEventListener('click', () => {
+    try { localStorage.setItem(DB_NOTICE_DISMISS_KEY, '1'); } catch (e) {}
+    notice.classList.add('hidden');
+  });
+})();
+
 let dashboardInited = false;
 
 onAuthStateChanged(auth, async (user) => {
@@ -1377,6 +1387,7 @@ onAuthStateChanged(auth, async (user) => {
   document.getElementById('authGate').classList.add('hidden');
   document.getElementById('notAdminGate').classList.add('hidden');
   document.getElementById('adminContent').classList.remove('hidden');
+  mountOverviewHeader();
   initDashboard();
   // Best-effort nav refinement only -- see admin-shell.js's
   // AdminShellApplyPermissions doc comment: page access itself stays the
@@ -1402,7 +1413,8 @@ onAuthStateChanged(auth, async (user) => {
 // "View Estate Record" quick action calls this exact function.
 // ---------------------------------------------------------------------
 window.jumpToEstateData = function (estateId) {
-  document.querySelector('.admin-tab[data-tab="estatedata"]').click();
+  document.querySelector('.admin-tab[data-tab="properties"]').click();
+  renderPropertiesHub('estatedata');
   document.getElementById('edSearchInput').value = estateId;
   document.getElementById('edSearchBtn').click();
 };
@@ -1597,26 +1609,180 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'listings') renderListingsTable();
-    if (tab.dataset.tab === 'users') renderUsers();
-    if (tab.dataset.tab === 'projects') renderProjectsTab();
-    if (tab.dataset.tab === 'services') { renderServicesTab(); renderProviderRequestsTab(); }
+    if (tab.dataset.tab === 'people') renderPeopleHub(tab.dataset.subtab || null);
+    if (tab.dataset.tab === 'properties') renderPropertiesHub(tab.dataset.subtab || null);
+    if (tab.dataset.tab === 'sales') renderSalesHub(tab.dataset.subtab || null);
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
-    if (tab.dataset.tab === 'branches') renderBranchesTab();
-    if (tab.dataset.tab === 'agents') renderAgentsTab();
-    if (tab.dataset.tab === 'network') renderNetworkTab();
-    if (tab.dataset.tab === 'leaderboard') renderLeaderboardTab();
-    if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
-    if (tab.dataset.tab === 'organizations') renderOrgsTab();
-    if (tab.dataset.tab === 'professionals') renderProsTab();
-    if (tab.dataset.tab === 'map') renderMapTab();
     if (tab.dataset.tab === 'offers') renderOffersTab();
-    if (tab.dataset.tab === 'verification') renderVerificationTab();
     if (tab.dataset.tab === 'arena') renderArenaTab();
     if (tab.dataset.tab === 'alerts') renderAlertsTab();
     if (tab.dataset.tab === 'brokerage') renderBrokerageTab();
   });
 });
+
+// ---------------------------------------------------------------------
+// People hub (redesign Phase 2) -- consolidates the 8 former top-level
+// People & Organizations destinations into one hub with an
+// AdminPageHeader + AdminTabs bar. Every render*()/renderXTab() call
+// below is completely unchanged -- this only decides WHICH sub-panel is
+// visible and WHICH render function runs for the currently-selected
+// sub-tab; the render functions themselves still fully own their own
+// data fetch/DOM writes inside their own #tab-<name> element, wherever
+// that element now lives in the DOM.
+// ---------------------------------------------------------------------
+const PEOPLE_SUBTABS = [
+  { key: 'users', icon: 'group', label: () => trAdmin('admin.nav.accounts', 'Accounts') },
+  { key: 'verification', icon: 'verified_user', label: () => trAdmin('admin.nav.verification', 'Verification') },
+  { key: 'organizations', icon: 'domain', label: () => trAdmin('admin.nav.organizations', 'Organizations') },
+  { key: 'professionals', icon: 'engineering', label: () => trAdmin('admin.nav.professionals', 'Professionals') },
+  { key: 'agents', icon: 'badge', label: () => trAdmin('admin.agentsTab', 'Agents') },
+  { key: 'branches', icon: 'account_tree', label: () => trAdmin('admin.branchesTab', 'Branches') },
+  { key: 'network', icon: 'hub', label: () => trAdmin('admin.networkTab', 'Network') },
+  { key: 'leaderboard', icon: 'leaderboard', label: () => trAdmin('admin.nav.topAgents', 'Top Agents') },
+];
+let peopleTabsCtrl = null;
+
+function renderPeopleSubtab(key) {
+  document.querySelectorAll('.ash-people-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + key);
+  });
+  if (key === 'users') renderUsers();
+  else if (key === 'verification') renderVerificationTab();
+  else if (key === 'organizations') renderOrgsTab();
+  else if (key === 'professionals') renderProsTab();
+  else if (key === 'agents') renderAgentsTab();
+  else if (key === 'branches') renderBranchesTab();
+  else if (key === 'network') renderNetworkTab();
+  else if (key === 'leaderboard') renderLeaderboardTab();
+}
+
+function renderPeopleHub(forceSubtab) {
+  const section = document.getElementById('tab-people');
+  if (!section.dataset.ashBuilt) {
+    section.dataset.ashBuilt = '1';
+    window.AdminPageHeader.mount(document.getElementById('peopleHeaderMount'), {
+      icon: 'group',
+      title: () => trAdmin('admin.nav.groupPeople', 'People'),
+      description: () => trAdmin('admin.people.desc', 'Accounts, verification, organizations, professionals, and your agent network.'),
+    });
+    peopleTabsCtrl = window.AdminTabs.create({
+      mount: document.getElementById('peopleTabsMount'),
+      tabs: PEOPLE_SUBTABS,
+      active: 'users',
+      onChange: renderPeopleSubtab,
+    });
+  }
+  // A nav item that aliases into a specific sub-tab (System -> Permissions
+  // wants Accounts, where the Role Defaults panel lives) always lands
+  // there, regardless of whatever sub-tab was last active in this hub --
+  // `force: true` re-fires onChange even if that's already the active key.
+  if (forceSubtab) peopleTabsCtrl.setActive(forceSubtab, true);
+  else renderPeopleSubtab(peopleTabsCtrl.getActive());
+}
+document.addEventListener('darwesh:langchange', () => { if (peopleTabsCtrl) peopleTabsCtrl.refresh(); });
+
+// ---------------------------------------------------------------------
+// Properties hub (redesign Phase 2) -- consolidates the former Listings/
+// Projects/Approvals-alias/Map Management/Estate Data destinations into
+// one hub, same AdminPageHeader + AdminTabs pattern as the People hub
+// above. render*()/renderXTab() calls below are unchanged.
+// ---------------------------------------------------------------------
+const PROPERTIES_SUBTABS = [
+  { key: 'listings', icon: 'home_work', label: () => trAdmin('admin.listingsTab', 'Listings') },
+  { key: 'projects', icon: 'apartment', label: () => trAdmin('admin.projectsTab', 'Projects') },
+  { key: 'map', icon: 'map', label: () => trAdmin('admin.nav.map', 'Map') },
+  { key: 'estatedata', icon: 'storage', label: () => trAdmin('admin.nav.estateLookup', 'Estate Lookup') },
+];
+let propertiesTabsCtrl = null;
+
+function renderPropertiesSubtab(key) {
+  document.querySelectorAll('.ash-properties-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + key);
+  });
+  if (key === 'listings') renderListingsTable();
+  else if (key === 'projects') renderProjectsTab();
+  else if (key === 'map') renderMapTab();
+  else if (key === 'estatedata') renderEstateDataTab();
+}
+
+function renderPropertiesHub(forceSubtab) {
+  const section = document.getElementById('tab-properties');
+  if (!section.dataset.ashBuilt) {
+    section.dataset.ashBuilt = '1';
+    window.AdminPageHeader.mount(document.getElementById('propertiesHeaderMount'), {
+      icon: 'home_work',
+      title: () => trAdmin('admin.nav.groupProperties', 'Properties'),
+      description: () => trAdmin('admin.properties.desc', 'Listings, projects, the map, and estate lookup, all in one place.'),
+    });
+    propertiesTabsCtrl = window.AdminTabs.create({
+      mount: document.getElementById('propertiesTabsMount'),
+      tabs: PROPERTIES_SUBTABS,
+      active: 'listings',
+      onChange: renderPropertiesSubtab,
+    });
+  }
+  if (forceSubtab) propertiesTabsCtrl.setActive(forceSubtab, true);
+  else renderPropertiesSubtab(propertiesTabsCtrl.getActive());
+}
+document.addEventListener('darwesh:langchange', () => { if (propertiesTabsCtrl) propertiesTabsCtrl.refresh(); });
+
+// ---------------------------------------------------------------------
+// Overview hub (redesign Phase 2) -- single-item hub (just Dashboard),
+// so no AdminTabs needed: only an AdminPageHeader is mounted above the
+// existing KPI/chart content, which stays completely unchanged.
+// ---------------------------------------------------------------------
+function mountOverviewHeader() {
+  window.AdminPageHeader.mount(document.getElementById('overviewHeaderMount'), {
+    icon: 'dashboard',
+    title: () => trAdmin('admin.nav.groupOverview', 'Overview'),
+    description: () => trAdmin('admin.overview.desc', 'A real-time snapshot of your listings, requests, and network.'),
+  });
+}
+document.addEventListener('darwesh:langchange', mountOverviewHeader);
+
+// ---------------------------------------------------------------------
+// Sales hub (redesign Phase 3) -- consolidates the former flat
+// "Customer Services" destination into one hub with an AdminPageHeader +
+// AdminTabs bar. renderServicesTab()/renderProviderRequestsTab() below
+// are completely unchanged -- both are cheap reads already fetched
+// together every time this hub opens (matching the pre-Phase-3
+// behavior), same as initDashboard()'s own eager pre-render. AdminTabs
+// here only toggles which sub-panel is visible.
+// ---------------------------------------------------------------------
+const SALES_SUBTABS = [
+  { key: 'requests', icon: 'inbox', label: () => trAdmin('admin.nav.requests', 'Requests') },
+  { key: 'providerrequests', icon: 'engineering', label: () => trAdmin('admin.providerRequestsTitle', 'Provider Requests') },
+];
+let salesTabsCtrl = null;
+
+function renderSalesSubtab(key) {
+  document.querySelectorAll('.ash-sales-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + key);
+  });
+}
+
+function renderSalesHub(forceSubtab) {
+  const section = document.getElementById('tab-sales');
+  if (!section.dataset.ashBuilt) {
+    section.dataset.ashBuilt = '1';
+    window.AdminPageHeader.mount(document.getElementById('salesHeaderMount'), {
+      icon: 'support_agent',
+      title: () => trAdmin('admin.nav.groupSales', 'Sales'),
+      description: () => trAdmin('admin.sales.desc', 'Customer requests from Sell and the Map, and provider request oversight.'),
+    });
+    salesTabsCtrl = window.AdminTabs.create({
+      mount: document.getElementById('salesTabsMount'),
+      tabs: SALES_SUBTABS,
+      active: 'requests',
+      onChange: renderSalesSubtab,
+    });
+  }
+  if (forceSubtab) salesTabsCtrl.setActive(forceSubtab, true);
+  else renderSalesSubtab(salesTabsCtrl.getActive());
+  renderServicesTab();
+  renderProviderRequestsTab();
+}
+document.addEventListener('darwesh:langchange', () => { if (salesTabsCtrl) salesTabsCtrl.refresh(); });
 
 document.querySelectorAll('.filter-chip').forEach(chip => {
   chip.addEventListener('click', () => {
@@ -1663,10 +1829,95 @@ function initDashboard() {
 function ROLE_LABEL_FN() { return { customer: trAdmin('admin.roleCustomer','Customer'), agent: trAdmin('admin.roleAgent','Agent'), admin: trAdmin('admin.roleAdmin','Admin') }; }
 const ROLE_BADGE_CLASS = { customer: 'badge-private', agent: 'badge-sale', admin: 'badge-verified' };
 
+// Stage 3 table system (standardized on the same .ash-entity-* toolbar/
+// pagination/skeleton primitives js/admin-orgs-pros.js already
+// established, plus the shared checkbox/bulk-bar promoted out of
+// admin-brokerage.js -- see js/admin-table-kit.js). `usersState.all` is
+// the full fetched+annotated list; filtering/sorting/pagination all run
+// client-side over it on every render, same shape as orgsState/
+// prosState. `selected` is keyed by uid, page-scoped select-all (matches
+// the mental model of "select all ON THIS PAGE", not every filtered row
+// across pages -- the safer default for a bulk role-change action).
+let usersState = { all: [], search: '', role: 'all', sort: 'newest', page: 1, pageSize: 25, selected: new Set(), initialized: false };
+
+function usersInitials(u) {
+  const src = (u.displayName || u.email || '?').trim();
+  return src.slice(0, 1).toUpperCase();
+}
+
+function ensureUsersShell() {
+  if (usersState.initialized) return;
+  usersState.initialized = true;
+  const roleFilter = document.getElementById('usersRoleFilter');
+  const ROLE_LABEL = ROLE_LABEL_FN();
+  roleFilter.innerHTML = `<option value="all" data-i18n="admin.filterAll">All roles</option>` +
+    ['customer', 'agent', 'admin'].map((r) => `<option value="${r}">${escapeAdmin(ROLE_LABEL[r])}</option>`).join('');
+  document.getElementById('usersSortSelect').innerHTML = `
+    <option value="newest" data-i18n="admin.entity.sortNewest">Newest first</option>
+    <option value="oldest" data-i18n="admin.entity.sortOldest">Oldest first</option>
+    <option value="name-asc" data-i18n="admin.entity.sortNameAsc">Name (A–Z)</option>
+    <option value="name-desc" data-i18n="admin.entity.sortNameDesc">Name (Z–A)</option>
+  `;
+  let searchTimer = null;
+  document.getElementById('usersSearchInput').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    const val = e.target.value;
+    searchTimer = setTimeout(() => { usersState.search = val; usersState.page = 1; renderUsersTable(); }, 180);
+  });
+  roleFilter.addEventListener('change', (e) => { usersState.role = e.target.value; usersState.page = 1; renderUsersTable(); });
+  document.getElementById('usersSortSelect').addEventListener('change', (e) => { usersState.sort = e.target.value; renderUsersTable(); });
+
+  document.getElementById('usersSelectAll').addEventListener('change', (e) => {
+    document.querySelectorAll('#usersBody [data-user-select]:not(:disabled)').forEach((cb) => {
+      cb.checked = e.target.checked;
+      if (e.target.checked) usersState.selected.add(cb.dataset.userSelect); else usersState.selected.delete(cb.dataset.userSelect);
+      const tr = cb.closest('tr');
+      tr?.classList.toggle('is-selected', e.target.checked);
+      tr?.setAttribute('aria-selected', String(e.target.checked));
+    });
+    renderUsersBulkBar();
+  });
+  document.getElementById('usersBody').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-user-select]');
+    if (!cb) return;
+    if (cb.checked) usersState.selected.add(cb.dataset.userSelect); else usersState.selected.delete(cb.dataset.userSelect);
+    const tr = cb.closest('tr');
+    tr?.classList.toggle('is-selected', cb.checked);
+    tr?.setAttribute('aria-selected', String(cb.checked));
+    renderUsersBulkBar();
+  });
+
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(document.getElementById('usersBody'), (trigger) => {
+      const uid = trigger.closest('tr')?.dataset.uid;
+      const u = usersState.all.find((x) => x.uid === uid);
+      if (!u) return [];
+      if (u.uid === currentUid) {
+        return [{ label: () => trAdmin('admin.ownAccountRoleLocked', "Your own role can't be changed here"), icon: 'lock', disabled: true, onClick: () => {} }];
+      }
+      const ROLE_LABEL2 = ROLE_LABEL_FN();
+      return ['customer', 'agent', 'admin']
+        .filter((r) => r !== (u.role || 'customer'))
+        .map((r) => ({
+          label: () => trAdmin('admin.setRoleTo', 'Set as {role}').replace('{role}', ROLE_LABEL2[r]),
+          icon: r === 'admin' ? 'shield_person' : r === 'agent' ? 'badge' : 'person',
+          danger: r === 'admin',
+          onClick: () => onRoleChange(u, r),
+        }));
+    });
+  }
+}
+
 async function renderUsers() {
-  const body = document.getElementById('usersBody');
-  const empty = document.getElementById('usersEmpty');
+  ensureUsersShell();
   renderRoleDefaultsPanel();   // idempotent -- builds the panel once
+
+  // Stage 3: skeleton rows while the fetch below is in flight, not a
+  // spinner -- keeps the table's own dimensions stable instead of
+  // collapsing the panel to nothing between renders.
+  if (!usersState.all.length) {
+    document.getElementById('usersBody').innerHTML = ashSkeletonRows(6, 7);
+  }
 
   const [usersSnap, companiesSnap, listingsSnap, privateByUid] = await Promise.all([
     getDocs(collection(db, 'users')),
@@ -1686,25 +1937,114 @@ async function renderUsers() {
 
   const users = [];
   usersSnap.forEach(d => users.push({ uid: d.id, ...withPrivateFields(d.id, d.data(), privateByUid) }));
+  users.forEach((u) => {
+    u.companyName = companyNames[u.companyId] || u.companyId || '';
+    u.listingCount = listingCounts[u.uid] || 0;
+  });
 
   document.getElementById('statTotalUsers').textContent = users.length;
   document.getElementById('statTotalAgents').textContent = users.filter(u => u.role === 'agent').length;
   document.getElementById('statTotalCustomers').textContent = users.filter(u => u.role === 'customer' || !u.role).length;
   document.getElementById('statTotalCompanies').textContent = companiesSnap.size;
 
-  if (users.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  usersState.all = users;
+  usersState.selected = new Set();
+  usersState.page = 1;
+  renderUsersTable();
+}
+
+function renderUsersBulkBar() {
+  const n = usersState.selected.size;
+  const ROLE_LABEL = ROLE_LABEL_FN();
+  ashBulkBar('usersBulkBar', {
+    count: n,
+    countLabel: trAdmin('admin.bulkSelectedCount', '{count} selected'),
+    // Deliberately excludes bulk "Set as Admin" -- granting admin access
+    // is a one-at-a-time decision (see onRoleChange's per-account confirm
+    // dialog), never a bulk action. Bulk role-set also intentionally
+    // skips the single-row grantingCompany logic (approving a pending
+    // requestedCompanyId claim) -- that nuanced grant stays a per-row,
+    // per-name decision via the row menu, not something to wave through
+    // for a whole selection at once.
+    actions: [
+      { label: trAdmin('admin.setRoleTo', 'Set as {role}').replace('{role}', ROLE_LABEL.customer), icon: 'person', onClick: () => bulkSetRole('customer') },
+      { label: trAdmin('admin.setRoleTo', 'Set as {role}').replace('{role}', ROLE_LABEL.agent), icon: 'badge', onClick: () => bulkSetRole('agent') },
+    ],
+    onClear: () => {
+      usersState.selected.clear();
+      document.querySelectorAll('#usersBody [data-user-select]').forEach((cb) => { cb.checked = false; cb.closest('tr')?.classList.remove('is-selected'); });
+      const selectAll = document.getElementById('usersSelectAll');
+      if (selectAll) selectAll.checked = false;
+      renderUsersBulkBar();
+    },
+    clearLabel: trAdmin('admin.clearSelection', 'Clear selection'),
+  });
+}
+
+async function bulkSetRole(newRole) {
+  const uids = [...usersState.selected];
+  if (!uids.length) return;
+  const ROLE_LABEL = ROLE_LABEL_FN()[newRole];
+  const ok = await window.AdminDialog.confirm({
+    title: () => trAdmin('admin.changeRoleTitle', 'Change role?'),
+    body: () => trAdmin('admin.bulkChangeRoleBody', 'Change {count} accounts to "{role}"?').replace('{count}', String(uids.length)).replace('{role}', ROLE_LABEL),
+    confirmLabel: () => trAdmin('admin.changeRoleConfirm', 'Change role'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+  });
+  if (!ok) return;
+  const results = await Promise.allSettled(uids.map((uid) => updateDoc(doc(db, 'users', uid), { role: newRole })));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (window.AdminShellToast) {
+    window.AdminShellToast(failed ? trAdmin('admin.bulkPartialFailure', '{ok} updated, {failed} failed.').replace('{ok}', String(uids.length - failed)).replace('{failed}', String(failed)) : trAdmin('admin.bulkSuccess', '{count} accounts updated.').replace('{count}', String(uids.length)), failed ? 'error' : 'success');
+  }
+  renderUsers();
+}
+
+function renderUsersTable() {
+  const tbody = document.getElementById('usersBody');
+  const cards = document.getElementById('usersCards');
+  const empty = document.getElementById('usersEmpty');
+  const countEl = document.getElementById('usersCount');
+  if (!tbody || !cards) return;
+
+  const q = usersState.search.trim().toLowerCase();
+  let rows = usersState.all.filter((u) => {
+    const role = u.role || 'customer';
+    if (usersState.role !== 'all' && role !== usersState.role) return false;
+    if (q && !((u.displayName || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const ROLE_LABEL = ROLE_LABEL_FN();
+  rows.sort((a, b) => {
+    if (usersState.sort === 'name-asc') return (a.displayName || a.email || '').localeCompare(b.displayName || b.email || '');
+    if (usersState.sort === 'name-desc') return (b.displayName || b.email || '').localeCompare(a.displayName || a.email || '');
+    if (usersState.sort === 'oldest') return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+    return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+  });
+
+  countEl.textContent = trAdmin('admin.entity.countLabelAccounts', '{n} accounts').replace('{n}', String(rows.length));
+
+  if (usersState.all.length === 0) {
+    tbody.innerHTML = ''; cards.innerHTML = ''; empty.classList.remove('hidden');
+    document.getElementById('usersPagination').innerHTML = '';
+    renderUsersBulkBar();
+    return;
+  }
   empty.classList.add('hidden');
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    cards.innerHTML = `<div class="ash-entity-empty">${escapeAdmin(trAdmin('admin.entity.noResultsAccounts', 'No accounts match your filters.'))}</div>`;
+    document.getElementById('usersPagination').innerHTML = '';
+    return;
+  }
 
-  users.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const start = (usersState.page - 1) * usersState.pageSize;
+  const pageRows = rows.slice(start, start + usersState.pageSize);
 
-  body.innerHTML = '';
-  users.forEach(u => {
-    const tr = document.createElement('tr');
+  tbody.innerHTML = pageRows.map((u) => {
     const joined = u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString() : '—';
-    const listingCount = listingCounts[u.uid] || 0;
     const isSelf = u.uid === currentUid;
     const role = u.role || 'customer';
-    const ROLE_LABEL = ROLE_LABEL_FN();
     const wantsAgent = u.requestedRole === 'agent' && role !== 'agent' && role !== 'admin';
     // BL-04 fix: requestedCompanyId/requestedCompanyName is the UNTRUSTED
     // claim recorded when this applicant typed a name matching an
@@ -1713,45 +2053,58 @@ async function renderUsers() {
     // this badge is the only place that claim is visible before an admin
     // acts on it.
     const agentRequestBadge = wantsAgent
-      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}${u.requestedCompanyName ? ' · ' + escapeAdmin(u.requestedCompanyName) : ''}</span>`
+      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${escapeAdmin(trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.'))}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${escapeAdmin(trAdmin('admin.agentRequested','Wants Agent Access'))}${u.requestedCompanyName ? ' · ' + escapeAdmin(u.requestedCompanyName) : ''}</span>`
       : '';
-    tr.innerHTML = `
+    return `
+    <tr data-uid="${escapeAdmin(u.uid)}" class="${usersState.selected.has(u.uid) ? 'is-selected' : ''}" aria-selected="${usersState.selected.has(u.uid) ? 'true' : 'false'}">
+      <td class="ash-cell-check"><input type="checkbox" class="ash-checkbox" data-user-select="${escapeAdmin(u.uid)}" ${usersState.selected.has(u.uid) ? 'checked' : ''} ${isSelf ? 'disabled' : ''} aria-label="${escapeAdmin(trAdmin('admin.selectAccount', 'Select {name}').replace('{name}', u.displayName || u.email || u.uid))}"/></td>
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(u.email)}</p>
+        <div class="ash-cell-entity">
+          <span class="ash-avatar-wrap"><span class="ash-avatar-fallback" style="display:flex;">${escapeAdmin(usersInitials(u))}</span></span>
+          <div class="ash-cell-entity-text">
+            <p class="ash-cell-entity-title">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
+            <p class="ash-cell-entity-meta">${escapeAdmin(u.email)}</p>
+          </div>
+        </div>
       </td>
-      <td>${escapeAdmin(companyNames[u.companyId]) || escapeAdmin(u.companyId) || '—'}</td>
-      <td>${listingCount}</td>
+      <td>${escapeAdmin(u.companyName) || '—'}</td>
+      <td><span class="badge ${ROLE_BADGE_CLASS[role]}">${escapeAdmin(ROLE_LABEL[role])}</span></td>
+      <td class="ash-cell-num">${u.listingCount}</td>
       <td>${joined}</td>
-      <td></td>
-    `;
-    const roleCell = tr.lastElementChild;
-    if (isSelf) {
-      roleCell.innerHTML = `<span class="badge ${ROLE_BADGE_CLASS[role]}">${ROLE_LABEL[role]}</span>`;
-    } else {
-      const select = document.createElement('select');
-      select.className = 'admin-input';
-      select.style.width = 'auto';
-      select.style.padding = '5px 8px';
-      select.style.fontSize = '12.5px';
-      const ROLE_LABEL2 = ROLE_LABEL_FN();
-      ['customer', 'agent', 'admin'].forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r; opt.textContent = ROLE_LABEL2[r];
-        if (role === r) opt.selected = true;
-        select.appendChild(opt);
-      });
-      select.addEventListener('change', () => onRoleChange(u, select));
-      roleCell.appendChild(select);
-    }
-    body.appendChild(tr);
-  });
+      <td><button type="button" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${escapeAdmin(trAdmin('admin.rowActions', 'Row actions'))}"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></button></td>
+    </tr>`;
+  }).join('');
+
+  cards.innerHTML = pageRows.map((u) => {
+    const isSelf = u.uid === currentUid;
+    const role = u.role || 'customer';
+    return `
+    <div class="ash-entity-card" data-uid="${escapeAdmin(u.uid)}">
+      <div class="ash-entity-card-head">
+        <div class="ash-cell-entity">
+          <span class="ash-avatar-wrap"><span class="ash-avatar-fallback" style="display:flex;">${escapeAdmin(usersInitials(u))}</span></span>
+          <div>
+            <div class="ash-entity-card-title">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}</div>
+            <div class="ash-entity-card-sub">${escapeAdmin(u.companyName) || '—'}</div>
+          </div>
+        </div>
+        <span class="badge ${ROLE_BADGE_CLASS[role]}">${escapeAdmin(ROLE_LABEL[role])}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  ashPaginate('usersPagination', rows.length, usersState, (p) => { usersState.page = p; renderUsersTable(); });
+  renderUsersBulkBar();
+  const selectAll = document.getElementById('usersSelectAll');
+  if (selectAll) {
+    const selectableUids = pageRows.filter((u) => u.uid !== currentUid).map((u) => u.uid);
+    selectAll.checked = selectableUids.length > 0 && selectableUids.every((uid) => usersState.selected.has(uid));
+  }
 }
 
-async function onRoleChange(u, selectEl) {
+async function onRoleChange(u, newRole) {
   const uid = u.uid;
   const name = u.displayName || u.email;
-  const newRole = selectEl.value;
   const roleLabel = ROLE_LABEL_FN()[newRole];
   // BL-04 fix: promoting to 'agent' is also the moment a pending
   // requestedCompanyId (an unverified claim from signup -- see the
@@ -1764,8 +2117,14 @@ async function onRoleChange(u, selectEl) {
   const confirmMsg = grantingCompany
     ? `Change ${name}'s role to "${roleLabel}" and grant access to "${u.requestedCompanyName || u.requestedCompanyId}"? This gives them that company's team-scoped listing access.`
     : `Change ${name}'s role to "${roleLabel}"?` + (newRole === 'admin' ? ' This grants full admin access.' : '');
-  const ok = confirm(confirmMsg);
-  if (!ok) { renderUsers(); return; }
+  const ok = await window.AdminDialog.confirm({
+    title: () => trAdmin('admin.changeRoleTitle', 'Change role?'),
+    body: () => confirmMsg,
+    confirmLabel: () => trAdmin('admin.changeRoleConfirm', 'Change role'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+    danger: newRole === 'admin',
+  });
+  if (!ok) return;
   try {
     const update = { role: newRole };
     if (grantingCompany) update.companyId = u.requestedCompanyId;
@@ -1807,22 +2166,75 @@ const RD_TYPE_LABELS = {
   org_owner_furniture_store: () => trAdmin('auth.pro.typeFurnitureStore', 'Home Goods / Furniture Seller')
 };
 let rdInitialized = false;
+// Canonical checked-permission state (redesign v2). The split nav-rail +
+// single-panel layout only ever has ONE group's checkbox rows in the DOM
+// at a time (item 1/4) -- unmounted groups' inputs simply don't exist, so
+// unlike the old accordion (every group always in the DOM) the checked set
+// can no longer be read live via querySelectorAll. This Set is now the
+// only source of truth; every render (nav badges, active panel, search)
+// reads from it and every toggle/bulk action writes to it.
+let rdCheckedSet = new Set();
+// Which group's workspace is currently shown on the right.
+let rdActiveGroup = PERMISSION_GROUPS[0].key;
+// Snapshot of the last-loaded/last-saved permission set for the CURRENTLY
+// selected account type -- the baseline "Modified" counts against, and
+// what "Cancel changes"/"Reset to saved" reverts to. Not the same thing as
+// RECOMMENDED_ROLE_DEFAULTS, which is a per-accountType constant, not a
+// live baseline.
+let rdSavedKeys = new Set();
+// Real timestamp (unix seconds) of the currently-loaded doc's last write,
+// or null if this accountType has never been saved -- never fabricated;
+// read from rolePermissionDefaults/{accountType}.updatedAt (see
+// backend/app/access/permission_ops.py's set_role_defaults) or, right
+// after a successful save in this same session, set to "now" because the
+// save that just completed IS that timestamp.
+let rdLastSavedSeconds = null;
+const RD_PERM_META = {};
+const RD_PERM_GROUP_OF = {};
+PERMISSION_GROUPS.forEach((g) => g.permissions.forEach((p) => { RD_PERM_META[p.key] = p; RD_PERM_GROUP_OF[p.key] = g.key; }));
 
-function rdSetStatus(text, tone) {
+function rdPermLabel(key) {
+  const meta = RD_PERM_META[key];
+  return meta ? trAdmin(meta.labelKey, meta.labelFallback) : key;
+}
+
+// Which persistent (i.e. still-relevant, not a one-off action toast)
+// status message is currently shown, if any -- so rdRebuildForLang() can
+// re-translate it on a language switch instead of leaving it stuck in
+// whatever language was active when it was first set. loadRoleDefaults()
+// completes once per account-type load and its message stays on screen
+// indefinitely afterward (no timeout clears it), so it's exactly the kind
+// of text a language switch must not leave behind in the old language.
+// Every OTHER rdSetStatus() call (clear/cancel/save-in-progress/etc.) is
+// transient and passes no stateKey, which correctly resets this to null.
+let rdStatusState = null;
+let rdStatusTone = '';
+function rdSetStatus(text, tone, stateKey) {
+  rdStatusState = stateKey || null;
+  rdStatusTone = tone || '';
   const node = document.getElementById('rdStatus');
   node.textContent = text || '';
-  node.style.color = tone === 'error' ? '#ba1a1a' : (tone === 'ok' ? '#1b5e20' : '#44474c');
+  node.style.color = tone === 'error' ? 'var(--ash-error)' : (tone === 'ok' ? 'var(--ash-success)' : 'var(--ash-text-secondary)');
 }
-function rdCheckedKeys() {
-  return [...document.querySelectorAll('#rdGroups input[data-perm]:checked')].map(i => i.dataset.perm);
+const RD_STATUS_MESSAGES = {
+  loaded: ['admin.rd.loaded', 'Current defaults loaded.'],
+  none: ['admin.rd.none', 'No defaults saved yet for this account type — accounts of this type currently have no permissions.'],
+  loadError: ['admin.rd.loadError', 'Could not read the current defaults.'],
+};
+function rdSetPersistentStatus(stateKey, tone) {
+  const [key, fallback] = RD_STATUS_MESSAGES[stateKey];
+  rdSetStatus(trAdmin(key, fallback), tone, stateKey);
 }
+function rdCheckedKeys() { return [...rdCheckedSet]; }
 function rdSetChecks(keys) {
-  const set = new Set(keys);
-  document.querySelectorAll('#rdGroups input[data-perm]').forEach(i => { i.checked = set.has(i.dataset.perm); });
+  rdCheckedSet = new Set(keys);
+  rdRenderNavHtml();
+  rdRenderPanel(rdActiveGroup);
+  rdOnPermsChanged();
 }
 // Renders the exact set of keys "Apply recommended" is about to turn on,
 // before anything is written -- least-privilege review, not a silent
-// checkbox swap. Empty list hides the panel (nothing left to add).
+// toggle swap. Empty list hides the panel (nothing left to add).
 function rdShowDiff(addedKeys) {
   const panel = document.getElementById('rdDiffPanel');
   const list = document.getElementById('rdDiffList');
@@ -1830,53 +2242,363 @@ function rdShowDiff(addedKeys) {
   if (!addedKeys.length) { panel.classList.add('hidden'); return; }
   addedKeys.forEach(k => {
     const li = document.createElement('li');
-    li.textContent = k;
+    li.textContent = rdPermLabel(k);
     list.appendChild(li);
   });
   panel.classList.remove('hidden');
 }
 
+function rdStatusPillUpdate() {
+  const pill = document.getElementById('rdStatusPill');
+  const text = document.getElementById('rdStatusPillText');
+  const accountType = document.getElementById('rdAccountType').value;
+  const recommended = new Set(RECOMMENDED_ROLE_DEFAULTS[accountType] || []);
+  let tone = 'none';
+  let label = trAdmin('admin.rd.statusNone', 'No defaults set');
+  if (rdCheckedSet.size > 0) {
+    const isExactlyRecommended = recommended.size === rdCheckedSet.size && [...recommended].every((k) => rdCheckedSet.has(k));
+    if (isExactlyRecommended) { tone = 'recommended'; label = trAdmin('admin.rd.statusRecommended', 'Recommended defaults'); }
+    else { tone = 'custom'; label = trAdmin('admin.rd.statusCustom', 'Custom defaults'); }
+  }
+  pill.dataset.tone = tone;
+  text.textContent = label;
+}
+
+function rdSummaryUpdate() {
+  document.getElementById('rdSumEnabled').textContent = String(rdCheckedSet.size);
+  document.getElementById('rdSumTotal').textContent = String(KNOWN_PERMISSIONS.length);
+  const modified = [...rdCheckedSet].filter((k) => !rdSavedKeys.has(k)).length + [...rdSavedKeys].filter((k) => !rdCheckedSet.has(k)).length;
+  document.getElementById('rdSumModified').textContent = String(modified);
+  document.getElementById('rdLastSaved').textContent = rdLastSavedSeconds
+    ? trAdmin('admin.rd.lastSavedPrefix', 'Last saved ') + timeAgo(rdLastSavedSeconds)
+    : '';
+  return modified;
+}
+
+function rdFooterUpdate(modifiedCount) {
+  const footer = document.getElementById('rdFooter');
+  if (modifiedCount > 0) {
+    footer.hidden = false;
+    document.getElementById('rdFooterCount').textContent =
+      trAdmin('admin.rd.unsavedChanges', '{count} unsaved changes').replace('{count}', modifiedCount);
+  } else {
+    footer.hidden = true;
+  }
+}
+
+// Single entry point every permission-state-changing action funnels
+// through (manual toggle, Enable/Disable all, Apply Recommended, Clear
+// all, Cancel, account-type load) so the compact header readouts, status
+// pill and sticky footer never drift out of sync with rdCheckedSet.
+function rdOnPermsChanged() {
+  rdStatusPillUpdate();
+  const modified = rdSummaryUpdate();
+  rdFooterUpdate(modified);
+}
+
+// ---- Nav rail (left) ----------------------------------------------------
+function rdGroupCountHtml(g) {
+  const enabled = g.permissions.filter((p) => rdCheckedSet.has(p.key)).length;
+  return { enabled, total: g.permissions.length };
+}
+function rdRenderNavHtml() {
+  const nav = document.getElementById('rdGroupNav');
+  if (!nav) return;
+  nav.innerHTML = PERMISSION_GROUPS.map((g) => {
+    const { enabled, total } = rdGroupCountHtml(g);
+    const active = g.key === rdActiveGroup;
+    return `<button type="button" class="ash-pstudio-nav-item" role="tab" id="rdNavTab-${g.key}"
+        data-group-nav="${g.key}" aria-selected="${active}" aria-controls="rdGroupPanel" tabindex="${active ? '0' : '-1'}">
+      <span class="material-symbols-outlined ash-pstudio-nav-icon" aria-hidden="true">${escapeAdmin(g.icon || 'shield')}</span>
+      <span class="ash-pstudio-nav-text">
+        <span class="ash-pstudio-nav-name">${escapeAdmin(trAdmin(g.labelKey, g.fallback))}</span>
+        <span class="ash-pstudio-nav-count" data-any="${enabled > 0}" dir="ltr">${enabled}/${total}</span>
+      </span>
+    </button>`;
+  }).join('');
+}
+// Just the count badges (cheap, no full nav rebuild) -- used after a
+// single toggle so keyboard focus on the nav rail is never disturbed.
+function rdRenderNavCounts() {
+  PERMISSION_GROUPS.forEach((g) => {
+    const badge = document.querySelector(`#rdGroupNav [data-group-nav="${g.key}"] .ash-pstudio-nav-count`);
+    if (!badge) return;
+    const { enabled, total } = rdGroupCountHtml(g);
+    badge.textContent = `${enabled}/${total}`;
+    badge.dataset.any = enabled > 0 ? 'true' : 'false';
+  });
+}
+
+// ---- Active group workspace (right) -------------------------------------
+function rdRenderPanel(groupKey) {
+  const panel = document.getElementById('rdGroupPanel');
+  if (!panel) return;
+  const g = PERMISSION_GROUPS.find((x) => x.key === groupKey) || PERMISSION_GROUPS[0];
+  rdActiveGroup = g.key;
+  const { enabled, total } = rdGroupCountHtml(g);
+  panel.setAttribute('aria-labelledby', 'rdNavTab-' + g.key);
+  panel.innerHTML = `
+    <div class="ash-pstudio-panel-head">
+      <div>
+        <p class="ash-pstudio-panel-title">${escapeAdmin(trAdmin(g.labelKey, g.fallback))}</p>
+        <p class="ash-pstudio-panel-desc">${escapeAdmin(trAdmin(g.descKey, g.descFallback))}</p>
+      </div>
+      <div class="ash-pstudio-panel-summaryrow">
+        <span class="ash-pstudio-panel-count" dir="ltr">${enabled} ${escapeAdmin(trAdmin('admin.rd.ofWord', 'of'))} ${total} ${escapeAdmin(trAdmin('admin.rd.enabledWord', 'enabled'))}</span>
+        <div class="ash-pstudio-panel-actions">
+          <button type="button" class="ash-detail-btn" data-panel-enableall>${escapeAdmin(trAdmin('admin.rd.enableAll', 'Enable all'))}</button>
+          <button type="button" class="ash-detail-btn" data-panel-disableall>${escapeAdmin(trAdmin('admin.rd.disableAll', 'Disable all'))}</button>
+        </div>
+      </div>
+    </div>
+    <div class="ash-pstudio-rows" id="rdGroupRows">
+      ${g.permissions.map((p) => {
+        const checked = rdCheckedSet.has(p.key);
+        return `
+        <div class="ash-pstudio-row" data-perm-row="${p.key}" id="rdRow-${p.key}">
+          <div class="ash-pstudio-row-text">
+            <p class="ash-pstudio-row-label">${escapeAdmin(trAdmin(p.labelKey, p.labelFallback))}${p.rules ? `<span class="ash-perm-row-rules" title="${escapeAdmin(trAdmin('admin.rd.rulesEnforcedTitle', 'Enforced by Firestore rules today'))}">●</span>` : ''}</p>
+            <p class="ash-pstudio-row-desc">${escapeAdmin(trAdmin(p.descKey, p.descFallback))}</p>
+          </div>
+          <button type="button" role="switch" aria-checked="${checked}" aria-label="${escapeAdmin(trAdmin(p.labelKey, p.labelFallback))}" class="ash-pstudio-toggle${checked ? ' is-on' : ''}" data-perm="${p.key}"></button>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+// Cheap update of just the active panel's own "N of M enabled" readout --
+// used after a single toggle so the panel isn't fully rebuilt.
+function rdUpdatePanelHeaderCount() {
+  const g = PERMISSION_GROUPS.find((x) => x.key === rdActiveGroup);
+  if (!g) return;
+  const { enabled, total } = rdGroupCountHtml(g);
+  const el = document.querySelector('#rdGroupPanel .ash-pstudio-panel-count');
+  if (el) el.textContent = `${enabled} ${trAdmin('admin.rd.ofWord', 'of')} ${total} ${trAdmin('admin.rd.enabledWord', 'enabled')}`;
+}
+
+// Roving-tabindex arrow-key navigation across the nav rail (item 18).
+function rdSetActiveGroup(key, opts) {
+  if (!PERMISSION_GROUPS.some((g) => g.key === key)) return;
+  document.querySelectorAll('#rdGroupNav .ash-pstudio-nav-item').forEach((el) => {
+    const active = el.dataset.groupNav === key;
+    el.setAttribute('aria-selected', active ? 'true' : 'false');
+    el.tabIndex = active ? 0 : -1;
+  });
+  rdRenderPanel(key);
+  if (opts && opts.focus) {
+    const navBtn = document.getElementById('rdNavTab-' + key);
+    if (navBtn) navBtn.focus();
+  }
+  if (opts && opts.focusPerm) {
+    const row = document.getElementById('rdRow-' + opts.focusPerm);
+    const toggle = row && row.querySelector('[data-perm]');
+    if (row) {
+      row.classList.add('ash-pstudio-row--highlight');
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      setTimeout(() => row.classList.remove('ash-pstudio-row--highlight'), 1800);
+    }
+    if (toggle) toggle.focus();
+  }
+}
+function rdNavKeydown(e) {
+  const item = e.target.closest('[data-group-nav]');
+  if (!item) return;
+  const keys = PERMISSION_GROUPS.map((g) => g.key);
+  const idx = keys.indexOf(item.dataset.groupNav);
+  let next = -1;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') next = (idx + 1) % keys.length;
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') next = (idx - 1 + keys.length) % keys.length;
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = keys.length - 1;
+  if (next === -1) return;
+  e.preventDefault();
+  rdSetActiveGroup(keys[next], { focus: true });
+}
+
+// ---- Cross-group search (item 5): searches every group's permissions,
+// not just the currently open one; a result click opens that group and
+// highlights the matched row. --------------------------------------------
+function rdSearchIndex(term) {
+  const hay = term.toLowerCase();
+  const results = [];
+  PERMISSION_GROUPS.forEach((g) => {
+    g.permissions.forEach((p) => {
+      const label = rdPermLabel(p.key);
+      const desc = trAdmin(p.descKey, p.descFallback);
+      if ((label + ' ' + desc + ' ' + p.key).toLowerCase().includes(hay)) {
+        results.push({ groupKey: g.key, groupLabel: trAdmin(g.labelKey, g.fallback), permKey: p.key, label, desc });
+      }
+    });
+  });
+  return results;
+}
+function rdRenderSearchResults(results, term) {
+  const box = document.getElementById('rdSearchResults');
+  const input = document.getElementById('rdSearch');
+  if (!term) { box.hidden = true; box.innerHTML = ''; input.setAttribute('aria-expanded', 'false'); return; }
+  box.hidden = false;
+  input.setAttribute('aria-expanded', 'true');
+  if (!results.length) {
+    box.innerHTML = `<p class="ash-pstudio-search-empty">${escapeAdmin(trAdmin('admin.rd.searchNoResults', 'No permissions match "{term}".').replace('{term}', term))}</p>`;
+    return;
+  }
+  box.innerHTML = results.slice(0, 20).map((r) => `
+    <button type="button" class="ash-pstudio-search-result" role="option" data-search-group="${r.groupKey}" data-search-perm="${r.permKey}">
+      <span class="ash-pstudio-search-result-perm">${escapeAdmin(r.label)}</span>
+      <span class="ash-pstudio-search-result-group">${escapeAdmin(r.groupLabel)}</span>
+      <span class="ash-pstudio-search-result-desc">${escapeAdmin(r.desc)}</span>
+    </button>`).join('');
+}
+function rdApplySearch() {
+  const term = document.getElementById('rdSearch').value.trim();
+  rdRenderSearchResults(term ? rdSearchIndex(term) : [], term);
+}
+
+function rdClearAll() { rdSetChecks([]); rdShowDiff([]); rdSetStatus('', ''); }
+function rdCancelChanges() { rdSetChecks([...rdSavedKeys]); rdShowDiff([]); rdSetStatus('', ''); }
+// Distinct from the "Apply recommended" button (which only ever ADDS keys,
+// never removes an admin's own additions): this replaces the checked set
+// with EXACTLY the recommended list for this accountType, including
+// unchecking anything not on it. A firmer, more destructive reset, which
+// is why it lives in the overflow menu next to Clear all rather than as a
+// second prominent button.
+function rdRestoreRecommended() {
+  const accountType = document.getElementById('rdAccountType').value;
+  rdSetChecks(RECOMMENDED_ROLE_DEFAULTS[accountType] || []);
+  rdShowDiff([]);
+  rdSetStatus(trAdmin('admin.rd.recommendedRestored', 'Replaced with the recommended defaults — review, then Save.'), '');
+}
+
+function rdApplyLangStrings() {
+  const btn = document.getElementById('rdMoreMenuBtn');
+  if (btn) btn.setAttribute('aria-label', trAdmin('admin.rd.moreActions', 'More actions'));
+  const nav = document.getElementById('rdGroupNav');
+  if (nav) nav.setAttribute('aria-label', trAdmin('admin.rd.groupNavLabel', 'Permission groups'));
+}
+
+// Never render the raw accountType enum (e.g. "org_owner_developer") as
+// user-facing text (redesign v2, item 13A) -- only the localized label.
+function rdAccountOptionsHtml() {
+  return SELF_ACCOUNT_TYPES.map((t) =>
+    `<option value="${t}">${escapeAdmin(RD_TYPE_LABELS[t] ? RD_TYPE_LABELS[t]() : t)}</option>`
+  ).join('');
+}
+
+// Neither the account-type <select> nor the nav/panel text update live on
+// a language switch on their own (both are built from `trAdmin()` once,
+// like every other dynamically-rendered admin table on this page -- see
+// e.g. renderUsers()/renderAgentsTab(), none of which re-render on
+// darwesh:langchange either). This panel's own checked keys, active group
+// and search term are worth preserving across a rebuild though (an admin
+// mid-review who happens to switch language shouldn't lose their place),
+// so unlike those simpler tables this one explicitly re-renders itself and
+// restores exactly that state.
+function rdRebuildForLang() {
+  const sel = document.getElementById('rdAccountType');
+  const nav = document.getElementById('rdGroupNav');
+  if (!sel || !nav) return;
+  const searchTerm = document.getElementById('rdSearch').value;
+  const currentType = sel.value;
+  sel.innerHTML = rdAccountOptionsHtml();
+  sel.value = currentType;
+  rdRenderNavHtml();
+  rdRenderPanel(rdActiveGroup);
+  document.getElementById('rdSearch').value = searchTerm;
+  rdApplySearch();
+  rdApplyLangStrings();
+  // Fix for item 13B: loadRoleDefaults()'s own completion message (e.g.
+  // "No defaults saved yet…") has no timeout and can still be the visible
+  // #rdStatus text long after a language switch -- re-translate it rather
+  // than leaving it stuck in whatever language it was first shown in.
+  if (rdStatusState) rdSetPersistentStatus(rdStatusState, rdStatusTone);
+  // Same fix for the status pill ("No defaults set" / "Custom defaults" /
+  // "Recommended defaults") and the summary/footer text -- all reactive,
+  // but only re-rendered by rdOnPermsChanged(), which a language switch
+  // alone never triggers.
+  rdOnPermsChanged();
+}
+
 function renderRoleDefaultsPanel() {
   if (rdInitialized) return;
   const sel = document.getElementById('rdAccountType');
-  const groups = document.getElementById('rdGroups');
-  if (!sel || !groups) return;
+  const nav = document.getElementById('rdGroupNav');
+  const panel = document.getElementById('rdGroupPanel');
+  if (!sel || !nav || !panel) return;
   rdInitialized = true;
 
-  sel.innerHTML = '';
-  SELF_ACCOUNT_TYPES.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = `${RD_TYPE_LABELS[t] ? RD_TYPE_LABELS[t]() : t} (${t})`;
-    sel.appendChild(opt);
-  });
+  sel.innerHTML = rdAccountOptionsHtml();
   // Pre-select the type whose core flow (org-projects.html) is blocked
   // outright until defaults exist.
   sel.value = 'org_owner_developer';
 
-  groups.innerHTML = '';
-  PERMISSION_GROUPS.forEach(g => {
-    const fieldset = document.createElement('fieldset');
-    fieldset.className = 'border border-outline-variant rounded-lg p-3';
-    const legend = document.createElement('legend');
-    legend.className = 'admin-label px-1';
-    legend.textContent = trAdmin(g.labelKey, g.fallback);
-    fieldset.appendChild(legend);
-    g.permissions.forEach(p => {
-      const label = document.createElement('label');
-      label.className = 'flex items-center gap-2 font-body-md text-[13px] text-on-surface py-1 cursor-pointer';
-      const input = document.createElement('input');
-      input.type = 'checkbox';
-      input.dataset.perm = p.key;
-      const span = document.createElement('span');
-      span.textContent = (p.rules ? '● ' : '') + p.key;
-      label.append(input, span);
-      fieldset.appendChild(label);
-    });
-    groups.appendChild(fieldset);
+  rdActiveGroup = PERMISSION_GROUPS[0].key;
+  rdRenderNavHtml();
+  rdRenderPanel(rdActiveGroup);
+
+  nav.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-group-nav]');
+    if (item) rdSetActiveGroup(item.dataset.groupNav);
+  });
+  nav.addEventListener('keydown', rdNavKeydown);
+
+  // Delegated listeners on the panel container -- its innerHTML is
+  // replaced wholesale on every group switch, but listeners bound to the
+  // container itself (delegation) survive that.
+  panel.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-perm]');
+    if (toggle) {
+      const key = toggle.dataset.perm;
+      if (rdCheckedSet.has(key)) rdCheckedSet.delete(key); else rdCheckedSet.add(key);
+      const checked = rdCheckedSet.has(key);
+      toggle.setAttribute('aria-checked', checked ? 'true' : 'false');
+      toggle.classList.toggle('is-on', checked);
+      rdUpdatePanelHeaderCount();
+      rdRenderNavCounts();
+      rdOnPermsChanged();
+      return;
+    }
+    const enableAll = e.target.closest('[data-panel-enableall]');
+    if (enableAll) {
+      const group = PERMISSION_GROUPS.find((g) => g.key === rdActiveGroup);
+      group.permissions.forEach((p) => rdCheckedSet.add(p.key));
+      rdRenderPanel(rdActiveGroup);
+      rdRenderNavCounts();
+      rdOnPermsChanged();
+      return;
+    }
+    const disableAll = e.target.closest('[data-panel-disableall]');
+    if (disableAll) {
+      const group = PERMISSION_GROUPS.find((g) => g.key === rdActiveGroup);
+      group.permissions.forEach((p) => rdCheckedSet.delete(p.key));
+      rdRenderPanel(rdActiveGroup);
+      rdRenderNavCounts();
+      rdOnPermsChanged();
+    }
   });
 
-  sel.addEventListener('change', () => { rdShowDiff([]); loadRoleDefaults(sel.value); });
+  const searchInput = document.getElementById('rdSearch');
+  searchInput.addEventListener('input', rdApplySearch);
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { searchInput.value = ''; rdApplySearch(); } });
+  document.getElementById('rdSearchResults').addEventListener('click', (e) => {
+    const result = e.target.closest('[data-search-perm]');
+    if (!result) return;
+    rdSetActiveGroup(result.dataset.searchGroup, { focusPerm: result.dataset.searchPerm });
+    searchInput.value = '';
+    rdApplySearch();
+  });
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('rdSearchWrap');
+    if (wrap && !wrap.contains(e.target)) { document.getElementById('rdSearchResults').hidden = true; searchInput.setAttribute('aria-expanded', 'false'); }
+  });
+
+  const learnMoreBtn = document.getElementById('rdLearnMoreBtn');
+  learnMoreBtn.addEventListener('click', () => {
+    const body = document.getElementById('rdLearnMoreBody');
+    const open = body.classList.contains('hidden');
+    body.classList.toggle('hidden', !open);
+    learnMoreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  sel.addEventListener('change', () => { rdShowDiff([]); rdSetStatus('', ''); loadRoleDefaults(sel.value); });
   document.getElementById('rdApplyRecommended').addEventListener('click', () => {
     // Merge, never overwrite: an admin's own additions (or anything already
     // saved for this accountType beyond the recommended set) stay checked.
@@ -1884,7 +2606,7 @@ function renderRoleDefaultsPanel() {
     // recommended list adds that aren't already checked -- least-privilege
     // per accountType, and never a blanket reset of the panel.
     const recommended = RECOMMENDED_ROLE_DEFAULTS[sel.value] || [];
-    const current = new Set(rdCheckedKeys());
+    const current = new Set(rdCheckedSet);
     const added = recommended.filter((k) => !current.has(k));
     rdShowDiff(added);
     if (!added.length) {
@@ -1894,22 +2616,46 @@ function renderRoleDefaultsPanel() {
     rdSetChecks([...current, ...added]);
     rdSetStatus(trAdmin('admin.rd.recommendedApplied', 'Recommended defaults merged in — review the proposed additions below, then Save. Nothing already enabled was removed.'), '');
   });
-  document.getElementById('rdClearAll').addEventListener('click', () => { rdSetChecks([]); rdShowDiff([]); rdSetStatus('', ''); });
+  document.getElementById('rdCancelBtn').addEventListener('click', rdCancelChanges);
   document.getElementById('rdSave').addEventListener('click', saveRoleDefaults);
+
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(document.getElementById('roleDefaultsPanel'), () => [
+      { label: () => trAdmin('admin.rd.clearAll', 'Clear all permissions'), icon: 'remove_done', onClick: rdClearAll },
+      { label: () => trAdmin('admin.rd.resetToSaved', 'Reset to saved'), icon: 'restart_alt', onClick: rdCancelChanges },
+      { label: () => trAdmin('admin.rd.restoreRecommended', 'Restore recommended'), icon: 'auto_fix_high', onClick: rdRestoreRecommended }
+    ]);
+  }
+
+  rdApplyLangStrings();
   loadRoleDefaults(sel.value);
 }
+document.addEventListener('darwesh:langchange', () => { if (rdInitialized) rdRebuildForLang(); });
 
 async function loadRoleDefaults(accountType) {
   rdSetStatus(trAdmin('admin.rd.loading', 'Loading current defaults…'), '');
   try {
     const snap = await getDoc(doc(db, 'rolePermissionDefaults', accountType));
-    const perms = snap.exists() ? (snap.data().permissions || {}) : null;
-    rdSetChecks(perms ? Object.keys(perms).filter(k => perms[k] === true) : []);
-    if (perms) rdSetStatus(trAdmin('admin.rd.loaded', 'Current defaults loaded.'), 'ok');
-    else rdSetStatus(trAdmin('admin.rd.none', 'No defaults saved yet for this account type — accounts of this type currently have no permissions.'), '');
+    const data = snap.exists() ? snap.data() : null;
+    const perms = data ? (data.permissions || {}) : null;
+    const keys = perms ? Object.keys(perms).filter(k => perms[k] === true) : [];
+    rdSavedKeys = new Set(keys);
+    rdLastSavedSeconds = data && data.updatedAt && typeof data.updatedAt.seconds === 'number' ? data.updatedAt.seconds : null;
+    // Land on the first group with an enabled permission (so a reviewing
+    // admin sees something active immediately), or the first group if this
+    // accountType has no defaults yet.
+    const withAny = keys.length ? PERMISSION_GROUPS.find((g) => g.permissions.some((p) => keys.includes(p.key))) : null;
+    rdActiveGroup = (withAny || PERMISSION_GROUPS[0]).key;
+    rdSetChecks(keys);
+    document.getElementById('rdSearch').value = '';
+    rdApplySearch();
+    if (perms) rdSetPersistentStatus('loaded', 'ok');
+    else rdSetPersistentStatus('none', '');
   } catch (err) {
+    rdSavedKeys = new Set();
+    rdLastSavedSeconds = null;
     rdSetChecks([]);
-    rdSetStatus(trAdmin('admin.rd.loadError', 'Could not read the current defaults.'), 'error');
+    rdSetPersistentStatus('loadError', 'error');
   }
 }
 
@@ -1922,7 +2668,14 @@ async function saveRoleDefaults() {
   rdSetStatus(trAdmin('admin.rd.saving', 'Saving…'), '');
   try {
     await setRoleDefaults(auth.currentUser, { accountType, permissions });
+    rdSavedKeys = new Set(rdCheckedKeys());
+    // The write that just completed IS "now" -- real, not fabricated; the
+    // server's own SERVER_TIMESTAMP will read back the same instant on the
+    // next full loadRoleDefaults() (e.g. after switching account types and
+    // back).
+    rdLastSavedSeconds = Math.floor(Date.now() / 1000);
     rdShowDiff([]);
+    rdOnPermsChanged();
     rdSetStatus(trAdmin('admin.rd.saved', 'Saved. Accounts of this type use these defaults from their next write.'), 'ok');
   } catch (err) {
     // The backend's own rejection text (unknown/protected key, not an
@@ -2021,6 +2774,12 @@ async function renderMarketOverview() {
 // ---------------------------------------------------------------------
 let allListingsCache = [];
 let pinLat = null, pinLng = null;
+// Stage 3 table system -- same shape as usersState (js/admin-table-kit.js
+// primitives), filtering/sorting/paginating over allListingsCache
+// client-side. allListingsCache itself stays the canonical full array
+// (editListing/deleteListing/toggleListingStatus already look items up in
+// it by id) -- this only adds the view state layered on top of it.
+let listingsState = { search: '', city: 'all', type: 'all', status: 'all', sort: 'updated-desc', page: 1, pageSize: 25, selected: new Set(), initialized: false };
 
 function initListingsTab() {
   document.getElementById('fDealType').addEventListener('change', (e) => {
@@ -2373,7 +3132,15 @@ window.editListing = function (id) {
 };
 
 window.deleteListing = async function (id) {
-  if (!confirm(trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.'))) return;
+  const l = allListingsCache.find((x) => x.id === id);
+  const ok = await window.AdminDialog.confirm({
+    title: () => trAdmin('admin.deleteListingTitle', 'Delete listing?'),
+    body: () => (l ? `${trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.')} (${l.title})` : trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.')),
+    confirmLabel: () => trAdmin('common.delete', 'Delete'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await deleteDoc(doc(db, 'listings', id));
     renderListingsTable();
@@ -2383,58 +3150,252 @@ window.deleteListing = async function (id) {
   }
 };
 
-async function renderListingsTable() {
-  const snap = await getDocs(collection(db, 'listings'));
-  const body = document.getElementById('listingsBody');
-  const empty = document.getElementById('listingsEmpty');
+// listingsCityFilter's options depend on the fetched data (which cities
+// are actually in use), so unlike the other filters it's rebuilt on every
+// renderListingsTable() fetch, not just once in ensureListingsShell() --
+// otherwise the dropdown would be stuck permanently empty (built once,
+// before the first fetch ever populated allListingsCache). Preserves the
+// current selection across the rebuild when it's still a valid city.
+function populateListingsCityFilter() {
+  const sel = document.getElementById('listingsCityFilter');
+  const prev = sel.value || 'all';
+  const cities = [...new Set(allListingsCache.map((l) => l.city).filter(Boolean))].sort();
+  sel.innerHTML =
+    `<option value="all" data-i18n="admin.filterAll">${escapeAdmin(trAdmin('admin.filterAll', 'All'))}</option>` +
+    cities.map((c) => `<option value="${escapeAdmin(c)}">${escapeAdmin(window.cityLabel ? window.cityLabel(c) : c)}</option>`).join('');
+  sel.value = (prev === 'all' || cities.includes(prev)) ? prev : 'all';
+}
 
+// Stage 3 table system -- same shape as ensureUsersShell()/renderUsersTable()
+// above: allListingsCache is the full fetched array (still the thing
+// editListing/deleteListing/toggleListingStatus look items up in by id),
+// listingsState layers client-side filter/sort/paginate/select on top of
+// it, wired once via ensureListingsShell(). Only listingsCityFilter's
+// options depend on fetched data (see populateListingsCityFilter above) --
+// everything else here is static and safe to build before any fetch.
+function ensureListingsShell() {
+  if (listingsState.initialized) return;
+  listingsState.initialized = true;
+
+  const PROPERTY_TYPE_KEYS = { house: 'map.house', villa: 'map.villa', apartment: 'map.apartment', land: 'map.land', building: 'map.building', office: 'map.office', shop: 'map.shop', commercialProperty: 'map.commercialProperty' };
+  document.getElementById('listingsTypeFilter').innerHTML =
+    `<option value="all" data-i18n="admin.filterAll">${escapeAdmin(trAdmin('admin.filterAll', 'All'))}</option>` +
+    Object.keys(PROPERTY_TYPE_KEYS).map((t) => `<option value="${t}" data-i18n="${PROPERTY_TYPE_KEYS[t]}">${escapeAdmin(trAdmin(PROPERTY_TYPE_KEYS[t], t))}</option>`).join('');
+
+  document.getElementById('listingsStatusFilter').innerHTML = `
+    <option value="all" data-i18n="admin.filterAll">${escapeAdmin(trAdmin('admin.filterAll', 'All'))}</option>
+    <option value="active" data-i18n="admin.listings.statusActive">${escapeAdmin(trAdmin('admin.listings.statusActive', 'Active'))}</option>
+    <option value="closed" data-i18n="admin.listings.statusClosed">${escapeAdmin(trAdmin('admin.listings.statusClosed', 'Closed'))}</option>
+  `;
+  document.getElementById('listingsSortSelect').innerHTML = `
+    <option value="updated-desc" data-i18n="admin.entity.sortNewest">${escapeAdmin(trAdmin('admin.entity.sortNewest', 'Newest first'))}</option>
+    <option value="updated-asc" data-i18n="admin.entity.sortOldest">${escapeAdmin(trAdmin('admin.entity.sortOldest', 'Oldest first'))}</option>
+    <option value="price-desc" data-i18n="admin.listings.sortPriceDesc">${escapeAdmin(trAdmin('admin.listings.sortPriceDesc', 'Price (high to low)'))}</option>
+    <option value="price-asc" data-i18n="admin.listings.sortPriceAsc">${escapeAdmin(trAdmin('admin.listings.sortPriceAsc', 'Price (low to high)'))}</option>
+  `;
+
+  let searchTimer = null;
+  document.getElementById('listingsSearchInput').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    const val = e.target.value;
+    searchTimer = setTimeout(() => { listingsState.search = val; listingsState.page = 1; renderListingsRows(); }, 180);
+  });
+  document.getElementById('listingsCityFilter').addEventListener('change', (e) => { listingsState.city = e.target.value; listingsState.page = 1; renderListingsRows(); });
+  document.getElementById('listingsTypeFilter').addEventListener('change', (e) => { listingsState.type = e.target.value; listingsState.page = 1; renderListingsRows(); });
+  document.getElementById('listingsStatusFilter').addEventListener('change', (e) => { listingsState.status = e.target.value; listingsState.page = 1; renderListingsRows(); });
+  document.getElementById('listingsSortSelect').addEventListener('change', (e) => { listingsState.sort = e.target.value; renderListingsRows(); });
+
+  document.getElementById('listingsSelectAll').addEventListener('change', (e) => {
+    document.querySelectorAll('#listingsBody [data-listing-select]').forEach((cb) => {
+      cb.checked = e.target.checked;
+      if (e.target.checked) listingsState.selected.add(cb.dataset.listingSelect); else listingsState.selected.delete(cb.dataset.listingSelect);
+      const tr = cb.closest('tr');
+      tr?.classList.toggle('is-selected', e.target.checked);
+      tr?.setAttribute('aria-selected', String(e.target.checked));
+    });
+    renderListingsBulkBar();
+  });
+  document.getElementById('listingsBody').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-listing-select]');
+    if (!cb) return;
+    if (cb.checked) listingsState.selected.add(cb.dataset.listingSelect); else listingsState.selected.delete(cb.dataset.listingSelect);
+    const tr = cb.closest('tr');
+    tr?.classList.toggle('is-selected', cb.checked);
+    tr?.setAttribute('aria-selected', String(cb.checked));
+    renderListingsBulkBar();
+  });
+
+  // Stage 3: one shared "..." menu per row instead of 3 separate icon
+  // buttons (mark sold/active, edit, delete) -- wired once via
+  // delegation, not per-row, so it keeps working across every re-render.
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(document.getElementById('listingsBody'), (trigger) => {
+      const id = trigger.closest('tr').dataset.listingId;
+      const l = allListingsCache.find((x) => x.id === id);
+      if (!l) return [];
+      const isClosed = l.status === 'closed';
+      const closeLabel = l.dealType === 'rent' ? trAdmin('admin.markRented', 'Mark as Rented') : trAdmin('admin.markSold', 'Mark as Sold');
+      return [
+        { label: () => trAdmin('common.view', 'View'), icon: 'visibility', onClick: () => window.open('listing.html?id=' + encodeURIComponent(id), '_blank', 'noopener') },
+        { label: () => trAdmin('common.edit', 'Edit'), icon: 'edit', onClick: () => window.editListing(id) },
+        { label: () => (isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel), icon: isClosed ? 'restart_alt' : 'sell', onClick: () => window.toggleListingStatus(id) },
+        { label: () => trAdmin('common.delete', 'Delete'), icon: 'delete', danger: true, onClick: () => window.deleteListing(id) },
+      ];
+    });
+  }
+}
+
+async function renderListingsTable() {
+  ensureListingsShell();
+  // Stage 3: skeleton rows while the fetch below is in flight -- keeps
+  // the table's own dimensions stable, matching renderUsers()'s loading
+  // state instead of a large centered spinner.
+  if (!allListingsCache.length) {
+    document.getElementById('listingsBody').innerHTML = ashSkeletonRows(6, 8);
+  }
+  const snap = await getDocs(collection(db, 'listings'));
   allListingsCache = [];
   snap.forEach(d => allListingsCache.push({ id: d.id, ...d.data() }));
+  populateListingsCityFilter();
+  listingsState.selected = new Set();
+  listingsState.page = 1;
+  renderListingsRows();
+}
 
-  if (allListingsCache.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+function renderListingsBulkBar() {
+  const n = listingsState.selected.size;
+  ashBulkBar('listingsBulkBar', {
+    count: n,
+    countLabel: trAdmin('admin.bulkSelectedCount', '{count} selected'),
+    actions: [
+      { label: trAdmin('admin.listings.bulkMarkClosed', 'Mark as Closed'), icon: 'sell', onClick: () => bulkListingStatus('closed') },
+      { label: trAdmin('admin.markActive', 'Mark as Active'), icon: 'restart_alt', onClick: () => bulkListingStatus('active') },
+    ],
+    onClear: () => {
+      listingsState.selected.clear();
+      document.querySelectorAll('#listingsBody [data-listing-select]').forEach((cb) => { cb.checked = false; cb.closest('tr')?.classList.remove('is-selected'); });
+      const selectAll = document.getElementById('listingsSelectAll');
+      if (selectAll) selectAll.checked = false;
+      renderListingsBulkBar();
+    },
+    clearLabel: trAdmin('admin.clearSelection', 'Clear selection'),
+  });
+}
+
+async function bulkListingStatus(newStatus) {
+  const ids = [...listingsState.selected];
+  if (!ids.length) return;
+  const ok = await window.AdminDialog.confirm({
+    title: () => (newStatus === 'closed' ? trAdmin('admin.listings.bulkMarkClosed', 'Mark as Closed') : trAdmin('admin.markActive', 'Mark as Active')),
+    body: () => trAdmin('admin.listings.bulkStatusBody', 'Update {count} listings?').replace('{count}', String(ids.length)),
+    confirmLabel: () => trAdmin('common.confirm', 'Confirm'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+  });
+  if (!ok) return;
+  const results = await Promise.allSettled(ids.map((id) => updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() })));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (window.AdminShellToast) {
+    window.AdminShellToast(failed ? trAdmin('admin.bulkPartialFailure', '{ok} updated, {failed} failed.').replace('{ok}', String(ids.length - failed)).replace('{failed}', String(failed)) : trAdmin('admin.bulkSuccess', '{count} accounts updated.').replace('{count}', String(ids.length)), failed ? 'error' : 'success');
+  }
+  renderListingsTable();
+}
+
+function renderListingsRows() {
+  const tbody = document.getElementById('listingsBody');
+  const cards = document.getElementById('listingsCards');
+  const empty = document.getElementById('listingsEmpty');
+  const countEl = document.getElementById('listingsCount');
+  if (!tbody || !cards) return;
+
+  const q = listingsState.search.trim().toLowerCase();
+  let rows = allListingsCache.filter((l) => {
+    if (listingsState.city !== 'all' && l.city !== listingsState.city) return false;
+    if (listingsState.type !== 'all' && l.propertyType !== listingsState.type) return false;
+    if (listingsState.status !== 'all' && (l.status === 'closed' ? 'closed' : 'active') !== listingsState.status) return false;
+    if (q && !((l.title || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  rows.sort((a, b) => {
+    if (listingsState.sort === 'price-desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
+    if (listingsState.sort === 'price-asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
+    if (listingsState.sort === 'updated-asc') return (a.updatedAt?.seconds || 0) - (b.updatedAt?.seconds || 0);
+    return (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0);
+  });
+
+  countEl.textContent = trAdmin('admin.entity.countLabelListings', '{n} listings').replace('{n}', String(rows.length));
+
+  if (allListingsCache.length === 0) {
+    tbody.innerHTML = ''; cards.innerHTML = ''; empty.classList.remove('hidden');
+    document.getElementById('listingsPagination').innerHTML = '';
+    renderListingsBulkBar();
+    return;
+  }
   empty.classList.add('hidden');
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    cards.innerHTML = `<div class="ash-entity-empty">${escapeAdmin(trAdmin('admin.entity.noResultsListings', 'No properties match your filters.'))}</div>`;
+    document.getElementById('listingsPagination').innerHTML = '';
+    return;
+  }
 
-  allListingsCache.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+  const start = (listingsState.page - 1) * listingsState.pageSize;
+  const pageRows = rows.slice(start, start + listingsState.pageSize);
 
-  body.innerHTML = '';
-  allListingsCache.forEach(l => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
+  tbody.innerHTML = pageRows.map((l) => {
+    const img = listingImageUrl(l);
+    const updated = l.updatedAt?.seconds ? new Date(l.updatedAt.seconds * 1000).toLocaleDateString() : '—';
+    const priceStr = `$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? trAdmin('common.perMonthSuffix', '/mo') : ''}`;
+    return `
+    <tr data-listing-id="${escapeAdmin(l.id)}" class="${listingsState.selected.has(l.id) ? 'is-selected' : ''}" aria-selected="${listingsState.selected.has(l.id) ? 'true' : 'false'}">
+      <td class="ash-cell-check"><input type="checkbox" class="ash-checkbox" data-listing-select="${escapeAdmin(l.id)}" ${listingsState.selected.has(l.id) ? 'checked' : ''} aria-label="${escapeAdmin(trAdmin('admin.listings.selectListing', 'Select {title}').replace('{title}', l.title || l.id))}"/></td>
       <td>
-        <p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(l.title)}</p>
-        <p class="font-body-md text-[12px] text-on-surface-variant">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
+        <div class="ash-cell-entity">
+          <span class="ash-cell-thumb-wrap">${img ? `<img class="ash-cell-thumb" src="${escapeAdmin(img)}" alt="" loading="lazy"/>` : `<span class="ash-cell-thumb-fallback"><span class="material-symbols-outlined" aria-hidden="true">home_work</span></span>`}</span>
+          <div class="ash-cell-entity-text">
+            <p class="ash-cell-entity-title">${escapeAdmin(l.title)}</p>
+            <p class="ash-cell-entity-meta">${escapeAdmin(l.address)}</p>
+          </div>
+        </div>
       </td>
+      <td>${escapeAdmin(window.cityLabel ? window.cityLabel(l.city) : l.city)}</td>
       <td>${escapeAdmin(l.agentName) || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
+      <td class="ash-cell-num"><span dir="ltr">${priceStr}</span></td>
       <td>
         <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent')}</span>
-        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeAdmin(l.propertyType)}</div>
-      </td>
-      <td>$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
-      <td>
-        ${l.status === 'closed' ? '<span class="badge" style="background:#e5e8ee; color:#181c20;">' + (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) + '</span>' : ''}
+        ${l.status === 'closed' ? '<span class="badge badge-closed">' + (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) + '</span>' : ''}
         ${l.verified ? '<span class="badge badge-verified">' + trAdmin('common.verified','Verified') + '</span>' : ''}
         ${l.private ? '<span class="badge badge-private">' + trAdmin('map.privateListing','Private') + '</span>' : ''}
       </td>
-      <td></td>
-    `;
-    const statusBtn = document.createElement('button');
-    statusBtn.className = 'icon-btn'; statusBtn.type = 'button';
-    const isClosed = l.status === 'closed';
-    const closeLabel = l.dealType === 'rent' ? trAdmin('admin.markRented', 'Mark as Rented') : trAdmin('admin.markSold', 'Mark as Sold');
-    statusBtn.title = isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel;
-    statusBtn.innerHTML = `<span class="material-symbols-outlined" style="font-size:18px;">${isClosed ? 'restart_alt' : 'sell'}</span>`;
-    statusBtn.addEventListener('click', () => window.toggleListingStatus(l.id));
-    const editBtn = document.createElement('button');
-    editBtn.className = 'icon-btn'; editBtn.type = 'button'; editBtn.title = trAdmin('common.edit','Edit');
-    editBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">edit</span>';
-    editBtn.addEventListener('click', () => window.editListing(l.id));
-    const delBtn = document.createElement('button');
-    delBtn.className = 'icon-btn danger'; delBtn.type = 'button'; delBtn.title = trAdmin('common.delete','Delete');
-    delBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">delete</span>';
-    delBtn.addEventListener('click', () => window.deleteListing(l.id));
-    tr.lastElementChild.append(statusBtn, editBtn, delBtn);
-    body.appendChild(tr);
-  });
+      <td><span dir="ltr">${updated}</span></td>
+      <td><button type="button" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${escapeAdmin(trAdmin('admin.rowActions', 'Row actions'))}"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></button></td>
+    </tr>`;
+  }).join('');
+
+  cards.innerHTML = pageRows.map((l) => {
+    const img = listingImageUrl(l);
+    const priceStr = `$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? trAdmin('common.perMonthSuffix', '/mo') : ''}`;
+    return `
+    <div class="ash-entity-card" data-listing-id="${escapeAdmin(l.id)}">
+      <div class="ash-entity-card-head">
+        <div class="ash-cell-entity">
+          <span class="ash-cell-thumb-wrap">${img ? `<img class="ash-cell-thumb" src="${escapeAdmin(img)}" alt="" loading="lazy"/>` : `<span class="ash-cell-thumb-fallback"><span class="material-symbols-outlined" aria-hidden="true">home_work</span></span>`}</span>
+          <div>
+            <div class="ash-entity-card-title">${escapeAdmin(l.title)}</div>
+            <div class="ash-entity-card-sub"><span dir="ltr">${priceStr}</span> · ${escapeAdmin(window.cityLabel ? window.cityLabel(l.city) : l.city)}</div>
+          </div>
+        </div>
+        <span class="badge ${l.status === 'closed' ? 'badge-closed' : (l.dealType === 'sale' ? 'badge-sale' : 'badge-rent')}">${l.status === 'closed' ? (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) : (l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent'))}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  ashPaginate('listingsPagination', rows.length, listingsState, (p) => { listingsState.page = p; renderListingsRows(); });
+  renderListingsBulkBar();
+  const selectAll = document.getElementById('listingsSelectAll');
+  if (selectAll) {
+    const pageIds = pageRows.map((l) => l.id);
+    selectAll.checked = pageIds.length > 0 && pageIds.every((id) => listingsState.selected.has(id));
+  }
 }
 
 // Available to admin for any listing (agent-dashboard.html has the
@@ -3226,8 +4187,9 @@ function createListingFromSubmission(id) {
   closeRequestDetail();
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
-  document.getElementById('tab-listings').classList.add('active');
+  document.querySelector('.admin-tab[data-tab="properties"]').classList.add('active');
+  document.getElementById('tab-properties').classList.add('active');
+  renderPropertiesHub('listings');
 
   resetListingForm();
   document.getElementById('sourceSubmissionId').value = id;
@@ -3275,6 +4237,80 @@ function createListingFromSubmission(id) {
 }
 
 // ---------------------------------------------------------------------
+// Overview "Needs Attention" (redesign Stage 4) -- real pending-item
+// counts, computed the exact same way each item's own hub already
+// classifies "pending" (organizations: STATUS_LABEL_KEY's fallback in
+// admin-orgs-pros.js; projects: renderPendingProjectsRows' own filter).
+// Jumps reuse the same .admin-tab/.admin-tab-panel toggle
+// window.jumpToListingFromMap already does, not a new navigation
+// mechanism.
+// ---------------------------------------------------------------------
+function ashJumpToHub(tab, subtab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.admin-tab[data-tab="${tab}"]`)?.classList.add('active');
+  document.getElementById(`tab-${tab}`)?.classList.add('active');
+  if (tab === 'sales') renderSalesHub(subtab);
+  else if (tab === 'properties') renderPropertiesHub(subtab);
+  else if (tab === 'people') renderPeopleHub(subtab);
+}
+
+function renderNeedsAttention(submissions, orgs, projects) {
+  const host = document.getElementById('dashNeedsAttention');
+  if (!host) return;
+  const pendingSubmissions = submissions.filter(s => s.status === 'pending').length;
+  const pendingOrgs = orgs.filter(o => (o.status || (o.verified ? 'active' : 'pending')) === 'pending').length;
+  const pendingProjects = projects.filter(p => p.publicationStatus === 'pending_review' || p.revisionStatus === 'pending_review').length;
+
+  const items = [
+    pendingSubmissions ? {
+      count: pendingSubmissions,
+      titleKey: ['admin.attn.submissions', '{n} Sell / viewing requests pending'],
+      meta: trAdmin('admin.attn.submissionsMeta', 'Sales → Requests'),
+      onClick: () => ashJumpToHub('sales', 'requests'),
+    } : null,
+    pendingProjects ? {
+      count: pendingProjects,
+      titleKey: ['admin.attn.projects', '{n} projects awaiting review'],
+      meta: trAdmin('admin.attn.projectsMeta', 'Properties → Projects'),
+      onClick: () => ashJumpToHub('properties', 'projects'),
+    } : null,
+    pendingOrgs ? {
+      count: pendingOrgs,
+      titleKey: ['admin.attn.orgs', '{n} organizations awaiting verification'],
+      meta: trAdmin('admin.attn.orgsMeta', 'People → Organizations'),
+      onClick: () => ashJumpToHub('people', 'organizations'),
+    } : null,
+  ].filter(Boolean);
+
+  if (!items.length) {
+    host.innerHTML = `
+      <div class="ash-attention-panel">
+        <div class="ash-attention-head"><span class="ash-attention-title-row">${escapeAdmin(trAdmin('admin.attn.title', 'Needs attention'))}</span></div>
+        <p class="ash-attention-empty">${escapeAdmin(trAdmin('admin.attn.empty', 'Nothing needs action right now.'))}</p>
+      </div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="ash-attention-panel">
+      <div class="ash-attention-head"><span class="ash-attention-title-row">${escapeAdmin(trAdmin('admin.attn.title', 'Needs attention'))}</span></div>
+      ${items.map((it, i) => `
+        <button type="button" class="ash-attention-item" data-attn-idx="${i}">
+          <div class="ash-attention-item-body">
+            <p class="ash-attention-item-title">${escapeAdmin(trAdmin(it.titleKey[0], it.titleKey[1]).replace('{n}', String(it.count)))}</p>
+            <p class="ash-attention-item-meta">${escapeAdmin(it.meta)}</p>
+          </div>
+          <span class="ash-attention-item-cta">${escapeAdmin(trAdmin('admin.attn.open', 'Open'))}<span class="material-symbols-outlined" aria-hidden="true" style="font-size:15px;">arrow_forward</span></span>
+        </button>
+      `).join('')}
+    </div>`;
+  host.querySelectorAll('[data-attn-idx]').forEach((btn) => {
+    btn.addEventListener('click', () => items[Number(btn.dataset.attnIdx)].onClick());
+  });
+}
+
+// ---------------------------------------------------------------------
 // Dashboard, Branches, Agents, Leaderboard tabs — all computed live from
 // the same listings/users/companies/submissions collections the rest of
 // this dashboard already reads. No simulated or placeholder figures.
@@ -3289,13 +4325,18 @@ function timeAgo(seconds) {
 }
 
 async function renderDashboardTab() {
-  const [listingsSnap, submissionsSnap, companiesSnap] = await Promise.all([
+  const [listingsSnap, submissionsSnap, companiesSnap, orgsSnap, projectsSnap] = await Promise.all([
     getDocs(collection(db, 'listings')),
     getDocs(collection(db, 'submissions')),
-    getDocs(collection(db, 'companies'))
+    getDocs(collection(db, 'companies')),
+    getDocs(collection(db, 'organizations')),
+    getDocs(collection(db, 'projects'))
   ]);
   const listings = []; listingsSnap.forEach(d => listings.push({ id: d.id, ...d.data() }));
   const submissions = []; submissionsSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
+  const orgsForAttention = []; orgsSnap.forEach(d => orgsForAttention.push(d.data()));
+  const projectsForAttention = []; projectsSnap.forEach(d => projectsForAttention.push(d.data()));
+  renderNeedsAttention(submissions, orgsForAttention, projectsForAttention);
 
   const nowSec = Math.floor(Date.now() / 1000);
   const weekAgoSec = nowSec - 7 * 86400;
@@ -3530,8 +4571,9 @@ function renderDashPriceTrends(cities, listings) {
 window.jumpToListingFromMap = function (id) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
-  document.getElementById('tab-listings').classList.add('active');
+  document.querySelector('.admin-tab[data-tab="properties"]').classList.add('active');
+  document.getElementById('tab-properties').classList.add('active');
+  renderPropertiesHub('listings');
   renderListingsTable().then(() => {
     window.editListing(id);
     document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3632,7 +4674,7 @@ async function renderBranchesTab() {
 
   body.innerHTML = branches.map(b => `
     <tr>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escAdmin(b.name || b.id)}</p></td>
+      <td><p class="ash-cell-entity-title">${escAdmin(b.name || b.id)}</p></td>
       <td>
         <div class="flex items-center gap-1.5">
           <p class="font-body-md text-[12.5px] ${b.address ? 'text-on-surface' : 'text-on-surface-variant italic'} truncate" style="max-width:220px;">${b.address ? escAdmin(b.address) : trAdmin('admin.noAddressSet', 'No address set')}</p>
@@ -3641,9 +4683,9 @@ async function renderBranchesTab() {
           </button>
         </div>
       </td>
-      <td>${agentCounts[b.id] || 0}</td>
-      <td>${listingCounts[b.id] || 0}</td>
-      <td>$${(portfolioValues[b.id] || 0).toLocaleString()}</td>
+      <td class="ash-cell-num">${agentCounts[b.id] || 0}</td>
+      <td class="ash-cell-num">${listingCounts[b.id] || 0}</td>
+      <td class="ash-cell-num">$${(portfolioValues[b.id] || 0).toLocaleString()}</td>
       <td>${b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
     </tr>`).join('');
 
@@ -3710,14 +4752,14 @@ async function renderAgentsTab() {
             ? `<img loading="lazy" src="${escapeAdmin(a.photoURL)}" class="w-8 h-8 rounded-full object-cover flex-none" decoding="async"/>`
             : `<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
           <div class="min-w-0">
-            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
-            <p class="font-body-md text-[12px] text-on-surface-variant truncate">${escapeAdmin(a.email)}</p>
+            <p class="ash-cell-entity-title truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
+            <p class="ash-cell-entity-meta truncate">${escapeAdmin(a.email)}</p>
           </div>
         </div>
       </td>
       <td>${escapeAdmin(a.companyName)}</td>
-      <td>${a.listingCount}</td>
-      <td>${a.verifiedCount}</td>
+      <td class="ash-cell-num">${a.listingCount}</td>
+      <td class="ash-cell-num">${a.verifiedCount}</td>
       <td>${a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
     </tr>`).join('');
 }
@@ -4162,10 +5204,10 @@ async function renderLeaderboardTab() {
   body.innerHTML = agents.map((a, i) => `
     <tr>
       <td><span class="badge ${i === 0 ? 'badge-verified' : 'badge-private'}">#${i + 1}</span></td>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(a.displayName) || '(no name)'}</p></td>
+      <td><p class="ash-cell-entity-title">${escapeAdmin(a.displayName) || '(no name)'}</p></td>
       <td>${escapeAdmin(a.companyName)}</td>
-      <td>${a.listingCount}</td>
-      <td>${a.verifiedCount}</td>
+      <td class="ash-cell-num">${a.listingCount}</td>
+      <td class="ash-cell-num">${a.verifiedCount}</td>
     </tr>`).join('');
 }
 </script>

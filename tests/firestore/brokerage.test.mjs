@@ -165,3 +165,72 @@ describe('brokerageFeeSnapshots -- admin(+brokerage.manage) read only, never cli
     }));
   });
 });
+
+// =====================================================================
+// Phase 2: policy engine -- same Pattern B posture as the two collections
+// above. Policies are admin-defined DEFAULT rules (role/city percentages,
+// dated campaigns); no client SDK caller, including an admin's own
+// session, may ever write brokerageDiscountPolicies or
+// brokerageDiscountPolicyHistory -- only the Admin SDK via
+// app.brokerage.brokerage_ops.
+describe('brokerageDiscountPolicies -- admin(+brokerage.manage) read only, never client-written', () => {
+  beforeEach(async () => {
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'brokerageDiscountPolicies', 'p1'), {
+        name: 'Agents 10%', accountType: 'real_estate_agent', city: null, percent: 10, status: 'active',
+      });
+    });
+  });
+
+  it('an admin WITH brokerage.manage can read a policy', async () => {
+    await assertSucceeds(getDoc(doc(dbFor(testEnv, ADMIN_WITH), 'brokerageDiscountPolicies', 'p1')));
+  });
+
+  it('a plain admin WITHOUT brokerage.manage cannot read a policy', async () => {
+    await assertFails(getDoc(doc(dbFor(testEnv, ADMIN_WITHOUT), 'brokerageDiscountPolicies', 'p1')));
+  });
+
+  it('a non-admin cannot read a policy at all', async () => {
+    await assertFails(getDoc(doc(dbFor(testEnv, ALICE), 'brokerageDiscountPolicies', 'p1')));
+    await assertFails(getDoc(doc(dbFor(testEnv, BOB), 'brokerageDiscountPolicies', 'p1')));
+  });
+
+  it('a policy is never client-written -- not by a plain admin, and not even by an admin holding brokerage.manage', async () => {
+    await assertFails(updateDoc(doc(dbFor(testEnv, ADMIN_WITHOUT), 'brokerageDiscountPolicies', 'p1'), { percent: 90 }));
+    await assertFails(updateDoc(doc(dbFor(testEnv, ADMIN_WITH), 'brokerageDiscountPolicies', 'p1'), { percent: 90 }));
+    await assertFails(setDoc(doc(dbFor(testEnv, ADMIN_WITH), 'brokerageDiscountPolicies', 'forged'), {
+      name: 'Forged', percent: 100, status: 'active',
+    }));
+  });
+});
+
+describe('brokerageDiscountPolicyHistory -- admin(+brokerage.manage) read only, never client-written', () => {
+  beforeEach(async () => {
+    await seed(testEnv, async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'brokerageDiscountPolicyHistory', 'h1'), {
+        policyId: 'p1', action: 'create', previousValue: null, newValue: { percent: 10 }, changedBy: ADMIN_WITH,
+      });
+    });
+  });
+
+  it('an admin WITH brokerage.manage can read policy history', async () => {
+    await assertSucceeds(getDoc(doc(dbFor(testEnv, ADMIN_WITH), 'brokerageDiscountPolicyHistory', 'h1')));
+  });
+
+  it('a plain admin WITHOUT brokerage.manage cannot read policy history', async () => {
+    await assertFails(getDoc(doc(dbFor(testEnv, ADMIN_WITHOUT), 'brokerageDiscountPolicyHistory', 'h1')));
+  });
+
+  it('a non-admin cannot read policy history at all', async () => {
+    await assertFails(getDoc(doc(dbFor(testEnv, ALICE), 'brokerageDiscountPolicyHistory', 'h1')));
+    await assertFails(getDoc(doc(dbFor(testEnv, BOB), 'brokerageDiscountPolicyHistory', 'h1')));
+  });
+
+  it('policy history is never client-written -- not by a plain admin, and not even by an admin holding brokerage.manage', async () => {
+    await assertFails(updateDoc(doc(dbFor(testEnv, ADMIN_WITHOUT), 'brokerageDiscountPolicyHistory', 'h1'), { reason: 'tampered' }));
+    await assertFails(updateDoc(doc(dbFor(testEnv, ADMIN_WITH), 'brokerageDiscountPolicyHistory', 'h1'), { reason: 'tampered' }));
+    await assertFails(setDoc(doc(dbFor(testEnv, ADMIN_WITH), 'brokerageDiscountPolicyHistory', 'forged'), {
+      policyId: 'p1', action: 'update', changedBy: ADMIN_WITH,
+    }));
+  });
+});

@@ -17,67 +17,84 @@
   function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 
   // One row per real destination. `tab` must match an existing
-  // `data-tab="X"` / `id="tab-X"` pair. `soon: true` marks the nine
-  // sections this phase ships as an honest roadmap placeholder rather than
-  // a fabricated feature (see the nine `tab-*` placeholder <section>s added
-  // to admin.html alongside this file) -- distinct from `alias: true`,
-  // which points a brief-requested nav label at a tab that already fully
-  // implements that job under a different name (Approvals -> the existing
-  // Projects approval queue; Roles & Permissions -> the existing Role
-  // Defaults panel inside Users & Roles).
+  // `data-tab="X"` / `id="tab-X"` pair. `soon: true` marks a roadmap
+  // placeholder rather than a fabricated feature -- distinct from
+  // `alias: true`, which points a short nav label at a tab that already
+  // fully implements that job under a different name (Approvals -> the
+  // existing Projects approval queue; Permissions -> the existing Role
+  // Defaults panel inside People/Accounts).
+  //
+  // Reorganized (redesign Phase 1, full IA + visual pass) from the 11
+  // flat groups/27 destinations the panel had grown into a small set of
+  // premium "hubs" a Darwesh admin can actually scan in two seconds:
+  // Overview, People, Properties, Sales, Demand, Arena, Services,
+  // Finance, Analytics, System. Phase 1 itself was a relabel/regroup
+  // ONLY, with every `tab` value pointing at unmoved content. Phase 2
+  // has since built the first three real hub shells: People (Accounts/
+  // Verification/Organizations/Professionals/Agents/Branches/Network/Top
+  // Agents consolidated into one #tab-people panel + AdminTabs), Properties
+  // (Listings/Projects/Map/Estate Lookup consolidated into one
+  // #tab-properties panel + AdminTabs), and Overview (single-item hub,
+  // just an AdminPageHeader over the unchanged Dashboard). Both People and
+  // Properties collapse to one `tab` value below (plus an in-group or
+  // cross-group `alias` that jumps straight to a specific sub-tab via
+  // `subtab`) even though their `tab` value fans out into several
+  // AdminTabs sub-panels once clicked -- see admin.html's
+  // renderPeopleHub()/renderPropertiesHub() and the shared js/admin-tabs.js
+  // component. Sales/Demand/Arena/Services/Finance/Analytics/System are
+  // still Phase 1's flat, unconsolidated groups -- Phases 3-5 build their
+  // real per-hub shells the same way. The `tab-services2` placeholder
+  // below is the one net-new destination Phase 1 added: a real "Services"
+  // hub (provider categories -- lawyers, engineers, designers, cleaning,
+  // landscaping, moving, maintenance, contractors) doesn't exist as its
+  // own page yet -- today that data lives inside the Sales/Requests tab's
+  // "Provider Requests" table -- so it ships honestly as a "Planned"
+  // placeholder here (same pattern as Financial Management/Reports/etc.)
+  // rather than duplicating a nav entry that points at the exact same
+  // page as Sales/Requests.
   var GROUPS = [
     { key: 'overview', labelKey: 'admin.nav.groupOverview', labelText: 'Overview', items: [
       { tab: 'dashboard', icon: 'dashboard', labelKey: 'admin.dashboardTab', labelText: 'Dashboard' }
     ] },
-    { key: 'listings', labelKey: 'admin.nav.groupListings', labelText: 'Listings & Projects', items: [
-      { tab: 'listings', icon: 'home_work', labelKey: 'admin.listingsTab', labelText: 'Listings' },
-      { tab: 'projects', icon: 'apartment', labelKey: 'admin.projectsTab', labelText: 'Projects' },
-      { tab: 'projects', icon: 'fact_check', labelKey: 'admin.nav.approvals', labelText: 'Approvals', alias: true },
-      { tab: 'market', icon: 'insights', labelKey: 'admin.marketOverviewTab', labelText: 'Market Overview' },
-      // Replaces the old estateintel ("Estate Intelligence Map") and
-      // requestsmap ("Requests Map") entries -- both tabs are gone,
-      // consolidated into this one shared-map-foundation tab (see the
-      // removal notes in admin.html around #tab-estateintel/#tab-map and
-      // js/admin-map.js's own header comment).
-      { tab: 'map', icon: 'map', labelKey: 'admin.nav.mapManagement', labelText: 'Map Management' },
-      { tab: 'estatedata', icon: 'storage', labelKey: 'admin.estateDataTab', labelText: 'Estate Data' }
+    { key: 'people', labelKey: 'admin.nav.groupPeople', labelText: 'People', items: [
+      { tab: 'people', icon: 'group', labelKey: 'admin.nav.groupPeople', labelText: 'People' }
     ] },
-    { key: 'people', labelKey: 'admin.nav.groupPeople', labelText: 'People & Organizations', items: [
-      { tab: 'users', icon: 'group', labelKey: 'admin.usersTab', labelText: 'Users & Roles' },
-      { tab: 'verification', icon: 'verified_user', labelKey: 'admin.nv.tab', labelText: 'Network Verification' },
-      { tab: 'organizations', icon: 'domain', labelKey: 'admin.nav.organizations', labelText: 'Organizations' },
-      { tab: 'professionals', icon: 'engineering', labelKey: 'admin.nav.professionals', labelText: 'Professionals' },
-      { tab: 'agents', icon: 'badge', labelKey: 'admin.agentsTab', labelText: 'Agents' },
-      { tab: 'branches', icon: 'account_tree', labelKey: 'admin.branchesTab', labelText: 'Branches' },
-      { tab: 'network', icon: 'hub', labelKey: 'admin.networkTab', labelText: 'Network' },
-      { tab: 'leaderboard', icon: 'leaderboard', labelKey: 'admin.leaderboardTab', labelText: 'Leaderboard' }
+    { key: 'properties', labelKey: 'admin.nav.groupProperties', labelText: 'Properties', items: [
+      { tab: 'properties', icon: 'home_work', labelKey: 'admin.nav.groupProperties', labelText: 'Properties' },
+      { tab: 'properties', subtab: 'projects', icon: 'fact_check', labelKey: 'admin.nav.approvals', labelText: 'Approvals', alias: true }
     ] },
-    { key: 'requests', labelKey: 'admin.nav.groupRequests', labelText: 'Requests', items: [
-      { tab: 'services', icon: 'support_agent', labelKey: 'admin.nav.serviceRequests', labelText: 'Service Requests' }
+    { key: 'sales', labelKey: 'admin.nav.groupSales', labelText: 'Sales', items: [
+      { tab: 'sales', icon: 'support_agent', labelKey: 'admin.nav.groupSales', labelText: 'Sales' }
     ] },
-    { key: 'marketing', labelKey: 'admin.nav.groupMarketing', labelText: 'Marketing', items: [
-      { tab: 'offers', icon: 'sell', labelKey: 'admin.nav.offers', labelText: 'Offers & Discounts' }
+    // Promoted out of the Finance group (redesign Phase 3) -- the user's
+    // brief lists Sales/Discounts/Demand as three parallel hubs, not
+    // "Discounts nested inside Finance." Finance below keeps Offers +
+    // Financial Management; Discounts stands on its own.
+    { key: 'discounts', labelKey: 'admin.nav.discounts', labelText: 'Discounts', items: [
+      { tab: 'brokerage', icon: 'percent', labelKey: 'admin.nav.discounts', labelText: 'Discounts', requires: ['brokerage.manage'] }
     ] },
-    { key: 'arena', labelKey: 'admin.nav.groupArena', labelText: 'Darwesh Arena', items: [
+    { key: 'demand', labelKey: 'admin.nav.groupDemand', labelText: 'Demand', items: [
+      { tab: 'alerts', icon: 'notifications_active', labelKey: 'admin.nav.groupDemand', labelText: 'Demand', requires: ['alerts.review'] }
+    ] },
+    { key: 'arena', labelKey: 'admin.nav.groupArena', labelText: 'Arena', items: [
       { tab: 'arena', icon: 'military_tech', labelKey: 'admin.nav.arena', labelText: 'Challenges & Rewards' }
     ] },
-    { key: 'alerts', labelKey: 'admin.nav.groupAlerts', labelText: 'Property Watch', items: [
-      { tab: 'alerts', icon: 'notifications_active', labelKey: 'admin.nav.alerts', labelText: 'Area Alerts', requires: ['alerts.review'] }
+    { key: 'services', labelKey: 'admin.nav.groupServices', labelText: 'Services', items: [
+      { tab: 'services2', icon: 'engineering', labelKey: 'admin.nav.groupServices', labelText: 'Services', soon: true }
     ] },
-    { key: 'brokerage', labelKey: 'admin.nav.groupBrokerage', labelText: 'Brokerage Discounts', items: [
-      { tab: 'brokerage', icon: 'percent', labelKey: 'admin.nav.brokerage', labelText: 'Brokerage Discounts', requires: ['brokerage.manage'] }
+    { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance', items: [
+      { tab: 'offers', icon: 'sell', labelKey: 'admin.nav.offersShort', labelText: 'Offers' },
+      { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true }
     ] },
-    { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance & Reports', items: [
-      { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true },
+    { key: 'analytics', labelKey: 'admin.nav.groupAnalytics', labelText: 'Analytics', items: [
+      { tab: 'market', icon: 'insights', labelKey: 'admin.marketOverviewTab', labelText: 'Market Overview' },
       { tab: 'reports', icon: 'monitoring', labelKey: 'admin.nav.reports', labelText: 'Reports', soon: true }
     ] },
-    { key: 'operations', labelKey: 'admin.nav.groupOperations', labelText: 'Operations', items: [
+    { key: 'system', labelKey: 'admin.nav.groupSystem', labelText: 'System', items: [
+      { tab: 'people', subtab: 'users', icon: 'admin_panel_settings', labelKey: 'admin.nav.permissions', labelText: 'Permissions', alias: true, requires: ['manage_permissions', 'manage_roles'] },
+      { tab: 'scanlog', icon: 'qr_code_scanner', labelKey: 'admin.scanLogTab', labelText: 'Scan Log' },
       { tab: 'content', icon: 'edit_note', labelKey: 'admin.nav.content', labelText: 'Content Management', soon: true },
       { tab: 'notifications', icon: 'notifications', labelKey: 'admin.nav.notifications', labelText: 'Notifications', soon: true },
-      { tab: 'scanlog', icon: 'qr_code_scanner', labelKey: 'admin.scanLogTab', labelText: 'Scan Log' }
-    ] },
-    { key: 'admin', labelKey: 'admin.nav.groupAdmin', labelText: 'Administration', items: [
-      { tab: 'users', icon: 'admin_panel_settings', labelKey: 'admin.nav.rolesPermissions', labelText: 'Roles & Permissions', alias: true, requires: ['manage_permissions', 'manage_roles'] },
       { tab: 'security', icon: 'shield', labelKey: 'admin.nav.security', labelText: 'Security', soon: true, requires: ['manage_platform_security'] },
       { tab: 'auditlogs', icon: 'history', labelKey: 'admin.nav.auditLogs', labelText: 'Audit Logs', soon: true, requires: ['manage_platform_security'] },
       { tab: 'settings', icon: 'settings', labelKey: 'admin.nav.settings', labelText: 'Settings', soon: true }
@@ -92,6 +109,7 @@
     return (
       '<button type="button" class="admin-tab ash-nav-item' + (item.tab === 'dashboard' ? ' active' : '') + '"' +
         ' data-tab="' + item.tab + '"' +
+        (item.subtab ? ' data-subtab="' + item.subtab + '"' : '') +
         (item.requires ? ' data-requires="' + item.requires.join(',') + '"' : '') +
         ' data-nav-id="n' + idx + '"' +
         ' title="' + esc(label) + '">' +

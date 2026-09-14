@@ -1,0 +1,301 @@
+/* Darwesh Admin Panel — legacy component styles (Stage 2 of the visual
+ * redesign, docs/admin-ui-research.md).
+ *
+ * Moved out of admin.html's inline <style> block (was 238 lines in <head>,
+ * predating css/admin-tokens.css / css/admin-shell.css and never migrated
+ * when the shell went dark). Every hardcoded hex below has been replaced
+ * with the token it should always have referenced. Doing that surfaced
+ * several genuinely live contrast bugs, not just cosmetic drift: .kpi-value,
+ * .city-bar-count, .city-bar-label, .dash-mini-stat .val, .trend-city and
+ * .trend-value were all still #031d39 (near-black navy) -- correct on the
+ * pre-redesign light dashboard, but on today's dark surface that's
+ * low-contrast-to-invisible text. Verified via computed-specificity trace
+ * against admin-shell.css before moving each rule: some of the inline
+ * block's declarations were already dead (superseded by a later,
+ * higher-specificity token rule in admin-shell.css) and are dropped here
+ * rather than carried forward as duplicate dead code; a few (.kpi-card::
+ * after's decorative gold corner glow, .kpi-icon's gold wash, the per-
+ * panel-title gold icon colour) are dropped outright as the "gold on every
+ * card" pattern the redesign brief asks to stop.
+ *
+ * Net-node (org chart) and amenity-* (Estate map distance chips) rules
+ * moved verbatim, unrecoloured -- feature-specific widgets inside People/
+ * Properties content, out of this stage's shell/foundation scope. */
+
+body.admin-shell { min-height: max(884px, 100dvh); }
+
+/* Tailwind's preflight (img,video{max-width:100%;height:auto}) conflicts
+   with Google Maps' own internally-rendered <img> tiles/UI assets under
+   .gm-style -- Google's own troubleshooting guidance for this class of
+   issue is to scope an override back to their own markup. */
+.gm-style img { max-width: none; }
+
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---- Legacy top tab bar behaviour (still load-bearing) -----------------
+ * .admin-tab-panel display toggling is what every hub's outer panel
+ * switch still runs on (see admin.html's own inline module script) --
+ * kept byte-for-byte. The cosmetic .admin-tab/.admin-tab.active colour
+ * rules are dead today (js/admin-shell.js's sidebar buttons carry this
+ * class too, but their own later .ash-nav-item rules in admin-shell.css
+ * win on source order at equal specificity) -- tokenized anyway so they
+ * paint correctly if that ordering ever changes. */
+body.admin-shell .admin-tab {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ash-text-secondary);
+  padding: 12px 4px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-left: none; border-right: none; border-top: none;
+  margin-right: 28px;
+}
+body.admin-shell .admin-tab.active { color: var(--ash-text); border-bottom-color: var(--ash-accent); }
+.admin-tab-panel { display: none; }
+.admin-tab-panel.active { display: block; }
+
+/* ---- Filter chips (Services/Provider Requests filter rows) ------------- */
+body.admin-shell .filter-chip,
+body.admin-shell .pr-filter-chip {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ash-text-secondary);
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ash-border);
+  background: var(--ash-surface);
+  cursor: pointer;
+}
+/* .active state is already re-asserted at higher specificity in
+   admin-shell.css (body.admin-shell .filter-chip.active) -- left there,
+   not duplicated here. */
+
+/* ---- "Local/demo data" notice -- was a hardcoded cream box; that read as
+   a light theme box floating on the dark page. It's a heads-up, not a
+   primary action, so it becomes a warning-tinted callout like every other
+   informational banner in the shell.
+   Redesign v2, item 10: was a full-width block with the entire explanation
+   inline -- visually competed with the page title above every hub, and
+   was especially heavy for what is, day to day, a one-line fact. Now a
+   single compact row (icon + one short sentence + Details + dismiss);
+   the full text lives in .local-notice-body, collapsed by default. ---- */
+body.admin-shell .local-notice {
+  background: var(--ash-warning-wash);
+  border: 1px solid var(--ash-warning);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px 8px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  color: var(--ash-text);
+}
+body.admin-shell .local-notice-short { flex: 1; min-width: 160px; font-weight: 500; }
+body.admin-shell .local-notice-details-btn {
+  flex: none; background: none; border: none; padding: 3px 4px; cursor: pointer;
+  font: 700 12px/1 'Inter', sans-serif; color: var(--ash-text); text-decoration: underline;
+  text-underline-offset: 2px;
+}
+body.admin-shell .local-notice-dismiss {
+  flex: none; display: flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; background: none; border: none; border-radius: 999px; cursor: pointer;
+  color: var(--ash-text-secondary);
+}
+body.admin-shell .local-notice-dismiss:hover { background: rgba(0,0,0,.06); color: var(--ash-text); }
+body.admin-shell .local-notice-dismiss .material-symbols-outlined { font-size: 16px; }
+body.admin-shell .local-notice-body {
+  flex-basis: 100%; margin: 2px 0 0; padding-top: 8px; border-top: 1px solid var(--ash-warning);
+  font-size: 12.5px; line-height: 1.5;
+}
+
+/* .stat-mini's own surface/label/value rules are dropped here: fully
+   superseded by admin-shell.css's own `.kpi-card, .stat-mini { ... }` /
+   `.kpi-card .value, .stat-mini .value { ... }` block at higher
+   specificity, so this was dead duplicate code. */
+
+body.admin-shell .admin-table { width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; font-size: 13.5px; }
+body.admin-shell .admin-table th,
+body.admin-shell .admin-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--ash-border); vertical-align: middle; }
+body.admin-shell .admin-table th { color: var(--ash-text-secondary); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+body.admin-shell .admin-table td { color: var(--ash-text); }
+body.admin-shell .admin-table tbody tr:hover { background: var(--ash-surface-hover); }
+
+/* ---- Status badges: one shared semantic mapping --------------------------
+ * Was ad hoc per-badge hex (several of them the same gold used everywhere
+ * else, contradicting "gold marks state, not status"). Now: success=green,
+ * warning=amber, error=red, info=blue, neutral=gray -- the exact mapping
+ * docs/admin-ui-research.md proposes. .badge-verified/.badge-active already
+ * matched --ash-success by coincidence; .badge-rejected/.badge-suspended in
+ * admin-shell.css already used --ash-error/neutral tokens (untouched here).
+ * .badge-pending moves off brand gold onto real --ash-warning amber (it's a
+ * waiting state, not a call to action). .badge-rent moves off gold onto a
+ * neutral tag -- a listing-type marker has no business being the same
+ * colour as the page's one primary-action accent. */
+body.admin-shell .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+body.admin-shell .badge-sale { background: var(--ash-info-wash); color: var(--ash-info); }
+body.admin-shell .badge-rent { background: var(--ash-surface-sunken); color: var(--ash-text-secondary); }
+body.admin-shell .badge-verified { background: var(--ash-success-wash); color: var(--ash-success); }
+body.admin-shell .badge-private { background: var(--ash-surface-sunken); color: var(--ash-text-secondary); }
+body.admin-shell .badge-pending { background: var(--ash-warning-wash); color: var(--ash-warning); }
+
+body.admin-shell .icon-btn { padding: 6px; border-radius: var(--radius-sm); cursor: pointer; color: var(--ash-text-secondary); background: none; border: none; }
+body.admin-shell .icon-btn:hover { background: var(--ash-surface-hover); }
+body.admin-shell .icon-btn.danger:hover { background: var(--ash-error-wash); color: var(--ash-error); }
+
+body.admin-shell .admin-input {
+  width: 100%;
+  border: 1px solid var(--ash-border);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  color: var(--ash-text);
+  background: var(--ash-surface);
+}
+body.admin-shell .admin-input:focus { outline: 2px solid var(--ash-accent); outline-offset: 1px; }
+body.admin-shell .admin-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ash-text-secondary); display: block; margin-bottom: 5px; }
+
+/* ---- Network tab — org-chart tree (People hub; unrecoloured, out of
+   Stage 2's shell/foundation scope; moved verbatim) ---- */
+.net-node { position: absolute; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.net-node-circle { position: relative; border-radius: 9999px; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Sans', sans-serif; font-weight: 700; color: #ffffff; box-shadow: 0 2px 6px rgba(7,27,47,0.18); overflow: hidden; transition: transform .15s ease; }
+.net-node-root .net-node-circle { background: #071b2f; border: 3px solid #d9b76a; font-size: 11px; }
+.net-node-branch .net-node-circle { background: #071b2f; font-size: 15px; cursor: pointer; }
+.net-node-branch .net-node-circle:hover { transform: scale(1.08); }
+.net-node-agent .net-node-circle { background: #4f6073; font-size: 12.5px; cursor: pointer; }
+.net-node-agent .net-node-circle:hover { transform: scale(1.1); }
+.net-node-circle img { width: 100%; height: 100%; object-fit: cover; }
+.net-node-label { margin-top: 6px; font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 500; color: #181c20; text-align: center; max-width: 108px; line-height: 1.25; }
+.net-node-sub { font-family: 'Inter', sans-serif; font-size: 10px; color: #8a6a38; font-weight: 600; margin-top: 1px; }
+.net-node.dim { opacity: .3; }
+.net-node.match-ring .net-node-circle { box-shadow: 0 0 0 3px #d9b76a, 0 2px 6px rgba(7,27,47,.18); }
+.net-badge { position: absolute; top: -3px; right: -3px; background: #d9b76a; color: #25231f; font-size: 10px; font-weight: 700; border-radius: 9999px; min-width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid #ffffff; }
+.net-empty-slot { font-family: 'Inter', sans-serif; font-size: 11px; color: #9aa1ab; font-style: italic; white-space: nowrap; }
+#netAgentPopover { position: fixed; z-index: 80; background: #ffffff; border: 1px solid #e0e3e8; border-radius: 10px; box-shadow: 0 8px 24px rgba(7,27,47,.2); padding: 12px 14px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #181c20; width: 220px; }
+
+/* ---- Overview dashboard ------------------------------------------------- */
+/* .dash-dark-wrap's own background/border are dropped: admin-shell.css's
+   `body.admin-shell .dash-dark-wrap { background:transparent; ...
+   padding:0 }` already fully neutralizes every visual property this rule
+   used to set, so the base declaration was dead weight. */
+
+/* .kpi-card's surface/border/radius/shadow + :hover border-color are
+   dropped: admin-shell.css's `.kpi-card, .stat-mini { ... }` block already
+   owns those at higher specificity (and its hover rule already keeps the
+   border neutral rather than gold, so nothing to fix there). .kpi-card::
+   after (the decorative gold corner glow) is dropped outright -- a
+   per-card gold radial gradient is exactly the "gold on every card" this
+   redesign is meant to stop. */
+
+body.admin-shell .kpi-icon {
+  width: 32px; height: 32px; border-radius: 9px;
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ash-text-secondary); margin-bottom: 12px; position: relative;
+}
+body.admin-shell .kpi-icon .material-symbols-outlined { font-size: 17px; }
+body.admin-shell .kpi-label { font-family: 'IBM Plex Sans', sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ash-text-secondary); margin-bottom: 4px; position: relative; }
+body.admin-shell .kpi-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 27px; font-weight: 700; color: var(--ash-text); line-height: 1.15; position: relative; }
+body.admin-shell .kpi-sub { font-family: 'Inter', sans-serif; font-size: 11px; color: var(--ash-success); margin-top: 7px; position: relative; }
+body.admin-shell .kpi-sub.neutral { color: var(--ash-text-secondary); }
+
+/* .dash-panel's surface/border/radius/shadow are dropped (admin-shell.css
+   §9 already owns them); padding is real, kept. */
+body.admin-shell .dash-panel { padding: var(--space-4) var(--space-5); }
+body.admin-shell .dash-panel-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+/* Was gold (#c69a4b) on every panel-title icon -- a decorative default,
+   not a state or CTA, so it moves to the same neutral secondary colour
+   every other panel-title icon in the shell already uses. */
+body.admin-shell .dash-panel-title-row .material-symbols-outlined { font-size: 16px; color: var(--ash-text-secondary); }
+/* .dash-panel-title's own colour/font are dropped (admin-shell.css §9
+   already owns them); .dash-panel-caption's colour is dropped the same
+   way -- margin-bottom is real, kept. */
+body.admin-shell .dash-panel-caption { margin-bottom: 12px; }
+
+body.admin-shell .city-bar-row { display: flex; align-items: center; gap: 10px; }
+body.admin-shell .city-bar-label { width: 100px; flex: none; display: flex; align-items: center; gap: 6px; font-family: 'Inter', sans-serif; font-size: 12.5px; color: var(--ash-text); }
+body.admin-shell .city-bar-label .material-symbols-outlined { font-size: 14px; color: var(--ash-text-secondary); }
+/* .city-bar-track's border-radius/background are dropped (admin-shell.css
+   §9 already owns them); height is real, kept. */
+body.admin-shell .city-bar-track { height: 7px; overflow: hidden; }
+/* Kept gold, deliberately: this is the one bar-chart fill representing
+   real per-city data, the only coloured element in its own row -- data
+   visualization, not decorative chrome. */
+body.admin-shell .city-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--ash-accent), var(--ash-accent-strong)); }
+body.admin-shell .city-bar-count { width: 26px; flex: none; text-align: right; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 12px; color: var(--ash-text); }
+
+/* Was a hardcoded cream fill (#f5f0e7) -- a light-theme box on the dark
+   page. Uses --ash-surface-hover rather than -sunken so a list of these
+   reads as one step "raised", distinct from a table's sunken header. */
+body.admin-shell .activity-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--ash-surface-hover); border: 1px solid var(--ash-border); border-radius: 9px; padding: 8px 10px; transition: background .15s ease; }
+body.admin-shell .activity-item:hover { background: var(--ash-surface-sunken); }
+body.admin-shell .activity-icon { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex: none; }
+body.admin-shell .activity-icon .material-symbols-outlined { font-size: 15px; }
+
+body.admin-shell .dash-city-tab {
+  font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--ash-text-secondary); padding: 5px 12px; border-radius: 999px; border: 1px solid var(--ash-border); background: var(--ash-surface); cursor: pointer;
+}
+/* .dash-city-tab.active is already re-asserted at higher specificity in
+   admin-shell.css §9 (gold fill -- a real selected-filter state). */
+
+/* .dash-mini-stat's background is dropped (admin-shell.css §9 already
+   owns it); padding is real, kept. .lbl colour is dropped the same way
+   (§9 owns it too); .val colour was still navy-on-dark, fixed here. */
+body.admin-shell .dash-mini-stat { padding: 12px 14px; }
+body.admin-shell .dash-mini-stat .val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 17px; font-weight: 700; color: var(--ash-text); }
+
+/* .trend-card's surface/border/radius/shadow are dropped (admin-shell.css
+   §9 already owns them); layout is real, kept. */
+body.admin-shell .trend-card { padding: 14px; position: relative; overflow: hidden; }
+body.admin-shell .trend-card .grid-bg {
+  position: absolute; inset: 0; opacity: 0.05; pointer-events: none;
+  background-image: linear-gradient(var(--ash-text) 1px, transparent 1px), linear-gradient(90deg, var(--ash-text) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+body.admin-shell .trend-city { font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--ash-text); letter-spacing: 0.02em; }
+body.admin-shell .trend-value { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 19px; font-weight: 700; color: var(--ash-text); }
+body.admin-shell .trend-chip { font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 5px; display: inline-flex; align-items: center; gap: 2px; }
+body.admin-shell .trend-chip.up { background: var(--ash-success-wash); color: var(--ash-success); }
+body.admin-shell .trend-chip.down { background: var(--ash-error-wash); color: var(--ash-error); }
+body.admin-shell .trend-chip.flat { background: var(--ash-surface-sunken); color: var(--ash-text-secondary); }
+body.admin-shell .trend-chart-wrap { height: 84px; position: relative; margin: 10px 0 6px; }
+body.admin-shell .trend-empty { display: flex; align-items: center; justify-content: center; height: 84px; font-family: 'Inter', sans-serif; font-size: 11.5px; color: var(--ash-text-muted); text-align: center; padding: 0 10px; }
+
+/* ---- Estate Intelligence map — amenity distance chips (unrecoloured,
+   out of Stage 2's shell/foundation scope; moved verbatim) ---- */
+.amenity-origin-pulse { position: relative; width: 16px; height: 16px; }
+.amenity-origin-pulse::before, .amenity-origin-pulse::after {
+  content: ''; position: absolute; inset: 0; border-radius: 999px; background: #d9b76a;
+}
+.amenity-origin-pulse::before { animation: amenity-pulse 2s ease-out infinite; }
+.amenity-origin-pulse::after { inset: 3px; box-shadow: 0 0 0 2px #ffffff; }
+@keyframes amenity-pulse {
+  0% { transform: scale(1); opacity: 0.55; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.amenity-dist-chip {
+  display: flex; align-items: center; gap: 4px;
+  background: rgba(7,27,47,0.92); border-radius: 999px; padding: 3px 8px 3px 3px;
+  font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; color: #ffffff;
+  white-space: nowrap; box-shadow: 0 2px 6px rgba(7,27,47,0.35);
+}
+.amenity-dist-chip .dot { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+.amenity-row-chip {
+  display: flex; align-items: center; gap: 8px;
+  background: #071b2f; border-radius: 8px; padding: 6px 10px;
+  font-family: 'Inter', sans-serif; font-size: 12px; color: #ffffff;
+}
+.amenity-row-chip .material-symbols-outlined { font-size: 15px; flex: none; }
+.amenity-row-chip .name { flex: 1; color: #d2e4fb; }
+.amenity-row-chip .km { font-family: 'Inter', sans-serif; font-weight: 700; color: #ffffff; flex: none; }

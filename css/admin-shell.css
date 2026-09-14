@@ -21,30 +21,9 @@
  * -- just applied consistently across the whole page instead of one header.
  */
 
-body.admin-shell {
-  --ash-bg: #FAF8F4;
-  --ash-surface: #FFFFFF;
-  --ash-surface-sunken: #F3F0EA;
-  --ash-border: #E7E1D6;
-  --ash-text: #1B1D1F;
-  --ash-text-secondary: #6B6459;
-  --ash-accent: #C69A4B;
-  --ash-accent-strong: #B4863A;
-  --ash-accent-wash: rgba(198, 154, 75, 0.12);
-  --ash-on-accent: #221807;
-  --ash-success: #2E7D46;
-  --ash-success-wash: rgba(46, 125, 70, 0.1);
-  --ash-warning: #B4780A;
-  --ash-warning-wash: rgba(180, 120, 10, 0.1);
-  --ash-error: #C1443A;
-  --ash-error-wash: rgba(193, 68, 58, 0.1);
-  --ash-info: #2F6FB0;
-  --ash-info-wash: rgba(47, 111, 176, 0.1);
-  --ash-sidebar-w: 264px;
-  --ash-sidebar-w-collapsed: 76px;
-  --ash-topbar-h: 64px;
-  background: var(--ash-bg);
-}
+/* Tokens moved to css/admin-tokens.css (redesign Phase 1) -- loaded before
+   this file in admin.html's <head>. This file now only keeps layout and
+   component rules that reference those tokens by name. */
 
 body.admin-shell #loadingGate { background: var(--ash-bg) !important; }
 body.admin-shell #loadingGate p { color: var(--ash-text-secondary) !important; }
@@ -52,7 +31,7 @@ body.admin-shell #loadingGate p { color: var(--ash-text-secondary) !important; }
 /* ---- Auth gates: the original contrast bug lived here ------------------ */
 body.admin-shell #authGate,
 body.admin-shell #notAdminGate {
-  background: rgba(250, 248, 244, 0.97) !important;
+  background: rgba(21, 23, 27, 0.97) !important;
   backdrop-filter: blur(6px);
 }
 body.admin-shell #authGate .bg-surface-container-lowest {
@@ -87,8 +66,8 @@ body.admin-shell #adminContent .bg-surface-dim { background: var(--ash-surface) 
 body.admin-shell #adminContent .text-on-surface { color: var(--ash-text) !important; }
 body.admin-shell #adminContent .text-on-surface-variant { color: var(--ash-text-secondary) !important; }
 body.admin-shell #adminContent .text-primary { color: var(--ash-text) !important; }
-body.admin-shell #adminContent .bg-primary { background: var(--ash-text) !important; }
-body.admin-shell #adminContent .text-on-primary { color: #fff !important; }
+body.admin-shell #adminContent .bg-primary { background: var(--ash-ink) !important; }
+body.admin-shell #adminContent .text-on-primary { color: var(--ash-on-ink) !important; }
 body.admin-shell #adminContent .border-outline-variant,
 body.admin-shell #adminContent .border-outline { border-color: var(--ash-border) !important; }
 body.admin-shell #adminContent .text-error { color: var(--ash-error) !important; }
@@ -111,7 +90,7 @@ body.admin-shell #adminContent .hover\:bg-surface-container-low:hover { backgrou
  * qualifiers were added). Repeating the element's own classes here is
  * what lets this override reliably win. */
 body.admin-shell #adminContent > header.bg-surface-bright,
-body.admin-shell #adminMainMount > header.bg-surface-bright { background: var(--ash-text) !important; border-color: rgba(255,255,255,0.12) !important; }
+body.admin-shell #adminMainMount > header.bg-surface-bright { background: var(--ash-ink) !important; border-color: rgba(255,255,255,0.12) !important; }
 body.admin-shell #adminContent > header .text-primary,
 body.admin-shell #adminMainMount > header .text-primary { color: var(--ash-accent) !important; }
 body.admin-shell #adminContent > header .font-headline-md,
@@ -139,9 +118,9 @@ body.admin-shell [id$="Overlay"] .text-on-surface-variant { color: var(--ash-tex
 body.admin-shell [id$="Modal"] .border-outline-variant,
 body.admin-shell [id$="Overlay"] .border-outline-variant { border-color: var(--ash-border) !important; }
 body.admin-shell [id$="Modal"] .bg-primary,
-body.admin-shell [id$="Overlay"] .bg-primary { background: var(--ash-text) !important; }
+body.admin-shell [id$="Overlay"] .bg-primary { background: var(--ash-ink) !important; }
 body.admin-shell [id$="Modal"] .text-on-primary,
-body.admin-shell [id$="Overlay"] .text-on-primary { color: #fff !important; }
+body.admin-shell [id$="Overlay"] .text-on-primary { color: var(--ash-on-ink) !important; }
 
 /* Buttons/badges that are meant to read as the primary CTA (Sign In, Save,
    Submit) look better as the accent than as a plain dark rectangle -- opt
@@ -152,12 +131,27 @@ body.admin-shell .admin-tab.active { color: var(--ash-accent-strong); border-bot
 body.admin-shell .admin-tab { color: var(--ash-text-secondary); }
 body.admin-shell .admin-tab:hover { color: var(--ash-text); }
 body.admin-shell .filter-chip.active,
-body.admin-shell .pr-filter-chip.active { background: var(--ash-text) !important; border-color: var(--ash-text) !important; }
+body.admin-shell .pr-filter-chip.active { background: var(--ash-ink) !important; border-color: var(--ash-ink) !important; color: var(--ash-on-ink) !important; }
 
 /* ---- App shell layout ---------------------------------------------------*/
 body.admin-shell #adminContent {
   display: grid;
-  grid-template-columns: var(--ash-sidebar-w) 1fr;
+  /* minmax(0, 1fr), not a bare 1fr -- `1fr` alone is shorthand for
+   * `minmax(auto, 1fr)`, and grid track sizing's own `auto` keyword uses
+   * an item's min-content contribution as that track's floor (a separate
+   * mechanism from the item's own CSS min-width, which the existing
+   * `#adminSidebarMount ~ main { min-width: 0 }` rule below does NOT
+   * override -- confirmed via computed-style inspection while diagnosing
+   * this). A horizontally-scrollable descendant (.ash-tabs, item 7 of the
+   * People/Permission Studio redesign) has a large intrinsic content
+   * width even though it clips/scrolls its own overflow locally; without
+   * minmax(0, ...) that width was inflating this column's track (and so
+   * <main>) past the actual available width -- a real page-level
+   * horizontal overflow (confirmed via document.documentElement.
+   * scrollWidth/window.scrollTo) invisible only because body already
+   * carries overflow-x-hidden, not something item 19's "no horizontal
+   * overflow" requirement is satisfied by. */
+  grid-template-columns: var(--ash-sidebar-w) minmax(0, 1fr);
   /* Explicit rows matter here: #adminSidebarMount spans both rows
      (grid-row: 1 / -1) with a fixed 100vh height. Left implicit, that
      span's fixed-height demand gets distributed into the auto-sized
@@ -184,7 +178,7 @@ body.admin-shell #adminContent {
    to people who have no access to it. Restated at matching specificity so
    the class does what every reader of admin.html assumes it does. */
 body.admin-shell #adminContent.hidden { display: none; }
-body.admin-shell #adminContent.ash-collapsed { grid-template-columns: var(--ash-sidebar-w-collapsed) 1fr; }
+body.admin-shell #adminContent.ash-collapsed { grid-template-columns: var(--ash-sidebar-w-collapsed) minmax(0, 1fr); }
 body.admin-shell #adminSidebarMount {
   grid-column: 1; grid-row: 1 / -1;
   position: sticky; top: 0; align-self: start;
@@ -192,6 +186,21 @@ body.admin-shell #adminSidebarMount {
 }
 body.admin-shell #adminSidebarMount ~ header,
 body.admin-shell #adminSidebarMount ~ main { grid-column: 2; min-width: 0; }
+/* <main>'s own `mx-auto` (margin-left/right: auto, for the pre-shell page
+ * layout where it centers under a plain max-width) defeats a grid item's
+ * default stretch alignment: per the CSS Box Alignment spec, auto margins
+ * on the justification axis make the box size via fit-content instead of
+ * stretching to its grid area -- confirmed via computed-style inspection
+ * while diagnosing item 19's overflow requirement (grid-template-columns'
+ * own minmax(0, 1fr) fix above, and an item-level min-width:0, both
+ * measurably changed nothing; only this did). fit-content's preferred
+ * width is driven by descendants' intrinsic content, so a wide
+ * horizontally-scrollable one (.ash-tabs, item 7) could inflate <main>
+ * past its actual 1fr column width -- width: 100% makes the box's size
+ * definite, which the spec has take priority over fit-content, so it
+ * simply fills the column like it already did whenever fit-content and
+ * the column happened to agree (every existing hub). */
+body.admin-shell #adminSidebarMount ~ main { width: 100%; }
 body.admin-shell #adminSidebarMount ~ header { grid-row: 1; top: 0; }
 body.admin-shell #adminSidebarMount ~ main { grid-row: 2; }
 
@@ -199,7 +208,7 @@ body.admin-shell #adminSidebarMount ~ main { grid-row: 2; }
 
 @media (max-width: 1023px) {
   body.admin-shell #adminContent,
-  body.admin-shell #adminContent.ash-collapsed { grid-template-columns: 1fr; }
+  body.admin-shell #adminContent.ash-collapsed { grid-template-columns: minmax(0, 1fr); }
   /* The sidebar leaves the grid here (it becomes the fixed drawer styled
      below), so the single declared track is column 1. Without this reset,
      header and main kept the desktop `grid-column: 2` and were placed in an
@@ -234,7 +243,7 @@ body.admin-shell #adminSidebarMount ~ main { grid-row: 2; }
 /* ---- Sidebar ------------------------------------------------------------*/
 .ash-sidebar {
   height: 100%; display: flex; flex-direction: column;
-  background: var(--ash-text); color: rgba(255,255,255,.82);
+  background: var(--ash-ink); color: rgba(255,255,255,.82);
   border-inline-end: 1px solid rgba(255,255,255,.08);
   overflow: hidden;
 }
@@ -340,6 +349,83 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 .ash-cmdk-item[data-focused="true"], .ash-cmdk-item:hover { background: var(--ash-accent-wash); }
 .ash-cmdk-empty { padding: 24px 12px; text-align: center; color: var(--ash-text-secondary); font: 500 13px/1.4 'Inter', sans-serif; }
 
+/* ---- Admin Panel redesign Phase 1: shared AdminTabs (js/admin-tabs.js) ---
+ * Generalizes the pill-tab pattern admin-brokerage.js/admin-arena.js each
+ * already hand-roll for their own internal sub-tabs, so Phase 2+'s hub
+ * shells (People, Properties, Finance, System) share one visual language
+ * and one click-handling implementation instead of a third/fourth copy. */
+/* Stage 2: underline tab rail, replacing the gold-filled pill-per-tab
+ * look -- the redesign brief calls that out by name ("NOT gold-filled
+ * pills for every tab"). One shared bottom hairline for the whole rail,
+ * the active tab gets a 2px accent underline and promoted text weight/
+ * colour; nothing else about the tab gets a background fill, so gold
+ * marks exactly one tab at a time instead of every tab getting a wash. */
+/* Redesign v2, item 7: was gap: var(--space-5) (20px) between every tab --
+ * dense/cramped once People grew to 8 tabs with icons. A smaller, fixed
+ * gap plus real horizontal padding per tab (instead of near-zero side
+ * padding) both tightens the rhythm and gives each tab a bigger hit
+ * target; the scrollable row + hidden scrollbar (overflow handling) and
+ * every one of the existing destinations are unchanged -- no tab removed
+ * or consolidated. A soft edge fade signals there's more to scroll to. */
+.ash-tabs {
+  display: flex; gap: 4px; overflow-x: auto; margin-bottom: var(--space-5);
+  scrollbar-width: none; border-bottom: 1px solid var(--ash-border);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+}
+.ash-tabs::-webkit-scrollbar { display: none; }
+.ash-tabs-btn {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 12px 11px; border-radius: 0; border: none; border-bottom: 2px solid transparent;
+  background: none; color: var(--ash-text-secondary); margin-bottom: -1px;
+  font: 600 13px/1 var(--ash-font); letter-spacing: -.006em; white-space: nowrap; cursor: pointer;
+  transition: color .18s var(--ash-ease), border-color .18s var(--ash-ease);
+}
+.ash-tabs-btn .material-symbols-outlined { font-size: 16px; }
+.ash-tabs-btn:hover { color: var(--ash-text); }
+.ash-tabs-btn.active { border-bottom-color: var(--ash-accent); color: var(--ash-text); }
+.ash-tabs-badge {
+  font: 700 10px/1 var(--ash-font); padding: 1px 6px; border-radius: 999px;
+  background: var(--ash-surface-sunken); color: var(--ash-text-secondary);
+}
+.ash-tabs-btn.active .ash-tabs-badge { background: var(--ash-accent-wash); color: var(--ash-accent-strong); }
+
+/* ---- Admin Panel redesign Phase 1: shared AdminPageHeader
+ * (js/admin-page-header.js) -- icon + short title + one-line description +
+ * primary action slot, mounted at the top of every hub from Phase 2 on. */
+.ash-page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+}
+.ash-page-header-main { display: flex; align-items: flex-start; gap: 14px; min-width: 0; }
+.ash-page-header-icon {
+  flex: none; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--ash-accent-wash); color: var(--ash-accent-strong);
+  display: flex; align-items: center; justify-content: center;
+}
+.ash-page-header-icon .material-symbols-outlined { font-size: 22px; }
+.ash-page-header-title {
+  font: 600 20px/1.25 var(--ash-font); letter-spacing: -.014em; color: var(--ash-text); margin: 2px 0 4px;
+}
+.ash-page-header-desc { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); max-width: 62ch; }
+.ash-page-header-actions { flex: none; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ---- Admin Panel redesign Phase 2: hub sub-panels (People today, more
+ * hubs later) -- a hub's AdminTabs bar toggles which of these shows,
+ * independent of the legacy .admin-tab-panel mechanism which only ever
+ * sees the ONE outer hub panel (#tab-people). Each sub-panel keeps the
+ * exact id its own render function already targets. */
+.ash-people-subpanel { display: none; }
+.ash-people-subpanel.active { display: block; }
+
+/* Same pattern, Properties hub (redesign Phase 2). */
+.ash-properties-subpanel { display: none; }
+.ash-properties-subpanel.active { display: block; }
+
+/* Same pattern, Sales hub (redesign Phase 3). */
+.ash-sales-subpanel { display: none; }
+.ash-sales-subpanel.active { display: block; }
+
 /* ---- Placeholder / roadmap empty state ----------------------------------*/
 .ash-empty-state {
   display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
@@ -356,6 +442,44 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
   color: var(--ash-accent-strong); background: var(--ash-accent-wash); border-radius: 999px; padding: 5px 11px;
 }
 
+/* ---- Table-inline empty state (redesign v2, item 9) -- a real, lighter
+ * "nothing here yet" for a data table (vs. .ash-empty-state above, which
+ * is the "Planned/roadmap" full-panel placeholder -- a different meaning,
+ * so a different, smaller treatment: no dashed border, sits inside the
+ * table's own surface rather than as its own bordered card). ------------*/
+.ash-empty-block {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+  padding: 40px 20px;
+}
+.ash-empty-block-icon {
+  width: 40px; height: 40px; border-radius: 999px; background: var(--ash-surface-sunken); color: var(--ash-text-muted);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 2px;
+}
+.ash-empty-block-title { font: 700 14px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-empty-block-body { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); max-width: 44ch; }
+.ash-empty-block .ash-detail-btn { margin-top: 4px; }
+
+/* ---- Compact metrics strip (redesign v2, item 8) -- one thin surface
+ * with hairline dividers between figures, instead of N full kpi-card
+ * boxes (each its own border/shadow/padding, heavy even at value=0).
+ * Scoped to People/Accounts -- .kpi-card/.stat-mini above are untouched,
+ * still used as-is by Dashboard/Scan Log/Market/Requests. ---------------*/
+.ash-metrics-strip {
+  display: flex; flex-wrap: wrap;
+  background: var(--ash-surface); border: 1px solid var(--ash-border); border-radius: var(--ash-radius);
+}
+.ash-metrics-item {
+  flex: 1 1 140px; display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 18px; border-inline-start: 1px solid var(--ash-border);
+}
+.ash-metrics-item:first-child { border-inline-start: none; }
+.ash-metrics-value { font: 600 24px/1.15 var(--ash-font); letter-spacing: -.02em; color: var(--ash-text); font-variant-numeric: tabular-nums; }
+.ash-metrics-label { font: 500 12px/1.3 var(--ash-font); color: var(--ash-text-secondary); }
+@media (max-width: 640px) {
+  .ash-metrics-item { flex: 1 1 45%; }
+  .ash-metrics-item:nth-child(odd) { border-inline-start: none; }
+}
+
 /* ---- Admin Panel Phase 2: entity status badges ---------------------------
  * Extends admin.html's existing .badge family (.badge-verified/.badge-
  * pending, defined inline in that file) with the two new lifecycle states
@@ -367,6 +491,14 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 .badge-active { background: #003115; color: #4ae183; }
 .badge-rejected { background: var(--ash-error-wash, rgba(193,68,58,.12)); color: var(--ash-error, #C1443A); }
 .badge-suspended { background: var(--ash-surface-sunken, #F3F0EA); color: var(--ash-text-secondary, #6B6459); }
+/* Stage 3: a deal/listing that finished (sold/rented/closed) -- neutral,
+ * same "no longer active, nothing wrong with it" treatment as
+ * .badge-suspended, distinct name so a call site reads correctly. Was
+ * admin-map.js's own hardcoded `style="background:#e5e8ee; color:#181c20"`
+ * -- a light-theme inline badge with no relationship to the token system,
+ * invisible-to-wrong contrast on the dark admin surface it actually
+ * renders on. */
+.badge-closed { background: var(--ash-surface-sunken); color: var(--ash-text-secondary); }
 
 /* ---- Admin Panel Phase 2: shared toast feedback --------------------------
  * window.AdminShellToast() in js/admin-shell.js -- replaces alert()/
@@ -379,14 +511,14 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 }
 .ash-toast {
   pointer-events: auto; display: flex; align-items: center; gap: 10px;
-  padding: 12px 16px; border-radius: 12px; background: var(--ash-text);
-  color: #fff; font: 500 13px/1.4 'Inter', sans-serif;
+  padding: 12px 16px; border-radius: 12px; background: var(--ash-ink);
+  color: var(--ash-on-ink); font: 500 13px/1.4 'Inter', sans-serif;
   box-shadow: 0 12px 32px rgba(27,29,31,.28);
   opacity: 0; transform: translateY(8px); transition: opacity .2s ease, transform .2s ease;
 }
 .ash-toast-show { opacity: 1; transform: translateY(0); }
 .ash-toast-error { background: var(--ash-error); }
-.ash-toast-success { background: var(--ash-text); }
+.ash-toast-success { background: var(--ash-ink); }
 .ash-toast-success::before, .ash-toast-error::before {
   content: ''; width: 8px; height: 8px; border-radius: 999px; flex: none;
   background: var(--ash-accent);
@@ -443,7 +575,7 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 .ash-entity-error { color: var(--ash-error); }
 .ash-entity-retry {
   margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px;
-  border-radius: 999px; background: var(--ash-text); color: #fff; border: none; cursor: pointer;
+  border-radius: 999px; background: var(--ash-ink); color: var(--ash-on-ink); border: none; cursor: pointer;
   font: 700 12px/1 'IBM Plex Sans', sans-serif;
 }
 .ash-entity-skeleton-row td { padding: 14px 12px; }
@@ -462,7 +594,7 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 }
 .ash-entity-page-btn:hover { background: var(--ash-surface-sunken); }
 .ash-entity-page-btn[disabled] { opacity: .4; cursor: not-allowed; }
-.ash-entity-page-btn.active { background: var(--ash-text); color: #fff; border-color: var(--ash-text); }
+.ash-entity-page-btn.active { background: var(--ash-ink); color: var(--ash-on-ink); border-color: var(--ash-ink); }
 
 /* ---- Admin Panel Phase 2: entity detail overlay --------------------------
  * A new bottom-sheet-on-mobile/centered-on-desktop overlay, matching the
@@ -583,7 +715,8 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 .ash-map-legend-line { width: 14px; height: 0; border-top: 2.5px dashed #8b0000; flex: none; }
 .ash-map-status-overlay {
   position: absolute; inset: 0; z-index: 700; display: flex; align-items: center; justify-content: center;
-  background: rgba(250,248,244,.9); text-align: center; padding: 24px;
+  background: var(--ash-material); backdrop-filter: var(--ash-vibrancy); -webkit-backdrop-filter: var(--ash-vibrancy);
+  text-align: center; padding: 24px;
 }
 .ash-map-detail {
   width: 400px; max-width: 42vw; flex: none; border-inline-start: 1px solid var(--ash-border);
@@ -766,26 +899,8 @@ html.ds-icons-failed body.admin-shell .material-symbols-outlined::before {
   border: 1.5px solid currentColor; border-radius: 3px; opacity: .45; vertical-align: -.15em;
 }
 
-/* ---- 1. Tokens -------------------------------------------------------- */
+/* ---- 1. Tokens -- now single-sourced in css/admin-tokens.css ---------- */
 body.admin-shell {
-  --ash-bg: #F5F5F7;
-  --ash-surface: #FFFFFF;
-  --ash-surface-sunken: #EFEFF2;
-  --ash-border: rgba(0, 0, 0, .08);
-  --ash-text: #1D1D1F;
-  --ash-text-secondary: #6E6E73;
-  --ash-accent-wash: rgba(198, 154, 75, .14);
-
-  /* Apple's material + elevation, used by everything below. */
-  --ash-material: rgba(255, 255, 255, .72);
-  --ash-vibrancy: saturate(180%) blur(20px);
-  --ash-radius: 12px;
-  --ash-radius-lg: 18px;
-  --ash-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
-  --ash-shadow-lift: 0 2px 6px rgba(0,0,0,.06), 0 16px 40px rgba(0,0,0,.10);
-  --ash-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
-              'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
-  --ash-ease: cubic-bezier(.4, 0, .2, 1);
   font-family: var(--ash-font);
   -webkit-font-smoothing: antialiased;
 }
@@ -818,7 +933,7 @@ body.admin-shell #adminContent h1 { font-weight: 600; }
    it; a solid near-black is the honest way to be dark here. Near-black
    #1D1D1F rather than pure #000, matching the label colour. */
 body.admin-shell .ash-sidebar {
-  background: #1D1D1F;
+  background: var(--ash-ink);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   color: rgba(255, 255, 255, .85);
@@ -913,16 +1028,44 @@ body.admin-shell .stat-mini .label {
   color: var(--ash-text-secondary);
 }
 
-/* ---- 5. Controls: Apple's pill, and a real focus ring ----------------- */
-body.admin-shell #adminContent button:not(.ash-nav-item):not(.ash-collapse-btn),
-body.admin-shell .ash-detail-btn,
-body.admin-shell .ash-quick-create {
-  border-radius: 980px;
-  font: 500 13px/1 var(--ash-font); letter-spacing: -.006em;
+/* ---- 5. Controls: Stage 2 button system --------------------------------
+ * Was a full 980px pill on every button in the page -- the "everything
+ * rounds to a capsule" look the redesign research flags as a template
+ * tell, and one this system shared with template dashboards rather than
+ * the enterprise references it studied (Stripe/Linear/Vercel/Primer all
+ * use an 8-10px rounded-rect for actual buttons, reserving a true pill for
+ * chips/tags/badges only). Kept as a pill, deliberately, by exclusion:
+ * .ash-tabs-btn (its own underline/segment language below, not a button
+ * chrome) and .ash-quick-create (a compact "new record" trigger, closer to
+ * a tag than a form button, and the one the research mockup keeps pill-
+ * shaped). Every other button in #adminContent -- including every
+ * .ash-detail-btn the 7 hub modules already render 100 call sites of --
+ * moves to the shared rounded-rect radius with zero class-name or markup
+ * change, so this is a real shape change delivered without touching a
+ * single admin-*.js render function. */
+body.admin-shell #adminContent button:not(.ash-nav-item):not(.ash-collapse-btn):not(.ash-tabs-btn):not(.ash-quick-create),
+body.admin-shell .ash-detail-btn {
+  border-radius: var(--radius-sm);
+  font: 600 13px/1 var(--ash-font); letter-spacing: -.006em;
   transition: filter .18s var(--ash-ease), box-shadow .18s var(--ash-ease),
-              transform .12s var(--ash-ease);
+              transform .12s var(--ash-ease), background .18s var(--ash-ease),
+              border-color .18s var(--ash-ease), color .18s var(--ash-ease);
 }
+body.admin-shell .ash-quick-create { border-radius: 999px; }
 body.admin-shell #adminContent button:not(.ash-nav-item):active { transform: scale(.97); }
+
+/* Secondary/Ghost/Danger variants for the existing .ash-detail-btn family
+ * (used verbatim already: .ash-detail-btn on its own is Secondary today,
+ * .ash-detail-btn-primary/.ash-detail-btn-danger already existed). Adding
+ * -secondary/-ghost as explicit aliases so new call sites don't have to
+ * guess that the bare class is the secondary style, and a true Ghost
+ * (no border/fill until hover) for low-emphasis row actions. */
+body.admin-shell .ash-detail-btn-secondary { background: var(--ash-surface); color: var(--ash-text); border-color: var(--ash-border); }
+body.admin-shell .ash-detail-btn-ghost {
+  background: transparent; color: var(--ash-text-secondary); border-color: transparent;
+}
+body.admin-shell .ash-detail-btn-ghost:hover { background: var(--ash-surface-hover); color: var(--ash-text); }
+body.admin-shell .ash-detail-btn[disabled] { opacity: .5; cursor: not-allowed; filter: none; }
 body.admin-shell #adminContent .bg-primary:hover { filter: brightness(1.06); }
 body.admin-shell #adminContent :focus-visible {
   outline: none; box-shadow: 0 0 0 3px var(--ash-accent-wash), 0 0 0 1px var(--ash-accent);
@@ -955,7 +1098,7 @@ body.admin-shell #adminContent tbody td {
 }
 body.admin-shell #adminContent tbody tr:last-child td { border-bottom: none; }
 body.admin-shell #adminContent tbody tr { transition: background .15s var(--ash-ease); }
-body.admin-shell #adminContent tbody tr:hover { background: rgba(0, 0, 0, .025); }
+body.admin-shell #adminContent tbody tr:hover { background: rgba(255, 255, 255, .035); }
 
 /* ---- 7. Badges and toasts: quiet, tinted, never loud ------------------ */
 body.admin-shell .ash-badge,
@@ -1063,7 +1206,7 @@ body.admin-shell .dash-city-tab.active {
   background: var(--ash-accent); border-color: var(--ash-accent); color: var(--ash-on-accent);
 }
 body.admin-shell .activity-item { border-color: var(--ash-border); }
-body.admin-shell .activity-item:hover { background: rgba(0, 0, 0, .025); }
+body.admin-shell .activity-item:hover { background: rgba(255, 255, 255, .035); }
 /* The page-level notice bar: tinted, not filled, so it informs without
    competing with the data underneath it. */
 body.admin-shell #adminContent .bg-primary-container,
@@ -1075,36 +1218,452 @@ body.admin-shell #adminContent [class*="bg-tertiary-container"] {
 }
 
 /* ---- Brokerage Fee Discounts tab (js/admin-brokerage.js) -----------------
- * Reuses .admin-table/.badge/.ash-entity-*/.ash-detail-* everywhere else;
- * this only adds the avatar-with-initials-fallback, the compact per-row
- * preset/custom controls (five fixed values, never a dark-theme stepper --
- * this page is light-themed, see .admin-table above) and the bulk-action
- * bar, none of which had a precedent anywhere in admin.html before this
- * tab. */
-.bd-avatar-wrap { display: inline-flex; width: 32px; height: 32px; flex: none; }
-.bd-avatar { width: 32px; height: 32px; border-radius: 999px; object-fit: cover; }
-.bd-avatar-fallback {
-  width: 32px; height: 32px; border-radius: 999px; background: #071b2f; color: #d9b76a;
-  align-items: center; justify-content: center; font: 700 11.5px/1 'IBM Plex Sans', sans-serif;
-}
-.bd-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 260px; }
+ * Reuses .admin-table/.badge/.ash-entity-*/.ash-detail-*/.ash-avatar*/
+ * .ash-bulk-bar everywhere else (the avatar and bulk-bar classes below
+ * were promoted out of this tab's own bd-avatar*/bd-bulk-bar* names during
+ * the Stage 3 table-system pass so People/Properties could reuse the exact
+ * same look rather than each growing their own -- see that section
+ * further down); this only keeps the compact per-row preset/custom
+ * controls (five fixed values, never a dark-theme stepper -- this page is
+ * light-themed, see .admin-table above), which stay brokerage-specific. */
+.bd-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 180px; }
 .bd-preset-group { display: flex; gap: 4px; flex-wrap: wrap; }
 .bd-row-actions .ash-detail-btn, .bd-preset-group .ash-detail-btn { padding: 4px 8px; font-size: 11px; }
 .bd-custom-group { display: flex; align-items: center; gap: 4px; }
 .bd-custom-input {
-  width: 52px; padding: 4px 6px; border-radius: 8px; border: 1px solid #c4c6cd;
-  font: 500 12px/1.2 'Inter', sans-serif; color: #181c20;
-}
-.bd-bulk-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px;
-  padding: 10px 14px; border-radius: 12px; background: var(--ash-accent-wash); border: 1px solid rgba(198, 154, 75, .3);
-}
-.bd-bulk-count { font: 700 12.5px/1.3 'IBM Plex Sans', sans-serif; color: var(--ash-text); white-space: nowrap; }
-.bd-bulk-reason {
-  flex: 1 1 220px; min-width: 180px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ash-border);
-  font: 500 12.5px/1.3 'Inter', sans-serif; background: var(--ash-surface); color: var(--ash-text); resize: vertical;
+  width: 52px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--ash-border);
+  font: 500 12px/1.2 'Inter', sans-serif; color: var(--ash-text); background: var(--ash-surface);
 }
 .bd-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .bd-filter-row .admin-input { width: 90px; }
 .bd-calc-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .bd-calc-row .admin-input { width: 160px; }
+.bd-preview-list {
+  margin: 8px 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto;
+  border: 1px solid var(--ash-border); border-radius: 8px;
+}
+.bd-preview-list li {
+  padding: 6px 10px; font: 500 12.5px/1.3 'Inter', sans-serif; color: var(--ash-text);
+  border-bottom: 1px solid var(--ash-border);
+}
+.bd-preview-list li:last-child { border-bottom: none; }
+
+/* ======================================================================
+   STAGE 3 — shared enterprise UI primitives
+   ======================================================================
+   AdminActionMenu (js/admin-action-menu.js), AdminDialog
+   (js/admin-dialog.js), and the table-system CSS every migrated table
+   opts into: sticky header, entity cell, numeric alignment, selected-row
+   state. See docs sent alongside this stage for the full audit of what
+   already existed vs. what's genuinely new here. */
+
+/* ---- AdminActionMenu ---------------------------------------------------
+ * One shared floating menu, repositioned per trigger -- not one hidden
+ * menu per row (would be wasted DOM on a 50-row table). Anchored with
+ * inset-inline via JS so RTL needs no separate branch. */
+.ash-icon-menu-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: var(--radius-sm); border: none;
+  background: none; color: var(--ash-text-secondary); cursor: pointer;
+}
+.ash-icon-menu-trigger:hover, .ash-icon-menu-trigger[aria-expanded="true"] {
+  background: var(--ash-surface-hover); color: var(--ash-text);
+}
+.ash-menu {
+  position: fixed; z-index: 400; min-width: 200px; max-width: 280px;
+  background: var(--ash-surface); border: 1px solid var(--ash-border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
+  padding: 6px; display: flex; flex-direction: column; gap: 1px;
+}
+/* Same [hidden]-vs-unconditional-display gap as .ash-dialog-backdrop
+ * above -- js/admin-action-menu.js sets `menuEl.hidden = true` on
+ * close (Escape, outside click, item chosen), but this rule's own
+ * `display: flex` otherwise wins over the [hidden] UA default, leaving
+ * a `position: fixed` 200-280px box sitting over the page and eating
+ * clicks near wherever a row's "..." trigger last put it. One shared
+ * menu instance for the whole page, so this affected every table using
+ * AdminActionMenu, not just the three redesigned here. */
+.ash-menu[hidden] { display: none; }
+.ash-menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
+  border-radius: 6px; border: none; background: none; color: var(--ash-text);
+  font: 500 13px/1.3 var(--ash-font); text-align: start; cursor: pointer;
+}
+.ash-menu-item .material-symbols-outlined { font-size: 17px; color: var(--ash-text-secondary); flex: none; }
+.ash-menu-item:hover, .ash-menu-item:focus-visible { background: var(--ash-surface-hover); outline: none; }
+.ash-menu-item.danger { color: var(--ash-error); }
+.ash-menu-item.danger .material-symbols-outlined { color: var(--ash-error); }
+.ash-menu-item.disabled, .ash-menu-item[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+
+/* ---- AdminDialog --------------------------------------------------------
+ * Confirmation/destructive-action dialog. A danger confirm button
+ * (ash-detail-btn-danger, already the shared red action-button style)
+ * is what makes a delete/remove/disable action visually read as
+ * dangerous, not a colour unique to this component. */
+.ash-dialog-backdrop {
+  position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+/* Found during Stage 3 QA: the rule above's unconditional `display: flex`
+ * outranks the [hidden] attribute's own UA-stylesheet default (author
+ * CSS beats UA CSS regardless of specificity), so js/admin-dialog.js
+ * setting `backdropEl.hidden = true` on Cancel/Escape left this element
+ * still `display: flex` -- fully invisible-looking only by accident
+ * (nothing was open behind it in the case that shipped it unnoticed),
+ * but still `position: fixed; inset: 0`, so it silently blocked every
+ * click anywhere on the page until reload. This re-asserts none
+ * explicitly whenever [hidden] is set, closing that gap for every
+ * caller of AdminDialog.confirm() site-wide, not just this redesign's
+ * own screens. */
+.ash-dialog-backdrop[hidden] { display: none; }
+.ash-dialog {
+  width: min(420px, 100%); background: var(--ash-surface); border: 1px solid var(--ash-border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 22px;
+}
+.ash-dialog-title { font: 600 16px/1.3 var(--ash-font); color: var(--ash-text); margin-bottom: 8px; }
+.ash-dialog-body { font: 500 13.5px/1.55 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+/* ---- Table system --------------------------------------------------------
+ * Opt-in classes any `.admin-table` can add without touching its render
+ * logic: `.ash-table-sticky` on the <table> for a header that stays
+ * visible while a long list scrolls past it (page-level sticky, offset by
+ * the topbar height -- not a bounded inner scroll container, which none
+ * of today's tables use); `.ash-cell-entity*` for the "name on top,
+ * secondary metadata below" pattern already used ad hoc in several
+ * tables, now with one name; `.ash-cell-num` for right-aligned tabular
+ * figures; `tr.is-selected` for the checked-row highlight a bulk-select
+ * table needs. */
+.ash-table-sticky thead th {
+  position: sticky; top: 0; z-index: 2;
+}
+.ash-cell-entity-title { font: 500 13.5px/1.35 var(--ash-font); color: var(--ash-text); }
+.ash-cell-entity-meta { font: 500 12px/1.4 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-cell-num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ash-cell-entity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ash-cell-entity-text { min-width: 0; }
+body.admin-shell #adminContent tbody tr.is-selected {
+  background: var(--ash-accent-wash);
+}
+body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--ash-accent-wash); }
+
+/* ---- Row selection checkbox --------------------------------------------
+ * A native checkbox's checked-fill is OS-themed and inconsistent across
+ * engines (the same problem Permission Studio hit -- see that component's
+ * own comment); this is the same custom-drawn fix, sized down for a table
+ * row and reused everywhere a table gains bulk-select. */
+.ash-checkbox {
+  appearance: none; -webkit-appearance: none; flex: none; margin: 0; cursor: pointer; position: relative;
+  width: 16px; height: 16px; border-radius: 4px;
+  border: 1.5px solid var(--ash-border-strong); background: var(--ash-surface);
+  transition: background .12s var(--ash-ease), border-color .12s var(--ash-ease);
+}
+.ash-checkbox:hover { border-color: var(--ash-accent); }
+.ash-checkbox:indeterminate, .ash-checkbox:checked { background: var(--ash-accent); border-color: var(--ash-accent); }
+.ash-checkbox:checked::after {
+  content: ""; position: absolute; inset: 0; background: var(--ash-on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
+}
+.ash-checkbox:indeterminate::after {
+  content: ""; position: absolute; inset: 0; background: var(--ash-on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' d='M4 8h8'/%3E%3C/svg%3E") no-repeat center / 11px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' d='M4 8h8'/%3E%3C/svg%3E") no-repeat center / 11px;
+}
+.ash-checkbox:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: 2px; }
+th.ash-cell-check, td.ash-cell-check { width: 36px; }
+
+/* ---- Avatar with initials fallback -------------------------------------
+ * Promoted from admin-brokerage.js's own bd-avatar* (identical rules,
+ * renamed) so People/Properties can use the same entity-photo treatment
+ * instead of each tab growing its own. */
+.ash-avatar-wrap { display: inline-flex; width: 32px; height: 32px; flex: none; }
+.ash-avatar { width: 32px; height: 32px; border-radius: 999px; object-fit: cover; }
+.ash-avatar-fallback {
+  width: 32px; height: 32px; border-radius: 999px; background: #071b2f; color: #d9b76a;
+  align-items: center; justify-content: center; font: 700 11.5px/1 'IBM Plex Sans', sans-serif;
+}
+
+/* ---- Property thumbnail cell -------------------------------------------
+ * A small fixed-size photo (or a neutral placeholder icon when a listing
+ * has none) leading Properties' entity cell -- distinct from the round
+ * person avatar above, a rounded-rect since a property photo has real
+ * aspect-ratio content worth preserving a hint of, not a face to crop to
+ * a circle. */
+.ash-cell-thumb-wrap { display: inline-flex; width: 44px; height: 44px; flex: none; }
+.ash-cell-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+.ash-cell-thumb-fallback {
+  width: 44px; height: 44px; border-radius: 8px; background: var(--ash-surface-sunken);
+  color: var(--ash-text-muted); align-items: center; justify-content: center;
+}
+.ash-cell-thumb-fallback .material-symbols-outlined { font-size: 20px; }
+
+/* ---- Bulk-action bar ----------------------------------------------------
+ * Promoted from admin-brokerage.js's own bd-bulk-bar* (identical rules,
+ * renamed) -- appears only while >=1 row is selected (see js/admin-
+ * table-kit.js's renderBulkBar), replacing the toolbar's usual state
+ * rather than sitting permanently visible. */
+.ash-bulk-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px;
+  padding: 10px 14px; border-radius: 12px; background: var(--ash-accent-wash); border: 1px solid rgba(198, 154, 75, .3);
+}
+.ash-bulk-count { font: 700 12.5px/1.3 'IBM Plex Sans', sans-serif; color: var(--ash-text); white-space: nowrap; }
+.ash-bulk-reason {
+  flex: 1 1 220px; min-width: 180px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ash-border);
+  font: 500 12.5px/1.3 'Inter', sans-serif; background: var(--ash-surface); color: var(--ash-text); resize: vertical;
+}
+.ash-bulk-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ash-dialog-backdrop, .ash-menu { transition: none !important; }
+}
+
+/* ---- Stage 4: Overview "Needs Attention" ---------------------------------
+ * Real pending-item counts (Sell/viewing requests, org verification,
+ * project review), surfaced above the KPI wall -- see admin.html's own
+ * comment at #dashNeedsAttention for why. Each row is a severity-striped,
+ * clickable jump to the hub that owns the item, matching the existing
+ * jumpToListingFromMap/jumpToSubmissionFromMap pattern rather than
+ * inventing a new navigation mechanism. */
+.ash-attention-panel {
+  background: var(--ash-surface); border: 1px solid var(--ash-border);
+  border-radius: var(--ash-radius); overflow: hidden;
+}
+.ash-attention-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--ash-border);
+}
+.ash-attention-title-row { font: 600 13px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-attention-empty { padding: 22px 18px; font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-attention-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 18px;
+  border-inline-start: 3px solid var(--ash-warning); background: none; border-top: none; border-bottom: 1px solid var(--ash-border);
+  cursor: pointer; text-align: start; font: inherit;
+}
+.ash-attention-item:last-child { border-bottom: none; }
+.ash-attention-item:hover { background: var(--ash-surface-hover); }
+.ash-attention-item-body { flex: 1; min-width: 0; }
+.ash-attention-item-title { font: 600 13px/1.35 var(--ash-font); color: var(--ash-text); }
+.ash-attention-item-meta { font: 500 12px/1.4 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
+.ash-attention-item-cta {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  font: 700 11.5px/1 var(--ash-font); color: var(--ash-accent-strong);
+}
+[dir="rtl"] .ash-attention-item-cta .material-symbols-outlined { transform: scaleX(-1); }
+
+/* ---------------------------------------------------------------------
+ * Permission Studio (People > Accounts lower section, redesign v2).
+ * Replaces the v1 "Permission Workspace" (14 full accordion groups
+ * stacked vertically -- still a long wall) with a real split view: a
+ * left nav rail listing every group with its own enabled/total count,
+ * and a single right-hand workspace rendering ONLY the selected group's
+ * permission rows. A compact account-type header (picker + preset/
+ * enabled/modified readouts + Apply recommended/••• menu) replaces the
+ * old 3-4 button row, and search now spans every group instead of just
+ * filtering whichever accordion happened to be open. All existing
+ * element ids the JS depends on (#rdAccountType, #rdSave, `data-perm`,
+ * ...) are unchanged in spirit -- this is CSS/markup/interaction only,
+ * see admin.html's module script for the matching behavior; permission
+ * keys, Firestore behavior and save logic are untouched. --------------- */
+.ash-pstudio {
+  background: var(--ash-surface); border: 1px solid var(--ash-border);
+  border-radius: var(--ash-radius); padding: 18px 20px 20px;
+}
+.ash-perm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ash-perm-title { font: 700 17px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-perm-subtitle { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-perm-learnmore {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; padding: 4px 2px; cursor: pointer;
+  font: 600 12px/1 var(--ash-font); color: var(--ash-text-secondary);
+}
+.ash-perm-learnmore:hover { color: var(--ash-text); }
+.ash-perm-learnmore .material-symbols-outlined { font-size: 16px; }
+.ash-perm-learnmore-body {
+  font: 500 12.5px/1.6 var(--ash-font); color: var(--ash-text-secondary);
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-top: 10px;
+}
+
+/* Compact account-type header (item 3): one row -- picker, then
+ * preset/enabled/modified readouts, then the two real actions. No row of
+ * 3-4 heavy buttons. */
+.ash-pstudio-acchead {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 14px 20px; flex-wrap: wrap;
+  margin-top: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--ash-border);
+}
+.ash-pstudio-accfield { flex: 0 1 260px; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
+.ash-pstudio-accmeta { flex: 1 1 320px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 18px; font: 500 13px/1.4 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-pstudio-accmeta-item { white-space: nowrap; }
+.ash-pstudio-accmeta-item > span:last-child { color: var(--ash-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ash-perm-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 12.5px/1 var(--ash-font); color: var(--ash-text-secondary);
+}
+.ash-perm-status-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ash-text-muted); flex: none; }
+.ash-perm-status[data-tone="recommended"] .ash-perm-status-dot { background: var(--ash-info); }
+.ash-perm-status[data-tone="recommended"] { color: var(--ash-info); }
+.ash-perm-status[data-tone="custom"] .ash-perm-status-dot { background: var(--ash-accent); }
+.ash-perm-status[data-tone="custom"] { color: var(--ash-accent-strong); }
+.ash-perm-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+.ash-perm-inline-status { font: 500 12.5px/1.5 var(--ash-font); margin-top: 10px; min-height: 0; }
+.ash-perm-inline-status:empty { display: none; }
+.ash-perm-diff {
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-top: 10px;
+}
+.ash-perm-diff-title { font: 700 11px/1.3 var(--ash-font); letter-spacing: .02em; text-transform: uppercase; color: var(--ash-text-secondary); margin-bottom: 4px; }
+.ash-perm-diff ul { font: 500 12.5px/1.6 var(--ash-font); color: var(--ash-text); list-style: disc; padding-inline-start: 18px; }
+.ash-perm-summary-lastsaved { font: 500 12.5px/1 var(--ash-font); color: var(--ash-text-muted); }
+
+/* Cross-group search (item 5) -- a results dropdown, not a filter on
+ * whichever group happens to be open. */
+.ash-pstudio-search-wrap {
+  position: relative; display: flex; align-items: center; gap: 8px; margin-top: 16px;
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: 999px;
+  padding: 8px 14px;
+}
+.ash-pstudio-search-wrap .material-symbols-outlined { font-size: 18px; color: var(--ash-text-muted); flex: none; }
+.ash-pstudio-search { flex: 1; background: none; border: none; outline: none; font: 500 13.5px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-pstudio-search::placeholder { color: var(--ash-text-muted); }
+.ash-pstudio-search-results {
+  position: absolute; top: calc(100% + 6px); inset-inline: 0; z-index: 6; max-height: 340px; overflow-y: auto;
+  background: var(--ash-material); backdrop-filter: var(--ash-vibrancy); -webkit-backdrop-filter: var(--ash-vibrancy);
+  border: 1px solid var(--ash-border); border-radius: var(--radius-sm); box-shadow: var(--ash-shadow-lift);
+  padding: 6px;
+}
+.ash-pstudio-search-result {
+  display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; width: 100%; text-align: start;
+  background: none; border: none; border-radius: 8px; padding: 8px 10px; cursor: pointer;
+}
+.ash-pstudio-search-result:hover, .ash-pstudio-search-result:focus-visible { background: var(--ash-surface-hover); outline: none; }
+.ash-pstudio-search-result-perm { font: 600 13.5px/1.35 var(--ash-font); color: var(--ash-text); }
+.ash-pstudio-search-result-group {
+  font: 700 11px/1.3 var(--ash-font); letter-spacing: .02em; text-transform: uppercase; color: var(--ash-accent-strong);
+  background: var(--ash-accent-wash); border-radius: 999px; padding: 1px 7px;
+}
+.ash-pstudio-search-result-desc { flex-basis: 100%; font: 500 13px/1.4 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-pstudio-search-empty { padding: 10px; font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); }
+
+/* Split view: left nav rail + right single-group workspace (items 1, 2,
+ * 4, 15, 16). Only rdActiveGroup's rows are ever in the DOM -- never all
+ * 14 groups at once. Hairline dividers between rows instead of a card
+ * per row; the rail's own active state is the only "card-like" surface,
+ * and even that is a tinted background, not a bordered box. */
+.ash-pstudio-body {
+  display: grid; grid-template-columns: 250px 1fr; gap: 20px; margin-top: 16px; align-items: start;
+}
+.ash-pstudio-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  border-inline-end: 1px solid var(--ash-border); padding-inline-end: 12px;
+}
+.ash-pstudio-nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px;
+  background: none; border: none; border-inline-start: 2px solid transparent; text-align: start; cursor: pointer;
+  color: var(--ash-text-secondary); transition: background .15s var(--ash-ease), color .15s var(--ash-ease);
+}
+.ash-pstudio-nav-item:hover { background: var(--ash-surface-hover); color: var(--ash-text); }
+.ash-pstudio-nav-item:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: -2px; }
+/* Restrained accent for the active group (item 17): a subtle tinted
+ * surface + a small gold rail indicator -- never a full bright-gold row. */
+.ash-pstudio-nav-item[aria-selected="true"] {
+  background: var(--ash-accent-wash); border-inline-start-color: var(--ash-accent); color: var(--ash-text);
+}
+.ash-pstudio-nav-icon { flex: none; font-size: 18px; color: inherit; }
+.ash-pstudio-nav-item[aria-selected="true"] .ash-pstudio-nav-icon { color: var(--ash-accent-strong); }
+.ash-pstudio-nav-text { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ash-pstudio-nav-name { font: 600 13.5px/1.3 var(--ash-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ash-pstudio-nav-count { flex: none; font: 700 12px/1 var(--ash-font); color: var(--ash-text-muted); font-variant-numeric: tabular-nums; }
+.ash-pstudio-nav-count[data-any="true"] { color: var(--ash-accent-strong); }
+
+.ash-pstudio-panel { min-width: 0; }
+.ash-pstudio-panel-head { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--ash-border); margin-bottom: 2px; }
+.ash-pstudio-panel-title { font: 700 17px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-pstudio-panel-desc { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-pstudio-panel-summaryrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ash-pstudio-panel-count { font: 700 12.5px/1 var(--ash-font); color: var(--ash-text-secondary); font-variant-numeric: tabular-nums; }
+.ash-pstudio-panel-actions { display: flex; gap: 8px; }
+.ash-pstudio-panel-actions .ash-detail-btn { padding: 5px 12px; font-size: 11.5px; }
+
+.ash-pstudio-rows { display: flex; flex-direction: column; }
+.ash-pstudio-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 11px 4px; border-bottom: 1px solid var(--ash-border); transition: background .5s var(--ash-ease);
+}
+.ash-pstudio-row:last-child { border-bottom: none; }
+.ash-pstudio-row:hover { background: var(--ash-surface-hover); }
+.ash-pstudio-row--highlight { background: var(--ash-accent-wash); border-radius: 8px; }
+.ash-pstudio-row-text { min-width: 0; }
+.ash-pstudio-row-label { font: 600 14px/1.35 var(--ash-font); color: var(--ash-text); display: flex; align-items: center; gap: 6px; }
+.ash-pstudio-row-desc { font: 500 13px/1.45 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
+.ash-perm-row-rules { flex: none; color: var(--ash-accent); font-size: 8px; line-height: 1; }
+
+/* Toggle switch (replaces the v1 checkbox) -- a real switch reads
+ * clearer than a checkbox for an on/off capability grant, and a <button
+ * role="switch"> gets native Space/Enter activation for free (item 18).
+ * inset-inline-start mirrors the thumb automatically under [dir="rtl"],
+ * no override block needed. */
+.ash-pstudio-toggle {
+  flex: none; appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 38px; height: 22px; border-radius: 999px; border: 1.5px solid var(--ash-border-strong);
+  background: var(--ash-surface-sunken); transition: background .15s var(--ash-ease), border-color .15s var(--ash-ease);
+}
+.ash-pstudio-toggle::after {
+  content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px; border-radius: 999px;
+  background: var(--ash-surface); box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  transition: inset-inline-start .15s var(--ash-ease), background .15s var(--ash-ease);
+}
+.ash-pstudio-toggle:hover { border-color: var(--ash-accent); }
+.ash-pstudio-toggle.is-on { background: var(--ash-accent); border-color: var(--ash-accent); }
+.ash-pstudio-toggle.is-on::after { inset-inline-start: 18px; background: var(--ash-on-accent); }
+.ash-pstudio-toggle:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: 2px; }
+
+.ash-perm-ruleshint { font: 500 12px/1.5 var(--ash-font); color: var(--ash-text-muted); margin-top: 14px; }
+
+.ash-perm-footer {
+  position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 16px -20px -20px; padding: 12px 20px;
+  background: var(--ash-material); backdrop-filter: var(--ash-vibrancy); -webkit-backdrop-filter: var(--ash-vibrancy);
+  border-top: 1px solid var(--ash-border); border-radius: 0 0 var(--ash-radius) var(--ash-radius);
+}
+.ash-perm-footer[hidden] { display: none; }
+.ash-perm-footer-count { font: 600 13.5px/1.3 var(--ash-font); color: var(--ash-accent-strong); }
+.ash-perm-footer-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* ---- Responsive (item 19): 1440+ split view; 1024 a narrower rail; 768
+ * the rail becomes a horizontal scroller above the panel (split columns
+ * don't fit); 390 fully stacked. Desktop never forces its split panel
+ * onto mobile, and mobile is never forced into desktop's column width. */
+@media (max-width: 1024px) {
+  .ash-pstudio-body { grid-template-columns: 208px 1fr; gap: 14px; }
+}
+@media (max-width: 768px) {
+  .ash-pstudio-body { grid-template-columns: 1fr; }
+  .ash-pstudio-nav {
+    flex-direction: row; overflow-x: auto; border-inline-end: none; padding-inline-end: 0;
+    border-bottom: 1px solid var(--ash-border); padding-bottom: 10px; gap: 6px; scrollbar-width: none;
+  }
+  .ash-pstudio-nav::-webkit-scrollbar { display: none; }
+  .ash-pstudio-nav-item {
+    flex: none; border-inline-start: none; border-inline-start-color: transparent;
+    border-bottom: 2px solid transparent; border-radius: 9px 9px 0 0;
+  }
+  .ash-pstudio-nav-item[aria-selected="true"] { border-bottom-color: var(--ash-accent); border-inline-start-color: transparent; }
+  .ash-pstudio-nav-text { flex-direction: column; align-items: flex-start; gap: 0; }
+}
+@media (max-width: 640px) {
+  .ash-pstudio { padding: 14px 14px 16px; }
+  /* flex-direction: column flips the main axis, so the desktop row's
+   * flex-basis values (260px/320px, sized for a horizontal layout) would
+   * otherwise reserve that much VERTICAL space per stacked item -- reset
+   * to content-sized (flex: none) here. */
+  .ash-pstudio-acchead { flex-direction: column; align-items: stretch; }
+  .ash-pstudio-accfield, .ash-pstudio-accmeta { flex: none; }
+  .ash-perm-actions { justify-content: flex-end; }
+  .ash-pstudio-panel-summaryrow { flex-direction: column; align-items: flex-start; }
+  .ash-perm-footer { flex-direction: column; align-items: stretch; margin: 14px -14px -16px; padding: 10px 14px; }
+  .ash-perm-footer-actions { justify-content: stretch; }
+  .ash-perm-footer-actions .ash-detail-btn { flex: 1; }
+}

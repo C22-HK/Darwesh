@@ -864,3 +864,44 @@ export function computeBrokerageFee(user, { uid, originalFee, currency, record, 
     body: { uid, originalFee, currency, record, note },
   });
 }
+
+// ---- Admin: Brokerage Fee Discounts (Phase 2: policy engine) --------------
+//
+// Policies are admin-defined DEFAULT rules that only ever apply to an
+// account with no per-account override configured (see
+// app/brokerage/brokerage_ops.py's precedence rule) -- these never write to
+// an account directly. previewBrokeragePolicyMatches is read-only; turning
+// a preview into real per-account discounts goes back through the existing
+// Phase 1 bulkSetBrokerageDiscount above, unchanged.
+
+export function listBrokeragePolicies(user, { status, cursor, limit } = {}) {
+  return authedRequest(user, 'GET', '/api/v1/brokerage/policies', { query: { status, cursor, limit } });
+}
+export function getBrokeragePolicy(user, policyId) {
+  return authedRequest(user, 'GET', `/api/v1/brokerage/policies/${encodeURIComponent(policyId)}`);
+}
+export function createBrokeragePolicy(user, { name, accountType, city, percent, status, startAt, endAt, reason } = {}) {
+  return authedRequest(user, 'POST', '/api/v1/brokerage/policies', {
+    body: { name, accountType, city, percent, status, startAt, endAt, reason },
+  });
+}
+export function updateBrokeragePolicy(user, policyId, { name, accountType, city, percent, status, startAt, endAt, reason } = {}) {
+  return authedRequest(user, 'PATCH', `/api/v1/brokerage/policies/${encodeURIComponent(policyId)}`, {
+    body: { name, accountType, city, percent, status, startAt, endAt, reason },
+  });
+}
+export function setBrokeragePolicyStatus(user, policyId, status, reason) {
+  return authedRequest(user, 'PATCH', `/api/v1/brokerage/policies/${encodeURIComponent(policyId)}/status`, {
+    body: { status, reason },
+  });
+}
+export function listBrokeragePolicyHistory(user, policyId, { limit } = {}) {
+  return authedRequest(user, 'GET', `/api/v1/brokerage/policies/${encodeURIComponent(policyId)}/history`, {
+    query: { limit },
+  });
+}
+export function previewBrokeragePolicyMatches(user, { accountType, city, percent, startAt, endAt, excludePolicyId, limit } = {}) {
+  return authedRequest(user, 'POST', '/api/v1/brokerage/policies/preview', {
+    body: { accountType, city, percent, startAt, endAt, excludePolicyId, limit },
+  });
+}
