@@ -28,6 +28,18 @@ function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function toast(msg, variant) { if (window.AdminShellToast) window.AdminShellToast(msg, variant || 'success'); }
 function user() { return auth.currentUser; }
+// Stage 3: routes every confirmation in this module through the shared
+// themed dialog instead of the browser's bare window.confirm() -- same
+// component the rest of the redesigned admin panel already uses.
+function confirmDialog(body, { danger = false } = {}) {
+  return window.AdminDialog.confirm({
+    title: () => tr('brokerage.confirmTitle', 'Are you sure?'),
+    body: () => body,
+    confirmLabel: () => tr('common.confirm', 'Confirm'),
+    cancelLabel: () => tr('common.cancel', 'Cancel'),
+    danger,
+  });
+}
 
 const PRESETS = [0, 5, 10, 20, 30];
 
@@ -102,15 +114,18 @@ function initials(name) {
   return chars.toUpperCase();
 }
 function avatarHtml(a) {
+  // ash-avatar* -- promoted (Stage 3) out of this module's own bd-avatar*
+  // into the shared table system (css/admin-shell.css); see js/admin-
+  // table-kit.js's header comment for the full rationale.
   const name = a.displayName || a.uid;
   if (a.photoURL) {
-    return `<div class="bd-avatar-wrap">
-      <img class="bd-avatar" src="${esc(a.photoURL)}" alt="" loading="lazy" decoding="async"
+    return `<div class="ash-avatar-wrap">
+      <img class="ash-avatar" src="${esc(a.photoURL)}" alt="" loading="lazy" decoding="async"
            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-      <div class="bd-avatar-fallback" style="display:none;">${esc(initials(name))}</div>
+      <div class="ash-avatar-fallback" style="display:none;">${esc(initials(name))}</div>
     </div>`;
   }
-  return `<div class="bd-avatar-wrap"><div class="bd-avatar-fallback" style="display:flex;">${esc(initials(name))}</div></div>`;
+  return `<div class="ash-avatar-wrap"><div class="ash-avatar-fallback" style="display:flex;">${esc(initials(name))}</div></div>`;
 }
 
 async function withBusy(btn, fn) {
@@ -246,22 +261,20 @@ function buildAccountsShell(el, subTab) {
       <div class="overflow-x-auto">
         <table class="admin-table ash-table-sticky">
           <thead><tr>
-            <th><input type="checkbox" id="bdSelectAll" aria-label="${esc(tr('brokerage.selectAll', 'Select all'))}"></th>
-            <th data-i18n="brokerage.thPhoto">Photo</th>
-            <th data-i18n="brokerage.thName">Name</th>
+            <th class="ash-cell-check"><input type="checkbox" class="ash-checkbox" id="bdSelectAll" aria-label="${esc(tr('brokerage.selectAll', 'Select all'))}"></th>
+            <th data-i18n="brokerage.thAccount">Account</th>
             <th data-i18n="brokerage.thAccountType">Account Type</th>
             <th data-i18n="brokerage.thCity">City</th>
             <th data-i18n="brokerage.thVerification">Verification</th>
-            <th class="ash-cell-num" data-i18n="brokerage.thDiscount">Discount</th>
-            <th data-i18n="brokerage.thStatus">Status</th>
+            <th data-i18n="brokerage.thDiscount">Discount</th>
             <th data-i18n="brokerage.thLastUpdated">Last Updated</th>
-            <th data-i18n="brokerage.thUpdatedBy">Updated By</th>
             <th data-i18n="brokerage.thActions">Actions</th>
           </tr></thead>
           <tbody id="bdTableBody"></tbody>
         </table>
       </div>
     </div>
+    <div class="ash-entity-cards" id="bdCards"></div>
     <div style="text-align:center; margin-top:14px;">
       <button type="button" class="ash-detail-btn hidden" id="bdLoadMoreBtn" data-i18n="brokerage.loadMore">Load more</button>
     </div>`;
@@ -310,7 +323,9 @@ function buildAccountsShell(el, subTab) {
     if (!cb) return;
     const uid = cb.dataset.bdSelect;
     if (cb.checked) state.selected.add(uid); else state.selected.delete(uid);
-    e.target.closest('tr')?.classList.toggle('is-selected', cb.checked);
+    const tr = e.target.closest('tr');
+    tr?.classList.toggle('is-selected', cb.checked);
+    tr?.setAttribute('aria-selected', String(cb.checked));
     renderBulkBar();
     const selectAll = document.getElementById('bdSelectAll');
     if (selectAll) selectAll.checked = state.accounts.length > 0 && state.accounts.every((a) => state.selected.has(a.uid));
@@ -405,6 +420,32 @@ function discountBadgeHtml(a) {
     : `<span class="badge badge-active">${esc(tr('brokerage.statusActive', 'Active'))}</span>`;
 }
 
+// Stage 3: the table's own Discount column -- current % and its source
+// (manual override vs. inherited policy vs. none) as two visually distinct
+// lines, never one blended string, per the redesign brief's explicit "do
+// not mix manual override and policy source into one unclear string."
+// Reuses the exact source wording already shown in the detail panel
+// (renderDetailBody below) rather than inventing new copy for the same
+// fact. The Active/Disabled badge (an overridden discount that's been
+// switched off, independent of source) rides along as a third line only
+// when it's real information -- most rows never show it.
+function discountCellHtml(a) {
+  const hasOverride = a.discountPercent !== null && a.discountPercent !== undefined;
+  const pct = a.effectiveDiscountPercent ?? 0;
+  if (!hasOverride && a.discountSource !== 'policy') {
+    return `<p class="ash-cell-entity-meta">${esc(tr('brokerage.policy.sourceNone', 'No override or matching policy'))}</p>`;
+  }
+  const sourceLabel = a.discountSource === 'override'
+    ? tr('brokerage.policy.sourceOverride', 'Manually set')
+    : a.discountSource === 'policy'
+      ? tr('brokerage.policy.sourceInherited', 'Inherited from policy: {name}').replace('{name}', a.policyName || a.policyId || '—')
+      : tr('brokerage.policy.sourceNone', 'No override or matching policy');
+  return `
+    <p class="ash-cell-entity-title ash-cell-num" dir="ltr">${esc(String(pct))}%</p>
+    <p class="ash-cell-entity-meta">${esc(sourceLabel)}</p>
+    ${hasOverride ? `<p style="margin-top:2px;">${discountBadgeHtml(a)}</p>` : ''}`;
+}
+
 // Stage 3: the preset/custom-percent controls stay inline, deliberately --
 // setting a discount IS the primary purpose of this table, not a secondary
 // row action, so collapsing them into a "..." menu would slow down the
@@ -429,52 +470,91 @@ function rowActionsHtml(a) {
 
 function accountRowHtml(a) {
   return `
-    <tr data-uid="${esc(a.uid)}" class="${state.selected.has(a.uid) ? 'is-selected' : ''}">
-      <td><input type="checkbox" data-bd-select="${esc(a.uid)}" ${state.selected.has(a.uid) ? 'checked' : ''}></td>
-      <td>${avatarHtml(a)}</td>
-      <td class="ash-cell-entity-title">${esc(a.displayName || a.uid)}</td>
+    <tr data-uid="${esc(a.uid)}" class="${state.selected.has(a.uid) ? 'is-selected' : ''}" aria-selected="${state.selected.has(a.uid) ? 'true' : 'false'}">
+      <td class="ash-cell-check"><input type="checkbox" class="ash-checkbox" data-bd-select="${esc(a.uid)}" ${state.selected.has(a.uid) ? 'checked' : ''} aria-label="${esc(tr('admin.listings.selectListing', 'Select {title}').replace('{title}', a.displayName || a.uid))}"></td>
+      <td>
+        <div class="ash-cell-entity">
+          ${avatarHtml(a)}
+          <div class="ash-cell-entity-text">
+            <p class="ash-cell-entity-title">${esc(a.displayName || a.uid)}</p>
+          </div>
+        </div>
+      </td>
       <td>${esc(accountTypeLabel(a.accountType))}</td>
       <td>${esc(a.city || '—')}</td>
       <td>${verificationBadgeHtml(a.verificationStatus)}</td>
-      <td class="ash-cell-num">${a.discountPercent === null || a.discountPercent === undefined ? '—' : `${esc(String(a.effectiveDiscountPercent))}%`}</td>
-      <td>${discountBadgeHtml(a)}</td>
-      <td>${esc(fmtDateTime(a.discountUpdatedAt))}</td>
-      <td>${esc(a.discountUpdatedBy || '—')}</td>
+      <td>${discountCellHtml(a)}</td>
+      <td>
+        <p class="ash-cell-entity-meta" dir="ltr">${esc(fmtDateTime(a.discountUpdatedAt))}</p>
+        ${a.discountUpdatedBy ? `<p class="ash-cell-entity-meta">${esc(tr('brokerage.thUpdatedBy', 'Updated By'))}: ${esc(a.discountUpdatedBy)}</p>` : ''}
+      </td>
       <td>${rowActionsHtml(a)}</td>
     </tr>`;
 }
 
+// Stage 3: mobile card for one account -- the desktop row's same three
+// facts (identity, role/city, discount %+source) in the compact
+// stacked layout every other redesigned table already uses below
+// 900px (see .ash-entity-cards in css/admin-shell.css); tapping the
+// card opens the same detail overlay a desktop row click does.
+function accountCardHtml(a) {
+  return `
+    <div class="ash-entity-card" data-uid="${esc(a.uid)}">
+      <div class="ash-entity-card-head">
+        <div class="ash-cell-entity">
+          ${avatarHtml(a)}
+          <div>
+            <div class="ash-entity-card-title">${esc(a.displayName || a.uid)}</div>
+            <div class="ash-entity-card-sub">${esc(accountTypeLabel(a.accountType))} · ${esc(a.city || '—')}</div>
+          </div>
+        </div>
+        ${verificationBadgeHtml(a.verificationStatus)}
+      </div>
+      <div class="ash-entity-card-meta">${discountCellHtml(a)}</div>
+    </div>`;
+}
+
 function renderAccountsList() {
   const tbody = document.getElementById('bdTableBody');
+  const cards = document.getElementById('bdCards');
   const countEl = document.getElementById('bdCount');
   const loadMoreBtn = document.getElementById('bdLoadMoreBtn');
   if (!tbody) return;
   renderBulkBar();
 
   if (state.loading && !state.accounts.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="ash-entity-loading">${esc(tr('brokerage.loading', 'Loading accounts…'))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="ash-entity-loading">${esc(tr('brokerage.loading', 'Loading accounts…'))}</td></tr>`;
+    if (cards) cards.innerHTML = '';
     if (countEl) countEl.textContent = '';
     if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
     return;
   }
   if (state.error) {
-    tbody.innerHTML = `<tr><td colspan="11" class="ash-entity-error">
+    tbody.innerHTML = `<tr><td colspan="8" class="ash-entity-error">
       ${esc(describeError(state.error))}
       <div><button type="button" class="ash-entity-retry" id="bdRetryBtn">${esc(tr('brokerage.retry', 'Try again'))}</button></div>
     </td></tr>`;
+    if (cards) cards.innerHTML = '';
     document.getElementById('bdRetryBtn')?.addEventListener('click', () => fetchAccounts({ reset: true }));
     if (countEl) countEl.textContent = '';
     if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
     return;
   }
   if (!state.accounts.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="ash-entity-empty">${esc(tr('brokerage.empty', 'No accounts match your filters.'))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="ash-entity-empty">${esc(tr('brokerage.empty', 'No accounts match your filters.'))}</td></tr>`;
+    if (cards) cards.innerHTML = '';
     if (countEl) countEl.textContent = '';
     if (loadMoreBtn) loadMoreBtn.classList.add('hidden');
     return;
   }
   if (countEl) countEl.textContent = tr('brokerage.countLabel', '{n} accounts').replace('{n}', String(state.accounts.length));
   tbody.innerHTML = state.accounts.map(accountRowHtml).join('');
+  if (cards) {
+    cards.innerHTML = state.accounts.map(accountCardHtml).join('');
+    cards.querySelectorAll('[data-uid]').forEach((card) => {
+      card.addEventListener('click', () => openDetail(card.dataset.uid));
+    });
+  }
   if (loadMoreBtn) loadMoreBtn.classList.toggle('hidden', !state.hasMore);
 }
 
@@ -485,8 +565,8 @@ function renderBulkBar() {
   const n = state.selected.size;
   if (!n) { bar.innerHTML = ''; return; }
   bar.innerHTML = `
-    <div class="bd-bulk-bar">
-      <span class="bd-bulk-count">${esc(tr('brokerage.bulkSelectedCount', '{count} selected').replace('{count}', String(n)))}</span>
+    <div class="ash-bulk-bar">
+      <span class="ash-bulk-count">${esc(tr('brokerage.bulkSelectedCount', '{count} selected').replace('{count}', String(n)))}</span>
       <div class="bd-preset-group">
         ${PRESETS.map((p) => `<button type="button" class="ash-detail-btn" data-bulk-preset="${p}">${p}%</button>`).join('')}
       </div>
@@ -495,7 +575,7 @@ function renderBulkBar() {
         <button type="button" class="ash-detail-btn" id="bdBulkCustomApply">${esc(tr('brokerage.apply', 'Apply'))}</button>
       </div>
       <button type="button" class="ash-detail-btn ash-detail-btn-danger" id="bdBulkRemoveBtn">${esc(tr('brokerage.bulkRemove', 'Remove discount'))}</button>
-      <textarea class="bd-bulk-reason" id="bdBulkReason" rows="1" data-i18n-placeholder="brokerage.bulkReasonPlaceholder" placeholder="Reason (optional, applied to every account in this action)…">${esc(priorReason)}</textarea>
+      <textarea class="ash-bulk-reason" id="bdBulkReason" rows="1" data-i18n-placeholder="brokerage.bulkReasonPlaceholder" placeholder="Reason (optional, applied to every account in this action)…">${esc(priorReason)}</textarea>
       <button type="button" class="ash-detail-btn" id="bdBulkClearBtn">${esc(tr('brokerage.clearSelection', 'Clear selection'))}</button>
     </div>`;
   bar.querySelectorAll('[data-bulk-preset]').forEach((b) => b.addEventListener('click', () => bulkApply(Number(b.dataset.bulkPreset), b)));
@@ -529,7 +609,7 @@ async function bulkApply(percent, btn) {
   if (!ids.length) return;
   const msg = tr('brokerage.confirmBulkApply', 'Apply {percent}% discount to {count} accounts?')
     .replace('{percent}', String(percent)).replace('{count}', String(ids.length));
-  if (!window.confirm(msg)) return;
+  if (!(await confirmDialog(msg))) return;
   try {
     const res = await withBusy(btn, () => bulkSetBrokerageDiscount(user(), { accountIds: ids, percent, active: true, reason: bulkReason() }));
     reportBulkResult(res);
@@ -544,7 +624,7 @@ async function bulkRemove(btn) {
   const ids = Array.from(state.selected);
   if (!ids.length) return;
   const msg = tr('brokerage.confirmBulkRemove', 'Remove the brokerage-fee discount from {count} accounts?').replace('{count}', String(ids.length));
-  if (!window.confirm(msg)) return;
+  if (!(await confirmDialog(msg, { danger: true }))) return;
   try {
     const res = await withBusy(btn, () => bulkSetBrokerageDiscount(user(), { accountIds: ids, percent: 0, active: false, reason: bulkReason() }));
     reportBulkResult(res);
@@ -585,7 +665,7 @@ async function toggleRowActive(uid, isActive) {
   const msg = isActive
     ? tr('brokerage.confirmDisable', 'Disable the brokerage-fee discount for {name}? The stored percentage is kept and can be re-enabled later.').replace('{name}', name)
     : tr('brokerage.confirmEnable', 'Re-enable the brokerage-fee discount for {name} at its previous percentage?').replace('{name}', name);
-  if (!window.confirm(msg)) return;
+  if (!(await confirmDialog(msg, { danger: isActive }))) return;
   try {
     if (isActive) await disableBrokerageDiscount(user(), uid);
     else await enableBrokerageDiscount(user(), uid);
@@ -600,7 +680,7 @@ async function removeRowDiscount(uid) {
   const a = state.accountsById.get(uid);
   const name = (a && (a.displayName || a.uid)) || uid;
   const msg = tr('brokerage.confirmRemove', 'Remove the brokerage-fee discount for {name}? This sets it to 0% and disabled.').replace('{name}', name);
-  if (!window.confirm(msg)) return;
+  if (!(await confirmDialog(msg, { danger: true }))) return;
   try {
     await removeBrokerageDiscount(user(), uid);
     toast(tr('brokerage.toastRemoved', 'Discount removed.'), 'success');
@@ -873,7 +953,7 @@ function renderDetailBody(account) {
     const msg = isActive
       ? tr('brokerage.confirmDisable', 'Disable the brokerage-fee discount for {name}? The stored percentage is kept and can be re-enabled later.').replace('{name}', name)
       : tr('brokerage.confirmEnable', 'Re-enable the brokerage-fee discount for {name} at its previous percentage?').replace('{name}', name);
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDialog(msg, { danger: isActive }))) return;
     try {
       await withBusy(e.currentTarget, () => (isActive ? disableBrokerageDiscount(user(), uid, reason) : enableBrokerageDiscount(user(), uid, reason)));
       toast(isActive ? tr('brokerage.toastDisabled', 'Discount disabled.') : tr('brokerage.toastEnabled', 'Discount re-enabled.'), 'success');
@@ -885,7 +965,7 @@ function renderDetailBody(account) {
     const reason = document.getElementById('bdEditReason').value.trim() || undefined;
     const name = account.displayName || uid;
     const msg = tr('brokerage.confirmRemove', 'Remove the brokerage-fee discount for {name}? This sets it to 0% and disabled.').replace('{name}', name);
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDialog(msg, { danger: true }))) return;
     try {
       await withBusy(e.currentTarget, () => removeBrokerageDiscount(user(), uid, reason));
       toast(tr('brokerage.toastRemoved', 'Discount removed.'), 'success');
@@ -1117,7 +1197,7 @@ async function setPolicyStatusAction(id, status) {
   const stateLabelEntry = POLICY_STATE_LABELS[status];
   const stateLabel = stateLabelEntry ? tr(stateLabelEntry[0], stateLabelEntry[1]) : status;
   const msg = tr('brokerage.policy.confirmStatus', 'Change "{name}" to {status}?').replace('{name}', name).replace('{status}', stateLabel);
-  if (!window.confirm(msg)) return;
+  if (!(await confirmDialog(msg))) return;
   try {
     await setBrokeragePolicyStatus(user(), id, status);
     toast(tr('brokerage.policy.toastStatusChanged', 'Policy updated.'), 'success');

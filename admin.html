@@ -371,10 +371,35 @@ change is not meant to make. -->
           <div class="ash-metrics-item"><span class="ash-metrics-value" id="statTotalCustomers">0</span><span class="ash-metrics-label" data-i18n="admin.customersStat">Customers</span></div>
           <div class="ash-metrics-item"><span class="ash-metrics-value" id="statTotalCompanies">0</span><span class="ash-metrics-label" data-i18n="admin.companiesStat">Companies</span></div>
         </div>
-        <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+        <!-- Stage 3 table system (standardized on the same .ash-entity-*
+             toolbar/pagination/skeleton primitives js/admin-orgs-pros.js
+             already established, plus .ash-checkbox/.ash-bulk-bar shared
+             with Properties/Discounts -- see js/admin-table-kit.js). Row
+             rendering, filtering, pagination and bulk-select all happen
+             in renderUsers() below; ids here are the mount points it
+             targets. -->
+        <div class="ash-entity-toolbar">
+          <div class="ash-entity-search">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <input type="text" id="usersSearchInput" data-i18n-placeholder="admin.people.searchPlaceholder" placeholder="Search by name or email…"/>
+          </div>
+          <select id="usersRoleFilter" class="ash-entity-select"></select>
+          <select id="usersSortSelect" class="ash-entity-select"></select>
+          <span class="ash-entity-count" id="usersCount"></span>
+        </div>
+        <div id="usersBulkBar"></div>
+        <div class="ash-entity-table-wrap bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
             <table class="admin-table ash-table-sticky">
-              <thead><tr><th data-i18n="admin.thUser">User</th><th data-i18n="admin.thCompany">Company</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thJoined">Joined</th><th data-i18n="admin.thRole">Role</th></tr></thead>
+              <thead><tr>
+                <th class="ash-cell-check"><input type="checkbox" class="ash-checkbox" id="usersSelectAll" aria-label="Select all accounts"/></th>
+                <th data-i18n="admin.thUser">Account</th>
+                <th data-i18n="admin.thCompany">Organization</th>
+                <th data-i18n="admin.thRole">Role</th>
+                <th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th>
+                <th data-i18n="admin.thJoined">Joined</th>
+                <th></th>
+              </tr></thead>
               <tbody id="usersBody"></tbody>
             </table>
           </div>
@@ -387,6 +412,8 @@ change is not meant to make. -->
             <p class="ash-empty-block-body" data-i18n="admin.people.emptyAccountsBody">Accounts will appear here when they are created or invited.</p>
           </div>
         </div>
+        <div class="ash-entity-cards" id="usersCards"></div>
+        <div id="usersPagination" class="ash-entity-pagination"></div>
         <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
 
         <!-- Role permission defaults (launch-readiness fix C2; visual
@@ -753,17 +780,47 @@ change is not meant to make. -->
           </div>
         </form>
 
-        <!-- List -->
+        <!-- List (Stage 3 table system -- same .ash-entity-* toolbar/
+             pagination/skeleton + .ash-checkbox/.ash-bulk-bar primitives
+             as People/Accounts; see js/admin-table-kit.js and
+             renderListingsTable() below.) -->
         <div class="lg:col-span-3">
-          <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
+          <div class="ash-entity-toolbar">
+            <div class="ash-entity-search">
+              <span class="material-symbols-outlined" aria-hidden="true">search</span>
+              <input type="text" id="listingsSearchInput" data-i18n-placeholder="admin.listings.searchPlaceholder" placeholder="Search by title or address…"/>
+            </div>
+            <select id="listingsCityFilter" class="ash-entity-select"></select>
+            <select id="listingsTypeFilter" class="ash-entity-select"></select>
+            <select id="listingsStatusFilter" class="ash-entity-select"></select>
+            <select id="listingsSortSelect" class="ash-entity-select"></select>
+            <span class="ash-entity-count" id="listingsCount"></span>
+          </div>
+          <div id="listingsBulkBar"></div>
+          <div class="ash-entity-table-wrap bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
             <div class="overflow-x-auto">
               <table class="admin-table ash-table-sticky">
-                <thead><tr><th data-i18n="agentDash.thListing">Listing</th><th data-i18n="agentDash.thAgent">Agent</th><th data-i18n="agentDash.thType">Type</th><th class="ash-cell-num" data-i18n="agentDash.thPrice">Price</th><th data-i18n="agentDash.thFlags">Flags</th><th></th></tr></thead>
+                <thead><tr>
+                  <th class="ash-cell-check"><input type="checkbox" class="ash-checkbox" id="listingsSelectAll" aria-label="Select all listings"/></th>
+                  <th data-i18n="agentDash.thListing">Listing</th>
+                  <th data-i18n="admin.listings.thCity">City</th>
+                  <th data-i18n="agentDash.thAgent">Owner / Agent</th>
+                  <th class="ash-cell-num" data-i18n="agentDash.thPrice">Price</th>
+                  <th data-i18n="agentDash.thFlags">Status</th>
+                  <th data-i18n="admin.listings.thUpdated">Updated</th>
+                  <th></th>
+                </tr></thead>
                 <tbody id="listingsBody"></tbody>
               </table>
             </div>
-            <p id="listingsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noListingsYet2">No listings yet. Use the form to add one.</p>
+            <div id="listingsEmpty" class="hidden ash-empty-block">
+              <span class="material-symbols-outlined ash-empty-block-icon" aria-hidden="true">home_work</span>
+              <p class="ash-empty-block-title" data-i18n="admin.listings.emptyTitle">No properties found</p>
+              <p class="ash-empty-block-body" data-i18n="admin.listings.emptyBody">Try changing your filters or search criteria, or use the form to add one.</p>
+            </div>
           </div>
+          <div class="ash-entity-cards" id="listingsCards"></div>
+          <div id="listingsPagination" class="ash-entity-pagination"></div>
         </div>
       </div>
       </div>
@@ -1186,6 +1243,7 @@ import { renderVerificationTab } from './js/admin-verification.js';
 import { renderArenaTab } from './js/admin-arena.js';
 import { renderAlertsTab } from './js/admin-alerts.js';
 import { renderBrokerageTab } from './js/admin-brokerage.js';
+import { renderPagination as ashPaginate, renderBulkBar as ashBulkBar, skeletonRows as ashSkeletonRows } from './js/admin-table-kit.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
 // Bulk views (the Map Management tab, hundreds of listings at a time)
@@ -1771,10 +1829,95 @@ function initDashboard() {
 function ROLE_LABEL_FN() { return { customer: trAdmin('admin.roleCustomer','Customer'), agent: trAdmin('admin.roleAgent','Agent'), admin: trAdmin('admin.roleAdmin','Admin') }; }
 const ROLE_BADGE_CLASS = { customer: 'badge-private', agent: 'badge-sale', admin: 'badge-verified' };
 
+// Stage 3 table system (standardized on the same .ash-entity-* toolbar/
+// pagination/skeleton primitives js/admin-orgs-pros.js already
+// established, plus the shared checkbox/bulk-bar promoted out of
+// admin-brokerage.js -- see js/admin-table-kit.js). `usersState.all` is
+// the full fetched+annotated list; filtering/sorting/pagination all run
+// client-side over it on every render, same shape as orgsState/
+// prosState. `selected` is keyed by uid, page-scoped select-all (matches
+// the mental model of "select all ON THIS PAGE", not every filtered row
+// across pages -- the safer default for a bulk role-change action).
+let usersState = { all: [], search: '', role: 'all', sort: 'newest', page: 1, pageSize: 25, selected: new Set(), initialized: false };
+
+function usersInitials(u) {
+  const src = (u.displayName || u.email || '?').trim();
+  return src.slice(0, 1).toUpperCase();
+}
+
+function ensureUsersShell() {
+  if (usersState.initialized) return;
+  usersState.initialized = true;
+  const roleFilter = document.getElementById('usersRoleFilter');
+  const ROLE_LABEL = ROLE_LABEL_FN();
+  roleFilter.innerHTML = `<option value="all" data-i18n="admin.filterAll">All roles</option>` +
+    ['customer', 'agent', 'admin'].map((r) => `<option value="${r}">${escapeAdmin(ROLE_LABEL[r])}</option>`).join('');
+  document.getElementById('usersSortSelect').innerHTML = `
+    <option value="newest" data-i18n="admin.entity.sortNewest">Newest first</option>
+    <option value="oldest" data-i18n="admin.entity.sortOldest">Oldest first</option>
+    <option value="name-asc" data-i18n="admin.entity.sortNameAsc">Name (A–Z)</option>
+    <option value="name-desc" data-i18n="admin.entity.sortNameDesc">Name (Z–A)</option>
+  `;
+  let searchTimer = null;
+  document.getElementById('usersSearchInput').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    const val = e.target.value;
+    searchTimer = setTimeout(() => { usersState.search = val; usersState.page = 1; renderUsersTable(); }, 180);
+  });
+  roleFilter.addEventListener('change', (e) => { usersState.role = e.target.value; usersState.page = 1; renderUsersTable(); });
+  document.getElementById('usersSortSelect').addEventListener('change', (e) => { usersState.sort = e.target.value; renderUsersTable(); });
+
+  document.getElementById('usersSelectAll').addEventListener('change', (e) => {
+    document.querySelectorAll('#usersBody [data-user-select]:not(:disabled)').forEach((cb) => {
+      cb.checked = e.target.checked;
+      if (e.target.checked) usersState.selected.add(cb.dataset.userSelect); else usersState.selected.delete(cb.dataset.userSelect);
+      const tr = cb.closest('tr');
+      tr?.classList.toggle('is-selected', e.target.checked);
+      tr?.setAttribute('aria-selected', String(e.target.checked));
+    });
+    renderUsersBulkBar();
+  });
+  document.getElementById('usersBody').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-user-select]');
+    if (!cb) return;
+    if (cb.checked) usersState.selected.add(cb.dataset.userSelect); else usersState.selected.delete(cb.dataset.userSelect);
+    const tr = cb.closest('tr');
+    tr?.classList.toggle('is-selected', cb.checked);
+    tr?.setAttribute('aria-selected', String(cb.checked));
+    renderUsersBulkBar();
+  });
+
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(document.getElementById('usersBody'), (trigger) => {
+      const uid = trigger.closest('tr')?.dataset.uid;
+      const u = usersState.all.find((x) => x.uid === uid);
+      if (!u) return [];
+      if (u.uid === currentUid) {
+        return [{ label: () => trAdmin('admin.ownAccountRoleLocked', "Your own role can't be changed here"), icon: 'lock', disabled: true, onClick: () => {} }];
+      }
+      const ROLE_LABEL2 = ROLE_LABEL_FN();
+      return ['customer', 'agent', 'admin']
+        .filter((r) => r !== (u.role || 'customer'))
+        .map((r) => ({
+          label: () => trAdmin('admin.setRoleTo', 'Set as {role}').replace('{role}', ROLE_LABEL2[r]),
+          icon: r === 'admin' ? 'shield_person' : r === 'agent' ? 'badge' : 'person',
+          danger: r === 'admin',
+          onClick: () => onRoleChange(u, r),
+        }));
+    });
+  }
+}
+
 async function renderUsers() {
-  const body = document.getElementById('usersBody');
-  const empty = document.getElementById('usersEmpty');
+  ensureUsersShell();
   renderRoleDefaultsPanel();   // idempotent -- builds the panel once
+
+  // Stage 3: skeleton rows while the fetch below is in flight, not a
+  // spinner -- keeps the table's own dimensions stable instead of
+  // collapsing the panel to nothing between renders.
+  if (!usersState.all.length) {
+    document.getElementById('usersBody').innerHTML = ashSkeletonRows(6, 7);
+  }
 
   const [usersSnap, companiesSnap, listingsSnap, privateByUid] = await Promise.all([
     getDocs(collection(db, 'users')),
@@ -1794,25 +1937,114 @@ async function renderUsers() {
 
   const users = [];
   usersSnap.forEach(d => users.push({ uid: d.id, ...withPrivateFields(d.id, d.data(), privateByUid) }));
+  users.forEach((u) => {
+    u.companyName = companyNames[u.companyId] || u.companyId || '';
+    u.listingCount = listingCounts[u.uid] || 0;
+  });
 
   document.getElementById('statTotalUsers').textContent = users.length;
   document.getElementById('statTotalAgents').textContent = users.filter(u => u.role === 'agent').length;
   document.getElementById('statTotalCustomers').textContent = users.filter(u => u.role === 'customer' || !u.role).length;
   document.getElementById('statTotalCompanies').textContent = companiesSnap.size;
 
-  if (users.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+  usersState.all = users;
+  usersState.selected = new Set();
+  usersState.page = 1;
+  renderUsersTable();
+}
+
+function renderUsersBulkBar() {
+  const n = usersState.selected.size;
+  const ROLE_LABEL = ROLE_LABEL_FN();
+  ashBulkBar('usersBulkBar', {
+    count: n,
+    countLabel: trAdmin('admin.bulkSelectedCount', '{count} selected'),
+    // Deliberately excludes bulk "Set as Admin" -- granting admin access
+    // is a one-at-a-time decision (see onRoleChange's per-account confirm
+    // dialog), never a bulk action. Bulk role-set also intentionally
+    // skips the single-row grantingCompany logic (approving a pending
+    // requestedCompanyId claim) -- that nuanced grant stays a per-row,
+    // per-name decision via the row menu, not something to wave through
+    // for a whole selection at once.
+    actions: [
+      { label: trAdmin('admin.setRoleTo', 'Set as {role}').replace('{role}', ROLE_LABEL.customer), icon: 'person', onClick: () => bulkSetRole('customer') },
+      { label: trAdmin('admin.setRoleTo', 'Set as {role}').replace('{role}', ROLE_LABEL.agent), icon: 'badge', onClick: () => bulkSetRole('agent') },
+    ],
+    onClear: () => {
+      usersState.selected.clear();
+      document.querySelectorAll('#usersBody [data-user-select]').forEach((cb) => { cb.checked = false; cb.closest('tr')?.classList.remove('is-selected'); });
+      const selectAll = document.getElementById('usersSelectAll');
+      if (selectAll) selectAll.checked = false;
+      renderUsersBulkBar();
+    },
+    clearLabel: trAdmin('admin.clearSelection', 'Clear selection'),
+  });
+}
+
+async function bulkSetRole(newRole) {
+  const uids = [...usersState.selected];
+  if (!uids.length) return;
+  const ROLE_LABEL = ROLE_LABEL_FN()[newRole];
+  const ok = await window.AdminDialog.confirm({
+    title: () => trAdmin('admin.changeRoleTitle', 'Change role?'),
+    body: () => trAdmin('admin.bulkChangeRoleBody', 'Change {count} accounts to "{role}"?').replace('{count}', String(uids.length)).replace('{role}', ROLE_LABEL),
+    confirmLabel: () => trAdmin('admin.changeRoleConfirm', 'Change role'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+  });
+  if (!ok) return;
+  const results = await Promise.allSettled(uids.map((uid) => updateDoc(doc(db, 'users', uid), { role: newRole })));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (window.AdminShellToast) {
+    window.AdminShellToast(failed ? trAdmin('admin.bulkPartialFailure', '{ok} updated, {failed} failed.').replace('{ok}', String(uids.length - failed)).replace('{failed}', String(failed)) : trAdmin('admin.bulkSuccess', '{count} accounts updated.').replace('{count}', String(uids.length)), failed ? 'error' : 'success');
+  }
+  renderUsers();
+}
+
+function renderUsersTable() {
+  const tbody = document.getElementById('usersBody');
+  const cards = document.getElementById('usersCards');
+  const empty = document.getElementById('usersEmpty');
+  const countEl = document.getElementById('usersCount');
+  if (!tbody || !cards) return;
+
+  const q = usersState.search.trim().toLowerCase();
+  let rows = usersState.all.filter((u) => {
+    const role = u.role || 'customer';
+    if (usersState.role !== 'all' && role !== usersState.role) return false;
+    if (q && !((u.displayName || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const ROLE_LABEL = ROLE_LABEL_FN();
+  rows.sort((a, b) => {
+    if (usersState.sort === 'name-asc') return (a.displayName || a.email || '').localeCompare(b.displayName || b.email || '');
+    if (usersState.sort === 'name-desc') return (b.displayName || b.email || '').localeCompare(a.displayName || a.email || '');
+    if (usersState.sort === 'oldest') return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
+    return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+  });
+
+  countEl.textContent = trAdmin('admin.entity.countLabelAccounts', '{n} accounts').replace('{n}', String(rows.length));
+
+  if (usersState.all.length === 0) {
+    tbody.innerHTML = ''; cards.innerHTML = ''; empty.classList.remove('hidden');
+    document.getElementById('usersPagination').innerHTML = '';
+    renderUsersBulkBar();
+    return;
+  }
   empty.classList.add('hidden');
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    cards.innerHTML = `<div class="ash-entity-empty">${escapeAdmin(trAdmin('admin.entity.noResultsAccounts', 'No accounts match your filters.'))}</div>`;
+    document.getElementById('usersPagination').innerHTML = '';
+    return;
+  }
 
-  users.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+  const start = (usersState.page - 1) * usersState.pageSize;
+  const pageRows = rows.slice(start, start + usersState.pageSize);
 
-  body.innerHTML = '';
-  users.forEach(u => {
-    const tr = document.createElement('tr');
+  tbody.innerHTML = pageRows.map((u) => {
     const joined = u.createdAt?.seconds ? new Date(u.createdAt.seconds * 1000).toLocaleDateString() : '—';
-    const listingCount = listingCounts[u.uid] || 0;
     const isSelf = u.uid === currentUid;
     const role = u.role || 'customer';
-    const ROLE_LABEL = ROLE_LABEL_FN();
     const wantsAgent = u.requestedRole === 'agent' && role !== 'agent' && role !== 'admin';
     // BL-04 fix: requestedCompanyId/requestedCompanyName is the UNTRUSTED
     // claim recorded when this applicant typed a name matching an
@@ -1821,45 +2053,58 @@ async function renderUsers() {
     // this badge is the only place that claim is visible before an admin
     // acts on it.
     const agentRequestBadge = wantsAgent
-      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.')}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${trAdmin('admin.agentRequested','Wants Agent Access')}${u.requestedCompanyName ? ' · ' + escapeAdmin(u.requestedCompanyName) : ''}</span>`
+      ? `<span class="badge badge-pending" style="margin-left:6px;" title="${escapeAdmin(trAdmin('admin.agentRequestedTitle','Signed up asking for agent access — change their role to Agent below to grant it.'))}"><span class="material-symbols-outlined" style="font-size:12px;">badge</span>${escapeAdmin(trAdmin('admin.agentRequested','Wants Agent Access'))}${u.requestedCompanyName ? ' · ' + escapeAdmin(u.requestedCompanyName) : ''}</span>`
       : '';
-    tr.innerHTML = `
+    return `
+    <tr data-uid="${escapeAdmin(u.uid)}" class="${usersState.selected.has(u.uid) ? 'is-selected' : ''}" aria-selected="${usersState.selected.has(u.uid) ? 'true' : 'false'}">
+      <td class="ash-cell-check"><input type="checkbox" class="ash-checkbox" data-user-select="${escapeAdmin(u.uid)}" ${usersState.selected.has(u.uid) ? 'checked' : ''} ${isSelf ? 'disabled' : ''} aria-label="${escapeAdmin(trAdmin('admin.selectAccount', 'Select {name}').replace('{name}', u.displayName || u.email || u.uid))}"/></td>
       <td>
-        <p class="ash-cell-entity-title">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
-        <p class="ash-cell-entity-meta">${escapeAdmin(u.email)}</p>
+        <div class="ash-cell-entity">
+          <span class="ash-avatar-wrap"><span class="ash-avatar-fallback" style="display:flex;">${escapeAdmin(usersInitials(u))}</span></span>
+          <div class="ash-cell-entity-text">
+            <p class="ash-cell-entity-title">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}${agentRequestBadge}</p>
+            <p class="ash-cell-entity-meta">${escapeAdmin(u.email)}</p>
+          </div>
+        </div>
       </td>
-      <td>${escapeAdmin(companyNames[u.companyId]) || escapeAdmin(u.companyId) || '—'}</td>
-      <td class="ash-cell-num">${listingCount}</td>
+      <td>${escapeAdmin(u.companyName) || '—'}</td>
+      <td><span class="badge ${ROLE_BADGE_CLASS[role]}">${escapeAdmin(ROLE_LABEL[role])}</span></td>
+      <td class="ash-cell-num">${u.listingCount}</td>
       <td>${joined}</td>
-      <td></td>
-    `;
-    const roleCell = tr.lastElementChild;
-    if (isSelf) {
-      roleCell.innerHTML = `<span class="badge ${ROLE_BADGE_CLASS[role]}">${ROLE_LABEL[role]}</span>`;
-    } else {
-      const select = document.createElement('select');
-      select.className = 'admin-input';
-      select.style.width = 'auto';
-      select.style.padding = '5px 8px';
-      select.style.fontSize = '12.5px';
-      const ROLE_LABEL2 = ROLE_LABEL_FN();
-      ['customer', 'agent', 'admin'].forEach(r => {
-        const opt = document.createElement('option');
-        opt.value = r; opt.textContent = ROLE_LABEL2[r];
-        if (role === r) opt.selected = true;
-        select.appendChild(opt);
-      });
-      select.addEventListener('change', () => onRoleChange(u, select));
-      roleCell.appendChild(select);
-    }
-    body.appendChild(tr);
-  });
+      <td><button type="button" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${escapeAdmin(trAdmin('admin.rowActions', 'Row actions'))}"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></button></td>
+    </tr>`;
+  }).join('');
+
+  cards.innerHTML = pageRows.map((u) => {
+    const isSelf = u.uid === currentUid;
+    const role = u.role || 'customer';
+    return `
+    <div class="ash-entity-card" data-uid="${escapeAdmin(u.uid)}">
+      <div class="ash-entity-card-head">
+        <div class="ash-cell-entity">
+          <span class="ash-avatar-wrap"><span class="ash-avatar-fallback" style="display:flex;">${escapeAdmin(usersInitials(u))}</span></span>
+          <div>
+            <div class="ash-entity-card-title">${escapeAdmin(u.displayName) || '(no name)'}${isSelf ? ' <span class="font-label-caps text-label-caps text-secondary">(you)</span>' : ''}</div>
+            <div class="ash-entity-card-sub">${escapeAdmin(u.companyName) || '—'}</div>
+          </div>
+        </div>
+        <span class="badge ${ROLE_BADGE_CLASS[role]}">${escapeAdmin(ROLE_LABEL[role])}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  ashPaginate('usersPagination', rows.length, usersState, (p) => { usersState.page = p; renderUsersTable(); });
+  renderUsersBulkBar();
+  const selectAll = document.getElementById('usersSelectAll');
+  if (selectAll) {
+    const selectableUids = pageRows.filter((u) => u.uid !== currentUid).map((u) => u.uid);
+    selectAll.checked = selectableUids.length > 0 && selectableUids.every((uid) => usersState.selected.has(uid));
+  }
 }
 
-async function onRoleChange(u, selectEl) {
+async function onRoleChange(u, newRole) {
   const uid = u.uid;
   const name = u.displayName || u.email;
-  const newRole = selectEl.value;
   const roleLabel = ROLE_LABEL_FN()[newRole];
   // BL-04 fix: promoting to 'agent' is also the moment a pending
   // requestedCompanyId (an unverified claim from signup -- see the
@@ -1879,7 +2124,7 @@ async function onRoleChange(u, selectEl) {
     cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
     danger: newRole === 'admin',
   });
-  if (!ok) { renderUsers(); return; }
+  if (!ok) return;
   try {
     const update = { role: newRole };
     if (grantingCompany) update.companyId = u.requestedCompanyId;
@@ -2529,6 +2774,12 @@ async function renderMarketOverview() {
 // ---------------------------------------------------------------------
 let allListingsCache = [];
 let pinLat = null, pinLng = null;
+// Stage 3 table system -- same shape as usersState (js/admin-table-kit.js
+// primitives), filtering/sorting/paginating over allListingsCache
+// client-side. allListingsCache itself stays the canonical full array
+// (editListing/deleteListing/toggleListingStatus already look items up in
+// it by id) -- this only adds the view state layered on top of it.
+let listingsState = { search: '', city: 'all', type: 'all', status: 'all', sort: 'updated-desc', page: 1, pageSize: 25, selected: new Set(), initialized: false };
 
 function initListingsTab() {
   document.getElementById('fDealType').addEventListener('change', (e) => {
@@ -2881,7 +3132,15 @@ window.editListing = function (id) {
 };
 
 window.deleteListing = async function (id) {
-  if (!confirm(trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.'))) return;
+  const l = allListingsCache.find((x) => x.id === id);
+  const ok = await window.AdminDialog.confirm({
+    title: () => trAdmin('admin.deleteListingTitle', 'Delete listing?'),
+    body: () => (l ? `${trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.')} (${l.title})` : trAdmin('admin.deleteListingConfirm','Delete this listing? It will be removed from the shared database immediately.')),
+    confirmLabel: () => trAdmin('common.delete', 'Delete'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+    danger: true,
+  });
+  if (!ok) return;
   try {
     await deleteDoc(doc(db, 'listings', id));
     renderListingsTable();
@@ -2891,61 +3150,252 @@ window.deleteListing = async function (id) {
   }
 };
 
-async function renderListingsTable() {
-  const snap = await getDocs(collection(db, 'listings'));
-  const body = document.getElementById('listingsBody');
-  const empty = document.getElementById('listingsEmpty');
+// listingsCityFilter's options depend on the fetched data (which cities
+// are actually in use), so unlike the other filters it's rebuilt on every
+// renderListingsTable() fetch, not just once in ensureListingsShell() --
+// otherwise the dropdown would be stuck permanently empty (built once,
+// before the first fetch ever populated allListingsCache). Preserves the
+// current selection across the rebuild when it's still a valid city.
+function populateListingsCityFilter() {
+  const sel = document.getElementById('listingsCityFilter');
+  const prev = sel.value || 'all';
+  const cities = [...new Set(allListingsCache.map((l) => l.city).filter(Boolean))].sort();
+  sel.innerHTML =
+    `<option value="all" data-i18n="admin.filterAll">${escapeAdmin(trAdmin('admin.filterAll', 'All'))}</option>` +
+    cities.map((c) => `<option value="${escapeAdmin(c)}">${escapeAdmin(window.cityLabel ? window.cityLabel(c) : c)}</option>`).join('');
+  sel.value = (prev === 'all' || cities.includes(prev)) ? prev : 'all';
+}
 
+// Stage 3 table system -- same shape as ensureUsersShell()/renderUsersTable()
+// above: allListingsCache is the full fetched array (still the thing
+// editListing/deleteListing/toggleListingStatus look items up in by id),
+// listingsState layers client-side filter/sort/paginate/select on top of
+// it, wired once via ensureListingsShell(). Only listingsCityFilter's
+// options depend on fetched data (see populateListingsCityFilter above) --
+// everything else here is static and safe to build before any fetch.
+function ensureListingsShell() {
+  if (listingsState.initialized) return;
+  listingsState.initialized = true;
+
+  const PROPERTY_TYPE_KEYS = { house: 'map.house', villa: 'map.villa', apartment: 'map.apartment', land: 'map.land', building: 'map.building', office: 'map.office', shop: 'map.shop', commercialProperty: 'map.commercialProperty' };
+  document.getElementById('listingsTypeFilter').innerHTML =
+    `<option value="all" data-i18n="admin.filterAll">${escapeAdmin(trAdmin('admin.filterAll', 'All'))}</option>` +
+    Object.keys(PROPERTY_TYPE_KEYS).map((t) => `<option value="${t}" data-i18n="${PROPERTY_TYPE_KEYS[t]}">${escapeAdmin(trAdmin(PROPERTY_TYPE_KEYS[t], t))}</option>`).join('');
+
+  document.getElementById('listingsStatusFilter').innerHTML = `
+    <option value="all" data-i18n="admin.filterAll">${escapeAdmin(trAdmin('admin.filterAll', 'All'))}</option>
+    <option value="active" data-i18n="admin.listings.statusActive">${escapeAdmin(trAdmin('admin.listings.statusActive', 'Active'))}</option>
+    <option value="closed" data-i18n="admin.listings.statusClosed">${escapeAdmin(trAdmin('admin.listings.statusClosed', 'Closed'))}</option>
+  `;
+  document.getElementById('listingsSortSelect').innerHTML = `
+    <option value="updated-desc" data-i18n="admin.entity.sortNewest">${escapeAdmin(trAdmin('admin.entity.sortNewest', 'Newest first'))}</option>
+    <option value="updated-asc" data-i18n="admin.entity.sortOldest">${escapeAdmin(trAdmin('admin.entity.sortOldest', 'Oldest first'))}</option>
+    <option value="price-desc" data-i18n="admin.listings.sortPriceDesc">${escapeAdmin(trAdmin('admin.listings.sortPriceDesc', 'Price (high to low)'))}</option>
+    <option value="price-asc" data-i18n="admin.listings.sortPriceAsc">${escapeAdmin(trAdmin('admin.listings.sortPriceAsc', 'Price (low to high)'))}</option>
+  `;
+
+  let searchTimer = null;
+  document.getElementById('listingsSearchInput').addEventListener('input', (e) => {
+    clearTimeout(searchTimer);
+    const val = e.target.value;
+    searchTimer = setTimeout(() => { listingsState.search = val; listingsState.page = 1; renderListingsRows(); }, 180);
+  });
+  document.getElementById('listingsCityFilter').addEventListener('change', (e) => { listingsState.city = e.target.value; listingsState.page = 1; renderListingsRows(); });
+  document.getElementById('listingsTypeFilter').addEventListener('change', (e) => { listingsState.type = e.target.value; listingsState.page = 1; renderListingsRows(); });
+  document.getElementById('listingsStatusFilter').addEventListener('change', (e) => { listingsState.status = e.target.value; listingsState.page = 1; renderListingsRows(); });
+  document.getElementById('listingsSortSelect').addEventListener('change', (e) => { listingsState.sort = e.target.value; renderListingsRows(); });
+
+  document.getElementById('listingsSelectAll').addEventListener('change', (e) => {
+    document.querySelectorAll('#listingsBody [data-listing-select]').forEach((cb) => {
+      cb.checked = e.target.checked;
+      if (e.target.checked) listingsState.selected.add(cb.dataset.listingSelect); else listingsState.selected.delete(cb.dataset.listingSelect);
+      const tr = cb.closest('tr');
+      tr?.classList.toggle('is-selected', e.target.checked);
+      tr?.setAttribute('aria-selected', String(e.target.checked));
+    });
+    renderListingsBulkBar();
+  });
+  document.getElementById('listingsBody').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-listing-select]');
+    if (!cb) return;
+    if (cb.checked) listingsState.selected.add(cb.dataset.listingSelect); else listingsState.selected.delete(cb.dataset.listingSelect);
+    const tr = cb.closest('tr');
+    tr?.classList.toggle('is-selected', cb.checked);
+    tr?.setAttribute('aria-selected', String(cb.checked));
+    renderListingsBulkBar();
+  });
+
+  // Stage 3: one shared "..." menu per row instead of 3 separate icon
+  // buttons (mark sold/active, edit, delete) -- wired once via
+  // delegation, not per-row, so it keeps working across every re-render.
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(document.getElementById('listingsBody'), (trigger) => {
+      const id = trigger.closest('tr').dataset.listingId;
+      const l = allListingsCache.find((x) => x.id === id);
+      if (!l) return [];
+      const isClosed = l.status === 'closed';
+      const closeLabel = l.dealType === 'rent' ? trAdmin('admin.markRented', 'Mark as Rented') : trAdmin('admin.markSold', 'Mark as Sold');
+      return [
+        { label: () => trAdmin('common.view', 'View'), icon: 'visibility', onClick: () => window.open('listing.html?id=' + encodeURIComponent(id), '_blank', 'noopener') },
+        { label: () => trAdmin('common.edit', 'Edit'), icon: 'edit', onClick: () => window.editListing(id) },
+        { label: () => (isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel), icon: isClosed ? 'restart_alt' : 'sell', onClick: () => window.toggleListingStatus(id) },
+        { label: () => trAdmin('common.delete', 'Delete'), icon: 'delete', danger: true, onClick: () => window.deleteListing(id) },
+      ];
+    });
+  }
+}
+
+async function renderListingsTable() {
+  ensureListingsShell();
+  // Stage 3: skeleton rows while the fetch below is in flight -- keeps
+  // the table's own dimensions stable, matching renderUsers()'s loading
+  // state instead of a large centered spinner.
+  if (!allListingsCache.length) {
+    document.getElementById('listingsBody').innerHTML = ashSkeletonRows(6, 8);
+  }
+  const snap = await getDocs(collection(db, 'listings'));
   allListingsCache = [];
   snap.forEach(d => allListingsCache.push({ id: d.id, ...d.data() }));
+  populateListingsCityFilter();
+  listingsState.selected = new Set();
+  listingsState.page = 1;
+  renderListingsRows();
+}
 
-  if (allListingsCache.length === 0) { body.innerHTML = ''; empty.classList.remove('hidden'); return; }
+function renderListingsBulkBar() {
+  const n = listingsState.selected.size;
+  ashBulkBar('listingsBulkBar', {
+    count: n,
+    countLabel: trAdmin('admin.bulkSelectedCount', '{count} selected'),
+    actions: [
+      { label: trAdmin('admin.listings.bulkMarkClosed', 'Mark as Closed'), icon: 'sell', onClick: () => bulkListingStatus('closed') },
+      { label: trAdmin('admin.markActive', 'Mark as Active'), icon: 'restart_alt', onClick: () => bulkListingStatus('active') },
+    ],
+    onClear: () => {
+      listingsState.selected.clear();
+      document.querySelectorAll('#listingsBody [data-listing-select]').forEach((cb) => { cb.checked = false; cb.closest('tr')?.classList.remove('is-selected'); });
+      const selectAll = document.getElementById('listingsSelectAll');
+      if (selectAll) selectAll.checked = false;
+      renderListingsBulkBar();
+    },
+    clearLabel: trAdmin('admin.clearSelection', 'Clear selection'),
+  });
+}
+
+async function bulkListingStatus(newStatus) {
+  const ids = [...listingsState.selected];
+  if (!ids.length) return;
+  const ok = await window.AdminDialog.confirm({
+    title: () => (newStatus === 'closed' ? trAdmin('admin.listings.bulkMarkClosed', 'Mark as Closed') : trAdmin('admin.markActive', 'Mark as Active')),
+    body: () => trAdmin('admin.listings.bulkStatusBody', 'Update {count} listings?').replace('{count}', String(ids.length)),
+    confirmLabel: () => trAdmin('common.confirm', 'Confirm'),
+    cancelLabel: () => trAdmin('common.cancel', 'Cancel'),
+  });
+  if (!ok) return;
+  const results = await Promise.allSettled(ids.map((id) => updateDoc(doc(db, 'listings', id), { status: newStatus, updatedAt: serverTimestamp() })));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (window.AdminShellToast) {
+    window.AdminShellToast(failed ? trAdmin('admin.bulkPartialFailure', '{ok} updated, {failed} failed.').replace('{ok}', String(ids.length - failed)).replace('{failed}', String(failed)) : trAdmin('admin.bulkSuccess', '{count} accounts updated.').replace('{count}', String(ids.length)), failed ? 'error' : 'success');
+  }
+  renderListingsTable();
+}
+
+function renderListingsRows() {
+  const tbody = document.getElementById('listingsBody');
+  const cards = document.getElementById('listingsCards');
+  const empty = document.getElementById('listingsEmpty');
+  const countEl = document.getElementById('listingsCount');
+  if (!tbody || !cards) return;
+
+  const q = listingsState.search.trim().toLowerCase();
+  let rows = allListingsCache.filter((l) => {
+    if (listingsState.city !== 'all' && l.city !== listingsState.city) return false;
+    if (listingsState.type !== 'all' && l.propertyType !== listingsState.type) return false;
+    if (listingsState.status !== 'all' && (l.status === 'closed' ? 'closed' : 'active') !== listingsState.status) return false;
+    if (q && !((l.title || '').toLowerCase().includes(q) || (l.address || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  rows.sort((a, b) => {
+    if (listingsState.sort === 'price-desc') return (Number(b.price) || 0) - (Number(a.price) || 0);
+    if (listingsState.sort === 'price-asc') return (Number(a.price) || 0) - (Number(b.price) || 0);
+    if (listingsState.sort === 'updated-asc') return (a.updatedAt?.seconds || 0) - (b.updatedAt?.seconds || 0);
+    return (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0);
+  });
+
+  countEl.textContent = trAdmin('admin.entity.countLabelListings', '{n} listings').replace('{n}', String(rows.length));
+
+  if (allListingsCache.length === 0) {
+    tbody.innerHTML = ''; cards.innerHTML = ''; empty.classList.remove('hidden');
+    document.getElementById('listingsPagination').innerHTML = '';
+    renderListingsBulkBar();
+    return;
+  }
   empty.classList.add('hidden');
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    cards.innerHTML = `<div class="ash-entity-empty">${escapeAdmin(trAdmin('admin.entity.noResultsListings', 'No properties match your filters.'))}</div>`;
+    document.getElementById('listingsPagination').innerHTML = '';
+    return;
+  }
 
-  allListingsCache.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+  const start = (listingsState.page - 1) * listingsState.pageSize;
+  const pageRows = rows.slice(start, start + listingsState.pageSize);
 
-  body.innerHTML = '';
-  allListingsCache.forEach(l => {
-    const tr = document.createElement('tr');
-    tr.dataset.listingId = l.id;
-    tr.innerHTML = `
+  tbody.innerHTML = pageRows.map((l) => {
+    const img = listingImageUrl(l);
+    const updated = l.updatedAt?.seconds ? new Date(l.updatedAt.seconds * 1000).toLocaleDateString() : '—';
+    const priceStr = `$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? trAdmin('common.perMonthSuffix', '/mo') : ''}`;
+    return `
+    <tr data-listing-id="${escapeAdmin(l.id)}" class="${listingsState.selected.has(l.id) ? 'is-selected' : ''}" aria-selected="${listingsState.selected.has(l.id) ? 'true' : 'false'}">
+      <td class="ash-cell-check"><input type="checkbox" class="ash-checkbox" data-listing-select="${escapeAdmin(l.id)}" ${listingsState.selected.has(l.id) ? 'checked' : ''} aria-label="${escapeAdmin(trAdmin('admin.listings.selectListing', 'Select {title}').replace('{title}', l.title || l.id))}"/></td>
       <td>
-        <p class="ash-cell-entity-title">${escapeAdmin(l.title)}</p>
-        <p class="ash-cell-entity-meta">${escapeAdmin(l.address)}, ${escapeAdmin(l.city)}</p>
+        <div class="ash-cell-entity">
+          <span class="ash-cell-thumb-wrap">${img ? `<img class="ash-cell-thumb" src="${escapeAdmin(img)}" alt="" loading="lazy"/>` : `<span class="ash-cell-thumb-fallback"><span class="material-symbols-outlined" aria-hidden="true">home_work</span></span>`}</span>
+          <div class="ash-cell-entity-text">
+            <p class="ash-cell-entity-title">${escapeAdmin(l.title)}</p>
+            <p class="ash-cell-entity-meta">${escapeAdmin(l.address)}</p>
+          </div>
+        </div>
       </td>
+      <td>${escapeAdmin(window.cityLabel ? window.cityLabel(l.city) : l.city)}</td>
       <td>${escapeAdmin(l.agentName) || trAdmin('agentDash.unknownAgent','Unknown agent')}</td>
+      <td class="ash-cell-num"><span dir="ltr">${priceStr}</span></td>
       <td>
         <span class="badge ${l.dealType === 'sale' ? 'badge-sale' : 'badge-rent'}">${l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent')}</span>
-        <div class="font-body-md text-[12px] text-on-surface-variant mt-1 capitalize">${escapeAdmin(l.propertyType)}</div>
-      </td>
-      <td class="ash-cell-num">$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? '/mo' : ''}</td>
-      <td>
         ${l.status === 'closed' ? '<span class="badge badge-closed">' + (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) + '</span>' : ''}
         ${l.verified ? '<span class="badge badge-verified">' + trAdmin('common.verified','Verified') + '</span>' : ''}
         ${l.private ? '<span class="badge badge-private">' + trAdmin('map.privateListing','Private') + '</span>' : ''}
       </td>
+      <td><span dir="ltr">${updated}</span></td>
       <td><button type="button" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="${escapeAdmin(trAdmin('admin.rowActions', 'Row actions'))}"><span class="material-symbols-outlined" aria-hidden="true">more_vert</span></button></td>
-    `;
-    body.appendChild(tr);
-  });
-}
+    </tr>`;
+  }).join('');
 
-// Stage 3: one shared "..." menu per row instead of 3 separate icon
-// buttons (mark sold/active, edit, delete) -- wired once via delegation,
-// not per-row, so it keeps working across every re-render.
-if (window.AdminActionMenu) {
-  window.AdminActionMenu.attach(document.getElementById('listingsBody'), (trigger) => {
-    const id = trigger.closest('tr').dataset.listingId;
-    const l = allListingsCache.find((x) => x.id === id);
-    if (!l) return [];
-    const isClosed = l.status === 'closed';
-    const closeLabel = l.dealType === 'rent' ? trAdmin('admin.markRented', 'Mark as Rented') : trAdmin('admin.markSold', 'Mark as Sold');
-    return [
-      { label: () => (isClosed ? trAdmin('admin.markActive', 'Mark as Active') : closeLabel), icon: isClosed ? 'restart_alt' : 'sell', onClick: () => window.toggleListingStatus(id) },
-      { label: () => trAdmin('common.edit', 'Edit'), icon: 'edit', onClick: () => window.editListing(id) },
-      { label: () => trAdmin('common.delete', 'Delete'), icon: 'delete', danger: true, onClick: () => window.deleteListing(id) },
-    ];
-  });
+  cards.innerHTML = pageRows.map((l) => {
+    const img = listingImageUrl(l);
+    const priceStr = `$${Number(l.price).toLocaleString()}${l.dealType === 'rent' ? trAdmin('common.perMonthSuffix', '/mo') : ''}`;
+    return `
+    <div class="ash-entity-card" data-listing-id="${escapeAdmin(l.id)}">
+      <div class="ash-entity-card-head">
+        <div class="ash-cell-entity">
+          <span class="ash-cell-thumb-wrap">${img ? `<img class="ash-cell-thumb" src="${escapeAdmin(img)}" alt="" loading="lazy"/>` : `<span class="ash-cell-thumb-fallback"><span class="material-symbols-outlined" aria-hidden="true">home_work</span></span>`}</span>
+          <div>
+            <div class="ash-entity-card-title">${escapeAdmin(l.title)}</div>
+            <div class="ash-entity-card-sub"><span dir="ltr">${priceStr}</span> · ${escapeAdmin(window.cityLabel ? window.cityLabel(l.city) : l.city)}</div>
+          </div>
+        </div>
+        <span class="badge ${l.status === 'closed' ? 'badge-closed' : (l.dealType === 'sale' ? 'badge-sale' : 'badge-rent')}">${l.status === 'closed' ? (l.dealType === 'rent' ? trAdmin('admin.statusRented', 'Rented') : trAdmin('admin.statusSold', 'Sold')) : (l.dealType === 'sale' ? trAdmin('common.forSale','For Sale') : trAdmin('common.forRent','For Rent'))}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  ashPaginate('listingsPagination', rows.length, listingsState, (p) => { listingsState.page = p; renderListingsRows(); });
+  renderListingsBulkBar();
+  const selectAll = document.getElementById('listingsSelectAll');
+  if (selectAll) {
+    const pageIds = pageRows.map((l) => l.id);
+    selectAll.checked = pageIds.length > 0 && pageIds.every((id) => listingsState.selected.has(id));
+  }
 }
 
 // Available to admin for any listing (agent-dashboard.html has the

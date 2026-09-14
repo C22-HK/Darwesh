@@ -1218,34 +1218,21 @@ body.admin-shell #adminContent [class*="bg-tertiary-container"] {
 }
 
 /* ---- Brokerage Fee Discounts tab (js/admin-brokerage.js) -----------------
- * Reuses .admin-table/.badge/.ash-entity-*/.ash-detail-* everywhere else;
- * this only adds the avatar-with-initials-fallback, the compact per-row
- * preset/custom controls (five fixed values, never a dark-theme stepper --
- * this page is light-themed, see .admin-table above) and the bulk-action
- * bar, none of which had a precedent anywhere in admin.html before this
- * tab. */
-.bd-avatar-wrap { display: inline-flex; width: 32px; height: 32px; flex: none; }
-.bd-avatar { width: 32px; height: 32px; border-radius: 999px; object-fit: cover; }
-.bd-avatar-fallback {
-  width: 32px; height: 32px; border-radius: 999px; background: #071b2f; color: #d9b76a;
-  align-items: center; justify-content: center; font: 700 11.5px/1 'IBM Plex Sans', sans-serif;
-}
-.bd-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 260px; }
+ * Reuses .admin-table/.badge/.ash-entity-*/.ash-detail-*/.ash-avatar*/
+ * .ash-bulk-bar everywhere else (the avatar and bulk-bar classes below
+ * were promoted out of this tab's own bd-avatar*/bd-bulk-bar* names during
+ * the Stage 3 table-system pass so People/Properties could reuse the exact
+ * same look rather than each growing their own -- see that section
+ * further down); this only keeps the compact per-row preset/custom
+ * controls (five fixed values, never a dark-theme stepper -- this page is
+ * light-themed, see .admin-table above), which stay brokerage-specific. */
+.bd-row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 180px; }
 .bd-preset-group { display: flex; gap: 4px; flex-wrap: wrap; }
 .bd-row-actions .ash-detail-btn, .bd-preset-group .ash-detail-btn { padding: 4px 8px; font-size: 11px; }
 .bd-custom-group { display: flex; align-items: center; gap: 4px; }
 .bd-custom-input {
   width: 52px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--ash-border);
   font: 500 12px/1.2 'Inter', sans-serif; color: var(--ash-text); background: var(--ash-surface);
-}
-.bd-bulk-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px;
-  padding: 10px 14px; border-radius: 12px; background: var(--ash-accent-wash); border: 1px solid rgba(198, 154, 75, .3);
-}
-.bd-bulk-count { font: 700 12.5px/1.3 'IBM Plex Sans', sans-serif; color: var(--ash-text); white-space: nowrap; }
-.bd-bulk-reason {
-  flex: 1 1 220px; min-width: 180px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ash-border);
-  font: 500 12.5px/1.3 'Inter', sans-serif; background: var(--ash-surface); color: var(--ash-text); resize: vertical;
 }
 .bd-filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .bd-filter-row .admin-input { width: 90px; }
@@ -1288,6 +1275,15 @@ body.admin-shell #adminContent [class*="bg-tertiary-container"] {
   border-radius: var(--radius-sm); box-shadow: var(--shadow-lg);
   padding: 6px; display: flex; flex-direction: column; gap: 1px;
 }
+/* Same [hidden]-vs-unconditional-display gap as .ash-dialog-backdrop
+ * above -- js/admin-action-menu.js sets `menuEl.hidden = true` on
+ * close (Escape, outside click, item chosen), but this rule's own
+ * `display: flex` otherwise wins over the [hidden] UA default, leaving
+ * a `position: fixed` 200-280px box sitting over the page and eating
+ * clicks near wherever a row's "..." trigger last put it. One shared
+ * menu instance for the whole page, so this affected every table using
+ * AdminActionMenu, not just the three redesigned here. */
+.ash-menu[hidden] { display: none; }
 .ash-menu-item {
   display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
   border-radius: 6px; border: none; background: none; color: var(--ash-text);
@@ -1309,6 +1305,18 @@ body.admin-shell #adminContent [class*="bg-tertiary-container"] {
   display: flex; align-items: center; justify-content: center; padding: 16px;
   -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
 }
+/* Found during Stage 3 QA: the rule above's unconditional `display: flex`
+ * outranks the [hidden] attribute's own UA-stylesheet default (author
+ * CSS beats UA CSS regardless of specificity), so js/admin-dialog.js
+ * setting `backdropEl.hidden = true` on Cancel/Escape left this element
+ * still `display: flex` -- fully invisible-looking only by accident
+ * (nothing was open behind it in the case that shipped it unnoticed),
+ * but still `position: fixed; inset: 0`, so it silently blocked every
+ * click anywhere on the page until reload. This re-asserts none
+ * explicitly whenever [hidden] is set, closing that gap for every
+ * caller of AdminDialog.confirm() site-wide, not just this redesign's
+ * own screens. */
+.ash-dialog-backdrop[hidden] { display: none; }
 .ash-dialog {
   width: min(420px, 100%); background: var(--ash-surface); border: 1px solid var(--ash-border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 22px;
@@ -1333,10 +1341,79 @@ body.admin-shell #adminContent [class*="bg-tertiary-container"] {
 .ash-cell-entity-title { font: 500 13.5px/1.35 var(--ash-font); color: var(--ash-text); }
 .ash-cell-entity-meta { font: 500 12px/1.4 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
 .ash-cell-num { text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ash-cell-entity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ash-cell-entity-text { min-width: 0; }
 body.admin-shell #adminContent tbody tr.is-selected {
   background: var(--ash-accent-wash);
 }
 body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--ash-accent-wash); }
+
+/* ---- Row selection checkbox --------------------------------------------
+ * A native checkbox's checked-fill is OS-themed and inconsistent across
+ * engines (the same problem Permission Studio hit -- see that component's
+ * own comment); this is the same custom-drawn fix, sized down for a table
+ * row and reused everywhere a table gains bulk-select. */
+.ash-checkbox {
+  appearance: none; -webkit-appearance: none; flex: none; margin: 0; cursor: pointer; position: relative;
+  width: 16px; height: 16px; border-radius: 4px;
+  border: 1.5px solid var(--ash-border-strong); background: var(--ash-surface);
+  transition: background .12s var(--ash-ease), border-color .12s var(--ash-ease);
+}
+.ash-checkbox:hover { border-color: var(--ash-accent); }
+.ash-checkbox:indeterminate, .ash-checkbox:checked { background: var(--ash-accent); border-color: var(--ash-accent); }
+.ash-checkbox:checked::after {
+  content: ""; position: absolute; inset: 0; background: var(--ash-on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
+}
+.ash-checkbox:indeterminate::after {
+  content: ""; position: absolute; inset: 0; background: var(--ash-on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' d='M4 8h8'/%3E%3C/svg%3E") no-repeat center / 11px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' d='M4 8h8'/%3E%3C/svg%3E") no-repeat center / 11px;
+}
+.ash-checkbox:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: 2px; }
+th.ash-cell-check, td.ash-cell-check { width: 36px; }
+
+/* ---- Avatar with initials fallback -------------------------------------
+ * Promoted from admin-brokerage.js's own bd-avatar* (identical rules,
+ * renamed) so People/Properties can use the same entity-photo treatment
+ * instead of each tab growing its own. */
+.ash-avatar-wrap { display: inline-flex; width: 32px; height: 32px; flex: none; }
+.ash-avatar { width: 32px; height: 32px; border-radius: 999px; object-fit: cover; }
+.ash-avatar-fallback {
+  width: 32px; height: 32px; border-radius: 999px; background: #071b2f; color: #d9b76a;
+  align-items: center; justify-content: center; font: 700 11.5px/1 'IBM Plex Sans', sans-serif;
+}
+
+/* ---- Property thumbnail cell -------------------------------------------
+ * A small fixed-size photo (or a neutral placeholder icon when a listing
+ * has none) leading Properties' entity cell -- distinct from the round
+ * person avatar above, a rounded-rect since a property photo has real
+ * aspect-ratio content worth preserving a hint of, not a face to crop to
+ * a circle. */
+.ash-cell-thumb-wrap { display: inline-flex; width: 44px; height: 44px; flex: none; }
+.ash-cell-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
+.ash-cell-thumb-fallback {
+  width: 44px; height: 44px; border-radius: 8px; background: var(--ash-surface-sunken);
+  color: var(--ash-text-muted); align-items: center; justify-content: center;
+}
+.ash-cell-thumb-fallback .material-symbols-outlined { font-size: 20px; }
+
+/* ---- Bulk-action bar ----------------------------------------------------
+ * Promoted from admin-brokerage.js's own bd-bulk-bar* (identical rules,
+ * renamed) -- appears only while >=1 row is selected (see js/admin-
+ * table-kit.js's renderBulkBar), replacing the toolbar's usual state
+ * rather than sitting permanently visible. */
+.ash-bulk-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px;
+  padding: 10px 14px; border-radius: 12px; background: var(--ash-accent-wash); border: 1px solid rgba(198, 154, 75, .3);
+}
+.ash-bulk-count { font: 700 12.5px/1.3 'IBM Plex Sans', sans-serif; color: var(--ash-text); white-space: nowrap; }
+.ash-bulk-reason {
+  flex: 1 1 220px; min-width: 180px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--ash-border);
+  font: 500 12.5px/1.3 'Inter', sans-serif; background: var(--ash-surface); color: var(--ash-text); resize: vertical;
+}
+.ash-bulk-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
 @media (prefers-reduced-motion: reduce) {
   .ash-dialog-backdrop, .ash-menu { transition: none !important; }
