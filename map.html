@@ -429,6 +429,142 @@ violation reporting. -->
      * page-scoped is needed here for that any more; the extra bottom
      * padding this rule used to reserve was solely to keep the last list
      * card clear of the now-gone dock. */
+
+    /* =====================================================================
+       APPLE-INSPIRED MAP TOOLS REDESIGN
+       =====================================================================
+       Calmer, card-based drawer: soft neutral separators replace the
+       gold-tinted borders every group/row/handle used to carry, so gold
+       reads as "this is active/selected/primary" again instead of being
+       the page's default color everywhere. The selectors below repeat
+       class names owned by css/cinematic.css (.drawer-group, .tool-row,
+       .map-edge-handle, .map-drawer, ...) rather than editing that file
+       directly -- those rules are shared by every cinematic-themed page
+       (login/signup/index included) via the same .cine-scope body class,
+       and this softening is deliberately specific to the map's own
+       drawer. This <style> block loads after that stylesheet's <link>, so
+       equal-specificity rules here win on cascade order alone -- no
+       !important needed anywhere in this section. */
+
+    /* ---- Drawer groups: soft cards, not gold-bordered boxes ----------- */
+    .cine-scope .drawer-group {
+      border-color: rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.035);
+      border-radius: 16px;
+      padding: 14px;
+      gap: 10px;
+    }
+    .cine-scope .drawer-group-title {
+      font-weight: 600;
+      letter-spacing: 0.11em;
+      color: #9B978C;
+    }
+    .cine-scope .tool-row:hover:not(:disabled) {
+      background: rgba(255,255,255,0.055);
+      border-color: rgba(255,255,255,0.12);
+    }
+    .cine-scope .map-edge-handle { border-color: rgba(255,255,255,0.16); }
+    .cine-scope .map-edge-handle:hover { border-color: rgba(216,182,101,0.55); }
+    .cine-scope .map-drawer { border-inline-start-color: rgba(255,255,255,0.10); }
+    .cine-scope .map-drawer-head { border-block-end-color: rgba(255,255,255,0.08); }
+    .cine-scope .map-drawer-close { border-color: rgba(255,255,255,0.14); }
+    .cine-scope .map-drawer .map-type-switch { border-color: rgba(255,255,255,0.12); }
+    .cine-scope .map-drawer input[type="number"],
+    .cine-scope .map-drawer input[type="text"] {
+      border-color: rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+    }
+
+    /* ---- Top toolbar: frosted-glass bar, softer pill borders ---------- */
+    #filterBarWrap {
+      background: rgba(9,10,10,0.72);
+      backdrop-filter: blur(16px) saturate(1.1);
+      -webkit-backdrop-filter: blur(16px) saturate(1.1);
+      border-bottom-color: rgba(255,255,255,0.08);
+    }
+    #filterBarWrap .border-outline-variant { border-color: rgba(255,255,255,0.12); }
+
+    /* ---- Chips / Home Type cards / toggles: fewer, softer borders ----- */
+    .chip-opt { border-color: rgba(255,255,255,0.14); }
+    .chip-opt:hover { border-color: rgba(184,154,99,0.55); }
+    .hometype-grid { gap: 10px; }
+    .hometype-card {
+      border-color: rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.02);
+      border-radius: 14px;
+      padding: 14px 8px;
+      gap: 8px;
+    }
+    .hometype-card:hover { border-color: rgba(184,154,99,0.5); background: rgba(184,154,99,0.05); }
+    /* A soft circular chip behind each icon -- the "more elegant icon
+       treatment" the card redesign calls for -- instead of a bare glyph
+       floating in the card. */
+    .hometype-icon {
+      display: flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 999px; flex: none;
+      background: rgba(255,255,255,0.05);
+      transition: background 150ms ease;
+    }
+    .hometype-card svg { width: 18px; height: 18px; }
+    .hometype-card:has(input:checked) .hometype-icon { background: rgba(184,154,99,0.22); }
+    .currency-toggle { border-color: rgba(255,255,255,0.14); }
+    .switch-track { border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.08); }
+    .drawer-subgroup { border-top-color: rgba(255,255,255,0.08); padding-top: 14px; }
+    .filter-dropdown-btn.active { background: rgba(184,154,99,0.14); }
+
+    /* ---- Area Alert -- the one deliberately-highlighted card ---------- */
+    /* Everywhere else on this page keeps gold for active states only, but
+       this card IS the reason "Select Area" exists, so it earns a little
+       more presence: a soft gold-tinted gradient rather than the neutral
+       treatment above. Still restrained -- a tint, not a fill.
+       Selector needs .cine-scope .drawer-group.area-alert-card (three
+       class-selectors), not a bare .area-alert-card -- the neutral
+       ".cine-scope .drawer-group" rule above is itself two class-selectors
+       and would otherwise win on specificity regardless of source order. */
+    .cine-scope .drawer-group.area-alert-card {
+      background: linear-gradient(160deg, rgba(198,154,75,0.13), rgba(198,154,75,0.03));
+      border-color: rgba(198,154,75,0.30);
+    }
+    .area-alert-title { color: #D8B665; }
+    .area-alert-status {
+      margin: 0 0 2px;
+      font-family: 'Inter', sans-serif;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #C9C2B4;
+    }
+    .area-alert-btn-primary, .area-alert-btn-secondary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; min-height: 42px; padding: 10px 14px; border-radius: 11px;
+      font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: background 150ms ease, border-color 150ms ease, filter 150ms ease, opacity 150ms ease;
+    }
+    .area-alert-btn-primary {
+      border: none;
+      background: linear-gradient(180deg, #D8B665, #C69A4B);
+      color: #0B0E12;
+    }
+    .area-alert-btn-primary:hover { filter: brightness(1.06); }
+    .area-alert-btn-primary.active { background: linear-gradient(180deg, #E4C77E, #D8B665); }
+    .area-alert-btn-primary.select-area-set {
+      background: rgba(198,154,75,0.16);
+      color: #D8B665;
+      border: 1px solid rgba(198,154,75,0.45);
+    }
+    .area-alert-btn-secondary {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: transparent;
+      color: #F4EFE7;
+    }
+    .area-alert-btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.06); }
+    .area-alert-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .area-alert-my-link {
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600;
+      color: #B7AF9E; text-decoration: none; padding: 4px; margin-top: -2px;
+      transition: color 150ms ease;
+    }
+    .area-alert-my-link:hover { color: #D8B665; }
   </style>
 </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-[76px] pb-24 md:pb-0">
@@ -488,7 +624,7 @@ violation reporting. -->
      right in the main toolbar next to Save Search / Save as Alert, so
      nobody has to discover a hidden control first. Label/color/radius
      badge track drawMode/searchCircle via updateSelectAreaButton(). -->
-<button id="selectAreaBtn" type="button" class="flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-pressed="false" title="Tap to pick a center, then drag to set the radius" data-i18n-title="map.selectAreaHint">
+<button id="selectAreaBtn" type="button" class="flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-pressed="false" aria-label="Select Area" data-i18n-aria="map.selectArea" title="Tap to pick a center, then drag to set the radius" data-i18n-title="map.selectAreaHint">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/></svg>
 <span id="selectAreaLabel" data-i18n="map.selectArea">Select Area</span>
 <span id="selectAreaRadiusBadge" class="hidden font-data-mono text-data-mono"></span>
@@ -577,36 +713,6 @@ violation reporting. -->
 
 <div class="map-drawer-body">
 
-<!-- ---- Map style -------------------------------------------------- -->
-<section class="drawer-group" data-group="style">
-<h3 class="drawer-group-title" data-i18n="map.groupMapStyle">Map style</h3>
-<div class="map-type-switch" id="mapTypeSwitch" role="group" aria-label="Map type" data-i18n-aria="map.mapType">
-<button type="button" class="map-type-btn active" data-map-type="roadmap" data-i18n="drm.roadmap">Map</button>
-<button type="button" class="map-type-btn" data-map-type="satellite" data-i18n="drm.satellite">Satellite</button>
-<button type="button" class="map-type-btn" data-map-type="hybrid" data-i18n="drm.hybrid">Hybrid</button>
-</div>
-</section>
-
-<!-- ---- Location ---------------------------------------------------- -->
-<section class="drawer-group" data-group="location">
-<h3 class="drawer-group-title" data-i18n="map.groupLocation">Location</h3>
-<button id="myLocationBtn" type="button" class="tool-row" title="My Location" aria-label="My Location" data-i18n-title="map.myLocation" data-i18n-aria="map.myLocation">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
-<span class="tool-label" data-i18n="map.myLocation">My Location</span>
-</button>
-<button id="resetViewBtn" type="button" class="tool-row" title="Reset view" aria-label="Reset view" data-i18n-title="map.resetView" data-i18n-aria="map.resetView">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
-<span class="tool-label" data-i18n="map.resetView">Reset view</span>
-</button>
-<!-- Enabled only once a real pan/zoom has made "this area" mean
-     something different from the last search (the .show class is still
-     set by the same debounced handler as before). -->
-<button id="searchThisAreaBtn" type="button" class="tool-row" disabled="" title="Search this area" aria-label="Search this area" data-i18n-title="drm.searchThisArea" data-i18n-aria="drm.searchThisArea">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
-<span class="tool-label" data-i18n="drm.searchThisArea">Search this area</span>
-</button>
-</section>
-
 <!-- ---- Property filters ----------------------------------------------
      Price / Beds & Baths / Home Type / More -- moved here from the top
      toolbar's popovers. Every input/button below keeps its EXACT original
@@ -675,14 +781,14 @@ violation reporting. -->
 <div class="drawer-subgroup">
 <span class="drawer-subgroup-label" data-i18n="map.homeType">Home Type</span>
 <div class="hometype-grid mb-2">
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="house"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.house">House</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="villa"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l9-7 9 7"/><path d="M5 11v9h14v-9"/><circle cx="12" cy="15" r="2"/></svg><span data-i18n="map.villa">Villa</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="apartment"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/></svg><span data-i18n="map.apartment">Apartment</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="land"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20V8M10 20V8M14 20V8M18 20V8"/></svg><span data-i18n="map.land">Land</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="building"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="1"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1M10 18h1M13 18h1"/></svg><span data-i18n="map.building">Building</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="office"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg><span data-i18n="map.office">Office</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="shop"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg><span data-i18n="map.shop">Shop</span></label>
-<label class="hometype-card"><input type="checkbox" class="home-type-check" value="commercialProperty"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/></svg><span data-i18n="map.commercialProperty">Commercial</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="house"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></span><span data-i18n="map.house">House</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="villa"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12l9-7 9 7"/><path d="M5 11v9h14v-9"/><circle cx="12" cy="15" r="2"/></svg></span><span data-i18n="map.villa">Villa</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="apartment"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2"/></svg></span><span data-i18n="map.apartment">Apartment</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="land"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20V8M10 20V8M14 20V8M18 20V8"/></svg></span><span data-i18n="map.land">Land</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="building"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="1"/><path d="M10 6h1M13 6h1M10 10h1M13 10h1M10 14h1M13 14h1M10 18h1M13 18h1"/></svg></span><span data-i18n="map.building">Building</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="office"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 12h18"/></svg></span><span data-i18n="map.office">Office</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="shop"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg></span><span data-i18n="map.shop">Shop</span></label>
+<label class="hometype-card"><input type="checkbox" class="home-type-check" value="commercialProperty"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/></svg></span><span data-i18n="map.commercialProperty">Commercial</span></label>
 </div>
 <div class="flex gap-2">
 <button id="homeTypeApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
@@ -722,25 +828,69 @@ violation reporting. -->
 </div>
 </section>
 
-<!-- ---- Area search ------------------------------------------------- -->
-<section class="drawer-group" data-group="area">
-<h3 class="drawer-group-title" data-i18n="map.groupAreaSearch">Area search</h3>
-<button id="drawSearchBtn" type="button" class="tool-row" title="Draw Area" aria-label="Draw Area" aria-pressed="false" data-i18n-title="map.drawArea" data-i18n-aria="map.drawArea">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-<span class="tool-label" data-i18n="map.drawArea">Draw Area</span>
+<!-- ---- Area Search & Alerts --------------------------------------------
+     Property Watch's premium, highlighted control center: the SAME
+     Select Area trigger the top toolbar exposes (see triggerSelectArea()
+     below -- one shared function, so the drawer button and the toolbar
+     button can never drift into different states), the drawn area's live
+     status/radius, Clear area, Save as Alert, and a shortcut into the
+     account.html Alerts tab. Deliberately given more visual presence than
+     its neighbors (see .area-alert-card) -- everywhere else on this page
+     keeps gold for active states only, but this section IS the reason
+     "Select Area" exists, so it earns the one card that gets to look like
+     it matters. Replaces the old separate "Draw Area"/"Redraw area"
+     tool-row buttons entirely -- Select Area (here and in the toolbar) is
+     now the one, always-obvious way to arm the circle gesture; see
+     setDrawMode() for the underlying press-drag-release mechanics, which
+     are completely unchanged. -->
+<section class="drawer-group area-alert-card" data-group="area-alert">
+<h3 class="drawer-group-title area-alert-title" data-i18n="alerts.groupAreaAlert">Area Alert</h3>
+<p id="areaAlertStatusText" class="area-alert-status" data-i18n="alerts.selectAreaFirst">Select an area on the map first</p>
+<button id="drawerSelectAreaBtn" type="button" class="area-alert-btn-primary" aria-pressed="false">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke-dasharray="2.5 3"/><circle cx="12" cy="12" r="1.75" fill="currentColor" stroke="none"/></svg>
+<span id="drawerSelectAreaLabel" data-i18n="map.selectArea">Select Area</span>
 </button>
-<!-- Both appear only once a circle actually exists. A one-gesture circle
-     has nothing to undo mid-draw and nothing to finish -- the pointer
-     release already committed it -- so Redraw and Clear are the only
-     actions a finished area can meaningfully offer. -->
-<button id="redrawSearchAreaBtn" type="button" class="tool-row" style="display:none;" title="Redraw area" aria-label="Redraw area" data-i18n-title="map.redrawArea" data-i18n-aria="map.redrawArea">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5V2M19.5 12H22"/></svg>
-<span class="tool-label" data-i18n="map.redrawArea">Redraw area</span>
+<!-- Only appears once a circle (or a "search this area" viewport
+     snapshot) actually exists -- see updateAreaControls(). -->
+<button id="clearSearchAreaBtn" type="button" class="area-alert-btn-secondary" style="display:none;" aria-label="Clear area" data-i18n-aria="map.clearSearchArea">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+<span data-i18n="map.clearSearchArea">Clear area</span>
 </button>
-<button id="clearSearchAreaBtn" type="button" class="tool-row tool-row-danger" style="display:none;">
-<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
-<span class="tool-label" data-i18n="map.clearSearchArea">Clear area</span>
+<button id="drawerSaveAlertBtn" type="button" disabled="" class="area-alert-btn-secondary">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+<span data-i18n="alerts.saveButton">Save as Alert</span>
 </button>
+<a href="account.html?tab=alerts" class="area-alert-my-link">
+<span data-i18n="alerts.myAlerts">My Alerts</span>
+<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+</a>
+</section>
+
+<!-- ---- Map options (map style + location, consolidated) ---------------- -->
+<section class="drawer-group" data-group="mapOptions">
+<h3 class="drawer-group-title" data-i18n="map.groupMapOptions">Map options</h3>
+<div class="map-type-switch" id="mapTypeSwitch" role="group" aria-label="Map type" data-i18n-aria="map.mapType">
+<button type="button" class="map-type-btn active" data-map-type="roadmap" data-i18n="drm.roadmap">Map</button>
+<button type="button" class="map-type-btn" data-map-type="satellite" data-i18n="drm.satellite">Satellite</button>
+<button type="button" class="map-type-btn" data-map-type="hybrid" data-i18n="drm.hybrid">Hybrid</button>
+</div>
+<div class="drawer-subgroup">
+<button id="myLocationBtn" type="button" class="tool-row" title="My Location" aria-label="My Location" data-i18n-title="map.myLocation" data-i18n-aria="map.myLocation">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+<span class="tool-label" data-i18n="map.myLocation">My Location</span>
+</button>
+<button id="resetViewBtn" type="button" class="tool-row" title="Reset view" aria-label="Reset view" data-i18n-title="map.resetView" data-i18n-aria="map.resetView">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+<span class="tool-label" data-i18n="map.resetView">Reset view</span>
+</button>
+<!-- Enabled only once a real pan/zoom has made "this area" mean
+     something different from the last search (the .show class is still
+     set by the same debounced handler as before). -->
+<button id="searchThisAreaBtn" type="button" class="tool-row" disabled="" title="Search this area" aria-label="Search this area" data-i18n-title="drm.searchThisArea" data-i18n-aria="drm.searchThisArea">
+<svg class="ctl-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+<span class="tool-label" data-i18n="drm.searchThisArea">Search this area</span>
+</button>
+</div>
 </section>
 
 <!-- ---- View --------------------------------------------------------- -->
@@ -1471,6 +1621,8 @@ function updateSaveAlertButton() {
   if (!btn) return;
   const hasArea = !!currentAlertArea();
   btn.disabled = !hasArea;
+  const drawerBtn = document.getElementById('drawerSaveAlertBtn');
+  if (drawerBtn) drawerBtn.disabled = !hasArea;
   const helper = document.getElementById('saveAlertHelperMsg');
   if (helper) helper.classList.toggle('hidden', hasArea);
 }
@@ -3138,8 +3290,6 @@ document.addEventListener('keydown', (e) => {
   if (drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
 });
 
-const drawSearchBtn = document.getElementById('drawSearchBtn');
-const redrawSearchAreaBtn = document.getElementById('redrawSearchAreaBtn');
 const clearSearchAreaBtn = document.getElementById('clearSearchAreaBtn');
 const mapEl = document.getElementById('map');
 const drawRadiusBadge = document.getElementById('drawRadiusBadge');
@@ -3229,38 +3379,55 @@ function restoreReplacedCircle() {
 // the two filters cannot leave a stale button behind.
 function updateAreaControls() {
   const hasCircle = !!searchCircle;
-  drawSearchBtn.style.display = hasCircle ? 'none' : 'flex';
-  redrawSearchAreaBtn.style.display = hasCircle ? 'flex' : 'none';
   clearSearchAreaBtn.style.display = (hasCircle || viewportSearchBounds) ? 'flex' : 'none';
   if (typeof updateSaveAlertButton === 'function') updateSaveAlertButton();
   if (typeof updateSelectAreaButton === 'function') updateSelectAreaButton();
 }
 
-// The main-toolbar counterpart to drawSearchBtn/redrawSearchAreaBtn --
-// one always-visible button instead of two hidden inside the edge drawer.
-// Same three states as those two put together, told apart by color/label
-// alone (no icon swap): idle outline, gold-filled while armed, and a
-// quieter gold outline plus the committed radius once a circle exists.
+// Drives BOTH the always-visible top-toolbar Select Area button and its
+// mirror inside the drawer's Area Alert card (#drawerSelectAreaBtn) --
+// one function, so the two can never drift into different states. Same
+// three states told apart by color/label alone (no icon swap): idle
+// outline, gold-filled while armed, and a quieter gold outline plus the
+// committed radius once a circle exists. Also keeps the Area Alert card's
+// status line (#areaAlertStatusText) in sync with the same state.
 function updateSelectAreaButton() {
   const btn = document.getElementById('selectAreaBtn');
   if (!btn) return;
   const label = document.getElementById('selectAreaLabel');
   const radiusBadge = document.getElementById('selectAreaRadiusBadge');
+  const drawerBtn = document.getElementById('drawerSelectAreaBtn');
+  const drawerLabel = document.getElementById('drawerSelectAreaLabel');
+  const statusText = document.getElementById('areaAlertStatusText');
   const hasCircle = !!searchCircle;
   btn.classList.toggle('active', drawMode);
   btn.classList.toggle('select-area-set', hasCircle && !drawMode);
   btn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
+  if (drawerBtn) {
+    drawerBtn.classList.toggle('active', drawMode);
+    drawerBtn.classList.toggle('select-area-set', hasCircle && !drawMode);
+    drawerBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
+  }
+  let labelText, statusMsg;
   if (drawMode) {
-    label.textContent = tr('map.cancelSelectArea', 'Cancel');
+    labelText = tr('map.cancelSelectArea', 'Cancel');
     radiusBadge.classList.add('hidden');
+    statusMsg = tr('map.dragToSetRadius', 'Press the map and drag out to set your search radius');
   } else if (hasCircle) {
-    label.textContent = tr('map.changeArea', 'Change Area');
+    labelText = tr('map.changeArea', 'Change Area');
     radiusBadge.textContent = fmtRadius(searchCircle.radius);
     radiusBadge.classList.remove('hidden');
+    statusMsg = trf('alerts.areaSelectedStatus', '{radius} radius selected', { radius: fmtRadius(searchCircle.radius) });
   } else {
-    label.textContent = tr('map.selectArea', 'Select Area');
+    labelText = tr('map.selectArea', 'Select Area');
     radiusBadge.classList.add('hidden');
+    statusMsg = tr('alerts.selectAreaFirst', 'Select an area on the map first');
   }
+  label.textContent = labelText;
+  btn.setAttribute('aria-label', labelText);
+  if (drawerLabel) drawerLabel.textContent = labelText;
+  if (drawerBtn) drawerBtn.setAttribute('aria-label', labelText);
+  if (statusText) statusText.textContent = statusMsg;
 }
 
 function showRadiusBadge(metres) {
@@ -3275,12 +3442,11 @@ function hideRadiusBadge() {
 function setDrawMode(on) {
   drawMode = on;
   mapEl.classList.toggle('draw-mode', drawMode);
-  drawSearchBtn.classList.toggle('active', drawMode);
-  // The button is a toggle, so its pressed state has to be announced, not
+  // The button(s) are a toggle, so pressed state has to be announced, not
   // just painted. Every entry and exit from draw mode funnels through this
-  // one function, so the announced state and the visual state cannot drift.
-  drawSearchBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
-  redrawSearchAreaBtn.setAttribute('aria-pressed', drawMode ? 'true' : 'false');
+  // one function -- updateSelectAreaButton() (called via updateAreaControls()
+  // below) is the one place that paints both the toolbar and drawer copies,
+  // so the announced state and the visual state cannot drift between them.
   mapEdgeHandle.dataset.drawing = drawMode ? '1' : '0';
 
   if (drawMode) {
@@ -3319,20 +3485,26 @@ function setDrawMode(on) {
   }
 }
 
-drawSearchBtn.addEventListener('click', () => setDrawMode(!drawMode));
-redrawSearchAreaBtn.addEventListener('click', () => setDrawMode(true));
-
-// Select Area -- the discoverable, always-visible twin of drawSearchBtn
-// above (identical setDrawMode(!drawMode) toggle: arms, redraws, or
-// cancels depending on the current state). On mobile the map may be
-// hidden behind the List view (mobileView, see the viewToggle listener
-// further up), and a user cannot tap a map they cannot see -- so arming
-// switches to Map view first, exactly as if they had pressed the
-// existing List/Map toggle themselves.
-document.getElementById('selectAreaBtn').addEventListener('click', () => {
+// Select Area -- a single shared trigger for both the always-visible
+// top-toolbar button and its mirror inside the drawer's Area Alert card.
+// setDrawMode(!drawMode) is the one toggle that arms, redraws (a circle
+// that already exists is simply replaced by the next gesture -- see
+// replacedCircle above), or cancels, depending on the current state. On
+// mobile the map may be hidden behind the List view (mobileView, see the
+// viewToggle listener further up), and a user cannot tap a map they
+// cannot see -- so arming switches to Map view first, exactly as if they
+// had pressed the existing List/Map toggle themselves.
+function triggerSelectArea() {
   if (!drawMode && mobileView === 'list') viewToggle.click();
   setDrawMode(!drawMode);
-});
+}
+document.getElementById('selectAreaBtn').addEventListener('click', triggerSelectArea);
+const drawerSelectAreaBtnEl = document.getElementById('drawerSelectAreaBtn');
+if (drawerSelectAreaBtnEl) drawerSelectAreaBtnEl.addEventListener('click', triggerSelectArea);
+// Save as Alert's drawer mirror -- opens the exact same modal as the
+// toolbar button (openSaveAlertModal(), defined earlier in this file).
+const drawerSaveAlertBtnEl = document.getElementById('drawerSaveAlertBtn');
+if (drawerSaveAlertBtnEl) drawerSaveAlertBtnEl.addEventListener('click', openSaveAlertModal);
 
 // ---- the gesture itself ---------------------------------------------
 // Bound to the map container rather than to Leaflet's own event bus so
