@@ -407,8 +407,8 @@ change is not meant to make. -->
         <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.agentsNote">Everyone with the Agent role, with their real listing counts across the shared database.</p>
         <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
-            <table class="admin-table">
-              <thead><tr><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th><th data-i18n="admin.thJoined">Joined</th></tr></thead>
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th class="ash-cell-num" data-i18n="admin.thVerifiedCount">Verified</th><th data-i18n="admin.thJoined">Joined</th></tr></thead>
               <tbody id="agentsBody"></tbody>
             </table>
           </div>
@@ -420,8 +420,8 @@ change is not meant to make. -->
         <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.branchesNote">Every company using this platform — created automatically the first time someone signs up under that name. Each row is real, computed from your agents and listings.</p>
         <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
-            <table class="admin-table">
-              <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th data-i18n="admin.thAgentsCount">Agents</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thBranch">Branch / Company</th><th data-i18n="admin.thAddress">Address</th><th class="ash-cell-num" data-i18n="admin.thAgentsCount">Agents</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th class="ash-cell-num" data-i18n="admin.thPortfolioValue">Portfolio Value</th><th data-i18n="admin.thSince">Since</th></tr></thead>
               <tbody id="branchesBody"></tbody>
             </table>
           </div>
@@ -455,8 +455,8 @@ change is not meant to make. -->
         <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.leaderboardNote">Ranked by number of active listings — the most direct measure of contribution this platform can verify.</p>
         <div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
-            <table class="admin-table">
-              <thead><tr><th data-i18n="admin.thRank">Rank</th><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th data-i18n="admin.thListingsCount">Listings</th><th data-i18n="admin.thVerifiedCount">Verified</th></tr></thead>
+            <table class="admin-table ash-table-sticky">
+              <thead><tr><th data-i18n="admin.thRank">Rank</th><th data-i18n="admin.thAgent2">Agent</th><th data-i18n="admin.thCompany">Company</th><th class="ash-cell-num" data-i18n="admin.thListingsCount">Listings</th><th class="ash-cell-num" data-i18n="admin.thVerifiedCount">Verified</th></tr></thead>
               <tbody id="leaderboardBody"></tbody>
             </table>
           </div>
@@ -3738,7 +3738,7 @@ async function renderBranchesTab() {
 
   body.innerHTML = branches.map(b => `
     <tr>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escAdmin(b.name || b.id)}</p></td>
+      <td><p class="ash-cell-entity-title">${escAdmin(b.name || b.id)}</p></td>
       <td>
         <div class="flex items-center gap-1.5">
           <p class="font-body-md text-[12.5px] ${b.address ? 'text-on-surface' : 'text-on-surface-variant italic'} truncate" style="max-width:220px;">${b.address ? escAdmin(b.address) : trAdmin('admin.noAddressSet', 'No address set')}</p>
@@ -3747,9 +3747,9 @@ async function renderBranchesTab() {
           </button>
         </div>
       </td>
-      <td>${agentCounts[b.id] || 0}</td>
-      <td>${listingCounts[b.id] || 0}</td>
-      <td>$${(portfolioValues[b.id] || 0).toLocaleString()}</td>
+      <td class="ash-cell-num">${agentCounts[b.id] || 0}</td>
+      <td class="ash-cell-num">${listingCounts[b.id] || 0}</td>
+      <td class="ash-cell-num">$${(portfolioValues[b.id] || 0).toLocaleString()}</td>
       <td>${b.createdAt?.seconds ? new Date(b.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
     </tr>`).join('');
 
@@ -3816,14 +3816,14 @@ async function renderAgentsTab() {
             ? `<img loading="lazy" src="${escapeAdmin(a.photoURL)}" class="w-8 h-8 rounded-full object-cover flex-none" decoding="async"/>`
             : `<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center flex-none"><span class="material-symbols-outlined" style="font-size:16px; color:#8192a7;">person</span></div>`}
           <div class="min-w-0">
-            <p class="font-body-md text-[13.5px] text-on-surface font-medium truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
-            <p class="font-body-md text-[12px] text-on-surface-variant truncate">${escapeAdmin(a.email)}</p>
+            <p class="ash-cell-entity-title truncate">${escapeAdmin(a.displayName) || '(no name)'}</p>
+            <p class="ash-cell-entity-meta truncate">${escapeAdmin(a.email)}</p>
           </div>
         </div>
       </td>
       <td>${escapeAdmin(a.companyName)}</td>
-      <td>${a.listingCount}</td>
-      <td>${a.verifiedCount}</td>
+      <td class="ash-cell-num">${a.listingCount}</td>
+      <td class="ash-cell-num">${a.verifiedCount}</td>
       <td>${a.createdAt?.seconds ? new Date(a.createdAt.seconds * 1000).toLocaleDateString() : '—'}</td>
     </tr>`).join('');
 }
@@ -4268,10 +4268,10 @@ async function renderLeaderboardTab() {
   body.innerHTML = agents.map((a, i) => `
     <tr>
       <td><span class="badge ${i === 0 ? 'badge-verified' : 'badge-private'}">#${i + 1}</span></td>
-      <td><p class="font-body-md text-[13.5px] text-on-surface font-medium">${escapeAdmin(a.displayName) || '(no name)'}</p></td>
+      <td><p class="ash-cell-entity-title">${escapeAdmin(a.displayName) || '(no name)'}</p></td>
       <td>${escapeAdmin(a.companyName)}</td>
-      <td>${a.listingCount}</td>
-      <td>${a.verifiedCount}</td>
+      <td class="ash-cell-num">${a.listingCount}</td>
+      <td class="ash-cell-num">${a.verifiedCount}</td>
     </tr>`).join('');
 }
 </script>
