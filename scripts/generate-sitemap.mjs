@@ -56,6 +56,7 @@ const PUBLIC_PAGES = [
   { file: 'renovate.html', loc: '/renovate.html' },
   { file: 'design.html', loc: '/design.html' },
   { file: 'mam-ai.html', loc: '/mam-ai.html' },
+  { file: 'arena.html', loc: '/arena.html' },
 ];
 
 /** The page's own last commit date (YYYY-MM-DD), or null in a shallow or

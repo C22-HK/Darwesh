@@ -136,6 +136,27 @@ function render() {
   el('ovOffice').textContent = agentData.companyName || tr('agent.independent', 'Independent agent');
 
   if (isOwnerView) show('manageListingsBtn');
+
+  // Darwesh Arena -- the agent looking at their own profile sees the full
+  // private panel (same component + same reasoning as js/profile-role.js:
+  // mounted explicitly, never through [data-arena-panel], since this page
+  // is PUBLIC); a visitor sees the public-safe summary instead, reusing
+  // the same host slot. arena-summary.js reads only the public
+  // arenaLeaderboardEntries/{uid} doc -- never this agent's private Arena
+  // state, missions, or ledger.
+  const arenaHost = el('arenaPanel');
+  if (arenaHost) {
+    if (isOwnerView && currentUser) {
+      arenaHost.hidden = false;
+      import('./arena-panel.js')
+        .then((m) => m.mountArenaPanel(arenaHost, currentUser))
+        .catch(() => { arenaHost.hidden = true; });
+    } else {
+      import('./arena-summary.js')
+        .then((m) => m.mountArenaSummary(arenaHost, agentId))
+        .catch(() => { arenaHost.hidden = true; arenaHost.innerHTML = ''; });
+    }
+  }
 }
 
 function setupTabs() {

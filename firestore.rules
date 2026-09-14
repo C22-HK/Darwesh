@@ -488,7 +488,8 @@ service cloud.firestore {
       // facts, and a browser that could write it could grant itself 100%.
       // The single writer is ReferralOps.recompute_reward (Admin SDK).
       match /private/{docId} {
-        allow read: if isOwner(uid) || (isAdmin() && hasPermission('rewards.manage'));
+        allow read: if isOwner(uid)
+                    || (isAdmin() && (hasPermission('rewards.manage') || hasPermission('arena.manage')));
         allow write: if false;
       }
 
@@ -498,12 +499,41 @@ service cloud.firestore {
               || ((d.commissionRate is int || d.commissionRate is float)
                   && d.commissionRate >= 0 && d.commissionRate <= 100);
         }
+        // Brokerage Fee Discount system (Phase 1). Four new fields, same
+        // document as commissionRate above, but a DIFFERENT write
+        // authority: admin-write-only, never the owner -- explicit
+        // requirement, a normal user must never set/see their own
+        // discount by writing it themselves. brokerageDiscountUpdatedAt/
+        // By are deliberately their own pair, not the generic updatedAt
+        // the owner's commissionRate write already uses above, so "when
+        // was the discount itself last touched" is never conflated with
+        // an unrelated owner self-edit to this same document.
+        function isValidBrokerageDiscount(d) {
+          return (!('brokerageDiscountPercent' in d)
+                  || ((d.brokerageDiscountPercent is int || d.brokerageDiscountPercent is float)
+                      && d.brokerageDiscountPercent >= 0 && d.brokerageDiscountPercent <= 100))
+              && (!('brokerageDiscountActive' in d) || d.brokerageDiscountActive is bool);
+        }
+        function isBrokerageDiscountWrite(keys) {
+          return keys.hasOnly(['brokerageDiscountPercent', 'brokerageDiscountActive',
+                                'brokerageDiscountUpdatedAt', 'brokerageDiscountUpdatedBy']);
+        }
         allow read: if isOwner(uid) || isAdmin();
-        allow create: if isAdmin()
+        allow create: if (isAdmin() && hasPermission('brokerage.manage')
+                           && isBrokerageDiscountWrite(request.resource.data.keys())
+                           && isValidBrokerageDiscount(request.resource.data))
+                      || (isAdmin()
+                          && !request.resource.data.keys().hasAny(
+                               ['brokerageDiscountPercent', 'brokerageDiscountActive']))
                       || (isOwner(uid) && docId == 'main'
                           && request.resource.data.keys().hasOnly(['commissionRate', 'updatedAt'])
                           && isValidCommissionRate(request.resource.data));
-        allow update: if isAdmin()
+        allow update: if (isAdmin() && hasPermission('brokerage.manage')
+                           && isBrokerageDiscountWrite(request.resource.data.diff(resource.data).affectedKeys())
+                           && isValidBrokerageDiscount(request.resource.data))
+                      || (isAdmin()
+                          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+                               ['brokerageDiscountPercent', 'brokerageDiscountActive']))
                       || (isOwner(uid) && docId == 'main'
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly(['commissionRate', 'updatedAt'])
@@ -2502,6 +2532,139 @@ service cloud.firestore {
       }
     }
 
+    // ---- Darwesh Arena (gamification: challenges, points, ranks) -------
+    // Every Arena collection follows the SAME posture as rewardLedger/
+    // referrals above: points, ranks, leaderboard position and challenge
+    // config are never client-writable, not even by an admin's direct
+    // client-SDK session -- the backend (Admin SDK, app/arena/arena_ops.py)
+    // is the only path in, transactional and audited exactly like
+    // organization_ops.py. This is what makes "clients can never directly
+    // change points/ranks/leaderboard/rewards" true at the rules layer,
+    // not merely a UI convention an admin's own browser console could
+    // bypass.
+    match /arenaChallenges/{challengeId} {
+      // Public-readable: the challenge card grid, detail page and its
+      // step list are browsable by anyone, including signed-out visitors.
+      // Nothing sensitive (owner info, ownership documents) ever lives on
+      // this document.
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /arenaRanks/{rankId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /arenaConfig/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // One doc per user, the public-safe mirror of a user's arenaState --
+    // deliberately contains nothing private (no phone, no ownership docs),
+    // so it's safe to query in bulk for the leaderboard.
+    match /arenaLeaderboardEntries/{uid} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Purpose-built feed events ("Property verified +3", "Deal completed
+    // +11", "Rank increased") -- a competitive/social surface, same
+    // public-read posture as the leaderboard. Never carries a private
+    // field (see arena_ops.py's activity-feed writer).
+    match /arenaActivityFeed/{entryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // A user's own challenge-participation record. Readable by its owner
+    // or an admin reviewing submissions; the ownership-document subdoc
+    // beneath it is reviewer-only, never the participant's own read (they
+    // already know what they submitted -- this subcollection exists to
+    // keep it off every OTHER read of the parent doc, including the
+    // owner's own future reads once documents may no longer be needed).
+    match /arenaSubmissions/{submissionId} {
+      allow read: if isSignedIn()
+                  && (resource.data.participantUid == request.auth.uid
+                      || (isAdmin() && hasPermission('arena.review')));
+      allow write: if false;
+
+      match /private/{docId} {
+        allow read: if isAdmin() && hasPermission('arena.review');
+        allow write: if false;
+      }
+    }
+
+    // Append-only point history -- exact rewardLedger shape.
+    match /arenaLedger/{entryId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('arena.manage')));
+      allow write: if false;
+    }
+
+    // Property Watch / Area Alerts. A saved search area + property
+    // filters is exactly as private as a saved search itself -- owner
+    // read only, plus an admin holding 'alerts.review' for the (rare)
+    // support case. The matching decision is 100% server-authoritative
+    // (see app.alerts.alerts_ops.notify_new_listing): no client, admin
+    // sessions included, may ever write one of these three collections
+    // directly. Same exact shape as arenaLedger above.
+    match /areaAlerts/{alertId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('alerts.review')));
+      allow write: if false;
+    }
+
+    // One doc per (alert, listing) match -- denormalized public-safe
+    // listing fields only (type/city/price/cover photo/publicLat/
+    // publicLng), never a precise coordinate or owner/buyer data.
+    match /areaAlertMatches/{matchId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('alerts.review')));
+      allow write: if false;
+    }
+
+    // The first real notification inbox in this codebase (previously
+    // only a facade over `submissions` -- see js/notification-bell.js).
+    // Owner-read only, no admin exception: an admin's own legitimate
+    // support access to alerts/matches never needs to read what someone
+    // else's bell shows them.
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Buyer/deal CRM -- the real business engine (commission revenue),
+    // so this is deliberately STRICTER than arenaSubmissions: the
+    // participant may read their own deal's coarse stage (to know "what
+    // do I do next"), but never the buyer's private contact info (that
+    // subcollection is reviewer-only, same posture as ownerInfo) and
+    // never the commission/financial fields on someone else's deal.
+    match /arenaDeals/{dealId} {
+      allow read: if isSignedIn()
+                  && (resource.data.participantUid == request.auth.uid
+                      || (isAdmin() && hasPermission('arena.review')));
+      allow write: if false;
+
+      match /private/{docId} {
+        allow read: if isAdmin() && hasPermission('arena.review');
+        allow write: if false;
+      }
+    }
+
+    // Configurable per-city commission assumptions -- business-sensitive,
+    // admin-only (never shown to a participant; a Challenge's public
+    // fields carry only what admin chooses to put in mainPrize/
+    // rewardsPreview, never the raw commission percentage).
+    match /arenaCommissionRules/{city} {
+      allow read: if isAdmin() && hasPermission('arena.manage');
+      allow write: if false;
+    }
+
     // ---- Home goods / furniture catalog ----
     // Explicitly NOT an order/payment system this phase (plan §2.4) --
     // publish/browse/manage only.
@@ -2594,6 +2757,21 @@ service cloud.firestore {
     }
     match /accessAuditLog/{entryId} {
       allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---- Brokerage Fee Discount system (Phase 1) ----------------------
+    // Pattern B, same posture as accessAuditLog/areaAlerts above: every
+    // write, including from an admin's own client session, goes through
+    // the backend's Admin SDK only (app.brokerage.brokerage_ops) so the
+    // per-account history stays a true, untamperable audit trail and a
+    // recorded fee snapshot can never be edited after the fact.
+    match /brokerageDiscountHistory/{entryId} {
+      allow read: if isAdmin() && hasPermission('brokerage.manage');
+      allow write: if false;
+    }
+    match /brokerageFeeSnapshots/{snapshotId} {
+      allow read: if isAdmin() && hasPermission('brokerage.manage');
       allow write: if false;
     }
 

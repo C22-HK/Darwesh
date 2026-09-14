@@ -1,6 +1,7 @@
 // Darwesh shared public mobile bottom navigation -- the ONE canonical
-// bottom nav bar (Home, MAM AI, Properties Map, Sell, Services, Profile)
-// for every public content page at mobile widths. Just ONE map item,
+// bottom nav bar (Home, MAM AI, Properties Map, Sell, Services,
+// Challenge [Darwesh Arena, arena.html], Profile) for every public
+// content page at mobile widths. Just ONE map item,
 // matching js/site-header.js's own consolidation (see that file's header
 // comment) -- a bottom tab bar has no room for Buy/Rent as separate icons
 // too, and doesn't need them: map.html opens straight into Buy mode by
@@ -71,6 +72,10 @@
       '<a class="' + itemClass('services') + '" href="services.html"' + ariaCurrent('services') + '>' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>' +
         '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.services">Services</span>' +
+      '</a>' +
+      '<a class="' + itemClass('arena') + '" href="arena.html"' + ariaCurrent('arena') + '>' +
+        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg></span>' +
+        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="arena.navLabel">Challenge</span>' +
       '</a>' +
       '<a id="navProfileLinkMobile" class="' + itemClass('') + '" href="login.html" aria-label="Profile">' +
         '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>' +

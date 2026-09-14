@@ -280,6 +280,26 @@ export function initServiceProviderProfile(config) {
         vrHost.innerHTML = '';
       }
     }
+    // Darwesh Arena -- owner sees their own full private panel (same
+    // component + same owner-only reasoning as Verification & Rewards
+    // above, mounted explicitly instead of through [data-arena-panel]
+    // since this page is PUBLIC); a visitor sees the public-safe summary
+    // instead of nothing, reusing the same host slot. arena-summary.js
+    // reads only the public arenaLeaderboardEntries/{uid} doc -- it never
+    // touches the owner's private Arena state, missions, or ledger.
+    const arenaHost = el('arenaPanel');
+    if (arenaHost) {
+      if (isOwnerView && auth.currentUser) {
+        arenaHost.hidden = false;
+        import('./arena-panel.js')
+          .then((m) => m.mountArenaPanel(arenaHost, auth.currentUser))
+          .catch(() => { arenaHost.hidden = true; });
+      } else {
+        import('./arena-summary.js')
+          .then((m) => m.mountArenaSummary(arenaHost, providerId))
+          .catch(() => { arenaHost.hidden = true; arenaHost.innerHTML = ''; });
+      }
+    }
     if (isAdminView) {
       show('adminViewingNote');
       const verifyBtn = el('verifyToggleBtn');

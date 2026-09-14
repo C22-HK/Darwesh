@@ -105,6 +105,25 @@ export const PERMISSION_GROUPS = [
     { key: 'rewards.manage', rules: true },
     { key: 'offers.manage' },
     { key: 'archives.view', rules: true }
+  ] },
+  // Darwesh Arena. Same granular principle as verification above:
+  // reviewing a submission/deal (verifying a step, confirming a sale) is a
+  // much weaker grant than owning challenge config, rank thresholds and
+  // manual point adjustments.
+  { key: 'arena', labelKey: 'admin.rd.groupArena', fallback: 'Darwesh Arena', permissions: [
+    { key: 'arena.review', rules: true },
+    { key: 'arena.manage', rules: true }
+  ] },
+  // Property Watch / Area Alerts. Read-only aggregate visibility only --
+  // no key here lets an admin browse or edit another user's saved alert.
+  { key: 'alerts', labelKey: 'admin.rd.groupAlerts', fallback: 'Property Watch / Area Alerts', permissions: [
+    { key: 'alerts.review', rules: true }
+  ] },
+  // Brokerage Fee Discount system (Phase 1). One key gates every route --
+  // there is no lower-privilege "view but don't touch" split here, unlike
+  // verification.*/arena.* above.
+  { key: 'brokerage', labelKey: 'admin.rd.groupBrokerage', fallback: 'Brokerage Fee Discounts', permissions: [
+    { key: 'brokerage.manage', rules: true }
   ] }
 ];
 

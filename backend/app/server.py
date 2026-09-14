@@ -31,6 +31,11 @@ def create_app(
     voice_handler: object | None = None,
     referral_public_handler: object | None = None,
     verification_handler: object | None = None,
+    arena_public_handler: object | None = None,
+    arena_admin_handler: object | None = None,
+    alerts_public_handler: object | None = None,
+    alerts_admin_handler: object | None = None,
+    brokerage_admin_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -59,7 +64,13 @@ def create_app(
     verification_handler back the Verification, Referral and Reward
     endpoints (see app.verification.handlers) -- gated on the same
     Firebase Admin credential check, since every one of them reads or
-    writes Firestore with the Admin SDK."""
+    writes Firestore with the Admin SDK. arena_public_handler/
+    arena_admin_handler back Darwesh Arena (see app.arena.handlers) --
+    same gating, same reasoning. alerts_public_handler/alerts_admin_handler
+    back Property Watch / Area Alerts (see app.alerts.handlers) -- same
+    gating, same reasoning. brokerage_admin_handler backs the Brokerage
+    Fee Discount admin endpoints (see app.brokerage.handlers) -- same
+    gating; admin-only by design, so there is no public counterpart."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -359,6 +370,129 @@ def create_app(
             verification_handler.admin_save_reward_config,
             methods=["POST"],
         )
+
+    if arena_public_handler is not None:
+        app.add_api_route("/api/v1/arena/challenges", arena_public_handler.list_challenges, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/challenges/{challengeId}", arena_public_handler.get_challenge, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/challenges/{challengeId}/join", arena_public_handler.join_challenge, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/submissions/{submissionId}/attach-property",
+            arena_public_handler.attach_property,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/submissions/{submissionId}/steps/{stepKey}/advance",
+            arena_public_handler.advance_step,
+            methods=["POST"],
+        )
+        app.add_api_route("/api/v1/arena/leaderboard", arena_public_handler.leaderboard, methods=["GET"])
+        app.add_api_route("/api/v1/arena/ranks", arena_public_handler.ranks, methods=["GET"])
+        app.add_api_route("/api/v1/arena/activity", arena_public_handler.activity, methods=["GET"])
+        app.add_api_route("/api/v1/arena/me/state", arena_public_handler.my_state, methods=["GET"])
+        app.add_api_route("/api/v1/arena/me/ledger", arena_public_handler.my_ledger, methods=["GET"])
+        app.add_api_route("/api/v1/arena/me/submissions", arena_public_handler.my_submissions, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/submissions/{submissionId}/deals", arena_public_handler.create_deal, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/deals/{dealId}/advance", arena_public_handler.advance_deal_stage, methods=["POST"]
+        )
+
+    if arena_admin_handler is not None:
+        app.add_api_route("/api/v1/arena/admin/challenges", arena_admin_handler.create_challenge, methods=["POST"])
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}", arena_admin_handler.update_challenge, methods=["PATCH"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}/status",
+            arena_admin_handler.set_challenge_status,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}",
+            arena_admin_handler.delete_challenge,
+            methods=["DELETE"],
+        )
+        app.add_api_route("/api/v1/arena/admin/submissions", arena_admin_handler.list_submissions, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}", arena_admin_handler.get_submission, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}/steps/{stepKey}/verify",
+            arena_admin_handler.verify_step,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}/disqualify",
+            arena_admin_handler.disqualify,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/submissions/{submissionId}/flag",
+            arena_admin_handler.flag_submission,
+            methods=["POST"],
+        )
+        app.add_api_route("/api/v1/arena/admin/ledger", arena_admin_handler.list_ledger, methods=["GET"])
+        app.add_api_route("/api/v1/arena/admin/points/adjust", arena_admin_handler.adjust_points, methods=["POST"])
+        app.add_api_route("/api/v1/arena/admin/ranks", arena_admin_handler.create_rank, methods=["POST"])
+        app.add_api_route("/api/v1/arena/admin/ranks/{rankId}", arena_admin_handler.update_rank, methods=["PATCH"])
+        app.add_api_route("/api/v1/arena/admin/deals", arena_admin_handler.list_deals, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/arena/admin/deals/{dealId}/advance", arena_admin_handler.verify_deal_stage, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/deals/{dealId}/payment", arena_admin_handler.set_payment_state, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/commission-rules", arena_admin_handler.list_commission_rules, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/commission-rules", arena_admin_handler.set_commission_rule, methods=["POST"]
+        )
+        app.add_api_route(
+            "/api/v1/arena/admin/challenges/{challengeId}/commercial-summary",
+            arena_admin_handler.commercial_summary,
+            methods=["GET"],
+        )
+
+    if alerts_public_handler is not None:
+        app.add_api_route("/api/v1/alerts", alerts_public_handler.create_alert, methods=["POST"])
+        app.add_api_route("/api/v1/alerts/me", alerts_public_handler.list_my_alerts, methods=["GET"])
+        app.add_api_route("/api/v1/alerts/{alertId}", alerts_public_handler.update_alert, methods=["PATCH"])
+        app.add_api_route("/api/v1/alerts/{alertId}", alerts_public_handler.delete_alert, methods=["DELETE"])
+        app.add_api_route("/api/v1/alerts/{alertId}/matches", alerts_public_handler.list_matches, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/alerts/matches/{matchId}/viewed", alerts_public_handler.mark_match_viewed, methods=["POST"]
+        )
+        app.add_api_route("/api/v1/alerts/notify-listing", alerts_public_handler.notify_listing, methods=["POST"])
+        app.add_api_route("/api/v1/notifications/me", alerts_public_handler.list_notifications, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/notifications/{notificationId}/read",
+            alerts_public_handler.mark_notification_read,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/notifications/read-all", alerts_public_handler.mark_all_notifications_read, methods=["POST"]
+        )
+
+    if alerts_admin_handler is not None:
+        app.add_api_route("/api/v1/alerts/admin/summary", alerts_admin_handler.summary, methods=["GET"])
+
+    if brokerage_admin_handler is not None:
+        app.add_api_route("/api/v1/brokerage/accounts", brokerage_admin_handler.list_accounts, methods=["GET"])
+        app.add_api_route("/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.get_account, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.set_discount, methods=["PATCH"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/accounts/bulk", brokerage_admin_handler.bulk_set_discount, methods=["POST"]
+        )
+        app.add_api_route("/api/v1/brokerage/history", brokerage_admin_handler.list_history, methods=["GET"])
+        app.add_api_route("/api/v1/brokerage/compute-fee", brokerage_admin_handler.compute_fee, methods=["POST"])
 
     return app
 

@@ -204,6 +204,29 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
         "rewards.manage",
         "offers.manage",
         "archives.view",
+        # Darwesh Arena (gamification). Granular on the same principle as
+        # verification.* above: reviewing a submission (verifying a step,
+        # confirming a sale) is a much weaker grant than owning challenge
+        # config, rank thresholds and manual point adjustments.
+        "arena.review",
+        "arena.manage",
+        # Property Watch / Area Alerts -- read-only visibility into the
+        # aggregate admin summary (active alerts, matches this week, by
+        # city). There is deliberately no manage-level counterpart key:
+        # nothing here lets an admin browse or edit another user's saved
+        # alert, only see aggregate counts -- see
+        # app.alerts.alerts_ops.admin_summary.
+        "alerts.review",
+        # Brokerage Fee Discount system (Phase 1: per-account manual
+        # control). A single key gates every route in app.brokerage --
+        # there is no read-only/manage split like verification.* or
+        # arena.* above, because there is no lower-privilege "view but
+        # don't touch" use case here: nothing about another account's
+        # brokerage-fee discount is meant to be browsable by an admin who
+        # cannot also change it. Delegable like alerts.review/arena.review
+        # (not in PROTECTED_PERMISSIONS) -- a real admin still decides who
+        # holds it, same as every other role-default/override grant.
+        "brokerage.manage",
     }
 )
 

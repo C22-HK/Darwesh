@@ -145,12 +145,14 @@ if (!dupeIds) ok('no duplicate element IDs within any page');
 //      private/location read being added to a public page at review time.
 let mapChecks = false;
 const mapHtml = fs.readFileSync(path.join(ROOT, 'map.html'), 'utf8');
-const controlIds = [
-  'fullscreenBtn', 'resetViewBtn', 'drawSearchBtn',
-  'myLocationBtn', 'searchThisAreaBtn', 'clearSearchAreaBtn',
-  'redrawSearchAreaBtn'
-];
-controlIds.forEach(id => {
+// Checks the same icon/label invariants for one <button id="${id}">
+// regardless of where it lives. Shared by the drawer-only controls below
+// and by #selectAreaBtn, which deliberately lives in the top toolbar
+// instead (see map.html's own comment on that button) -- a control users
+// have to open a drawer to discover defeats "not hidden", so it cannot
+// join the "must live inside #mapDrawer" requirement the drawer controls
+// get further down.
+function checkControlIconAndLabel(id) {
   // The element's own tag, from id="..." to the closing </button>.
   const m = mapHtml.match(new RegExp(`<button[^>]*\\bid="${id}"[\\s\\S]*?</button>`));
   if (!m) { fail(`map.html: expected map control #${id} to exist`); mapChecks = true; return; }
@@ -172,10 +174,17 @@ controlIds.forEach(id => {
     fail(`map.html: icon-only control #${id} has no aria-label and no visible label`);
     mapChecks = true;
   }
-});
+}
+const controlIds = [
+  'fullscreenBtn', 'resetViewBtn',
+  'myLocationBtn', 'searchThisAreaBtn', 'clearSearchAreaBtn'
+];
+controlIds.forEach(checkControlIconAndLabel);
+checkControlIconAndLabel('selectAreaBtn');
 // The edge handle is the ONLY map control outside the drawer (plus
-// Leaflet's own zoom buttons). If a floating control stack comes back,
-// this catches it.
+// Leaflet's own zoom buttons, and #selectAreaBtn in the top toolbar --
+// see checkControlIconAndLabel() above). If a floating control stack
+// comes back, this catches it.
 if (!/id="mapEdgeHandle"/.test(mapHtml)) {
   fail('map.html: expected the map-tools edge handle #mapEdgeHandle');
   mapChecks = true;
@@ -192,14 +201,18 @@ controlIds.forEach(id => {
   }
 });
 
-// Draw is a mode, not a one-shot action, so its pressed state must be
-// both declared in markup and kept in sync from setDrawMode().
-if (!/id="drawSearchBtn"[^>]*aria-pressed="false"/.test(mapHtml)) {
-  fail('map.html: #drawSearchBtn must start with aria-pressed="false"');
+// Select Area is a mode, not a one-shot action, so its pressed state must
+// be both declared in markup and kept in sync from setDrawMode() (via
+// updateSelectAreaButton(), the one place that paints it -- see that
+// function's own comment in map.html for why it also drives the drawer's
+// #drawerSelectAreaBtn mirror from the same call).
+if (!/id="selectAreaBtn"[^>]*aria-pressed="false"/.test(mapHtml)) {
+  fail('map.html: #selectAreaBtn must start with aria-pressed="false"');
   mapChecks = true;
 }
-if (!/drawSearchBtn\.setAttribute\('aria-pressed'/.test(mapHtml)) {
-  fail('map.html: #drawSearchBtn aria-pressed is never updated in JS');
+const selectAreaFn = mapHtml.match(/function updateSelectAreaButton\([\s\S]*?\n\}/);
+if (!selectAreaFn || !/getElementById\('selectAreaBtn'\)/.test(selectAreaFn[0]) || !/setAttribute\('aria-pressed'/.test(selectAreaFn[0])) {
+  fail('map.html: #selectAreaBtn aria-pressed is never updated in JS');
   mapChecks = true;
 }
 // ---- Area search is a CIRCLE, and its filter is geographic ------------
@@ -824,6 +837,7 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
     'renovate.html': '/renovate.html',
     'design.html': '/design.html',
     'mam-ai.html': '/mam-ai.html',
+    'arena.html': '/arena.html',
   };
 
   // Signed-in, admin-only, or internal. Each MUST carry a robots noindex
@@ -846,10 +860,10 @@ if (!cssIssues) ok(`CSS declarations are structurally sound across ${cssSources.
   // and live in Firestore; a sitemap covering them would have to be
   // generated from the database, not from this repository.
   const DETAIL_TEMPLATES = [
-    'agent.html', 'cleaning.html', 'designer.html', 'engineer.html',
+    'agent.html', 'cleaning.html', 'customer.html', 'designer.html', 'engineer.html',
     'landscaping.html', 'lawyer.html', 'listing.html', 'maintenance.html',
     'offer.html', 'office.html', 'organization.html', 'project.html',
-    'service.html', 'work.html',
+    'service.html', 'work.html', 'arena-challenge.html',
   ];
 
   const sitemapPath = path.join(ROOT, 'sitemap.xml');

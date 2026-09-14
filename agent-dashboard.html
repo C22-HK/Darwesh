@@ -225,6 +225,10 @@ change is not meant to make. -->
             <span class="font-data-mono text-data-mono text-on-primary" id="statTeamListings">0 team listings</span>
           </div>
         </div>
+        <a id="viewPublicProfileLink" href="agent.html" class="mt-4 inline-flex items-center gap-1.5 font-label-caps text-label-caps text-on-primary opacity-90 hover:opacity-100 hover:underline">
+          <span class="material-symbols-outlined text-[16px]" aria-hidden="true">open_in_new</span>
+          <span data-i18n="customer.viewPublicProfile">View my public profile</span>
+        </a>
       </div>
     </section>
     <p class="font-body-md text-[13px] text-on-surface-variant mb-6" data-i18n="agentDash.listingsNote">Listings you add here are saved to the shared Darwesh Group database — visible to your team and admins right away. (They're not shown on the public Map and Buy pages yet — that's a separate step.) You can only edit or delete listings assigned to you.</p>
@@ -894,6 +898,18 @@ change is not meant to make. -->
       }
       if (savedListingId) {
         await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
+        // Property Watch / Area Alerts publish-time hook. An agent-created
+        // listing is never immediately verified (rules-enforced, only an
+        // admin edit can set that), so this is normally a safe no-op here
+        // -- it exists for the same reason admin.html's save calls it:
+        // the backend re-fetches and re-validates the listing itself, so
+        // there is no harm calling it from every path that could plausibly
+        // make a listing publish-eligible.
+        if (auth.currentUser) {
+          import('./js/backend-api.js')
+            .then(({ notifyAreaAlertsOfNewListing }) => notifyAreaAlertsOfNewListing(auth.currentUser, savedListingId))
+            .catch(() => {});
+        }
       }
       resetForm();
       loadMyListings();
@@ -1304,6 +1320,7 @@ change is not meant to make. -->
     document.getElementById('agentNameLabel').textContent = currentAgentName;
     document.getElementById('agentWelcomeName').textContent = trDash('common.welcome','Welcome') + ', ' + currentAgentName;
     document.getElementById('agentWelcomeEmail').textContent = user.email;
+    document.getElementById('viewPublicProfileLink').href = `agent.html?id=${encodeURIComponent(currentUid)}`;
     setAgentPhoto(profile.photoURL);
     document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('dashContent').classList.remove('hidden');
