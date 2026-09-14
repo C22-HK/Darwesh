@@ -1,0 +1,87 @@
+/* Darwesh Admin Panel — design tokens (redesign Phase 1).
+ *
+ * Single source of truth for every --ash-* custom property. Before this
+ * file existed, css/admin-shell.css declared `body.admin-shell { --ash-*: … }`
+ * TWICE: a warm-cream block near the top of that file, silently fully
+ * overridden by a second "Apple-style pass" block appended later in the
+ * same file (identical property names, later in source order wins for the
+ * shared ones; a handful of properties -- --ash-success/warning/error/info,
+ * --ash-sidebar-w, --ash-topbar-h -- existed only in the first, dead-for-
+ * everything-else block and stayed live by accident). Two conflicting
+ * sources of truth for the same token names, one of them fully dead, is
+ * exactly the kind of thing that causes the next edit to touch the wrong
+ * block and see nothing happen. This file merges both into one real
+ * declaration and is the ONLY place these tokens are ever set.
+ *
+ * Direction: deep charcoal/obsidian surfaces, warm off-white primary text,
+ * muted secondary text, restrained Darwesh Gold reserved for active state /
+ * primary action / selected item -- never a fill colour, never every
+ * border. admin-shell.css already maps every Tailwind utility class
+ * admin.html's markup uses (bg-surface-container-lowest, text-primary,
+ * text-on-surface, …) onto these same custom properties, so changing the
+ * VALUES here re-themes the whole authenticated app -- sidebar, topbar,
+ * every tab's cards/tables/badges/modals -- without editing admin.html or
+ * any admin-*.js module.
+ *
+ * --ash-ink / --ash-on-ink exist because several component rules in
+ * admin-shell.css use "--ash-text" as a solid dark FILL colour (toast
+ * background, active pagination button, filter-chip active state, the
+ * sidebar itself) rather than as body text. That coupling was harmless
+ * while --ash-text was dark (a light theme), but this pass makes --ash-text
+ * a light colour (for dark surfaces) -- so "fill" and "text" needed to
+ * become two different tokens, not one reused for both meanings.
+ */
+
+body.admin-shell {
+  /* ---- Surfaces ---- */
+  --ash-bg: #15171b;
+  --ash-surface: #1c1f24;
+  --ash-surface-sunken: #23262c;
+  --ash-border: rgba(247, 242, 232, 0.10);
+
+  /* ---- Text ---- */
+  --ash-text: #f3efe6;
+  --ash-text-secondary: rgba(243, 239, 230, 0.62);
+
+  /* ---- Solid dark fill (toasts, active pagination/filter chips, sidebar) ---- */
+  --ash-ink: #101215;
+  --ash-on-ink: #f3efe6;
+
+  /* ---- Accent: Darwesh Gold, state only ---- */
+  --ash-accent: #c69a4b;
+  --ash-accent-strong: #dab876;
+  --ash-accent-wash: rgba(198, 154, 75, 0.16);
+  --ash-on-accent: #201705;
+
+  /* ---- Semantic ---- */
+  --ash-success: #4ae183;
+  --ash-success-wash: rgba(74, 225, 131, 0.14);
+  --ash-warning: #e0ab52;
+  --ash-warning-wash: rgba(224, 171, 82, 0.14);
+  --ash-error: #e5787a;
+  --ash-error-wash: rgba(229, 120, 122, 0.14);
+  --ash-info: #7fb0e8;
+  --ash-info-wash: rgba(127, 176, 232, 0.14);
+
+  /* ---- Layout ---- */
+  --ash-sidebar-w: 264px;
+  --ash-sidebar-w-collapsed: 76px;
+  --ash-topbar-h: 64px;
+
+  /* ---- Material / elevation ---- */
+  --ash-material: rgba(28, 31, 36, 0.72);
+  --ash-vibrancy: saturate(180%) blur(20px);
+  --ash-radius: 12px;
+  --ash-radius-lg: 18px;
+  --ash-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.30);
+  --ash-shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 16px 40px rgba(0, 0, 0, 0.38);
+
+  /* ---- Type / motion ---- */
+  --ash-font: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+              'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --ash-ease: cubic-bezier(.4, 0, .2, 1);
+
+  background: var(--ash-bg);
+  font-family: var(--ash-font);
+  -webkit-font-smoothing: antialiased;
+}
