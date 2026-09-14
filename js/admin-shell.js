@@ -28,22 +28,30 @@
   // flat groups/27 destinations the panel had grown into a small set of
   // premium "hubs" a Darwesh admin can actually scan in two seconds:
   // Overview, People, Properties, Sales, Demand, Arena, Services,
-  // Finance, Analytics, System. This pass is a relabel/regroup ONLY --
-  // every `tab` value below still points at exactly the content it did
-  // before, unmoved. Phases 2-5 build the real per-hub shells (internal
-  // sub-tabs via the new shared AdminTabs component) and consolidate the
-  // still-inline destinations (Accounts/Agents/Branches/Network/Top
-  // Agents today render inline in admin.html's own module script, not as
-  // separate lazy-mounted files like Organizations/Professionals/Arena/
-  // Brokerage/Verification/Map already do) into those hubs one at a time.
-  // The `tab-services2` placeholder below is the one net-new destination
-  // this pass adds: a real "Services" hub (provider categories --
-  // lawyers, engineers, designers, cleaning, landscaping, moving,
-  // maintenance, contractors) doesn't exist as its own page yet -- today
-  // that data lives inside the Sales/Requests tab's "Provider Requests"
-  // table -- so it ships honestly as a "Planned" placeholder here (same
-  // pattern as Financial Management/Reports/etc.) rather than duplicating
-  // a nav entry that points at the exact same page as Sales/Requests.
+  // Finance, Analytics, System. Phase 1 itself was a relabel/regroup
+  // ONLY, with every `tab` value pointing at unmoved content. Phase 2
+  // has since built the first three real hub shells: People (Accounts/
+  // Verification/Organizations/Professionals/Agents/Branches/Network/Top
+  // Agents consolidated into one #tab-people panel + AdminTabs), Properties
+  // (Listings/Projects/Map/Estate Lookup consolidated into one
+  // #tab-properties panel + AdminTabs), and Overview (single-item hub,
+  // just an AdminPageHeader over the unchanged Dashboard). Both People and
+  // Properties collapse to one `tab` value below (plus an in-group or
+  // cross-group `alias` that jumps straight to a specific sub-tab via
+  // `subtab`) even though their `tab` value fans out into several
+  // AdminTabs sub-panels once clicked -- see admin.html's
+  // renderPeopleHub()/renderPropertiesHub() and the shared js/admin-tabs.js
+  // component. Sales/Demand/Arena/Services/Finance/Analytics/System are
+  // still Phase 1's flat, unconsolidated groups -- Phases 3-5 build their
+  // real per-hub shells the same way. The `tab-services2` placeholder
+  // below is the one net-new destination Phase 1 added: a real "Services"
+  // hub (provider categories -- lawyers, engineers, designers, cleaning,
+  // landscaping, moving, maintenance, contractors) doesn't exist as its
+  // own page yet -- today that data lives inside the Sales/Requests tab's
+  // "Provider Requests" table -- so it ships honestly as a "Planned"
+  // placeholder here (same pattern as Financial Management/Reports/etc.)
+  // rather than duplicating a nav entry that points at the exact same
+  // page as Sales/Requests.
   var GROUPS = [
     { key: 'overview', labelKey: 'admin.nav.groupOverview', labelText: 'Overview', items: [
       { tab: 'dashboard', icon: 'dashboard', labelKey: 'admin.dashboardTab', labelText: 'Dashboard' }
