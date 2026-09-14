@@ -421,7 +421,7 @@ async function openDetail(id) {
 function statusBadgeHtml(l) {
   if (l.status === 'closed') {
     const label = l.dealType === 'rent' ? tr('admin.statusRented', 'Rented') : tr('admin.statusSold', 'Sold');
-    return `<span class="badge" style="background:#e5e8ee; color:#181c20;">${esc(label)}</span>`;
+    return `<span class="badge badge-closed">${esc(label)}</span>`;
   }
   return `<span class="badge badge-sale">${esc(tr('admin.map.filterStatusActive', 'Active'))}</span>`;
 }
