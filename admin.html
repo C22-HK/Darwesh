@@ -447,8 +447,8 @@ change is not meant to make. -->
     <div class="flex border-b border-outline-variant mb-6 flex-wrap" id="adminTabBarLegacy">
       <button class="admin-tab active" data-tab="dashboard" type="button" data-i18n="admin.dashboardTab">Dashboard</button>
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
-      <button class="admin-tab" data-tab="listings" type="button" data-i18n="admin.listingsTab">Listings</button>
-      <button class="admin-tab" data-tab="projects" type="button" data-i18n="admin.projectsTab">Projects</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.listingsTab">Listings</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.projectsTab">Projects</button>
       <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.branchesTab">Branches</button>
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.agentsTab">Agents</button>
@@ -456,8 +456,8 @@ change is not meant to make. -->
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.leaderboardTab">Leaderboard</button>
       <button class="admin-tab" data-tab="market" type="button" data-i18n="admin.marketOverviewTab">Market Overview</button>
       <button class="admin-tab" data-tab="scanlog" type="button" data-i18n="admin.scanLogTab">Scan Log</button>
-      <button class="admin-tab" data-tab="map" type="button" data-i18n="admin.nav.mapManagement">Map Management</button>
-      <button class="admin-tab" data-tab="estatedata" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.nav.mapManagement">Map Management</button>
+      <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
     </div>
 
     <!-- TAB: Dashboard -->
@@ -709,20 +709,9 @@ change is not meant to make. -->
       </div>
     </section>
 
-    <!-- TAB: Map Management -- replaces the old #estateIntelMap (Google
-         Maps "Estate Intelligence" tab, deleted outright -- Google-Maps-
-         specific, not ported) and #dashRequestsMap (see the removal note
-         above the Users &amp; Roles tab). One shared foundation with
-         map.html's Explore/My Properties modes (window.DarweshMarker /
-         DarweshLeafletHelpers / DarweshListingAccess / DarweshLocationEdit),
-         plus the admin-only capability layer: bulk view at approximate
-         coordinates only, precise coordinates fetched on demand for the
-         one listing open in the detail panel, cross-account visibility,
-         and the estate/transaction-history section ported from the old
-         tab's renderEiSidePanel() (real Firestore data only). Built by
-         js/admin-map.js the same lazy-init-on-first-click way as
-         Organizations/Professionals (js/admin-orgs-pros.js). -->
-    <section id="tab-map" class="admin-tab-panel"></section>
+    <!-- #tab-map moved into the Properties hub below (redesign Phase 2) --
+         js/admin-map.js's lazy-init still targets that same id, now nested
+         one level deeper. -->
 
     <!-- #tab-verification moved into the People hub above (redesign Phase 2)
          -- js/admin-verification.js's renderVerificationTab() still targets
@@ -764,18 +753,9 @@ change is not meant to make. -->
          tabs above. -->
     <section id="tab-offers" class="admin-tab-panel"></section>
 
-    <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
-         Reads only -- every write this page can trigger still goes
-         through firestore.rules exactly as any other client write would;
-         nothing here is a privileged bypass. -->
-    <section id="tab-estatedata" class="admin-tab-panel">
-      <div class="flex flex-wrap items-center gap-2 mb-4">
-        <input id="edSearchInput" type="text" class="flex-1 min-w-[220px] bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-body-md text-body-md" data-i18n-placeholder="admin.ed.searchPlaceholder" placeholder="Search by Estate ID, Listing ID, office, agent, project, unit, or location..."/>
-        <button id="edSearchBtn" type="button" class="bg-primary text-on-primary rounded-full px-5 py-2.5 font-label-caps text-label-caps" data-i18n="common.search">Search</button>
-      </div>
-      <p id="edEmptyState" class="text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="admin.ed.searchHint">Search for an Estate above to view its full record.</p>
-      <div id="edRecord" class="hidden space-y-4"></div>
-    </section>
+    <!-- #tab-estatedata moved into the Properties hub below (redesign
+         Phase 2) -- renderEstateDataTab() still targets that same id, now
+         nested one level deeper. -->
 
     <!-- TAB: Market Overview -->
     <section id="tab-market" class="admin-tab-panel">
@@ -791,8 +771,19 @@ change is not meant to make. -->
       </a>
     </section>
 
-    <!-- TAB: Listings -->
-    <section id="tab-listings" class="admin-tab-panel">
+    <!-- TAB: Properties (redesign Phase 2 -- consolidates the old flat
+         Listings/Projects/Approvals-alias/Map Management/Estate Data
+         destinations into one hub with internal AdminTabs sub-navigation,
+         the same pattern already proven for the People hub above). Every
+         sub-panel below keeps its original element id and inner content
+         unchanged -- js/admin-map.js's lazy getElementById('tab-map') and
+         renderListingsTable()/renderProjectsTab()/renderEstateDataTab()
+         all still find their same targets, just nested one level deeper. -->
+    <section id="tab-properties" class="admin-tab-panel">
+      <div id="propertiesHeaderMount"></div>
+      <div id="propertiesTabsMount"></div>
+
+      <div class="ash-properties-subpanel" id="tab-listings">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.listingsNote">This is the same shared listings database every agent's Agent Dashboard reads and writes. As an admin, you can edit or delete any listing here, not just your own.</p>
 
       <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -926,10 +917,10 @@ change is not meant to make. -->
           </div>
         </div>
       </div>
-    </section>
+      </div>
 
-    <!-- TAB: Projects (admin-approval-before-publication + mark-as-sold) -->
-    <section id="tab-projects" class="admin-tab-panel">
+      <!-- TAB: Projects (admin-approval-before-publication + mark-as-sold) -->
+      <div class="ash-properties-subpanel" id="tab-projects">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.projectsNote">Developer/residential-community projects and revisions awaiting review, and unit sale reports awaiting confirmation. Nothing here becomes public until you approve it.</p>
 
       <h3 class="font-headline-md text-[15px] font-bold mb-3" data-i18n="admin.pendingProjectsHeading">Pending Projects &amp; Revisions</h3>
@@ -952,6 +943,35 @@ change is not meant to make. -->
           </table>
         </div>
         <p id="saleReportsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noSaleReports">No sale reports awaiting confirmation.</p>
+      </div>
+      </div>
+
+      <!-- TAB: Map Management -- replaces the old #estateIntelMap (Google
+           Maps "Estate Intelligence" tab, deleted outright -- Google-Maps-
+           specific, not ported) and #dashRequestsMap (see the removal note
+           above the Users &amp; Roles tab). One shared foundation with
+           map.html's Explore/My Properties modes (window.DarweshMarker /
+           DarweshLeafletHelpers / DarweshListingAccess / DarweshLocationEdit),
+           plus the admin-only capability layer: bulk view at approximate
+           coordinates only, precise coordinates fetched on demand for the
+           one listing open in the detail panel, cross-account visibility,
+           and the estate/transaction-history section ported from the old
+           tab's renderEiSidePanel() (real Firestore data only). Built by
+           js/admin-map.js the same lazy-init-on-first-click way as
+           Organizations/Professionals (js/admin-orgs-pros.js). -->
+      <div class="ash-properties-subpanel" id="tab-map"></div>
+
+      <!-- TAB: Admin Estate Data (Production Rebuild Phase 1 of 3, Part H).
+           Reads only -- every write this page can trigger still goes
+           through firestore.rules exactly as any other client write would;
+           nothing here is a privileged bypass. -->
+      <div class="ash-properties-subpanel" id="tab-estatedata">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <input id="edSearchInput" type="text" class="flex-1 min-w-[220px] bg-surface-container-lowest border border-outline-variant rounded-full px-4 py-2.5 font-body-md text-body-md" data-i18n-placeholder="admin.ed.searchPlaceholder" placeholder="Search by Estate ID, Listing ID, office, agent, project, unit, or location..."/>
+          <button id="edSearchBtn" type="button" class="bg-primary text-on-primary rounded-full px-5 py-2.5 font-label-caps text-label-caps" data-i18n="common.search">Search</button>
+        </div>
+        <p id="edEmptyState" class="text-center font-body-md text-body-md text-on-surface-variant py-stack-lg" data-i18n="admin.ed.searchHint">Search for an Estate above to view its full record.</p>
+        <div id="edRecord" class="hidden space-y-4"></div>
       </div>
     </section>
 
@@ -1443,7 +1463,8 @@ onAuthStateChanged(auth, async (user) => {
 // "View Estate Record" quick action calls this exact function.
 // ---------------------------------------------------------------------
 window.jumpToEstateData = function (estateId) {
-  document.querySelector('.admin-tab[data-tab="estatedata"]').click();
+  document.querySelector('.admin-tab[data-tab="properties"]').click();
+  renderPropertiesHub('estatedata');
   document.getElementById('edSearchInput').value = estateId;
   document.getElementById('edSearchBtn').click();
 };
@@ -1638,13 +1659,10 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'listings') renderListingsTable();
-    if (tab.dataset.tab === 'people') renderPeopleHub(tab.dataset.peopleSubtab || null);
-    if (tab.dataset.tab === 'projects') renderProjectsTab();
+    if (tab.dataset.tab === 'people') renderPeopleHub(tab.dataset.subtab || null);
+    if (tab.dataset.tab === 'properties') renderPropertiesHub(tab.dataset.subtab || null);
     if (tab.dataset.tab === 'services') { renderServicesTab(); renderProviderRequestsTab(); }
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
-    if (tab.dataset.tab === 'estatedata') renderEstateDataTab();
-    if (tab.dataset.tab === 'map') renderMapTab();
     if (tab.dataset.tab === 'offers') renderOffersTab();
     if (tab.dataset.tab === 'arena') renderArenaTab();
     if (tab.dataset.tab === 'alerts') renderAlertsTab();
@@ -1712,6 +1730,51 @@ function renderPeopleHub(forceSubtab) {
   else renderPeopleSubtab(peopleTabsCtrl.getActive());
 }
 document.addEventListener('darwesh:langchange', () => { if (peopleTabsCtrl) peopleTabsCtrl.refresh(); });
+
+// ---------------------------------------------------------------------
+// Properties hub (redesign Phase 2) -- consolidates the former Listings/
+// Projects/Approvals-alias/Map Management/Estate Data destinations into
+// one hub, same AdminPageHeader + AdminTabs pattern as the People hub
+// above. render*()/renderXTab() calls below are unchanged.
+// ---------------------------------------------------------------------
+const PROPERTIES_SUBTABS = [
+  { key: 'listings', icon: 'home_work', label: () => trAdmin('admin.listingsTab', 'Listings') },
+  { key: 'projects', icon: 'apartment', label: () => trAdmin('admin.projectsTab', 'Projects') },
+  { key: 'map', icon: 'map', label: () => trAdmin('admin.nav.map', 'Map') },
+  { key: 'estatedata', icon: 'storage', label: () => trAdmin('admin.nav.estateLookup', 'Estate Lookup') },
+];
+let propertiesTabsCtrl = null;
+
+function renderPropertiesSubtab(key) {
+  document.querySelectorAll('.ash-properties-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + key);
+  });
+  if (key === 'listings') renderListingsTable();
+  else if (key === 'projects') renderProjectsTab();
+  else if (key === 'map') renderMapTab();
+  else if (key === 'estatedata') renderEstateDataTab();
+}
+
+function renderPropertiesHub(forceSubtab) {
+  const section = document.getElementById('tab-properties');
+  if (!section.dataset.ashBuilt) {
+    section.dataset.ashBuilt = '1';
+    window.AdminPageHeader.mount(document.getElementById('propertiesHeaderMount'), {
+      icon: 'home_work',
+      title: () => trAdmin('admin.nav.groupProperties', 'Properties'),
+      description: () => trAdmin('admin.properties.desc', 'Listings, projects, the map, and estate lookup, all in one place.'),
+    });
+    propertiesTabsCtrl = window.AdminTabs.create({
+      mount: document.getElementById('propertiesTabsMount'),
+      tabs: PROPERTIES_SUBTABS,
+      active: 'listings',
+      onChange: renderPropertiesSubtab,
+    });
+  }
+  if (forceSubtab) propertiesTabsCtrl.setActive(forceSubtab, true);
+  else renderPropertiesSubtab(propertiesTabsCtrl.getActive());
+}
+document.addEventListener('darwesh:langchange', () => { if (propertiesTabsCtrl) propertiesTabsCtrl.refresh(); });
 
 document.querySelectorAll('.filter-chip').forEach(chip => {
   chip.addEventListener('click', () => {
@@ -3321,8 +3384,9 @@ function createListingFromSubmission(id) {
   closeRequestDetail();
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
-  document.getElementById('tab-listings').classList.add('active');
+  document.querySelector('.admin-tab[data-tab="properties"]').classList.add('active');
+  document.getElementById('tab-properties').classList.add('active');
+  renderPropertiesHub('listings');
 
   resetListingForm();
   document.getElementById('sourceSubmissionId').value = id;
@@ -3625,8 +3689,9 @@ function renderDashPriceTrends(cities, listings) {
 window.jumpToListingFromMap = function (id) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelector('.admin-tab[data-tab="listings"]').classList.add('active');
-  document.getElementById('tab-listings').classList.add('active');
+  document.querySelector('.admin-tab[data-tab="properties"]').classList.add('active');
+  document.getElementById('tab-properties').classList.add('active');
+  renderPropertiesHub('listings');
   renderListingsTable().then(() => {
     window.editListing(id);
     document.getElementById('listingForm').scrollIntoView({ behavior: 'smooth', block: 'start' });

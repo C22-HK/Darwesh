@@ -52,16 +52,8 @@
       { tab: 'people', icon: 'group', labelKey: 'admin.nav.groupPeople', labelText: 'People' }
     ] },
     { key: 'properties', labelKey: 'admin.nav.groupProperties', labelText: 'Properties', items: [
-      { tab: 'listings', icon: 'home_work', labelKey: 'admin.listingsTab', labelText: 'Listings' },
-      { tab: 'projects', icon: 'apartment', labelKey: 'admin.projectsTab', labelText: 'Projects' },
-      { tab: 'projects', icon: 'fact_check', labelKey: 'admin.nav.approvals', labelText: 'Approvals', alias: true },
-      // Replaces the old estateintel ("Estate Intelligence Map") and
-      // requestsmap ("Requests Map") entries -- both tabs are gone,
-      // consolidated into this one shared-map-foundation tab (see the
-      // removal notes in admin.html around #tab-estateintel/#tab-map and
-      // js/admin-map.js's own header comment).
-      { tab: 'map', icon: 'map', labelKey: 'admin.nav.map', labelText: 'Map' },
-      { tab: 'estatedata', icon: 'storage', labelKey: 'admin.nav.estateLookup', labelText: 'Estate Lookup' }
+      { tab: 'properties', icon: 'home_work', labelKey: 'admin.nav.groupProperties', labelText: 'Properties' },
+      { tab: 'properties', subtab: 'projects', icon: 'fact_check', labelKey: 'admin.nav.approvals', labelText: 'Approvals', alias: true }
     ] },
     { key: 'sales', labelKey: 'admin.nav.groupSales', labelText: 'Sales', items: [
       { tab: 'services', icon: 'support_agent', labelKey: 'admin.nav.requests', labelText: 'Requests' }
@@ -103,7 +95,7 @@
     return (
       '<button type="button" class="admin-tab ash-nav-item' + (item.tab === 'dashboard' ? ' active' : '') + '"' +
         ' data-tab="' + item.tab + '"' +
-        (item.subtab ? ' data-people-subtab="' + item.subtab + '"' : '') +
+        (item.subtab ? ' data-subtab="' + item.subtab + '"' : '') +
         (item.requires ? ' data-requires="' + item.requires.join(',') + '"' : '') +
         ' data-nav-id="n' + idx + '"' +
         ' title="' + esc(label) + '">' +
