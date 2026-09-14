@@ -324,28 +324,32 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
  * already hand-roll for their own internal sub-tabs, so Phase 2+'s hub
  * shells (People, Properties, Finance, System) share one visual language
  * and one click-handling implementation instead of a third/fourth copy. */
+/* Stage 2: underline tab rail, replacing the gold-filled pill-per-tab
+ * look -- the redesign brief calls that out by name ("NOT gold-filled
+ * pills for every tab"). One shared bottom hairline for the whole rail,
+ * the active tab gets a 2px accent underline and promoted text weight/
+ * colour; nothing else about the tab gets a background fill, so gold
+ * marks exactly one tab at a time instead of every tab getting a wash. */
 .ash-tabs {
-  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 18px;
-  scrollbar-width: none;
+  display: flex; gap: var(--space-5); overflow-x: auto; margin-bottom: var(--space-5);
+  scrollbar-width: none; border-bottom: 1px solid var(--ash-border);
 }
 .ash-tabs::-webkit-scrollbar { display: none; }
 .ash-tabs-btn {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--ash-border);
-  background: var(--ash-surface); color: var(--ash-text-secondary);
-  font: 600 12.5px/1 var(--ash-font); letter-spacing: -.006em; white-space: nowrap; cursor: pointer;
-  transition: background .18s var(--ash-ease), color .18s var(--ash-ease), border-color .18s var(--ash-ease);
+  padding: 10px 2px 11px; border-radius: 0; border: none; border-bottom: 2px solid transparent;
+  background: none; color: var(--ash-text-secondary); margin-bottom: -1px;
+  font: 600 13px/1 var(--ash-font); letter-spacing: -.006em; white-space: nowrap; cursor: pointer;
+  transition: color .18s var(--ash-ease), border-color .18s var(--ash-ease);
 }
 .ash-tabs-btn .material-symbols-outlined { font-size: 16px; }
-.ash-tabs-btn:hover { color: var(--ash-text); border-color: var(--ash-accent); }
-.ash-tabs-btn.active {
-  background: var(--ash-accent-wash); border-color: var(--ash-accent); color: var(--ash-accent-strong);
-}
+.ash-tabs-btn:hover { color: var(--ash-text); }
+.ash-tabs-btn.active { border-bottom-color: var(--ash-accent); color: var(--ash-text); }
 .ash-tabs-badge {
   font: 700 10px/1 var(--ash-font); padding: 1px 6px; border-radius: 999px;
-  background: rgba(0,0,0,.14); color: inherit;
+  background: var(--ash-surface-sunken); color: var(--ash-text-secondary);
 }
-.ash-tabs-btn.active .ash-tabs-badge { background: rgba(198,154,75,.22); }
+.ash-tabs-btn.active .ash-tabs-badge { background: var(--ash-accent-wash); color: var(--ash-accent-strong); }
 
 /* ---- Admin Panel redesign Phase 1: shared AdminPageHeader
  * (js/admin-page-header.js) -- icon + short title + one-line description +
@@ -939,16 +943,44 @@ body.admin-shell .stat-mini .label {
   color: var(--ash-text-secondary);
 }
 
-/* ---- 5. Controls: Apple's pill, and a real focus ring ----------------- */
-body.admin-shell #adminContent button:not(.ash-nav-item):not(.ash-collapse-btn),
-body.admin-shell .ash-detail-btn,
-body.admin-shell .ash-quick-create {
-  border-radius: 980px;
-  font: 500 13px/1 var(--ash-font); letter-spacing: -.006em;
+/* ---- 5. Controls: Stage 2 button system --------------------------------
+ * Was a full 980px pill on every button in the page -- the "everything
+ * rounds to a capsule" look the redesign research flags as a template
+ * tell, and one this system shared with template dashboards rather than
+ * the enterprise references it studied (Stripe/Linear/Vercel/Primer all
+ * use an 8-10px rounded-rect for actual buttons, reserving a true pill for
+ * chips/tags/badges only). Kept as a pill, deliberately, by exclusion:
+ * .ash-tabs-btn (its own underline/segment language below, not a button
+ * chrome) and .ash-quick-create (a compact "new record" trigger, closer to
+ * a tag than a form button, and the one the research mockup keeps pill-
+ * shaped). Every other button in #adminContent -- including every
+ * .ash-detail-btn the 7 hub modules already render 100 call sites of --
+ * moves to the shared rounded-rect radius with zero class-name or markup
+ * change, so this is a real shape change delivered without touching a
+ * single admin-*.js render function. */
+body.admin-shell #adminContent button:not(.ash-nav-item):not(.ash-collapse-btn):not(.ash-tabs-btn):not(.ash-quick-create),
+body.admin-shell .ash-detail-btn {
+  border-radius: var(--radius-sm);
+  font: 600 13px/1 var(--ash-font); letter-spacing: -.006em;
   transition: filter .18s var(--ash-ease), box-shadow .18s var(--ash-ease),
-              transform .12s var(--ash-ease);
+              transform .12s var(--ash-ease), background .18s var(--ash-ease),
+              border-color .18s var(--ash-ease), color .18s var(--ash-ease);
 }
+body.admin-shell .ash-quick-create { border-radius: 999px; }
 body.admin-shell #adminContent button:not(.ash-nav-item):active { transform: scale(.97); }
+
+/* Secondary/Ghost/Danger variants for the existing .ash-detail-btn family
+ * (used verbatim already: .ash-detail-btn on its own is Secondary today,
+ * .ash-detail-btn-primary/.ash-detail-btn-danger already existed). Adding
+ * -secondary/-ghost as explicit aliases so new call sites don't have to
+ * guess that the bare class is the secondary style, and a true Ghost
+ * (no border/fill until hover) for low-emphasis row actions. */
+body.admin-shell .ash-detail-btn-secondary { background: var(--ash-surface); color: var(--ash-text); border-color: var(--ash-border); }
+body.admin-shell .ash-detail-btn-ghost {
+  background: transparent; color: var(--ash-text-secondary); border-color: transparent;
+}
+body.admin-shell .ash-detail-btn-ghost:hover { background: var(--ash-surface-hover); color: var(--ash-text); }
+body.admin-shell .ash-detail-btn[disabled] { opacity: .5; cursor: not-allowed; filter: none; }
 body.admin-shell #adminContent .bg-primary:hover { filter: brightness(1.06); }
 body.admin-shell #adminContent :focus-visible {
   outline: none; box-shadow: 0 0 0 3px var(--ash-accent-wash), 0 0 0 1px var(--ash-accent);
