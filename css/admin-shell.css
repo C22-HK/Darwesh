@@ -136,7 +136,22 @@ body.admin-shell .pr-filter-chip.active { background: var(--ash-ink) !important;
 /* ---- App shell layout ---------------------------------------------------*/
 body.admin-shell #adminContent {
   display: grid;
-  grid-template-columns: var(--ash-sidebar-w) 1fr;
+  /* minmax(0, 1fr), not a bare 1fr -- `1fr` alone is shorthand for
+   * `minmax(auto, 1fr)`, and grid track sizing's own `auto` keyword uses
+   * an item's min-content contribution as that track's floor (a separate
+   * mechanism from the item's own CSS min-width, which the existing
+   * `#adminSidebarMount ~ main { min-width: 0 }` rule below does NOT
+   * override -- confirmed via computed-style inspection while diagnosing
+   * this). A horizontally-scrollable descendant (.ash-tabs, item 7 of the
+   * People/Permission Studio redesign) has a large intrinsic content
+   * width even though it clips/scrolls its own overflow locally; without
+   * minmax(0, ...) that width was inflating this column's track (and so
+   * <main>) past the actual available width -- a real page-level
+   * horizontal overflow (confirmed via document.documentElement.
+   * scrollWidth/window.scrollTo) invisible only because body already
+   * carries overflow-x-hidden, not something item 19's "no horizontal
+   * overflow" requirement is satisfied by. */
+  grid-template-columns: var(--ash-sidebar-w) minmax(0, 1fr);
   /* Explicit rows matter here: #adminSidebarMount spans both rows
      (grid-row: 1 / -1) with a fixed 100vh height. Left implicit, that
      span's fixed-height demand gets distributed into the auto-sized
@@ -163,7 +178,7 @@ body.admin-shell #adminContent {
    to people who have no access to it. Restated at matching specificity so
    the class does what every reader of admin.html assumes it does. */
 body.admin-shell #adminContent.hidden { display: none; }
-body.admin-shell #adminContent.ash-collapsed { grid-template-columns: var(--ash-sidebar-w-collapsed) 1fr; }
+body.admin-shell #adminContent.ash-collapsed { grid-template-columns: var(--ash-sidebar-w-collapsed) minmax(0, 1fr); }
 body.admin-shell #adminSidebarMount {
   grid-column: 1; grid-row: 1 / -1;
   position: sticky; top: 0; align-self: start;
@@ -171,6 +186,21 @@ body.admin-shell #adminSidebarMount {
 }
 body.admin-shell #adminSidebarMount ~ header,
 body.admin-shell #adminSidebarMount ~ main { grid-column: 2; min-width: 0; }
+/* <main>'s own `mx-auto` (margin-left/right: auto, for the pre-shell page
+ * layout where it centers under a plain max-width) defeats a grid item's
+ * default stretch alignment: per the CSS Box Alignment spec, auto margins
+ * on the justification axis make the box size via fit-content instead of
+ * stretching to its grid area -- confirmed via computed-style inspection
+ * while diagnosing item 19's overflow requirement (grid-template-columns'
+ * own minmax(0, 1fr) fix above, and an item-level min-width:0, both
+ * measurably changed nothing; only this did). fit-content's preferred
+ * width is driven by descendants' intrinsic content, so a wide
+ * horizontally-scrollable one (.ash-tabs, item 7) could inflate <main>
+ * past its actual 1fr column width -- width: 100% makes the box's size
+ * definite, which the spec has take priority over fit-content, so it
+ * simply fills the column like it already did whenever fit-content and
+ * the column happened to agree (every existing hub). */
+body.admin-shell #adminSidebarMount ~ main { width: 100%; }
 body.admin-shell #adminSidebarMount ~ header { grid-row: 1; top: 0; }
 body.admin-shell #adminSidebarMount ~ main { grid-row: 2; }
 
@@ -178,7 +208,7 @@ body.admin-shell #adminSidebarMount ~ main { grid-row: 2; }
 
 @media (max-width: 1023px) {
   body.admin-shell #adminContent,
-  body.admin-shell #adminContent.ash-collapsed { grid-template-columns: 1fr; }
+  body.admin-shell #adminContent.ash-collapsed { grid-template-columns: minmax(0, 1fr); }
   /* The sidebar leaves the grid here (it becomes the fixed drawer styled
      below), so the single declared track is column 1. Without this reset,
      header and main kept the desktop `grid-column: 2` and were placed in an
@@ -330,14 +360,23 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
  * the active tab gets a 2px accent underline and promoted text weight/
  * colour; nothing else about the tab gets a background fill, so gold
  * marks exactly one tab at a time instead of every tab getting a wash. */
+/* Redesign v2, item 7: was gap: var(--space-5) (20px) between every tab --
+ * dense/cramped once People grew to 8 tabs with icons. A smaller, fixed
+ * gap plus real horizontal padding per tab (instead of near-zero side
+ * padding) both tightens the rhythm and gives each tab a bigger hit
+ * target; the scrollable row + hidden scrollbar (overflow handling) and
+ * every one of the existing destinations are unchanged -- no tab removed
+ * or consolidated. A soft edge fade signals there's more to scroll to. */
 .ash-tabs {
-  display: flex; gap: var(--space-5); overflow-x: auto; margin-bottom: var(--space-5);
+  display: flex; gap: 4px; overflow-x: auto; margin-bottom: var(--space-5);
   scrollbar-width: none; border-bottom: 1px solid var(--ash-border);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
 }
 .ash-tabs::-webkit-scrollbar { display: none; }
 .ash-tabs-btn {
   flex: none; display: inline-flex; align-items: center; gap: 6px;
-  padding: 10px 2px 11px; border-radius: 0; border: none; border-bottom: 2px solid transparent;
+  padding: 10px 12px 11px; border-radius: 0; border: none; border-bottom: 2px solid transparent;
   background: none; color: var(--ash-text-secondary); margin-bottom: -1px;
   font: 600 13px/1 var(--ash-font); letter-spacing: -.006em; white-space: nowrap; cursor: pointer;
   transition: color .18s var(--ash-ease), border-color .18s var(--ash-ease);
@@ -401,6 +440,44 @@ body.admin-shell #adminContent.ash-collapsed .ash-collapse-btn .material-symbols
 .ash-empty-badge {
   margin-top: 6px; font: 700 10.5px/1 'IBM Plex Sans', sans-serif; letter-spacing: .05em; text-transform: uppercase;
   color: var(--ash-accent-strong); background: var(--ash-accent-wash); border-radius: 999px; padding: 5px 11px;
+}
+
+/* ---- Table-inline empty state (redesign v2, item 9) -- a real, lighter
+ * "nothing here yet" for a data table (vs. .ash-empty-state above, which
+ * is the "Planned/roadmap" full-panel placeholder -- a different meaning,
+ * so a different, smaller treatment: no dashed border, sits inside the
+ * table's own surface rather than as its own bordered card). ------------*/
+.ash-empty-block {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+  padding: 40px 20px;
+}
+.ash-empty-block-icon {
+  width: 40px; height: 40px; border-radius: 999px; background: var(--ash-surface-sunken); color: var(--ash-text-muted);
+  display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 2px;
+}
+.ash-empty-block-title { font: 700 14px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-empty-block-body { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); max-width: 44ch; }
+.ash-empty-block .ash-detail-btn { margin-top: 4px; }
+
+/* ---- Compact metrics strip (redesign v2, item 8) -- one thin surface
+ * with hairline dividers between figures, instead of N full kpi-card
+ * boxes (each its own border/shadow/padding, heavy even at value=0).
+ * Scoped to People/Accounts -- .kpi-card/.stat-mini above are untouched,
+ * still used as-is by Dashboard/Scan Log/Market/Requests. ---------------*/
+.ash-metrics-strip {
+  display: flex; flex-wrap: wrap;
+  background: var(--ash-surface); border: 1px solid var(--ash-border); border-radius: var(--ash-radius);
+}
+.ash-metrics-item {
+  flex: 1 1 140px; display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 18px; border-inline-start: 1px solid var(--ash-border);
+}
+.ash-metrics-item:first-child { border-inline-start: none; }
+.ash-metrics-value { font: 600 24px/1.15 var(--ash-font); letter-spacing: -.02em; color: var(--ash-text); font-variant-numeric: tabular-nums; }
+.ash-metrics-label { font: 500 12px/1.3 var(--ash-font); color: var(--ash-text-secondary); }
+@media (max-width: 640px) {
+  .ash-metrics-item { flex: 1 1 45%; }
+  .ash-metrics-item:nth-child(odd) { border-inline-start: none; }
 }
 
 /* ---- Admin Panel Phase 2: entity status badges ---------------------------
@@ -1299,22 +1376,26 @@ body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--as
 [dir="rtl"] .ash-attention-item-cta .material-symbols-outlined { transform: scaleX(-1); }
 
 /* ---------------------------------------------------------------------
- * Role Permission Defaults — "Permission Workspace" (People > Accounts
- * lower section redesign). Replaces one giant bordered card of raw
- * fieldset checkboxes with: a section header, a compact account-type
- * control, inline summary metrics, an optional search box, collapsible
- * permission groups with human-readable label/description rows, and a
- * sticky save footer that only appears once there's something to save.
- * All existing element ids (#rdAccountType, #rdGroups, #rdSave, ...) and
- * `data-perm` attributes are unchanged -- this is CSS/markup only, see
- * admin.html's module script for the matching behavior. --------------- */
-.ash-permwrap {
+ * Permission Studio (People > Accounts lower section, redesign v2).
+ * Replaces the v1 "Permission Workspace" (14 full accordion groups
+ * stacked vertically -- still a long wall) with a real split view: a
+ * left nav rail listing every group with its own enabled/total count,
+ * and a single right-hand workspace rendering ONLY the selected group's
+ * permission rows. A compact account-type header (picker + preset/
+ * enabled/modified readouts + Apply recommended/••• menu) replaces the
+ * old 3-4 button row, and search now spans every group instead of just
+ * filtering whichever accordion happened to be open. All existing
+ * element ids the JS depends on (#rdAccountType, #rdSave, `data-perm`,
+ * ...) are unchanged in spirit -- this is CSS/markup/interaction only,
+ * see admin.html's module script for the matching behavior; permission
+ * keys, Firestore behavior and save logic are untouched. --------------- */
+.ash-pstudio {
   background: var(--ash-surface); border: 1px solid var(--ash-border);
   border-radius: var(--ash-radius); padding: 18px 20px 20px;
 }
 .ash-perm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.ash-perm-title { font: 700 16px/1.3 var(--ash-font); color: var(--ash-text); }
-.ash-perm-subtitle { font: 500 12.5px/1.5 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-perm-title { font: 700 17px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-perm-subtitle { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
 .ash-perm-learnmore {
   flex: none; display: inline-flex; align-items: center; gap: 4px;
   background: none; border: none; padding: 4px 2px; cursor: pointer;
@@ -1328,15 +1409,20 @@ body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--as
   padding: 10px 12px; margin-top: 10px;
 }
 
-.ash-perm-controlrow {
-  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-  margin-top: 16px;
+/* Compact account-type header (item 3): one row -- picker, then
+ * preset/enabled/modified readouts, then the two real actions. No row of
+ * 3-4 heavy buttons. */
+.ash-pstudio-acchead {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 14px 20px; flex-wrap: wrap;
+  margin-top: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--ash-border);
 }
-.ash-perm-account { flex: 0 1 300px; min-width: 220px; }
-.ash-perm-account-meta { margin-top: 8px; }
+.ash-pstudio-accfield { flex: 0 1 260px; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
+.ash-pstudio-accmeta { flex: 1 1 320px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 18px; font: 500 13px/1.4 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-pstudio-accmeta-item { white-space: nowrap; }
+.ash-pstudio-accmeta-item > span:last-child { color: var(--ash-text); font-weight: 700; font-variant-numeric: tabular-nums; }
 .ash-perm-status {
   display: inline-flex; align-items: center; gap: 6px;
-  font: 600 12px/1 var(--ash-font); color: var(--ash-text-secondary);
+  font: 600 12.5px/1 var(--ash-font); color: var(--ash-text-secondary);
 }
 .ash-perm-status-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ash-text-muted); flex: none; }
 .ash-perm-status[data-tone="recommended"] .ash-perm-status-dot { background: var(--ash-info); }
@@ -1353,88 +1439,111 @@ body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--as
 }
 .ash-perm-diff-title { font: 700 11px/1.3 var(--ash-font); letter-spacing: .02em; text-transform: uppercase; color: var(--ash-text-secondary); margin-bottom: 4px; }
 .ash-perm-diff ul { font: 500 12.5px/1.6 var(--ash-font); color: var(--ash-text); list-style: disc; padding-inline-start: 18px; }
+.ash-perm-summary-lastsaved { font: 500 12.5px/1 var(--ash-font); color: var(--ash-text-muted); }
 
-.ash-perm-summary {
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 20px;
-  margin-top: 16px; padding: 12px 14px;
-  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: var(--radius-sm);
-}
-.ash-perm-summary-item { display: flex; align-items: baseline; gap: 6px; }
-.ash-perm-summary-value { font: 700 15px/1 var(--ash-font); color: var(--ash-text); font-variant-numeric: tabular-nums; }
-.ash-perm-summary-label { font: 500 12px/1 var(--ash-font); color: var(--ash-text-secondary); }
-.ash-perm-summary-lastsaved { margin-inline-start: auto; font: 500 12px/1 var(--ash-font); color: var(--ash-text-muted); }
-
-.ash-perm-search-wrap {
-  display: flex; align-items: center; gap: 8px; margin-top: 16px;
+/* Cross-group search (item 5) -- a results dropdown, not a filter on
+ * whichever group happens to be open. */
+.ash-pstudio-search-wrap {
+  position: relative; display: flex; align-items: center; gap: 8px; margin-top: 16px;
   background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: 999px;
   padding: 8px 14px;
 }
-.ash-perm-search-wrap .material-symbols-outlined { font-size: 18px; color: var(--ash-text-muted); flex: none; }
-.ash-perm-search { flex: 1; background: none; border: none; outline: none; font: 500 13px/1.3 var(--ash-font); color: var(--ash-text); }
-.ash-perm-search::placeholder { color: var(--ash-text-muted); }
+.ash-pstudio-search-wrap .material-symbols-outlined { font-size: 18px; color: var(--ash-text-muted); flex: none; }
+.ash-pstudio-search { flex: 1; background: none; border: none; outline: none; font: 500 13.5px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-pstudio-search::placeholder { color: var(--ash-text-muted); }
+.ash-pstudio-search-results {
+  position: absolute; top: calc(100% + 6px); inset-inline: 0; z-index: 6; max-height: 340px; overflow-y: auto;
+  background: var(--ash-material); backdrop-filter: var(--ash-vibrancy); -webkit-backdrop-filter: var(--ash-vibrancy);
+  border: 1px solid var(--ash-border); border-radius: var(--radius-sm); box-shadow: var(--ash-shadow-lift);
+  padding: 6px;
+}
+.ash-pstudio-search-result {
+  display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; width: 100%; text-align: start;
+  background: none; border: none; border-radius: 8px; padding: 8px 10px; cursor: pointer;
+}
+.ash-pstudio-search-result:hover, .ash-pstudio-search-result:focus-visible { background: var(--ash-surface-hover); outline: none; }
+.ash-pstudio-search-result-perm { font: 600 13.5px/1.35 var(--ash-font); color: var(--ash-text); }
+.ash-pstudio-search-result-group {
+  font: 700 11px/1.3 var(--ash-font); letter-spacing: .02em; text-transform: uppercase; color: var(--ash-accent-strong);
+  background: var(--ash-accent-wash); border-radius: 999px; padding: 1px 7px;
+}
+.ash-pstudio-search-result-desc { flex-basis: 100%; font: 500 13px/1.4 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-pstudio-search-empty { padding: 10px; font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); }
 
-.ash-perm-groups { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
-.ash-perm-group { border: 1px solid var(--ash-border); border-radius: var(--radius-sm); overflow: hidden; }
-.ash-perm-group[hidden] { display: none; }
-.ash-perm-group-head {
-  display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px;
-  background: var(--ash-surface-sunken);
+/* Split view: left nav rail + right single-group workspace (items 1, 2,
+ * 4, 15, 16). Only rdActiveGroup's rows are ever in the DOM -- never all
+ * 14 groups at once. Hairline dividers between rows instead of a card
+ * per row; the rail's own active state is the only "card-like" surface,
+ * and even that is a tinted background, not a bordered box. */
+.ash-pstudio-body {
+  display: grid; grid-template-columns: 250px 1fr; gap: 20px; margin-top: 16px; align-items: start;
 }
-[dir="rtl"] .ash-perm-group-head { padding: 10px 14px 10px 8px; }
-.ash-perm-group-head:hover { background: var(--ash-surface-hover); }
-.ash-perm-group-toggle {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
-  background: none; border: none; padding: 2px; cursor: pointer; text-align: start; font: inherit; color: inherit;
+.ash-pstudio-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  border-inline-end: 1px solid var(--ash-border); padding-inline-end: 12px;
 }
-.ash-perm-group-chevron { flex: none; font-size: 18px; color: var(--ash-text-muted); transition: transform .15s var(--ash-ease); }
-.ash-perm-group[data-open="true"] .ash-perm-group-chevron { transform: rotate(90deg); }
-[dir="rtl"] .ash-perm-group-chevron { transform: scaleX(-1); }
-[dir="rtl"] .ash-perm-group[data-open="true"] .ash-perm-group-chevron { transform: scaleX(-1) rotate(90deg); }
-.ash-perm-group-heading { flex: 1; min-width: 0; }
-.ash-perm-group-name { font: 600 13.5px/1.3 var(--ash-font); color: var(--ash-text); }
-.ash-perm-group-desc { font: 500 12px/1.4 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
-.ash-perm-group-count {
-  flex: none; font: 700 11.5px/1 var(--ash-font); color: var(--ash-text-secondary);
-  font-variant-numeric: tabular-nums;
+.ash-pstudio-nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px;
+  background: none; border: none; border-inline-start: 2px solid transparent; text-align: start; cursor: pointer;
+  color: var(--ash-text-secondary); transition: background .15s var(--ash-ease), color .15s var(--ash-ease);
 }
-.ash-perm-group-count[data-any="true"] { color: var(--ash-accent-strong); }
-.ash-perm-group-enableall {
-  flex: none; background: none; border: 1px solid var(--ash-border); border-radius: 999px;
-  padding: 4px 10px; font: 600 11px/1 var(--ash-font); color: var(--ash-text-secondary); cursor: pointer;
+.ash-pstudio-nav-item:hover { background: var(--ash-surface-hover); color: var(--ash-text); }
+.ash-pstudio-nav-item:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: -2px; }
+/* Restrained accent for the active group (item 17): a subtle tinted
+ * surface + a small gold rail indicator -- never a full bright-gold row. */
+.ash-pstudio-nav-item[aria-selected="true"] {
+  background: var(--ash-accent-wash); border-inline-start-color: var(--ash-accent); color: var(--ash-text);
 }
-.ash-perm-group-enableall:hover { background: var(--ash-surface-hover); color: var(--ash-text); }
-.ash-perm-group-body { padding: 4px 6px 8px; }
-.ash-perm-group[data-open="false"] .ash-perm-group-body { display: none; }
-.ash-perm-row {
-  display: flex; align-items: flex-start; gap: 10px; padding: 8px 8px; border-radius: 8px; cursor: pointer;
+.ash-pstudio-nav-icon { flex: none; font-size: 18px; color: inherit; }
+.ash-pstudio-nav-item[aria-selected="true"] .ash-pstudio-nav-icon { color: var(--ash-accent-strong); }
+.ash-pstudio-nav-text { flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.ash-pstudio-nav-name { font: 600 13.5px/1.3 var(--ash-font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ash-pstudio-nav-count { flex: none; font: 700 12px/1 var(--ash-font); color: var(--ash-text-muted); font-variant-numeric: tabular-nums; }
+.ash-pstudio-nav-count[data-any="true"] { color: var(--ash-accent-strong); }
+
+.ash-pstudio-panel { min-width: 0; }
+.ash-pstudio-panel-head { display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--ash-border); margin-bottom: 2px; }
+.ash-pstudio-panel-title { font: 700 17px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-pstudio-panel-desc { font: 500 13px/1.5 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-pstudio-panel-summaryrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ash-pstudio-panel-count { font: 700 12.5px/1 var(--ash-font); color: var(--ash-text-secondary); font-variant-numeric: tabular-nums; }
+.ash-pstudio-panel-actions { display: flex; gap: 8px; }
+.ash-pstudio-panel-actions .ash-detail-btn { padding: 5px 12px; font-size: 11.5px; }
+
+.ash-pstudio-rows { display: flex; flex-direction: column; }
+.ash-pstudio-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 11px 4px; border-bottom: 1px solid var(--ash-border); transition: background .5s var(--ash-ease);
 }
-.ash-perm-row:hover { background: var(--ash-surface-hover); }
-.ash-perm-row[hidden] { display: none; }
-/* Custom-drawn checkbox rather than relying on `accent-color` -- native
- * checked-fill theming is inconsistent across browsers/platforms (some
- * keep an OS-default fill color regardless of accent-color), and the spec
- * here is specific: gold only for the selected/checked state. */
-.ash-perm-row input[type="checkbox"] {
-  appearance: none; -webkit-appearance: none; margin-top: 2px; flex: none;
-  width: 16px; height: 16px; border-radius: 4px; cursor: pointer; position: relative;
-  border: 1.5px solid var(--ash-border-strong); background: var(--ash-surface);
-  transition: background .12s var(--ash-ease), border-color .12s var(--ash-ease);
-}
-.ash-perm-row input[type="checkbox"]:hover { border-color: var(--ash-accent); }
-.ash-perm-row input[type="checkbox"]:checked { background: var(--ash-accent); border-color: var(--ash-accent); }
-.ash-perm-row input[type="checkbox"]:checked::after {
-  content: ""; position: absolute; inset: 0;
-  background: var(--ash-on-accent);
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
-}
-.ash-perm-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: 2px; }
-.ash-perm-row-text { min-width: 0; }
-.ash-perm-row-label { font: 600 13px/1.35 var(--ash-font); color: var(--ash-text); display: flex; align-items: center; gap: 6px; }
-.ash-perm-row-desc { font: 500 12px/1.45 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
+.ash-pstudio-row:last-child { border-bottom: none; }
+.ash-pstudio-row:hover { background: var(--ash-surface-hover); }
+.ash-pstudio-row--highlight { background: var(--ash-accent-wash); border-radius: 8px; }
+.ash-pstudio-row-text { min-width: 0; }
+.ash-pstudio-row-label { font: 600 14px/1.35 var(--ash-font); color: var(--ash-text); display: flex; align-items: center; gap: 6px; }
+.ash-pstudio-row-desc { font: 500 13px/1.45 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
 .ash-perm-row-rules { flex: none; color: var(--ash-accent); font-size: 8px; line-height: 1; }
 
-.ash-perm-ruleshint { font: 500 11.5px/1.5 var(--ash-font); color: var(--ash-text-muted); margin-top: 14px; }
+/* Toggle switch (replaces the v1 checkbox) -- a real switch reads
+ * clearer than a checkbox for an on/off capability grant, and a <button
+ * role="switch"> gets native Space/Enter activation for free (item 18).
+ * inset-inline-start mirrors the thumb automatically under [dir="rtl"],
+ * no override block needed. */
+.ash-pstudio-toggle {
+  flex: none; appearance: none; -webkit-appearance: none; position: relative; cursor: pointer;
+  width: 38px; height: 22px; border-radius: 999px; border: 1.5px solid var(--ash-border-strong);
+  background: var(--ash-surface-sunken); transition: background .15s var(--ash-ease), border-color .15s var(--ash-ease);
+}
+.ash-pstudio-toggle::after {
+  content: ""; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px; border-radius: 999px;
+  background: var(--ash-surface); box-shadow: 0 1px 2px rgba(0,0,0,.25);
+  transition: inset-inline-start .15s var(--ash-ease), background .15s var(--ash-ease);
+}
+.ash-pstudio-toggle:hover { border-color: var(--ash-accent); }
+.ash-pstudio-toggle.is-on { background: var(--ash-accent); border-color: var(--ash-accent); }
+.ash-pstudio-toggle.is-on::after { inset-inline-start: 18px; background: var(--ash-on-accent); }
+.ash-pstudio-toggle:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: 2px; }
+
+.ash-perm-ruleshint { font: 500 12px/1.5 var(--ash-font); color: var(--ash-text-muted); margin-top: 14px; }
 
 .ash-perm-footer {
   position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between;
@@ -1443,15 +1552,40 @@ body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--as
   border-top: 1px solid var(--ash-border); border-radius: 0 0 var(--ash-radius) var(--ash-radius);
 }
 .ash-perm-footer[hidden] { display: none; }
-.ash-perm-footer-count { font: 600 13px/1.3 var(--ash-font); color: var(--ash-accent-strong); }
+.ash-perm-footer-count { font: 600 13.5px/1.3 var(--ash-font); color: var(--ash-accent-strong); }
 .ash-perm-footer-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
+/* ---- Responsive (item 19): 1440+ split view; 1024 a narrower rail; 768
+ * the rail becomes a horizontal scroller above the panel (split columns
+ * don't fit); 390 fully stacked. Desktop never forces its split panel
+ * onto mobile, and mobile is never forced into desktop's column width. */
+@media (max-width: 1024px) {
+  .ash-pstudio-body { grid-template-columns: 208px 1fr; gap: 14px; }
+}
+@media (max-width: 768px) {
+  .ash-pstudio-body { grid-template-columns: 1fr; }
+  .ash-pstudio-nav {
+    flex-direction: row; overflow-x: auto; border-inline-end: none; padding-inline-end: 0;
+    border-bottom: 1px solid var(--ash-border); padding-bottom: 10px; gap: 6px; scrollbar-width: none;
+  }
+  .ash-pstudio-nav::-webkit-scrollbar { display: none; }
+  .ash-pstudio-nav-item {
+    flex: none; border-inline-start: none; border-inline-start-color: transparent;
+    border-bottom: 2px solid transparent; border-radius: 9px 9px 0 0;
+  }
+  .ash-pstudio-nav-item[aria-selected="true"] { border-bottom-color: var(--ash-accent); border-inline-start-color: transparent; }
+  .ash-pstudio-nav-text { flex-direction: column; align-items: flex-start; gap: 0; }
+}
 @media (max-width: 640px) {
-  .ash-permwrap { padding: 14px 14px 16px; }
-  .ash-perm-controlrow { flex-direction: column; align-items: stretch; }
+  .ash-pstudio { padding: 14px 14px 16px; }
+  /* flex-direction: column flips the main axis, so the desktop row's
+   * flex-basis values (260px/320px, sized for a horizontal layout) would
+   * otherwise reserve that much VERTICAL space per stacked item -- reset
+   * to content-sized (flex: none) here. */
+  .ash-pstudio-acchead { flex-direction: column; align-items: stretch; }
+  .ash-pstudio-accfield, .ash-pstudio-accmeta { flex: none; }
   .ash-perm-actions { justify-content: flex-end; }
-  .ash-perm-summary { gap: 12px 20px; }
-  .ash-perm-summary-lastsaved { margin-inline-start: 0; flex-basis: 100%; }
+  .ash-pstudio-panel-summaryrow { flex-direction: column; align-items: flex-start; }
   .ash-perm-footer { flex-direction: column; align-items: stretch; margin: 14px -14px -16px; padding: 10px 14px; }
   .ash-perm-footer-actions { justify-content: stretch; }
   .ash-perm-footer-actions .ash-detail-btn { flex: 1; }

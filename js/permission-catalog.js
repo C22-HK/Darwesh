@@ -58,7 +58,7 @@ export const PROTECTED_PERMISSIONS = [
 // firestore.rules, and sent to the backend. Never render `key` as the
 // primary label; it may still appear as a small technical aside.
 export const PERMISSION_GROUPS = [
-  { key: 'listings', labelKey: 'admin.rd.groupListings', fallback: 'Listings',
+  { key: 'listings', icon: 'home_work', labelKey: 'admin.rd.groupListings', fallback: 'Listings',
     descKey: 'admin.rd.groupListingsDesc', descFallback: 'Create and manage property listings',
     permissions: [
       { key: 'create_listing', labelKey: 'admin.rd.perm.create_listing.label', labelFallback: 'Create listing', descKey: 'admin.rd.perm.create_listing.desc', descFallback: 'Can create a new property listing' },
@@ -67,7 +67,7 @@ export const PERMISSION_GROUPS = [
       { key: 'delete_own_listing', labelKey: 'admin.rd.perm.delete_own_listing.label', labelFallback: 'Delete own listing', descKey: 'admin.rd.perm.delete_own_listing.desc', descFallback: 'Can permanently remove listings this account owns' },
       { key: 'publish_listing', labelKey: 'admin.rd.perm.publish_listing.label', labelFallback: 'Publish listing', descKey: 'admin.rd.perm.publish_listing.desc', descFallback: 'Can make a listing publicly visible' }
     ] },
-  { key: 'office', labelKey: 'admin.rd.groupOffice', fallback: 'Real-estate office',
+  { key: 'office', icon: 'apartment', labelKey: 'admin.rd.groupOffice', fallback: 'Real-estate office',
     descKey: 'admin.rd.groupOfficeDesc', descFallback: 'Run an office profile, team, and customers',
     permissions: [
       { key: 'manage_office_profile', labelKey: 'admin.rd.perm.manage_office_profile.label', labelFallback: 'Manage office profile', descKey: 'admin.rd.perm.manage_office_profile.desc', descFallback: "Can edit the office's public profile" },
@@ -77,7 +77,7 @@ export const PERMISSION_GROUPS = [
       { key: 'manage_office_customers', labelKey: 'admin.rd.perm.manage_office_customers.label', labelFallback: 'Manage office customers', descKey: 'admin.rd.perm.manage_office_customers.desc', descFallback: "Can view and manage the office's customer records" },
       { key: 'view_office_analytics', labelKey: 'admin.rd.perm.view_office_analytics.label', labelFallback: 'View office analytics', descKey: 'admin.rd.perm.view_office_analytics.desc', descFallback: "Can see the office's performance figures" }
     ] },
-  { key: 'professional', labelKey: 'admin.rd.groupProfessional', fallback: 'Professional services',
+  { key: 'professional', icon: 'engineering', labelKey: 'admin.rd.groupProfessional', fallback: 'Professional services',
     descKey: 'admin.rd.groupProfessionalDesc', descFallback: 'Manage a professional profile and its requests',
     permissions: [
       { key: 'manage_professional_profile', labelKey: 'admin.rd.perm.manage_professional_profile.label', labelFallback: 'Manage professional profile', descKey: 'admin.rd.perm.manage_professional_profile.desc', descFallback: 'Can edit their public professional profile' },
@@ -85,7 +85,7 @@ export const PERMISSION_GROUPS = [
       { key: 'receive_service_requests', labelKey: 'admin.rd.perm.receive_service_requests.label', labelFallback: 'Receive service requests', descKey: 'admin.rd.perm.receive_service_requests.desc', descFallback: 'Can be contacted for a new service request' },
       { key: 'manage_service_requests', labelKey: 'admin.rd.perm.manage_service_requests.label', labelFallback: 'Manage service requests', descKey: 'admin.rd.perm.manage_service_requests.desc', descFallback: 'Can accept, decline, or update incoming requests' }
     ] },
-  { key: 'cleaning', labelKey: 'admin.rd.groupCleaning', fallback: 'Cleaning',
+  { key: 'cleaning', icon: 'cleaning_services', labelKey: 'admin.rd.groupCleaning', fallback: 'Cleaning',
     descKey: 'admin.rd.groupCleaningDesc', descFallback: 'Manage a cleaning profile, services, and jobs',
     permissions: [
       { key: 'manage_cleaning_profile', labelKey: 'admin.rd.perm.manage_cleaning_profile.label', labelFallback: 'Manage cleaning profile', descKey: 'admin.rd.perm.manage_cleaning_profile.desc', descFallback: 'Can edit their public cleaning-service profile' },
@@ -94,7 +94,7 @@ export const PERMISSION_GROUPS = [
       { key: 'receive_cleaning_requests', labelKey: 'admin.rd.perm.receive_cleaning_requests.label', labelFallback: 'Receive cleaning requests', descKey: 'admin.rd.perm.receive_cleaning_requests.desc', descFallback: 'Can be contacted for a new cleaning job' },
       { key: 'manage_own_cleaning_jobs', labelKey: 'admin.rd.perm.manage_own_cleaning_jobs.label', labelFallback: 'Manage own cleaning jobs', descKey: 'admin.rd.perm.manage_own_cleaning_jobs.desc', descFallback: 'Can accept, decline, or update their own jobs' }
     ] },
-  { key: 'business', labelKey: 'admin.rd.groupBusiness', fallback: 'Business / store',
+  { key: 'business', icon: 'storefront', labelKey: 'admin.rd.groupBusiness', fallback: 'Business / store',
     descKey: 'admin.rd.groupBusinessDesc', descFallback: 'Run a store profile and its product catalog',
     permissions: [
       { key: 'manage_business_profile', labelKey: 'admin.rd.perm.manage_business_profile.label', labelFallback: 'Manage business profile', descKey: 'admin.rd.perm.manage_business_profile.desc', descFallback: "Can edit the business's public profile" },
@@ -105,7 +105,7 @@ export const PERMISSION_GROUPS = [
       { key: 'manage_product_availability', labelKey: 'admin.rd.perm.manage_product_availability.label', labelFallback: 'Manage product availability', descKey: 'admin.rd.perm.manage_product_availability.desc', descFallback: 'Can mark products in or out of stock' },
       { key: 'view_customer_inquiries', labelKey: 'admin.rd.perm.view_customer_inquiries.label', labelFallback: 'View customer inquiries', descKey: 'admin.rd.perm.view_customer_inquiries.desc', descFallback: 'Can see questions customers send about products' }
     ] },
-  { key: 'organization', labelKey: 'admin.rd.groupOrganization', fallback: 'Organization',
+  { key: 'organization', icon: 'domain', labelKey: 'admin.rd.groupOrganization', fallback: 'Organization',
     descKey: 'admin.rd.groupOrganizationDesc', descFallback: 'Run an organization profile and its team',
     permissions: [
       { key: 'manage_organization_profile', rules: true, labelKey: 'admin.rd.perm.manage_organization_profile.label', labelFallback: 'Manage organization profile', descKey: 'admin.rd.perm.manage_organization_profile.desc', descFallback: "Can edit the organization's public profile" },
@@ -113,7 +113,7 @@ export const PERMISSION_GROUPS = [
       { key: 'manage_units', labelKey: 'admin.rd.perm.manage_units.label', labelFallback: 'Manage units', descKey: 'admin.rd.perm.manage_units.desc', descFallback: "Can create and edit units within a project" },
       { key: 'manage_team', labelKey: 'admin.rd.perm.manage_team.label', labelFallback: 'Manage team', descKey: 'admin.rd.perm.manage_team.desc', descFallback: "Can add, edit, or remove team members" }
     ] },
-  { key: 'projects', labelKey: 'admin.rd.groupProjects', fallback: 'Projects / buildings / units',
+  { key: 'projects', icon: 'construction', labelKey: 'admin.rd.groupProjects', fallback: 'Projects / buildings / units',
     descKey: 'admin.rd.groupProjectsDesc', descFallback: 'Build out projects, buildings, and their units',
     permissions: [
       { key: 'create_project', rules: true, labelKey: 'admin.rd.perm.create_project.label', labelFallback: 'Create project', descKey: 'admin.rd.perm.create_project.desc', descFallback: 'Can create a new development project' },
@@ -125,20 +125,20 @@ export const PERMISSION_GROUPS = [
       { key: 'edit_own_unit', rules: true, labelKey: 'admin.rd.perm.edit_own_unit.label', labelFallback: 'Edit own unit', descKey: 'admin.rd.perm.edit_own_unit.desc', descFallback: 'Can edit units this account owns' },
       { key: 'publish_unit_listing', rules: true, labelKey: 'admin.rd.perm.publish_unit_listing.label', labelFallback: 'Publish unit listing', descKey: 'admin.rd.perm.publish_unit_listing.desc', descFallback: 'Can make a unit publicly visible for sale/rent' }
     ] },
-  { key: 'estates', labelKey: 'admin.rd.groupEstates', fallback: 'Estates',
+  { key: 'estates', icon: 'real_estate_agent', labelKey: 'admin.rd.groupEstates', fallback: 'Estates',
     descKey: 'admin.rd.groupEstatesDesc', descFallback: 'Create and maintain permanent Estate records',
     permissions: [
       { key: 'create_estate', rules: true, labelKey: 'admin.rd.perm.create_estate.label', labelFallback: 'Create estate', descKey: 'admin.rd.perm.create_estate.desc', descFallback: 'Can create a new permanent Estate record' },
       { key: 'edit_own_estate', rules: true, labelKey: 'admin.rd.perm.edit_own_estate.label', labelFallback: 'Edit own estate', descKey: 'admin.rd.perm.edit_own_estate.desc', descFallback: 'Can edit Estate records this account owns' }
     ] },
-  { key: 'installments', labelKey: 'admin.rd.groupInstallments', fallback: 'Installments',
+  { key: 'installments', icon: 'payments', labelKey: 'admin.rd.groupInstallments', fallback: 'Installments',
     descKey: 'admin.rd.groupInstallmentsDesc', descFallback: 'Offer and manage installment financing plans',
     permissions: [
       { key: 'manage_installment_profile', labelKey: 'admin.rd.perm.manage_installment_profile.label', labelFallback: 'Manage installment profile', descKey: 'admin.rd.perm.manage_installment_profile.desc', descFallback: "Can edit the finance provider's public profile" },
       { key: 'manage_installment_plans', labelKey: 'admin.rd.perm.manage_installment_plans.label', labelFallback: 'Manage installment plans', descKey: 'admin.rd.perm.manage_installment_plans.desc', descFallback: 'Can create and edit installment plans offered' },
       { key: 'edit_payment_terms', labelKey: 'admin.rd.perm.edit_payment_terms.label', labelFallback: 'Edit payment terms', descKey: 'admin.rd.perm.edit_payment_terms.desc', descFallback: 'Can change the payment terms of a plan' }
     ] },
-  { key: 'moderation', labelKey: 'admin.rd.groupModeration', fallback: 'Moderation (non-protected)',
+  { key: 'moderation', icon: 'flag', labelKey: 'admin.rd.groupModeration', fallback: 'Moderation (non-protected)',
     descKey: 'admin.rd.groupModerationDesc', descFallback: 'Review profiles, reports, and flagged content',
     permissions: [
       { key: 'approve_profiles', labelKey: 'admin.rd.perm.approve_profiles.label', labelFallback: 'Approve profiles', descKey: 'admin.rd.perm.approve_profiles.desc', descFallback: 'Can approve a pending profile submission' },
@@ -150,7 +150,7 @@ export const PERMISSION_GROUPS = [
   // national ID, so seeing the queue, opening one document, revealing
   // sensitive fields and restricting/suspending an account are four
   // separate grants that escalate in that order.
-  { key: 'verification', labelKey: 'admin.rd.groupVerification', fallback: 'Verification & network',
+  { key: 'verification', icon: 'verified_user', labelKey: 'admin.rd.groupVerification', fallback: 'Verification & network',
     descKey: 'admin.rd.groupVerificationDesc', descFallback: 'Review identity verification and the agent network',
     permissions: [
       { key: 'verification.view', rules: true, labelKey: 'admin.rd.perm.verification.view.label', labelFallback: 'View verification queue', descKey: 'admin.rd.perm.verification.view.desc', descFallback: 'Can see who is waiting to be verified' },
@@ -168,7 +168,7 @@ export const PERMISSION_GROUPS = [
   // reviewing a submission/deal (verifying a step, confirming a sale) is a
   // much weaker grant than owning challenge config, rank thresholds and
   // manual point adjustments.
-  { key: 'arena', labelKey: 'admin.rd.groupArena', fallback: 'Darwesh Arena',
+  { key: 'arena', icon: 'military_tech', labelKey: 'admin.rd.groupArena', fallback: 'Darwesh Arena',
     descKey: 'admin.rd.groupArenaDesc', descFallback: 'Review submissions or manage challenges and ranks',
     permissions: [
       { key: 'arena.review', rules: true, labelKey: 'admin.rd.perm.arena.review.label', labelFallback: 'Review submissions', descKey: 'admin.rd.perm.arena.review.desc', descFallback: 'Can approve or reject Arena submissions' },
@@ -176,7 +176,7 @@ export const PERMISSION_GROUPS = [
     ] },
   // Property Watch / Area Alerts. Read-only aggregate visibility only --
   // no key here lets an admin browse or edit another user's saved alert.
-  { key: 'alerts', labelKey: 'admin.rd.groupAlerts', fallback: 'Property Watch / Area Alerts',
+  { key: 'alerts', icon: 'notifications_active', labelKey: 'admin.rd.groupAlerts', fallback: 'Property Watch / Area Alerts',
     descKey: 'admin.rd.groupAlertsDesc', descFallback: 'See aggregate area-alert activity',
     permissions: [
       { key: 'alerts.review', rules: true, labelKey: 'admin.rd.perm.alerts.review.label', labelFallback: 'View alert summary', descKey: 'admin.rd.perm.alerts.review.desc', descFallback: 'Can see aggregate Area Alerts activity' }
@@ -184,7 +184,7 @@ export const PERMISSION_GROUPS = [
   // Brokerage Fee Discount system (Phase 1). One key gates every route --
   // there is no lower-privilege "view but don't touch" split here, unlike
   // verification.*/arena.* above.
-  { key: 'brokerage', labelKey: 'admin.rd.groupBrokerage', fallback: 'Brokerage Fee Discounts',
+  { key: 'brokerage', icon: 'percent', labelKey: 'admin.rd.groupBrokerage', fallback: 'Brokerage Fee Discounts',
     descKey: 'admin.rd.groupBrokerageDesc', descFallback: 'Set and manage brokerage fee discounts',
     permissions: [
       { key: 'brokerage.manage', rules: true, labelKey: 'admin.rd.perm.brokerage.manage.label', labelFallback: 'Manage brokerage discounts', descKey: 'admin.rd.perm.brokerage.manage.desc', descFallback: 'Can set and manage brokerage fee discounts' }
