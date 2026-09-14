@@ -179,6 +179,9 @@
   function setCollapsed(on) {
     adminContent.classList.toggle('ash-collapsed', !!on);
     try { localStorage.setItem(COLLAPSE_KEY, on ? '1' : '0'); } catch (e) {}
+    var label = on ? tr('admin.shell.expandSidebar', 'Expand sidebar') : tr('admin.shell.collapseSidebar', 'Collapse');
+    collapseBtn.title = label;
+    collapseBtn.setAttribute('aria-label', label);
   }
   try { if (localStorage.getItem(COLLAPSE_KEY) === '1') setCollapsed(true); } catch (e) {}
   collapseBtn.addEventListener('click', function () {

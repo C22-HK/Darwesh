@@ -37,11 +37,24 @@ body.admin-shell { min-height: max(884px, 100dvh); }
  * .admin-tab-panel display toggling is what every hub's outer panel
  * switch still runs on (see admin.html's own inline module script) --
  * kept byte-for-byte. The cosmetic .admin-tab/.admin-tab.active colour
- * rules are dead today (js/admin-shell.js's sidebar buttons carry this
- * class too, but their own later .ash-nav-item rules in admin-shell.css
- * win on source order at equal specificity) -- tokenized anyway so they
- * paint correctly if that ordering ever changes. */
-body.admin-shell .admin-tab {
+ * rules below are meant only for the hidden legacy flat tab bar
+ * (#adminTabBarLegacy) -- js/admin-shell.js's sidebar buttons carry the
+ * `admin-tab` class too (same data-tab contract), so WITHOUT the
+ * `:not(.ash-nav-item)` guard this rule actually wins over admin-shell.
+ * css's own `.ash-nav-item`/`.ash-nav-item.active` rules: both selectors
+ * land at equal specificity (0,2,1) and this file's <link> comes after
+ * admin-shell.css's in admin.html's <head>, so on a tie THIS rule wins,
+ * not the sidebar's. Confirmed live (not a hypothetical) during the
+ * sidebar layout-repair pass: every sidebar item was rendering in this
+ * rule's UPPERCASE/13px/padding:12px 4px/margin-right:28px instead of the
+ * sidebar's own 13.5px/500-weight/40px-row density, the active item's gold
+ * "border-bottom:2px solid" from `.admin-tab.active` was what read as a
+ * heavy filled block in review, and the 28px margin-right stacked across
+ * every nav item was the actual cause of the sidebar nav's horizontal
+ * scrollbar (measured scrollWidth > clientWidth, closing almost exactly
+ * that gap). The guard below restores the "dead on the sidebar" behavior
+ * this comment always intended. */
+body.admin-shell .admin-tab:not(.ash-nav-item) {
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 13px;
   font-weight: 600;
@@ -55,7 +68,7 @@ body.admin-shell .admin-tab {
   border-left: none; border-right: none; border-top: none;
   margin-right: 28px;
 }
-body.admin-shell .admin-tab.active { color: var(--ash-text); border-bottom-color: var(--ash-accent); }
+body.admin-shell .admin-tab.active:not(.ash-nav-item) { color: var(--ash-text); border-bottom-color: var(--ash-accent); }
 .admin-tab-panel { display: none; }
 .admin-tab-panel.active { display: block; }
 
