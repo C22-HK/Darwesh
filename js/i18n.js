@@ -1105,6 +1105,7 @@ const translations = {
     'admin.roadmap.servicesHub': 'دیمەنێکی هەموو پسپۆڕانی خزمەتگوزاری -- یاسانووس، ئەندازیار، دیزاینەر، پاکژکردنەوە، باخچەکاری، گواستنەوە، چاککردنەوە و پەیمانکار -- بەسەر داواکارییە پسپۆڕییەکانی ئێستادا لە فرۆشتن ← داواکارییەکان.',
     'admin.people.desc': 'هەژمار، پشتڕاستکردنەوە، ڕێکخراوەکان، پسپۆڕان، و تۆڕی بریکارانت.',
     'admin.properties.desc': 'خانووبەرەکان، پرۆژەکان، نەخشە، و گەڕان بۆ خانووبەرە، هەموو لە یەک شوێندا.',
+    'admin.overview.desc': 'وێنەیەکی ڕاستەقینەی خانووبەرەکان، داواکارییەکان، و تۆڕەکەت.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---
@@ -4023,6 +4024,7 @@ const translations = {
     'admin.roadmap.servicesHub': 'عرض فئوي لكل محترفي الخدمات -- محامون، مهندسون، مصممون، تنظيف، تنسيق حدائق، نقل، صيانة ومقاولون -- فوق طلبات مقدمي الخدمات المتتبعة بالفعل ضمن المبيعات ← الطلبات.',
     'admin.people.desc': 'الحسابات والتوثيق والمؤسسات والمحترفون وشبكة وكلائك.',
     'admin.properties.desc': 'الإعلانات والمشاريع والخريطة والبحث عن عقار، كل ذلك في مكان واحد.',
+    'admin.overview.desc': 'لمحة حقيقية عن إعلاناتك وطلباتك وشبكتك.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---
@@ -6908,6 +6910,7 @@ const translations = {
     'admin.roadmap.servicesHub': 'Avukatlar, mühendisler, tasarımcılar, temizlik, peyzaj, nakliye, bakım ve müteahhitler dahil tüm hizmet uzmanlarının kategori görünümü -- Satış → Talepler altında zaten takip edilen hizmet sağlayıcı taleplerinin üzerine kurulu.',
     'admin.people.desc': 'Hesaplar, doğrulama, kurumlar, uzmanlar ve temsilci ağınız.',
     'admin.properties.desc': 'İlanlar, projeler, harita ve emlak arama, hepsi tek bir yerde.',
+    'admin.overview.desc': 'İlanlarınıza, taleplerinize ve ağınıza dair gerçek bir görünüm.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---

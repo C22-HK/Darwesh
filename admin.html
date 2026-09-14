@@ -460,14 +460,16 @@ change is not meant to make. -->
       <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.estateDataTab">Estate Data</button>
     </div>
 
-    <!-- TAB: Dashboard -->
+    <!-- TAB: Dashboard (Overview hub, redesign Phase 2) -- single-item hub,
+         lowest risk: only an AdminPageHeader is added above the existing
+         KPI/chart content below, which is otherwise completely unchanged. -->
     <section id="tab-dashboard" class="admin-tab-panel active">
+      <div id="overviewHeaderMount"></div>
       <div class="dash-dark-wrap rounded-2xl p-5 md:p-6">
-        <div class="flex flex-col md:flex-row justify-between md:items-end gap-3 mb-6">
-          <div>
-            <p class="font-headline-md text-[24px]" style="color:#031d39;" data-i18n="admin.dashboardTitle">Darwesh Group Overview</p>
-            <p class="font-body-md text-[13px]" style="color:#756e65;" data-i18n="admin.dashboardSubtitle">A real-time snapshot of your listings, requests, and network.</p>
-          </div>
+        <!-- Title/subtitle moved to the AdminPageHeader above (redesign
+             Phase 2) -- only the live-status badge stays here, since it's
+             distinct status info, not page identification. -->
+        <div class="flex justify-end mb-6">
           <div class="flex items-center gap-2 self-start bg-white/5 border rounded-full px-4 py-2" style="border-color:#4f6073;">
             <span class="w-2 h-2 rounded-full" style="background:#4ae183; box-shadow:0 0 6px #4ae183;"></span>
             <span class="font-data-mono text-[11px] tracking-wide" style="color:#4ae183;" data-i18n="admin.dashboardLiveNote">LIVE FROM YOUR DATABASE</span>
@@ -1438,6 +1440,7 @@ onAuthStateChanged(auth, async (user) => {
   document.getElementById('authGate').classList.add('hidden');
   document.getElementById('notAdminGate').classList.add('hidden');
   document.getElementById('adminContent').classList.remove('hidden');
+  mountOverviewHeader();
   initDashboard();
   // Best-effort nav refinement only -- see admin-shell.js's
   // AdminShellApplyPermissions doc comment: page access itself stays the
@@ -1775,6 +1778,20 @@ function renderPropertiesHub(forceSubtab) {
   else renderPropertiesSubtab(propertiesTabsCtrl.getActive());
 }
 document.addEventListener('darwesh:langchange', () => { if (propertiesTabsCtrl) propertiesTabsCtrl.refresh(); });
+
+// ---------------------------------------------------------------------
+// Overview hub (redesign Phase 2) -- single-item hub (just Dashboard),
+// so no AdminTabs needed: only an AdminPageHeader is mounted above the
+// existing KPI/chart content, which stays completely unchanged.
+// ---------------------------------------------------------------------
+function mountOverviewHeader() {
+  window.AdminPageHeader.mount(document.getElementById('overviewHeaderMount'), {
+    icon: 'dashboard',
+    title: () => trAdmin('admin.nav.groupOverview', 'Overview'),
+    description: () => trAdmin('admin.overview.desc', 'A real-time snapshot of your listings, requests, and network.'),
+  });
+}
+document.addEventListener('darwesh:langchange', mountOverviewHeader);
 
 document.querySelectorAll('.filter-chip').forEach(chip => {
   chip.addEventListener('click', () => {
