@@ -1106,6 +1106,8 @@ const translations = {
     'admin.people.desc': 'هەژمار، پشتڕاستکردنەوە، ڕێکخراوەکان، پسپۆڕان، و تۆڕی بریکارانت.',
     'admin.properties.desc': 'خانووبەرەکان، پرۆژەکان، نەخشە، و گەڕان بۆ خانووبەرە، هەموو لە یەک شوێندا.',
     'admin.overview.desc': 'وێنەیەکی ڕاستەقینەی خانووبەرەکان، داواکارییەکان، و تۆڕەکەت.',
+    'admin.sales.desc': 'داواکارییەکانی کڕیار لە فرۆشتن و نەخشەوە، و چاودێری داواکارییەکانی دابینکەر.',
+    'admin.demand.desc': 'تێڕوانینی گشتی داواکاری لە ئاگادارکردنەوەکانی ناوچە پاشەکەوتکراو، بۆ هەر شارێک.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---
@@ -4025,6 +4027,8 @@ const translations = {
     'admin.people.desc': 'الحسابات والتوثيق والمؤسسات والمحترفون وشبكة وكلائك.',
     'admin.properties.desc': 'الإعلانات والمشاريع والخريطة والبحث عن عقار، كل ذلك في مكان واحد.',
     'admin.overview.desc': 'لمحة حقيقية عن إعلاناتك وطلباتك وشبكتك.',
+    'admin.sales.desc': 'طلبات العملاء من البيع والخريطة، ومتابعة طلبات مقدمي الخدمات.',
+    'admin.demand.desc': 'نظرة إجمالية على الطلب من تنبيهات المناطق المحفوظة، لكل مدينة.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---
@@ -6911,6 +6915,8 @@ const translations = {
     'admin.people.desc': 'Hesaplar, doğrulama, kurumlar, uzmanlar ve temsilci ağınız.',
     'admin.properties.desc': 'İlanlar, projeler, harita ve emlak arama, hepsi tek bir yerde.',
     'admin.overview.desc': 'İlanlarınıza, taleplerinize ve ağınıza dair gerçek bir görünüm.',
+    'admin.sales.desc': 'Satış ve Harita\'dan gelen müşteri talepleri ve hizmet sağlayıcı talep denetimi.',
+    'admin.demand.desc': 'Kayıtlı Bölge Uyarılarından toplu talep bilgisi, şehir bazında.',
 
     // --- Offers & Discounts (js/offers.js, js/offer-banner.js,
     //     js/admin-offers.js, offer.html, index.html, promo.html) ---

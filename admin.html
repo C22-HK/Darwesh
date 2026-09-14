@@ -449,7 +449,7 @@ change is not meant to make. -->
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.usersTab">Users &amp; Roles</button>
       <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.listingsTab">Listings</button>
       <button class="admin-tab" data-tab="properties" type="button" data-i18n="admin.projectsTab">Projects</button>
-      <button class="admin-tab" data-tab="services" type="button" data-i18n="admin.servicesTab">Customer Services</button>
+      <button class="admin-tab" data-tab="sales" type="button" data-i18n="admin.servicesTab">Customer Services</button>
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.branchesTab">Branches</button>
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.agentsTab">Agents</button>
       <button class="admin-tab" data-tab="people" type="button" data-i18n="admin.networkTab">Network</button>
@@ -1013,7 +1013,21 @@ change is not meant to make. -->
       </div>
     </div>
 
-    <section id="tab-services" class="admin-tab-panel">
+    <!-- TAB: Sales (redesign Phase 3) -- consolidates the former flat
+         "Customer Services" destination (Sell/Map requests + Provider
+         Requests oversight, both already in one panel) into a hub with
+         AdminPageHeader + AdminTabs, same pattern as People/Properties/
+         Sales above. No Buyers/Leads/Deals/Closings sub-tabs -- that
+         pipeline doesn't exist as a general admin destination in this
+         codebase; the only real deal/lead/negotiation tracking is Arena's
+         own Buyer/Deal CRM sub-tab (js/admin-arena.js), out of scope this
+         phase. Every render*()/renderXTab() call below is unchanged --
+         this only decides which sub-panel is visible. -->
+    <section id="tab-sales" class="admin-tab-panel">
+      <div id="salesHeaderMount"></div>
+      <div id="salesTabsMount"></div>
+
+      <div class="ash-sales-subpanel" id="tab-requests">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-5" data-i18n="admin.servicesNote">Property submissions from Sell and viewing requests from the Map, all in one place. Update a request's status as your team works through it.</p>
 
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
@@ -1039,6 +1053,7 @@ change is not meant to make. -->
         </div>
         <p id="servicesEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
       </div>
+      </div>
 
       <!-- U5 (launch-readiness): every serviceProviders/{id}/requests/{id}
            document across every provider, in one place -- previously only
@@ -1046,7 +1061,7 @@ change is not meant to make. -->
            Requests tab). Read-only here: a provider still owns updating
            their own request's status; this is oversight, not a second
            write surface. -->
-      <p class="font-headline-md text-[16px] text-on-surface font-bold mt-8 mb-1" data-i18n="admin.providerRequestsTitle">Provider Requests</p>
+      <div class="ash-sales-subpanel" id="tab-providerrequests">
       <p class="font-body-md text-[13px] text-on-surface-variant mb-4" data-i18n="admin.providerRequestsNote">Every request sent to an engineer, designer, lawyer, cleaner, landscaper or maintenance provider, across every provider profile. Status is set by the provider -- this list is for oversight only.</p>
       <div class="flex gap-2 mb-4 flex-wrap" id="providerRequestsFilterBar">
         <button class="pr-filter-chip active" data-filter="all" type="button" data-i18n="admin.filterAll">All</button>
@@ -1064,6 +1079,7 @@ change is not meant to make. -->
         </div>
         <p id="providerRequestsEmpty" class="hidden p-6 text-center font-body-md text-[13px] text-on-surface-variant" data-i18n="admin.noRequestsYet">No customer requests yet.</p>
         <p id="providerRequestsError" class="hidden p-6 text-center font-body-md text-[13px]" style="color:#E5787A;"></p>
+      </div>
       </div>
     </section>
 
@@ -1664,7 +1680,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
     if (tab.dataset.tab === 'people') renderPeopleHub(tab.dataset.subtab || null);
     if (tab.dataset.tab === 'properties') renderPropertiesHub(tab.dataset.subtab || null);
-    if (tab.dataset.tab === 'services') { renderServicesTab(); renderProviderRequestsTab(); }
+    if (tab.dataset.tab === 'sales') renderSalesHub(tab.dataset.subtab || null);
     if (tab.dataset.tab === 'dashboard') renderDashboardTab();
     if (tab.dataset.tab === 'offers') renderOffersTab();
     if (tab.dataset.tab === 'arena') renderArenaTab();
@@ -1792,6 +1808,50 @@ function mountOverviewHeader() {
   });
 }
 document.addEventListener('darwesh:langchange', mountOverviewHeader);
+
+// ---------------------------------------------------------------------
+// Sales hub (redesign Phase 3) -- consolidates the former flat
+// "Customer Services" destination into one hub with an AdminPageHeader +
+// AdminTabs bar. renderServicesTab()/renderProviderRequestsTab() below
+// are completely unchanged -- both are cheap reads already fetched
+// together every time this hub opens (matching the pre-Phase-3
+// behavior), same as initDashboard()'s own eager pre-render. AdminTabs
+// here only toggles which sub-panel is visible.
+// ---------------------------------------------------------------------
+const SALES_SUBTABS = [
+  { key: 'requests', icon: 'inbox', label: () => trAdmin('admin.nav.requests', 'Requests') },
+  { key: 'providerrequests', icon: 'engineering', label: () => trAdmin('admin.providerRequestsTitle', 'Provider Requests') },
+];
+let salesTabsCtrl = null;
+
+function renderSalesSubtab(key) {
+  document.querySelectorAll('.ash-sales-subpanel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + key);
+  });
+}
+
+function renderSalesHub(forceSubtab) {
+  const section = document.getElementById('tab-sales');
+  if (!section.dataset.ashBuilt) {
+    section.dataset.ashBuilt = '1';
+    window.AdminPageHeader.mount(document.getElementById('salesHeaderMount'), {
+      icon: 'support_agent',
+      title: () => trAdmin('admin.nav.groupSales', 'Sales'),
+      description: () => trAdmin('admin.sales.desc', 'Customer requests from Sell and the Map, and provider request oversight.'),
+    });
+    salesTabsCtrl = window.AdminTabs.create({
+      mount: document.getElementById('salesTabsMount'),
+      tabs: SALES_SUBTABS,
+      active: 'requests',
+      onChange: renderSalesSubtab,
+    });
+  }
+  if (forceSubtab) salesTabsCtrl.setActive(forceSubtab, true);
+  else renderSalesSubtab(salesTabsCtrl.getActive());
+  renderServicesTab();
+  renderProviderRequestsTab();
+}
+document.addEventListener('darwesh:langchange', () => { if (salesTabsCtrl) salesTabsCtrl.refresh(); });
 
 document.querySelectorAll('.filter-chip').forEach(chip => {
   chip.addEventListener('click', () => {

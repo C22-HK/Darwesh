@@ -130,12 +130,13 @@ function describeError(err) {
 // Shell + sub-tabs
 // ---------------------------------------------------------------------
 const SUB_TABS = [
-  { key: 'all', label: () => tr('brokerage.tabAll', 'All Accounts') },
-  { key: 'discounted', label: () => tr('brokerage.tabDiscounted', 'Discounted Accounts') },
-  { key: 'nodiscount', label: () => tr('brokerage.tabNoDiscount', 'No Discount') },
-  { key: 'history', label: () => tr('brokerage.tabHistory', 'History') },
-  { key: 'policies', label: () => tr('brokerage.policy.tab', 'Policies') },
+  { key: 'all', icon: 'group', label: () => tr('brokerage.tabAll', 'All Accounts') },
+  { key: 'discounted', icon: 'percent', label: () => tr('brokerage.tabDiscounted', 'Discounted Accounts') },
+  { key: 'nodiscount', icon: 'block', label: () => tr('brokerage.tabNoDiscount', 'No Discount') },
+  { key: 'history', icon: 'history', label: () => tr('brokerage.tabHistory', 'History') },
+  { key: 'policies', icon: 'rule', label: () => tr('brokerage.policy.tab', 'Policies') },
 ];
+let bdTabsCtrl = null;
 
 const state = {
   mounted: false,
@@ -155,20 +156,24 @@ const state = {
 
 function panel() { return document.getElementById('tab-brokerage'); }
 
+function mountHeader() {
+  window.AdminPageHeader.mount(document.getElementById('bdHeaderMount'), {
+    icon: 'percent',
+    title: () => tr('brokerage.title', 'Brokerage Fee Discounts'),
+    description: () => tr('brokerage.subtitle', "Admin-controlled discounts on the Darwesh brokerage/service fee only -- never on a property's own sale, rent, or unit price. Nothing here is applied automatically by role, city, or campaign."),
+  });
+}
+
 function ensureShell() {
   const root = panel();
   if (!root || state.mounted) return root;
   root.innerHTML = `
     <div class="ash-offers">
-      <div class="ash-offers-head">
-        <div>
-          <p class="font-headline-md text-[22px] text-on-surface font-bold" data-i18n="brokerage.title">Brokerage Fee Discounts</p>
-          <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1" data-i18n="brokerage.subtitle">Admin-controlled discounts on the Darwesh brokerage/service fee only -- never on a property's own sale, rent, or unit price. Nothing here is applied automatically by role, city, or campaign.</p>
-        </div>
-      </div>
-      <div id="bdSubTabs" style="display:flex;gap:8px;flex-wrap:wrap;margin:16px 0;"></div>
+      <div id="bdHeaderMount"></div>
+      <div id="bdSubTabs"></div>
       <div id="bdSubPanel"></div>
     </div>`;
+  mountHeader();
   state.mounted = true;
   return root;
 }
@@ -176,12 +181,16 @@ function ensureShell() {
 function renderSubTabs() {
   const el = document.getElementById('bdSubTabs');
   if (!el) return;
-  el.innerHTML = SUB_TABS.map((t) => `
-    <button type="button" class="ash-detail-btn${state.subTab === t.key ? ' ash-detail-btn-primary' : ''}" data-bd-subtab="${t.key}">${esc(t.label())}</button>
-  `).join('');
-  el.querySelectorAll('[data-bd-subtab]').forEach((btn) => {
-    btn.addEventListener('click', () => { state.subTab = btn.dataset.bdSubtab; renderSubTabs(); renderSubPanel(); });
-  });
+  if (!bdTabsCtrl) {
+    bdTabsCtrl = window.AdminTabs.create({
+      mount: el,
+      tabs: SUB_TABS,
+      active: state.subTab,
+      onChange: (key) => { state.subTab = key; renderSubPanel(); },
+    });
+  } else {
+    bdTabsCtrl.refresh();
+  }
 }
 
 function renderSubPanel() {
@@ -1302,9 +1311,7 @@ async function previewPolicyForm(existing, btn) {
 function applyPreviewToBulk() {
   const uids = (state.policyPreview.accounts || []).map((a) => a.uid);
   if (!uids.length) return;
-  state.subTab = 'all';
-  renderSubTabs();
-  renderSubPanel();
+  bdTabsCtrl.setActive('all', true);
   uids.forEach((u) => state.selected.add(u));
   renderAccountsList();
   toast(tr('brokerage.policy.previewAppliedToBulk', '{n} accounts added below -- choose a percentage to apply.').replace('{n}', String(uids.length)), 'success');
@@ -1319,6 +1326,7 @@ export function renderBrokerageTab() {
 
 document.addEventListener('darwesh:langchange', () => {
   if (!state.mounted) return;
+  mountHeader();
   renderSubTabs();
   const el = document.getElementById('bdSubPanel');
   if (el) { delete el.dataset.bdMode; delete el.dataset.bdSubtab; }

@@ -64,10 +64,17 @@
       { tab: 'properties', subtab: 'projects', icon: 'fact_check', labelKey: 'admin.nav.approvals', labelText: 'Approvals', alias: true }
     ] },
     { key: 'sales', labelKey: 'admin.nav.groupSales', labelText: 'Sales', items: [
-      { tab: 'services', icon: 'support_agent', labelKey: 'admin.nav.requests', labelText: 'Requests' }
+      { tab: 'sales', icon: 'support_agent', labelKey: 'admin.nav.groupSales', labelText: 'Sales' }
+    ] },
+    // Promoted out of the Finance group (redesign Phase 3) -- the user's
+    // brief lists Sales/Discounts/Demand as three parallel hubs, not
+    // "Discounts nested inside Finance." Finance below keeps Offers +
+    // Financial Management; Discounts stands on its own.
+    { key: 'discounts', labelKey: 'admin.nav.discounts', labelText: 'Discounts', items: [
+      { tab: 'brokerage', icon: 'percent', labelKey: 'admin.nav.discounts', labelText: 'Discounts', requires: ['brokerage.manage'] }
     ] },
     { key: 'demand', labelKey: 'admin.nav.groupDemand', labelText: 'Demand', items: [
-      { tab: 'alerts', icon: 'notifications_active', labelKey: 'admin.nav.alerts', labelText: 'Area Alerts', requires: ['alerts.review'] }
+      { tab: 'alerts', icon: 'notifications_active', labelKey: 'admin.nav.groupDemand', labelText: 'Demand', requires: ['alerts.review'] }
     ] },
     { key: 'arena', labelKey: 'admin.nav.groupArena', labelText: 'Arena', items: [
       { tab: 'arena', icon: 'military_tech', labelKey: 'admin.nav.arena', labelText: 'Challenges & Rewards' }
@@ -76,7 +83,6 @@
       { tab: 'services2', icon: 'engineering', labelKey: 'admin.nav.groupServices', labelText: 'Services', soon: true }
     ] },
     { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance', items: [
-      { tab: 'brokerage', icon: 'percent', labelKey: 'admin.nav.discounts', labelText: 'Discounts', requires: ['brokerage.manage'] },
       { tab: 'offers', icon: 'sell', labelKey: 'admin.nav.offersShort', labelText: 'Offers' },
       { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true }
     ] },
