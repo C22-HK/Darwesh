@@ -243,6 +243,15 @@ change is not meant to make. -->
           </div>
         </div>
 
+        <!-- Stage 4: Needs Attention -- real pending-item counts, surfaced
+             before the KPI wall so the page answers "what needs action
+             today" before "how big is the business," per the approved
+             Overview hierarchy. Built entirely from data this dashboard
+             already fetches (submissions) plus two cheap collection reads
+             (organizations, projects) using the exact same pending-state
+             logic their own hubs already use. -->
+        <div id="dashNeedsAttention" class="mb-5"></div>
+
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
           <div class="kpi-card">
             <div class="kpi-icon"><span class="material-symbols-outlined">home_work</span></div>
@@ -3292,6 +3301,80 @@ function createListingFromSubmission(id) {
 }
 
 // ---------------------------------------------------------------------
+// Overview "Needs Attention" (redesign Stage 4) -- real pending-item
+// counts, computed the exact same way each item's own hub already
+// classifies "pending" (organizations: STATUS_LABEL_KEY's fallback in
+// admin-orgs-pros.js; projects: renderPendingProjectsRows' own filter).
+// Jumps reuse the same .admin-tab/.admin-tab-panel toggle
+// window.jumpToListingFromMap already does, not a new navigation
+// mechanism.
+// ---------------------------------------------------------------------
+function ashJumpToHub(tab, subtab) {
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.admin-tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelector(`.admin-tab[data-tab="${tab}"]`)?.classList.add('active');
+  document.getElementById(`tab-${tab}`)?.classList.add('active');
+  if (tab === 'sales') renderSalesHub(subtab);
+  else if (tab === 'properties') renderPropertiesHub(subtab);
+  else if (tab === 'people') renderPeopleHub(subtab);
+}
+
+function renderNeedsAttention(submissions, orgs, projects) {
+  const host = document.getElementById('dashNeedsAttention');
+  if (!host) return;
+  const pendingSubmissions = submissions.filter(s => s.status === 'pending').length;
+  const pendingOrgs = orgs.filter(o => (o.status || (o.verified ? 'active' : 'pending')) === 'pending').length;
+  const pendingProjects = projects.filter(p => p.publicationStatus === 'pending_review' || p.revisionStatus === 'pending_review').length;
+
+  const items = [
+    pendingSubmissions ? {
+      count: pendingSubmissions,
+      titleKey: ['admin.attn.submissions', '{n} Sell / viewing requests pending'],
+      meta: trAdmin('admin.attn.submissionsMeta', 'Sales → Requests'),
+      onClick: () => ashJumpToHub('sales', 'requests'),
+    } : null,
+    pendingProjects ? {
+      count: pendingProjects,
+      titleKey: ['admin.attn.projects', '{n} projects awaiting review'],
+      meta: trAdmin('admin.attn.projectsMeta', 'Properties → Projects'),
+      onClick: () => ashJumpToHub('properties', 'projects'),
+    } : null,
+    pendingOrgs ? {
+      count: pendingOrgs,
+      titleKey: ['admin.attn.orgs', '{n} organizations awaiting verification'],
+      meta: trAdmin('admin.attn.orgsMeta', 'People → Organizations'),
+      onClick: () => ashJumpToHub('people', 'organizations'),
+    } : null,
+  ].filter(Boolean);
+
+  if (!items.length) {
+    host.innerHTML = `
+      <div class="ash-attention-panel">
+        <div class="ash-attention-head"><span class="ash-attention-title-row">${escapeAdmin(trAdmin('admin.attn.title', 'Needs attention'))}</span></div>
+        <p class="ash-attention-empty">${escapeAdmin(trAdmin('admin.attn.empty', 'Nothing needs action right now.'))}</p>
+      </div>`;
+    return;
+  }
+
+  host.innerHTML = `
+    <div class="ash-attention-panel">
+      <div class="ash-attention-head"><span class="ash-attention-title-row">${escapeAdmin(trAdmin('admin.attn.title', 'Needs attention'))}</span></div>
+      ${items.map((it, i) => `
+        <button type="button" class="ash-attention-item" data-attn-idx="${i}">
+          <div class="ash-attention-item-body">
+            <p class="ash-attention-item-title">${escapeAdmin(trAdmin(it.titleKey[0], it.titleKey[1]).replace('{n}', String(it.count)))}</p>
+            <p class="ash-attention-item-meta">${escapeAdmin(it.meta)}</p>
+          </div>
+          <span class="ash-attention-item-cta">${escapeAdmin(trAdmin('admin.attn.open', 'Open'))}<span class="material-symbols-outlined" aria-hidden="true" style="font-size:15px;">arrow_forward</span></span>
+        </button>
+      `).join('')}
+    </div>`;
+  host.querySelectorAll('[data-attn-idx]').forEach((btn) => {
+    btn.addEventListener('click', () => items[Number(btn.dataset.attnIdx)].onClick());
+  });
+}
+
+// ---------------------------------------------------------------------
 // Dashboard, Branches, Agents, Leaderboard tabs — all computed live from
 // the same listings/users/companies/submissions collections the rest of
 // this dashboard already reads. No simulated or placeholder figures.
@@ -3306,13 +3389,18 @@ function timeAgo(seconds) {
 }
 
 async function renderDashboardTab() {
-  const [listingsSnap, submissionsSnap, companiesSnap] = await Promise.all([
+  const [listingsSnap, submissionsSnap, companiesSnap, orgsSnap, projectsSnap] = await Promise.all([
     getDocs(collection(db, 'listings')),
     getDocs(collection(db, 'submissions')),
-    getDocs(collection(db, 'companies'))
+    getDocs(collection(db, 'companies')),
+    getDocs(collection(db, 'organizations')),
+    getDocs(collection(db, 'projects'))
   ]);
   const listings = []; listingsSnap.forEach(d => listings.push({ id: d.id, ...d.data() }));
   const submissions = []; submissionsSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
+  const orgsForAttention = []; orgsSnap.forEach(d => orgsForAttention.push(d.data()));
+  const projectsForAttention = []; projectsSnap.forEach(d => projectsForAttention.push(d.data()));
+  renderNeedsAttention(submissions, orgsForAttention, projectsForAttention);
 
   const nowSec = Math.floor(Date.now() / 1000);
   const weekAgoSec = nowSec - 7 * 86400;
