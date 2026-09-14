@@ -808,3 +808,59 @@ export function markAllNotificationsRead(user) {
 export function getAreaAlertsAdminSummary(user) {
   return authedRequest(user, 'GET', '/api/v1/alerts/admin/summary');
 }
+
+// ---- Admin: Brokerage Fee Discounts (Phase 1: per-account manual control) --
+//
+// Every wrapper here is admin-only -- there is no self-service counterpart
+// anywhere in this file, by design: a normal user must never see or edit
+// their own brokerage-fee discount (see app/brokerage/handlers.py, the
+// sole writer of privateProfile/main's brokerageDiscountPercent/Active,
+// brokerageDiscountHistory and brokerageFeeSnapshots -- firestore.rules
+// make all three admin-write-only / backend-only).
+
+export function listBrokerageAccounts(user, { search, accountType, city, discountMin, discountMax, noDiscountOnly, cursor, limit } = {}) {
+  return authedRequest(user, 'GET', '/api/v1/brokerage/accounts', {
+    query: {
+      search, accountType, city,
+      discountMin, discountMax,
+      noDiscountOnly: noDiscountOnly ? '1' : undefined,
+      cursor, limit,
+    },
+  });
+}
+export function getBrokerageAccount(user, uid) {
+  return authedRequest(user, 'GET', `/api/v1/brokerage/accounts/${encodeURIComponent(uid)}`);
+}
+export function setBrokerageDiscount(user, uid, { percent, active, reason } = {}) {
+  return authedRequest(user, 'PATCH', `/api/v1/brokerage/accounts/${encodeURIComponent(uid)}`, {
+    body: { op: 'set', percent, active, reason },
+  });
+}
+export function disableBrokerageDiscount(user, uid, reason) {
+  return authedRequest(user, 'PATCH', `/api/v1/brokerage/accounts/${encodeURIComponent(uid)}`, {
+    body: { op: 'disable', reason },
+  });
+}
+export function enableBrokerageDiscount(user, uid, reason) {
+  return authedRequest(user, 'PATCH', `/api/v1/brokerage/accounts/${encodeURIComponent(uid)}`, {
+    body: { op: 'enable', reason },
+  });
+}
+export function removeBrokerageDiscount(user, uid, reason) {
+  return authedRequest(user, 'PATCH', `/api/v1/brokerage/accounts/${encodeURIComponent(uid)}`, {
+    body: { op: 'remove', reason },
+  });
+}
+export function bulkSetBrokerageDiscount(user, { accountIds, percent, active, reason } = {}) {
+  return authedRequest(user, 'POST', '/api/v1/brokerage/accounts/bulk', {
+    body: { accountIds, percent, active, reason },
+  });
+}
+export function listBrokerageHistory(user, { uid, limit } = {}) {
+  return authedRequest(user, 'GET', '/api/v1/brokerage/history', { query: { uid, limit } });
+}
+export function computeBrokerageFee(user, { uid, originalFee, currency, record, note } = {}) {
+  return authedRequest(user, 'POST', '/api/v1/brokerage/compute-fee', {
+    body: { uid, originalFee, currency, record, note },
+  });
+}

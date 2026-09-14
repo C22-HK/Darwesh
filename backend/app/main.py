@@ -25,6 +25,8 @@ from app.access.professional_ops import ProfessionalOps
 from app.alerts.alerts_ops import AlertsOps
 from app.alerts.handlers import AlertsAdminHandler, AlertsPublicHandler
 from app.arena.arena_ops import ArenaOps
+from app.brokerage.brokerage_ops import BrokerageOps
+from app.brokerage.handlers import BrokerageAdminHandler
 from app.arena.handlers import ArenaAdminHandler, ArenaPublicHandler
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
@@ -525,6 +527,47 @@ def build_alerts_handlers(cfg: Config) -> tuple[AlertsPublicHandler | None, Aler
     )
 
 
+def build_brokerage_handlers(cfg: Config) -> BrokerageAdminHandler | None:
+    """Wires up the Brokerage Fee Discount admin endpoints (Phase 1: per-
+    account manual control only). Same "undeployed optional binding
+    degrades to a missing route, never a hidden feature" posture as
+    build_alerts_handlers/build_arena_handlers. Admin-only by design --
+    there is no public handler to build, since a normal user must never
+    see or edit their own brokerage discount."""
+    if not _has_firebase_credential(cfg):
+        logger.info(
+            "Brokerage Discount endpoints not configured, skipping (set FIREBASE_SERVICE_ACCOUNT_JSON -- or deploy "
+            "with APP_ENV=production to use Application Default Credentials -- to enable them)"
+        )
+        return None
+
+    try:
+        clients = AccessFirebaseClients(cfg.firebase_service_account_json, cfg.firebase_project_id)
+    except ValueError as exc:
+        logger.error("Brokerage Discount endpoints misconfigured, skipping", extra={"error": str(exc)})
+        return None
+
+    db = clients.firestore_client
+    auth_gate = AuthGate(FirebaseIdTokenVerifier(clients.app, logger=logger), db, logger=logger)
+    ops = BrokerageOps(db, logger=logger)
+
+    # Same FirestoreRateLimiter-in-production/InMemory-in-development split
+    # as build_alerts_handlers, own namespace -- every route here is
+    # admin-only, so a single limiter namespace is enough (no
+    # read/write split needed, matching arena_admin/alerts_admin).
+    if cfg.is_production:
+        admin_limiter = FirestoreRateLimiter(
+            db, name="brokerage_admin", limit=200, window_seconds=60 * 60, logger=logger
+        )
+    else:
+        admin_limiter = InMemoryRateLimiter(limit=200, window_seconds=60 * 60)
+
+    logger.info("Brokerage Discount endpoints enabled")
+    return BrokerageAdminHandler(
+        ops=ops, auth=auth_gate, permissions=PermissionReader(db), admin_limiter=admin_limiter, logger=logger
+    )
+
+
 def build_mam_provider(cfg: Config) -> ChatProvider | None:
     """Constructs the configured MAM chat provider adapter, or None (safe
     default: deterministic-fallback-only, see intent_resolver.py). Every
@@ -664,6 +707,7 @@ def create_configured_app():
     referral_public_handler, verification_handler = build_verification_handlers(cfg)
     arena_public_handler, arena_admin_handler = build_arena_handlers(cfg)
     alerts_public_handler, alerts_admin_handler = build_alerts_handlers(cfg)
+    brokerage_admin_handler = build_brokerage_handlers(cfg)
     return create_app(
         cfg,
         auth_handler,
@@ -682,6 +726,7 @@ def create_configured_app():
         arena_admin_handler,
         alerts_public_handler,
         alerts_admin_handler,
+        brokerage_admin_handler,
     )
 
 

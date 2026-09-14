@@ -662,6 +662,18 @@ change is not meant to make. -->
          returns aggregate counts only. -->
     <section id="tab-alerts" class="admin-tab-panel"></section>
 
+    <!-- TAB: Brokerage Fee Discounts (Phase 1) -- per-account manual
+         control over the Darwesh brokerage/service fee discount, never a
+         property's own sale/rent/unit price. Rendered entirely by
+         js/admin-brokerage.js on first click, same lazy-mount pattern as
+         Alerts/Arena/Offers/Map. Every write goes through the backend --
+         firestore.rules make brokerageDiscountHistory/
+         brokerageFeeSnapshots `allow write: if false` for every client
+         SDK caller, admin sessions included, and lock the four discount
+         fields on users/{uid}/privateProfile/main to
+         isAdmin() && hasPermission('brokerage.manage') only. -->
+    <section id="tab-brokerage" class="admin-tab-panel"></section>
+
     <!-- TAB: Offers & Discounts -- admin-managed public promotions.
          Rendered entirely by js/admin-offers.js on first click, same
          lazy-mount pattern as the Map / Organizations / Professionals
@@ -1242,6 +1254,7 @@ import { renderOffersTab } from './js/admin-offers.js';
 import { renderVerificationTab } from './js/admin-verification.js';
 import { renderArenaTab } from './js/admin-arena.js';
 import { renderAlertsTab } from './js/admin-alerts.js';
+import { renderBrokerageTab } from './js/admin-brokerage.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
 // Bulk views (the Map Management tab, hundreds of listings at a time)
@@ -1601,6 +1614,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'verification') renderVerificationTab();
     if (tab.dataset.tab === 'arena') renderArenaTab();
     if (tab.dataset.tab === 'alerts') renderAlertsTab();
+    if (tab.dataset.tab === 'brokerage') renderBrokerageTab();
   });
 });
 

@@ -118,6 +118,12 @@ export const PERMISSION_GROUPS = [
   // no key here lets an admin browse or edit another user's saved alert.
   { key: 'alerts', labelKey: 'admin.rd.groupAlerts', fallback: 'Property Watch / Area Alerts', permissions: [
     { key: 'alerts.review', rules: true }
+  ] },
+  // Brokerage Fee Discount system (Phase 1). One key gates every route --
+  // there is no lower-privilege "view but don't touch" split here, unlike
+  // verification.*/arena.* above.
+  { key: 'brokerage', labelKey: 'admin.rd.groupBrokerage', fallback: 'Brokerage Fee Discounts', permissions: [
+    { key: 'brokerage.manage', rules: true }
   ] }
 ];
 

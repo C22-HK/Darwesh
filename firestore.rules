@@ -499,12 +499,41 @@ service cloud.firestore {
               || ((d.commissionRate is int || d.commissionRate is float)
                   && d.commissionRate >= 0 && d.commissionRate <= 100);
         }
+        // Brokerage Fee Discount system (Phase 1). Four new fields, same
+        // document as commissionRate above, but a DIFFERENT write
+        // authority: admin-write-only, never the owner -- explicit
+        // requirement, a normal user must never set/see their own
+        // discount by writing it themselves. brokerageDiscountUpdatedAt/
+        // By are deliberately their own pair, not the generic updatedAt
+        // the owner's commissionRate write already uses above, so "when
+        // was the discount itself last touched" is never conflated with
+        // an unrelated owner self-edit to this same document.
+        function isValidBrokerageDiscount(d) {
+          return (!('brokerageDiscountPercent' in d)
+                  || ((d.brokerageDiscountPercent is int || d.brokerageDiscountPercent is float)
+                      && d.brokerageDiscountPercent >= 0 && d.brokerageDiscountPercent <= 100))
+              && (!('brokerageDiscountActive' in d) || d.brokerageDiscountActive is bool);
+        }
+        function isBrokerageDiscountWrite(keys) {
+          return keys.hasOnly(['brokerageDiscountPercent', 'brokerageDiscountActive',
+                                'brokerageDiscountUpdatedAt', 'brokerageDiscountUpdatedBy']);
+        }
         allow read: if isOwner(uid) || isAdmin();
-        allow create: if isAdmin()
+        allow create: if (isAdmin() && hasPermission('brokerage.manage')
+                           && isBrokerageDiscountWrite(request.resource.data.keys())
+                           && isValidBrokerageDiscount(request.resource.data))
+                      || (isAdmin()
+                          && !request.resource.data.keys().hasAny(
+                               ['brokerageDiscountPercent', 'brokerageDiscountActive']))
                       || (isOwner(uid) && docId == 'main'
                           && request.resource.data.keys().hasOnly(['commissionRate', 'updatedAt'])
                           && isValidCommissionRate(request.resource.data));
-        allow update: if isAdmin()
+        allow update: if (isAdmin() && hasPermission('brokerage.manage')
+                           && isBrokerageDiscountWrite(request.resource.data.diff(resource.data).affectedKeys())
+                           && isValidBrokerageDiscount(request.resource.data))
+                      || (isAdmin()
+                          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+                               ['brokerageDiscountPercent', 'brokerageDiscountActive']))
                       || (isOwner(uid) && docId == 'main'
                           && request.resource.data.diff(resource.data).affectedKeys()
                                .hasOnly(['commissionRate', 'updatedAt'])
@@ -2728,6 +2757,21 @@ service cloud.firestore {
     }
     match /accessAuditLog/{entryId} {
       allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ---- Brokerage Fee Discount system (Phase 1) ----------------------
+    // Pattern B, same posture as accessAuditLog/areaAlerts above: every
+    // write, including from an admin's own client session, goes through
+    // the backend's Admin SDK only (app.brokerage.brokerage_ops) so the
+    // per-account history stays a true, untamperable audit trail and a
+    // recorded fee snapshot can never be edited after the fact.
+    match /brokerageDiscountHistory/{entryId} {
+      allow read: if isAdmin() && hasPermission('brokerage.manage');
+      allow write: if false;
+    }
+    match /brokerageFeeSnapshots/{snapshotId} {
+      allow read: if isAdmin() && hasPermission('brokerage.manage');
       allow write: if false;
     }
 

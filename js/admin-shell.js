@@ -64,6 +64,9 @@
     { key: 'alerts', labelKey: 'admin.nav.groupAlerts', labelText: 'Property Watch', items: [
       { tab: 'alerts', icon: 'notifications_active', labelKey: 'admin.nav.alerts', labelText: 'Area Alerts', requires: ['alerts.review'] }
     ] },
+    { key: 'brokerage', labelKey: 'admin.nav.groupBrokerage', labelText: 'Brokerage Discounts', items: [
+      { tab: 'brokerage', icon: 'percent', labelKey: 'admin.nav.brokerage', labelText: 'Brokerage Discounts', requires: ['brokerage.manage'] }
+    ] },
     { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance & Reports', items: [
       { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true },
       { tab: 'reports', icon: 'monitoring', labelKey: 'admin.nav.reports', labelText: 'Reports', soon: true }

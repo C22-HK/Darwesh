@@ -35,6 +35,7 @@ def create_app(
     arena_admin_handler: object | None = None,
     alerts_public_handler: object | None = None,
     alerts_admin_handler: object | None = None,
+    brokerage_admin_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -67,7 +68,9 @@ def create_app(
     arena_admin_handler back Darwesh Arena (see app.arena.handlers) --
     same gating, same reasoning. alerts_public_handler/alerts_admin_handler
     back Property Watch / Area Alerts (see app.alerts.handlers) -- same
-    gating, same reasoning."""
+    gating, same reasoning. brokerage_admin_handler backs the Brokerage
+    Fee Discount admin endpoints (see app.brokerage.handlers) -- same
+    gating; admin-only by design, so there is no public counterpart."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -478,6 +481,24 @@ def create_app(
 
     if alerts_admin_handler is not None:
         app.add_api_route("/api/v1/alerts/admin/summary", alerts_admin_handler.summary, methods=["GET"])
+
+    if brokerage_admin_handler is not None:
+        app.add_api_route(
+            "/api/v1/brokerage/accounts", brokerage_admin_handler.list_accounts, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.get_account, methods=["GET"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.set_discount, methods=["PATCH"]
+        )
+        app.add_api_route(
+            "/api/v1/brokerage/accounts/bulk", brokerage_admin_handler.bulk_set_discount, methods=["POST"]
+        )
+        app.add_api_route("/api/v1/brokerage/history", brokerage_admin_handler.list_history, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/brokerage/compute-fee", brokerage_admin_handler.compute_fee, methods=["POST"]
+        )
 
     return app
 
