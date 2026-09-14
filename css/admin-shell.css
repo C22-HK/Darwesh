@@ -1297,3 +1297,162 @@ body.admin-shell #adminContent tbody tr.is-selected:hover { background: var(--as
   font: 700 11.5px/1 var(--ash-font); color: var(--ash-accent-strong);
 }
 [dir="rtl"] .ash-attention-item-cta .material-symbols-outlined { transform: scaleX(-1); }
+
+/* ---------------------------------------------------------------------
+ * Role Permission Defaults — "Permission Workspace" (People > Accounts
+ * lower section redesign). Replaces one giant bordered card of raw
+ * fieldset checkboxes with: a section header, a compact account-type
+ * control, inline summary metrics, an optional search box, collapsible
+ * permission groups with human-readable label/description rows, and a
+ * sticky save footer that only appears once there's something to save.
+ * All existing element ids (#rdAccountType, #rdGroups, #rdSave, ...) and
+ * `data-perm` attributes are unchanged -- this is CSS/markup only, see
+ * admin.html's module script for the matching behavior. --------------- */
+.ash-permwrap {
+  background: var(--ash-surface); border: 1px solid var(--ash-border);
+  border-radius: var(--ash-radius); padding: 18px 20px 20px;
+}
+.ash-perm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ash-perm-title { font: 700 16px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-perm-subtitle { font: 500 12.5px/1.5 var(--ash-font); color: var(--ash-text-secondary); margin-top: 2px; }
+.ash-perm-learnmore {
+  flex: none; display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; padding: 4px 2px; cursor: pointer;
+  font: 600 12px/1 var(--ash-font); color: var(--ash-text-secondary);
+}
+.ash-perm-learnmore:hover { color: var(--ash-text); }
+.ash-perm-learnmore .material-symbols-outlined { font-size: 16px; }
+.ash-perm-learnmore-body {
+  font: 500 12.5px/1.6 var(--ash-font); color: var(--ash-text-secondary);
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-top: 10px;
+}
+
+.ash-perm-controlrow {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  margin-top: 16px;
+}
+.ash-perm-account { flex: 0 1 300px; min-width: 220px; }
+.ash-perm-account-meta { margin-top: 8px; }
+.ash-perm-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 12px/1 var(--ash-font); color: var(--ash-text-secondary);
+}
+.ash-perm-status-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--ash-text-muted); flex: none; }
+.ash-perm-status[data-tone="recommended"] .ash-perm-status-dot { background: var(--ash-info); }
+.ash-perm-status[data-tone="recommended"] { color: var(--ash-info); }
+.ash-perm-status[data-tone="custom"] .ash-perm-status-dot { background: var(--ash-accent); }
+.ash-perm-status[data-tone="custom"] { color: var(--ash-accent-strong); }
+.ash-perm-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+.ash-perm-inline-status { font: 500 12.5px/1.5 var(--ash-font); margin-top: 10px; min-height: 0; }
+.ash-perm-inline-status:empty { display: none; }
+.ash-perm-diff {
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-top: 10px;
+}
+.ash-perm-diff-title { font: 700 11px/1.3 var(--ash-font); letter-spacing: .02em; text-transform: uppercase; color: var(--ash-text-secondary); margin-bottom: 4px; }
+.ash-perm-diff ul { font: 500 12.5px/1.6 var(--ash-font); color: var(--ash-text); list-style: disc; padding-inline-start: 18px; }
+
+.ash-perm-summary {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 20px;
+  margin-top: 16px; padding: 12px 14px;
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: var(--radius-sm);
+}
+.ash-perm-summary-item { display: flex; align-items: baseline; gap: 6px; }
+.ash-perm-summary-value { font: 700 15px/1 var(--ash-font); color: var(--ash-text); font-variant-numeric: tabular-nums; }
+.ash-perm-summary-label { font: 500 12px/1 var(--ash-font); color: var(--ash-text-secondary); }
+.ash-perm-summary-lastsaved { margin-inline-start: auto; font: 500 12px/1 var(--ash-font); color: var(--ash-text-muted); }
+
+.ash-perm-search-wrap {
+  display: flex; align-items: center; gap: 8px; margin-top: 16px;
+  background: var(--ash-surface-sunken); border: 1px solid var(--ash-border); border-radius: 999px;
+  padding: 8px 14px;
+}
+.ash-perm-search-wrap .material-symbols-outlined { font-size: 18px; color: var(--ash-text-muted); flex: none; }
+.ash-perm-search { flex: 1; background: none; border: none; outline: none; font: 500 13px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-perm-search::placeholder { color: var(--ash-text-muted); }
+
+.ash-perm-groups { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.ash-perm-group { border: 1px solid var(--ash-border); border-radius: var(--radius-sm); overflow: hidden; }
+.ash-perm-group[hidden] { display: none; }
+.ash-perm-group-head {
+  display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 14px;
+  background: var(--ash-surface-sunken);
+}
+[dir="rtl"] .ash-perm-group-head { padding: 10px 14px 10px 8px; }
+.ash-perm-group-head:hover { background: var(--ash-surface-hover); }
+.ash-perm-group-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  background: none; border: none; padding: 2px; cursor: pointer; text-align: start; font: inherit; color: inherit;
+}
+.ash-perm-group-chevron { flex: none; font-size: 18px; color: var(--ash-text-muted); transition: transform .15s var(--ash-ease); }
+.ash-perm-group[data-open="true"] .ash-perm-group-chevron { transform: rotate(90deg); }
+[dir="rtl"] .ash-perm-group-chevron { transform: scaleX(-1); }
+[dir="rtl"] .ash-perm-group[data-open="true"] .ash-perm-group-chevron { transform: scaleX(-1) rotate(90deg); }
+.ash-perm-group-heading { flex: 1; min-width: 0; }
+.ash-perm-group-name { font: 600 13.5px/1.3 var(--ash-font); color: var(--ash-text); }
+.ash-perm-group-desc { font: 500 12px/1.4 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
+.ash-perm-group-count {
+  flex: none; font: 700 11.5px/1 var(--ash-font); color: var(--ash-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.ash-perm-group-count[data-any="true"] { color: var(--ash-accent-strong); }
+.ash-perm-group-enableall {
+  flex: none; background: none; border: 1px solid var(--ash-border); border-radius: 999px;
+  padding: 4px 10px; font: 600 11px/1 var(--ash-font); color: var(--ash-text-secondary); cursor: pointer;
+}
+.ash-perm-group-enableall:hover { background: var(--ash-surface-hover); color: var(--ash-text); }
+.ash-perm-group-body { padding: 4px 6px 8px; }
+.ash-perm-group[data-open="false"] .ash-perm-group-body { display: none; }
+.ash-perm-row {
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 8px; border-radius: 8px; cursor: pointer;
+}
+.ash-perm-row:hover { background: var(--ash-surface-hover); }
+.ash-perm-row[hidden] { display: none; }
+/* Custom-drawn checkbox rather than relying on `accent-color` -- native
+ * checked-fill theming is inconsistent across browsers/platforms (some
+ * keep an OS-default fill color regardless of accent-color), and the spec
+ * here is specific: gold only for the selected/checked state. */
+.ash-perm-row input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; margin-top: 2px; flex: none;
+  width: 16px; height: 16px; border-radius: 4px; cursor: pointer; position: relative;
+  border: 1.5px solid var(--ash-border-strong); background: var(--ash-surface);
+  transition: background .12s var(--ash-ease), border-color .12s var(--ash-ease);
+}
+.ash-perm-row input[type="checkbox"]:hover { border-color: var(--ash-accent); }
+.ash-perm-row input[type="checkbox"]:checked { background: var(--ash-accent); border-color: var(--ash-accent); }
+.ash-perm-row input[type="checkbox"]:checked::after {
+  content: ""; position: absolute; inset: 0;
+  background: var(--ash-on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") no-repeat center / 11px;
+}
+.ash-perm-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--ash-accent); outline-offset: 2px; }
+.ash-perm-row-text { min-width: 0; }
+.ash-perm-row-label { font: 600 13px/1.35 var(--ash-font); color: var(--ash-text); display: flex; align-items: center; gap: 6px; }
+.ash-perm-row-desc { font: 500 12px/1.45 var(--ash-font); color: var(--ash-text-secondary); margin-top: 1px; }
+.ash-perm-row-rules { flex: none; color: var(--ash-accent); font-size: 8px; line-height: 1; }
+
+.ash-perm-ruleshint { font: 500 11.5px/1.5 var(--ash-font); color: var(--ash-text-muted); margin-top: 14px; }
+
+.ash-perm-footer {
+  position: sticky; bottom: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 16px -20px -20px; padding: 12px 20px;
+  background: var(--ash-material); backdrop-filter: var(--ash-vibrancy); -webkit-backdrop-filter: var(--ash-vibrancy);
+  border-top: 1px solid var(--ash-border); border-radius: 0 0 var(--ash-radius) var(--ash-radius);
+}
+.ash-perm-footer[hidden] { display: none; }
+.ash-perm-footer-count { font: 600 13px/1.3 var(--ash-font); color: var(--ash-accent-strong); }
+.ash-perm-footer-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+@media (max-width: 640px) {
+  .ash-permwrap { padding: 14px 14px 16px; }
+  .ash-perm-controlrow { flex-direction: column; align-items: stretch; }
+  .ash-perm-actions { justify-content: flex-end; }
+  .ash-perm-summary { gap: 12px 20px; }
+  .ash-perm-summary-lastsaved { margin-inline-start: 0; flex-basis: 100%; }
+  .ash-perm-footer { flex-direction: column; align-items: stretch; margin: 14px -14px -16px; padding: 10px 14px; }
+  .ash-perm-footer-actions { justify-content: stretch; }
+  .ash-perm-footer-actions .ash-detail-btn { flex: 1; }
+}

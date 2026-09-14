@@ -364,38 +364,75 @@ change is not meant to make. -->
         </div>
         <p class="font-body-md text-[12.5px] text-on-surface-variant mt-3" data-i18n="admin.roleChangeNote">Changing a role takes effect immediately — an "Agent" gets their own Agent Dashboard, an "Admin" gets full access to this dashboard. Your own account's role can't be changed here to avoid locking yourself out.</p>
 
-        <!-- Role permission defaults (launch-readiness fix C2). What every
-             account of a given accountType may do by default -- the
+        <!-- Role permission defaults (launch-readiness fix C2; visual
+             redesign into a "Permission Workspace"). What every account of
+             a given accountType may do by default -- the
              rolePermissionDefaults/{accountType} documents firestore.rules'
              hasPermission()/hasOrgPermission() consult. Readable here,
              written only through the backend (see the module script).
-             Also where the System hub's "Permissions" nav item lands. -->
-        <div id="roleDefaultsPanel" class="bg-surface-container-lowest border border-outline-variant rounded-xl p-5 mt-6">
-          <p class="font-headline-md text-[16px] text-on-surface font-bold" data-i18n="admin.rd.title">Role permission defaults</p>
-          <p class="font-body-md text-[12.5px] text-on-surface-variant mt-1 mb-4" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
-          <div class="flex flex-wrap items-end gap-3 mb-4">
-            <!-- flex-basis 260px keeps the roomy width this control wants on a
-                 normal screen, but `width:auto` previously let the <select>
-                 grow to its LONGEST option instead (436px in English, 421px in
-                 Kurdish, 388px in Arabic), and as an unshrinkable flex item it
-                 dragged the whole Users tab past the viewport on a phone. The
-                 basis expresses the same preference while still allowing the
-                 control to shrink when there isn't room. -->
-            <label class="block" style="flex:1 1 260px;min-width:0;">
+             Also where the System hub's "Permissions" nav item lands.
+             Every id below is unchanged from the previous layout except
+             where noted -- this is a markup/CSS/behavior rework of the
+             SAME panel, not a new feature; permission keys, Firestore
+             behavior, save/recommended/clear-all logic are all preserved. -->
+        <div id="roleDefaultsPanel" class="ash-permwrap mt-6">
+          <div class="ash-perm-head">
+            <div>
+              <p class="ash-perm-title" data-i18n="admin.rd.title">Role permission defaults</p>
+              <p class="ash-perm-subtitle" data-i18n="admin.rd.subtitle">Define the default capabilities assigned to each account type.</p>
+            </div>
+            <button type="button" id="rdLearnMoreBtn" class="ash-perm-learnmore" aria-expanded="false" aria-controls="rdLearnMoreBody">
+              <span class="material-symbols-outlined" aria-hidden="true">info</span>
+              <span data-i18n="admin.rd.learnMore">Learn more</span>
+            </button>
+          </div>
+          <p id="rdLearnMoreBody" class="ash-perm-learnmore-body hidden" data-i18n="admin.rd.note">What every account of a given type may do by default. Developers and residential communities cannot create projects or units, and organizations cannot save private contact details, until their account type has these defaults. Saved through the backend (never directly to Firestore) and recorded in the access audit log.</p>
+
+          <div class="ash-perm-controlrow">
+            <label class="ash-perm-account">
               <span class="admin-label" data-i18n="admin.rd.accountType">Account type</span>
               <select id="rdAccountType" class="admin-input" style="width:100%;"></select>
+              <div class="ash-perm-account-meta">
+                <span class="ash-perm-status" id="rdStatusPill"><span class="ash-perm-status-dot"></span><span id="rdStatusPillText"></span></span>
+              </div>
             </label>
-            <button type="button" id="rdApplyRecommended" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
-            <button type="button" id="rdClearAll" class="border border-outline-variant px-4 py-2 rounded-lg font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="admin.rd.clearAll">Clear all</button>
-            <button type="button" id="rdSave" class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="admin.rd.save">Save defaults</button>
-            <p id="rdStatus" class="font-body-md text-[12.5px] w-full" role="status" aria-live="polite"></p>
+            <div class="ash-perm-actions">
+              <button type="button" id="rdApplyRecommended" class="ash-detail-btn" data-i18n="admin.rd.applyRecommended">Apply recommended</button>
+              <button type="button" id="rdMoreMenuBtn" class="ash-icon-menu-trigger" data-ash-menu-trigger aria-haspopup="menu" aria-expanded="false" aria-label="More actions">
+                <span class="material-symbols-outlined" aria-hidden="true">more_vert</span>
+              </button>
+            </div>
           </div>
-          <div id="rdDiffPanel" class="hidden bg-surface-container border border-outline-variant rounded-lg p-3 mb-4">
-            <p class="font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
-            <ul id="rdDiffList" class="font-body-md text-[12.5px] text-on-surface list-disc pl-5 space-y-0.5"></ul>
+
+          <p id="rdStatus" role="status" aria-live="polite" class="ash-perm-inline-status"></p>
+          <div id="rdDiffPanel" class="hidden ash-perm-diff">
+            <p class="ash-perm-diff-title" data-i18n="admin.rd.diffTitle">Proposed additions (not yet saved)</p>
+            <ul id="rdDiffList"></ul>
           </div>
-          <div id="rdGroups" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-          <p class="font-body-md text-[12px] text-on-surface-variant mt-4" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+
+          <div class="ash-perm-summary" id="rdSummaryRow">
+            <div class="ash-perm-summary-item"><span class="ash-perm-summary-value" id="rdSumEnabled">0</span><span class="ash-perm-summary-label" data-i18n="admin.rd.sumEnabled">Enabled permissions</span></div>
+            <div class="ash-perm-summary-item"><span class="ash-perm-summary-value" id="rdSumGroups">0</span><span class="ash-perm-summary-label" data-i18n="admin.rd.sumGroups">Permission groups</span></div>
+            <div class="ash-perm-summary-item"><span class="ash-perm-summary-value" id="rdSumModified">0</span><span class="ash-perm-summary-label" data-i18n="admin.rd.sumModified">Modified</span></div>
+            <span class="ash-perm-summary-lastsaved" id="rdLastSaved"></span>
+          </div>
+
+          <div class="ash-perm-search-wrap" id="rdSearchWrap">
+            <span class="material-symbols-outlined" aria-hidden="true">search</span>
+            <input type="search" id="rdSearch" class="ash-perm-search" data-i18n-placeholder="admin.rd.searchPlaceholder" placeholder="Search permissions…"/>
+          </div>
+
+          <div id="rdGroups" class="ash-perm-groups"></div>
+
+          <p class="ash-perm-ruleshint" data-i18n="admin.rd.rulesHint">Keys marked ● are enforced by Firestore security rules today; the others are recorded for the backend and future rules.</p>
+
+          <div class="ash-perm-footer" id="rdFooter" hidden>
+            <span id="rdFooterCount" class="ash-perm-footer-count"></span>
+            <div class="ash-perm-footer-actions">
+              <button type="button" id="rdCancelBtn" class="ash-detail-btn" data-i18n="admin.rd.cancelChanges">Cancel changes</button>
+              <button type="button" id="rdSave" class="ash-detail-btn ash-detail-btn-primary" data-i18n="admin.rd.save">Save defaults</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1829,11 +1866,36 @@ const RD_TYPE_LABELS = {
   org_owner_furniture_store: () => trAdmin('auth.pro.typeFurnitureStore', 'Home Goods / Furniture Seller')
 };
 let rdInitialized = false;
+// Snapshot of the last-loaded/last-saved permission set for the CURRENTLY
+// selected account type -- the baseline "Modified" counts against, and
+// what "Cancel changes"/"Reset to saved" reverts to. Not the same thing as
+// RECOMMENDED_ROLE_DEFAULTS, which is a per-accountType constant, not a
+// live baseline.
+let rdSavedKeys = new Set();
+// Real timestamp (unix seconds) of the currently-loaded doc's last write,
+// or null if this accountType has never been saved -- never fabricated;
+// read from rolePermissionDefaults/{accountType}.updatedAt (see
+// backend/app/access/permission_ops.py's set_role_defaults) or, right
+// after a successful save in this same session, set to "now" because the
+// save that just completed IS that timestamp.
+let rdLastSavedSeconds = null;
+// Which accordion groups are currently expanded, keyed by group.key --
+// reseeded per accountType (see rdDefaultOpenGroups) unless the admin has
+// already interacted with the accordion this session, in which case their
+// choices persist across a search or an Apply Recommended click.
+let rdOpenGroups = new Set();
+const RD_PERM_META = {};
+PERMISSION_GROUPS.forEach((g) => g.permissions.forEach((p) => { RD_PERM_META[p.key] = p; }));
+
+function rdPermLabel(key) {
+  const meta = RD_PERM_META[key];
+  return meta ? trAdmin(meta.labelKey, meta.labelFallback) : key;
+}
 
 function rdSetStatus(text, tone) {
   const node = document.getElementById('rdStatus');
   node.textContent = text || '';
-  node.style.color = tone === 'error' ? '#ba1a1a' : (tone === 'ok' ? '#1b5e20' : '#44474c');
+  node.style.color = tone === 'error' ? 'var(--ash-error)' : (tone === 'ok' ? 'var(--ash-success)' : 'var(--ash-text-secondary)');
 }
 function rdCheckedKeys() {
   return [...document.querySelectorAll('#rdGroups input[data-perm]:checked')].map(i => i.dataset.perm);
@@ -1841,6 +1903,7 @@ function rdCheckedKeys() {
 function rdSetChecks(keys) {
   const set = new Set(keys);
   document.querySelectorAll('#rdGroups input[data-perm]').forEach(i => { i.checked = set.has(i.dataset.perm); });
+  rdOnPermsChanged();
 }
 // Renders the exact set of keys "Apply recommended" is about to turn on,
 // before anything is written -- least-privilege review, not a silent
@@ -1852,10 +1915,196 @@ function rdShowDiff(addedKeys) {
   if (!addedKeys.length) { panel.classList.add('hidden'); return; }
   addedKeys.forEach(k => {
     const li = document.createElement('li');
-    li.textContent = k;
+    li.textContent = rdPermLabel(k);
     list.appendChild(li);
   });
   panel.classList.remove('hidden');
+}
+
+// Which groups should start expanded for the CURRENT checked state -- any
+// group with at least one enabled permission (so an admin immediately sees
+// what's active), or just the first group if nothing is enabled yet.
+function rdDefaultOpenGroups(checkedSet) {
+  const withAny = PERMISSION_GROUPS.filter((g) => g.permissions.some((p) => checkedSet.has(p.key))).map((g) => g.key);
+  return new Set(withAny.length ? withAny : [PERMISSION_GROUPS[0].key]);
+}
+
+function rdSetGroupOpen(groupEl, open) {
+  groupEl.dataset.open = open ? 'true' : 'false';
+  const toggle = groupEl.querySelector('.ash-perm-group-toggle');
+  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function rdApplyOpenState() {
+  document.querySelectorAll('#rdGroups .ash-perm-group').forEach((el) => {
+    rdSetGroupOpen(el, rdOpenGroups.has(el.dataset.groupKey));
+  });
+}
+
+// Recomputes every group's "N / M enabled" badge from the live checkbox
+// state -- called after any check/uncheck, Apply Recommended, Clear all,
+// Cancel, or account-type switch.
+function rdUpdateGroupCounts(checkedSet) {
+  PERMISSION_GROUPS.forEach((g) => {
+    const enabled = g.permissions.filter((p) => checkedSet.has(p.key)).length;
+    const badge = document.querySelector(`[data-group-count="${g.key}"]`);
+    if (!badge) return;
+    badge.textContent = `${enabled} / ${g.permissions.length}`;
+    badge.dataset.any = enabled > 0 ? 'true' : 'false';
+  });
+}
+
+function rdStatusPillUpdate(checkedSet) {
+  const pill = document.getElementById('rdStatusPill');
+  const text = document.getElementById('rdStatusPillText');
+  const accountType = document.getElementById('rdAccountType').value;
+  const recommended = new Set(RECOMMENDED_ROLE_DEFAULTS[accountType] || []);
+  let tone = 'none';
+  let label = trAdmin('admin.rd.statusNone', 'No defaults set');
+  if (checkedSet.size > 0) {
+    const isExactlyRecommended = recommended.size === checkedSet.size && [...recommended].every((k) => checkedSet.has(k));
+    if (isExactlyRecommended) { tone = 'recommended'; label = trAdmin('admin.rd.statusRecommended', 'Recommended defaults'); }
+    else { tone = 'custom'; label = trAdmin('admin.rd.statusCustom', 'Custom defaults'); }
+  }
+  pill.dataset.tone = tone;
+  text.textContent = label;
+}
+
+function rdSummaryUpdate(checkedSet) {
+  document.getElementById('rdSumEnabled').textContent = String(checkedSet.size);
+  document.getElementById('rdSumGroups').textContent = String(PERMISSION_GROUPS.length);
+  const modified = [...checkedSet].filter((k) => !rdSavedKeys.has(k)).length + [...rdSavedKeys].filter((k) => !checkedSet.has(k)).length;
+  document.getElementById('rdSumModified').textContent = String(modified);
+  document.getElementById('rdLastSaved').textContent = rdLastSavedSeconds
+    ? trAdmin('admin.rd.lastSavedPrefix', 'Last saved ') + timeAgo(rdLastSavedSeconds)
+    : '';
+  return modified;
+}
+
+function rdFooterUpdate(modifiedCount) {
+  const footer = document.getElementById('rdFooter');
+  if (modifiedCount > 0) {
+    footer.hidden = false;
+    document.getElementById('rdFooterCount').textContent =
+      trAdmin('admin.rd.unsavedChanges', '{count} unsaved changes').replace('{count}', modifiedCount);
+  } else {
+    footer.hidden = true;
+  }
+}
+
+// Single entry point every checkbox-state-changing action funnels through
+// (manual toggle, Enable all, Apply Recommended, Clear all, Cancel,
+// account-type load) so the summary row, group badges, status pill and
+// sticky footer never drift out of sync with the actual checked state.
+function rdOnPermsChanged() {
+  const checkedSet = new Set(rdCheckedKeys());
+  rdUpdateGroupCounts(checkedSet);
+  rdStatusPillUpdate(checkedSet);
+  const modified = rdSummaryUpdate(checkedSet);
+  rdFooterUpdate(modified);
+}
+
+function rdApplySearch() {
+  const term = document.getElementById('rdSearch').value.trim().toLowerCase();
+  document.querySelectorAll('#rdGroups .ash-perm-group').forEach((groupEl) => {
+    const groupKey = groupEl.dataset.groupKey;
+    const group = PERMISSION_GROUPS.find((g) => g.key === groupKey);
+    if (!term) {
+      groupEl.hidden = false;
+      groupEl.querySelectorAll('.ash-perm-row').forEach((row) => { row.hidden = false; });
+      rdSetGroupOpen(groupEl, rdOpenGroups.has(groupKey));
+      return;
+    }
+    let anyMatch = false;
+    group.permissions.forEach((p) => {
+      const hay = (rdPermLabel(p.key) + ' ' + trAdmin(p.descKey, p.descFallback) + ' ' + p.key).toLowerCase();
+      const match = hay.includes(term);
+      const row = groupEl.querySelector(`[data-perm-row="${CSS.escape(p.key)}"]`);
+      if (row) row.hidden = !match;
+      if (match) anyMatch = true;
+    });
+    groupEl.hidden = !anyMatch;
+    if (anyMatch) rdSetGroupOpen(groupEl, true);
+  });
+}
+
+function rdClearAll() { rdSetChecks([]); rdShowDiff([]); rdSetStatus('', ''); }
+function rdCancelChanges() { rdSetChecks([...rdSavedKeys]); rdShowDiff([]); rdSetStatus('', ''); }
+// Distinct from the "Apply recommended" button (which only ever ADDS keys,
+// never removes an admin's own additions): this replaces the checked set
+// with EXACTLY the recommended list for this accountType, including
+// unchecking anything not on it. A firmer, more destructive reset, which
+// is why it lives in the overflow menu next to Clear all rather than as a
+// second prominent button.
+function rdRestoreRecommended() {
+  const accountType = document.getElementById('rdAccountType').value;
+  rdSetChecks(RECOMMENDED_ROLE_DEFAULTS[accountType] || []);
+  rdShowDiff([]);
+  rdSetStatus(trAdmin('admin.rd.recommendedRestored', 'Replaced with the recommended defaults — review, then Save.'), '');
+}
+
+function rdApplyLangStrings() {
+  const btn = document.getElementById('rdMoreMenuBtn');
+  if (btn) btn.setAttribute('aria-label', trAdmin('admin.rd.moreActions', 'More actions'));
+}
+
+function rdAccountOptionsHtml() {
+  return SELF_ACCOUNT_TYPES.map((t) =>
+    `<option value="${t}">${escapeAdmin(`${RD_TYPE_LABELS[t] ? RD_TYPE_LABELS[t]() : t} (${t})`)}</option>`
+  ).join('');
+}
+
+function rdGroupsHtml() {
+  return PERMISSION_GROUPS.map((g) => `
+    <div class="ash-perm-group" data-group-key="${g.key}" data-open="false">
+      <div class="ash-perm-group-head">
+        <button type="button" class="ash-perm-group-toggle" data-group-toggle="${g.key}" aria-expanded="false" aria-controls="rdGroupBody-${g.key}">
+          <span class="material-symbols-outlined ash-perm-group-chevron" aria-hidden="true">chevron_right</span>
+          <div class="ash-perm-group-heading">
+            <p class="ash-perm-group-name">${escapeAdmin(trAdmin(g.labelKey, g.fallback))}</p>
+            <p class="ash-perm-group-desc">${escapeAdmin(trAdmin(g.descKey, g.descFallback))}</p>
+          </div>
+          <span class="ash-perm-group-count" data-group-count="${g.key}">0 / ${g.permissions.length}</span>
+        </button>
+        <button type="button" class="ash-perm-group-enableall" data-group-enableall="${g.key}">${escapeAdmin(trAdmin('admin.rd.enableAll', 'Enable all'))}</button>
+      </div>
+      <div class="ash-perm-group-body" id="rdGroupBody-${g.key}">
+        ${g.permissions.map((p) => `
+          <label class="ash-perm-row" data-perm-row="${p.key}">
+            <input type="checkbox" data-perm="${p.key}"/>
+            <div class="ash-perm-row-text">
+              <p class="ash-perm-row-label">${escapeAdmin(trAdmin(p.labelKey, p.labelFallback))}${p.rules ? `<span class="ash-perm-row-rules" title="${escapeAdmin(trAdmin('admin.rd.rulesEnforcedTitle', 'Enforced by Firestore rules today'))}">●</span>` : ''}</p>
+              <p class="ash-perm-row-desc">${escapeAdmin(trAdmin(p.descKey, p.descFallback))}</p>
+            </div>
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+// Neither the account-type <select> nor the accordion group text update
+// live on a language switch on their own (both are built from `trAdmin()`
+// once, like every other dynamically-rendered admin table on this page --
+// see e.g. renderUsers()/renderAgentsTab(), none of which re-render on
+// darwesh:langchange either). This panel's own accordion state, checked
+// keys and search term are worth preserving across a rebuild though (an
+// admin mid-review who happens to switch language shouldn't lose their
+// place), so unlike those simpler tables this one explicitly re-renders
+// itself and restores exactly that state.
+function rdRebuildForLang() {
+  const sel = document.getElementById('rdAccountType');
+  const groups = document.getElementById('rdGroups');
+  if (!sel || !groups) return;
+  const checked = rdCheckedKeys();
+  const searchTerm = document.getElementById('rdSearch').value;
+  const currentType = sel.value;
+  sel.innerHTML = rdAccountOptionsHtml();
+  sel.value = currentType;
+  groups.innerHTML = rdGroupsHtml();
+  rdSetChecks(checked);
+  rdApplyOpenState();
+  document.getElementById('rdSearch').value = searchTerm;
+  rdApplySearch();
+  rdApplyLangStrings();
 }
 
 function renderRoleDefaultsPanel() {
@@ -1865,40 +2114,50 @@ function renderRoleDefaultsPanel() {
   if (!sel || !groups) return;
   rdInitialized = true;
 
-  sel.innerHTML = '';
-  SELF_ACCOUNT_TYPES.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t;
-    opt.textContent = `${RD_TYPE_LABELS[t] ? RD_TYPE_LABELS[t]() : t} (${t})`;
-    sel.appendChild(opt);
-  });
+  sel.innerHTML = rdAccountOptionsHtml();
   // Pre-select the type whose core flow (org-projects.html) is blocked
   // outright until defaults exist.
   sel.value = 'org_owner_developer';
 
-  groups.innerHTML = '';
-  PERMISSION_GROUPS.forEach(g => {
-    const fieldset = document.createElement('fieldset');
-    fieldset.className = 'border border-outline-variant rounded-lg p-3';
-    const legend = document.createElement('legend');
-    legend.className = 'admin-label px-1';
-    legend.textContent = trAdmin(g.labelKey, g.fallback);
-    fieldset.appendChild(legend);
-    g.permissions.forEach(p => {
-      const label = document.createElement('label');
-      label.className = 'flex items-center gap-2 font-body-md text-[13px] text-on-surface py-1 cursor-pointer';
-      const input = document.createElement('input');
-      input.type = 'checkbox';
-      input.dataset.perm = p.key;
-      const span = document.createElement('span');
-      span.textContent = (p.rules ? '● ' : '') + p.key;
-      label.append(input, span);
-      fieldset.appendChild(label);
-    });
-    groups.appendChild(fieldset);
+  groups.innerHTML = rdGroupsHtml();
+
+  // Delegated listeners -- #rdGroups' innerHTML is replaced wholesale by
+  // rdRebuildForLang() on a language switch, but the listeners below are
+  // bound to the container itself (delegation), so they survive that.
+  groups.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-group-toggle]');
+    if (toggle) {
+      const groupEl = toggle.closest('.ash-perm-group');
+      const key = groupEl.dataset.groupKey;
+      const nowOpen = groupEl.dataset.open !== 'true';
+      if (nowOpen) rdOpenGroups.add(key); else rdOpenGroups.delete(key);
+      rdSetGroupOpen(groupEl, nowOpen);
+      return;
+    }
+    const enableAll = e.target.closest('[data-group-enableall]');
+    if (enableAll) {
+      const groupKey = enableAll.dataset.groupEnableall;
+      const group = PERMISSION_GROUPS.find((g) => g.key === groupKey);
+      const current = new Set(rdCheckedKeys());
+      group.permissions.forEach((p) => current.add(p.key));
+      rdSetChecks([...current]);
+    }
+  });
+  groups.addEventListener('change', (e) => {
+    if (e.target.matches('input[data-perm]')) rdOnPermsChanged();
   });
 
-  sel.addEventListener('change', () => { rdShowDiff([]); loadRoleDefaults(sel.value); });
+  document.getElementById('rdSearch').addEventListener('input', rdApplySearch);
+
+  const learnMoreBtn = document.getElementById('rdLearnMoreBtn');
+  learnMoreBtn.addEventListener('click', () => {
+    const body = document.getElementById('rdLearnMoreBody');
+    const open = body.classList.contains('hidden');
+    body.classList.toggle('hidden', !open);
+    learnMoreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+
+  sel.addEventListener('change', () => { rdShowDiff([]); rdSetStatus('', ''); loadRoleDefaults(sel.value); });
   document.getElementById('rdApplyRecommended').addEventListener('click', () => {
     // Merge, never overwrite: an admin's own additions (or anything already
     // saved for this accountType beyond the recommended set) stay checked.
@@ -1916,20 +2175,40 @@ function renderRoleDefaultsPanel() {
     rdSetChecks([...current, ...added]);
     rdSetStatus(trAdmin('admin.rd.recommendedApplied', 'Recommended defaults merged in — review the proposed additions below, then Save. Nothing already enabled was removed.'), '');
   });
-  document.getElementById('rdClearAll').addEventListener('click', () => { rdSetChecks([]); rdShowDiff([]); rdSetStatus('', ''); });
+  document.getElementById('rdCancelBtn').addEventListener('click', rdCancelChanges);
   document.getElementById('rdSave').addEventListener('click', saveRoleDefaults);
+
+  if (window.AdminActionMenu) {
+    window.AdminActionMenu.attach(document.getElementById('roleDefaultsPanel'), () => [
+      { label: () => trAdmin('admin.rd.clearAll', 'Clear all permissions'), icon: 'remove_done', onClick: rdClearAll },
+      { label: () => trAdmin('admin.rd.resetToSaved', 'Reset to saved'), icon: 'restart_alt', onClick: rdCancelChanges },
+      { label: () => trAdmin('admin.rd.restoreRecommended', 'Restore recommended'), icon: 'auto_fix_high', onClick: rdRestoreRecommended }
+    ]);
+  }
+
+  rdApplyLangStrings();
   loadRoleDefaults(sel.value);
 }
+document.addEventListener('darwesh:langchange', () => { if (rdInitialized) rdRebuildForLang(); });
 
 async function loadRoleDefaults(accountType) {
   rdSetStatus(trAdmin('admin.rd.loading', 'Loading current defaults…'), '');
   try {
     const snap = await getDoc(doc(db, 'rolePermissionDefaults', accountType));
-    const perms = snap.exists() ? (snap.data().permissions || {}) : null;
-    rdSetChecks(perms ? Object.keys(perms).filter(k => perms[k] === true) : []);
+    const data = snap.exists() ? snap.data() : null;
+    const perms = data ? (data.permissions || {}) : null;
+    const keys = perms ? Object.keys(perms).filter(k => perms[k] === true) : [];
+    rdSavedKeys = new Set(keys);
+    rdLastSavedSeconds = data && data.updatedAt && typeof data.updatedAt.seconds === 'number' ? data.updatedAt.seconds : null;
+    rdSetChecks(keys);
+    rdOpenGroups = rdDefaultOpenGroups(new Set(keys));
+    document.getElementById('rdSearch').value = '';
+    rdApplySearch(); // empty term -> also clears any hidden state left by a previous search, then applies rdOpenGroups
     if (perms) rdSetStatus(trAdmin('admin.rd.loaded', 'Current defaults loaded.'), 'ok');
     else rdSetStatus(trAdmin('admin.rd.none', 'No defaults saved yet for this account type — accounts of this type currently have no permissions.'), '');
   } catch (err) {
+    rdSavedKeys = new Set();
+    rdLastSavedSeconds = null;
     rdSetChecks([]);
     rdSetStatus(trAdmin('admin.rd.loadError', 'Could not read the current defaults.'), 'error');
   }
@@ -1944,7 +2223,14 @@ async function saveRoleDefaults() {
   rdSetStatus(trAdmin('admin.rd.saving', 'Saving…'), '');
   try {
     await setRoleDefaults(auth.currentUser, { accountType, permissions });
+    rdSavedKeys = new Set(rdCheckedKeys());
+    // The write that just completed IS "now" -- real, not fabricated; the
+    // server's own SERVER_TIMESTAMP will read back the same instant on the
+    // next full loadRoleDefaults() (e.g. after switching account types and
+    // back).
+    rdLastSavedSeconds = Math.floor(Date.now() / 1000);
     rdShowDiff([]);
+    rdOnPermsChanged();
     rdSetStatus(trAdmin('admin.rd.saved', 'Saved. Accounts of this type use these defaults from their next write.'), 'ok');
   } catch (err) {
     // The backend's own rejection text (unknown/protected key, not an
