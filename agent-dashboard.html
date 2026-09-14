@@ -898,6 +898,18 @@ change is not meant to make. -->
       }
       if (savedListingId) {
         await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
+        // Property Watch / Area Alerts publish-time hook. An agent-created
+        // listing is never immediately verified (rules-enforced, only an
+        // admin edit can set that), so this is normally a safe no-op here
+        // -- it exists for the same reason admin.html's save calls it:
+        // the backend re-fetches and re-validates the listing itself, so
+        // there is no harm calling it from every path that could plausibly
+        // make a listing publish-eligible.
+        if (auth.currentUser) {
+          import('./js/backend-api.js')
+            .then(({ notifyAreaAlertsOfNewListing }) => notifyAreaAlertsOfNewListing(auth.currentUser, savedListingId))
+            .catch(() => {});
+        }
       }
       resetForm();
       loadMyListings();

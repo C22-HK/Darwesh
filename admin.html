@@ -654,6 +654,14 @@ change is not meant to make. -->
          sessions included. -->
     <section id="tab-arena" class="admin-tab-panel"></section>
 
+    <!-- TAB: Property Watch / Area Alerts -- Phase 1 aggregate-only
+         summary (active alerts, matches this week, alerts by city).
+         Rendered entirely by js/admin-alerts.js on first click, same
+         lazy-mount pattern as Arena/Offers/Map. No per-user alert or
+         match data is ever exposed here -- the backend's admin_summary()
+         returns aggregate counts only. -->
+    <section id="tab-alerts" class="admin-tab-panel"></section>
+
     <!-- TAB: Offers & Discounts -- admin-managed public promotions.
          Rendered entirely by js/admin-offers.js on first click, same
          lazy-mount pattern as the Map / Organizations / Professionals
@@ -1233,6 +1241,7 @@ import { renderMapTab } from './js/admin-map.js';
 import { renderOffersTab } from './js/admin-offers.js';
 import { renderVerificationTab } from './js/admin-verification.js';
 import { renderArenaTab } from './js/admin-arena.js';
+import { renderAlertsTab } from './js/admin-alerts.js';
 
 // LOC-01: what coordinate a BULK admin map view plots for a listing.
 // Bulk views (the Map Management tab, hundreds of listings at a time)
@@ -1591,6 +1600,7 @@ document.querySelectorAll('.admin-tab').forEach(tab => {
     if (tab.dataset.tab === 'offers') renderOffersTab();
     if (tab.dataset.tab === 'verification') renderVerificationTab();
     if (tab.dataset.tab === 'arena') renderArenaTab();
+    if (tab.dataset.tab === 'alerts') renderAlertsTab();
   });
 });
 
@@ -2288,6 +2298,17 @@ async function onListingFormSubmit(e) {
     }
     if (savedListingId) {
       await writePreciseLocation({ doc, setDoc, serverTimestamp }, db, savedListingId, pinLat, pinLng);
+      // Property Watch / Area Alerts publish-time hook. Covers all three
+      // paths above (direct create, submission conversion, and an edit
+      // that just flipped Verified on) with one call -- fire-and-forget,
+      // never blocks the save: the backend re-fetches and re-validates
+      // this listing itself before matching anything, so calling it on
+      // an edit that ISN'T actually publish-eligible yet is a safe no-op.
+      if (auth.currentUser) {
+        import('./js/backend-api.js')
+          .then(({ notifyAreaAlertsOfNewListing }) => notifyAreaAlertsOfNewListing(auth.currentUser, savedListingId))
+          .catch(() => {});
+      }
     }
     resetListingForm();
     renderListingsTable();

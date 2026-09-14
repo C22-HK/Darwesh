@@ -33,6 +33,8 @@ def create_app(
     verification_handler: object | None = None,
     arena_public_handler: object | None = None,
     arena_admin_handler: object | None = None,
+    alerts_public_handler: object | None = None,
+    alerts_admin_handler: object | None = None,
 ) -> FastAPI:
     """Every *_handler argument is None-able on purpose: app.main only
     constructs one when its required settings are actually present. When
@@ -63,7 +65,9 @@ def create_app(
     Firebase Admin credential check, since every one of them reads or
     writes Firestore with the Admin SDK. arena_public_handler/
     arena_admin_handler back Darwesh Arena (see app.arena.handlers) --
-    same gating, same reasoning."""
+    same gating, same reasoning. alerts_public_handler/alerts_admin_handler
+    back Property Watch / Area Alerts (see app.alerts.handlers) -- same
+    gating, same reasoning."""
     app = FastAPI(title="Darwesh Backend", docs_url=None, redoc_url=None, openapi_url=None)
 
     app.add_middleware(_RequestLoggingMiddleware)
@@ -451,6 +455,29 @@ def create_app(
             arena_admin_handler.commercial_summary,
             methods=["GET"],
         )
+
+    if alerts_public_handler is not None:
+        app.add_api_route("/api/v1/alerts", alerts_public_handler.create_alert, methods=["POST"])
+        app.add_api_route("/api/v1/alerts/me", alerts_public_handler.list_my_alerts, methods=["GET"])
+        app.add_api_route("/api/v1/alerts/{alertId}", alerts_public_handler.update_alert, methods=["PATCH"])
+        app.add_api_route("/api/v1/alerts/{alertId}", alerts_public_handler.delete_alert, methods=["DELETE"])
+        app.add_api_route("/api/v1/alerts/{alertId}/matches", alerts_public_handler.list_matches, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/alerts/matches/{matchId}/viewed", alerts_public_handler.mark_match_viewed, methods=["POST"]
+        )
+        app.add_api_route("/api/v1/alerts/notify-listing", alerts_public_handler.notify_listing, methods=["POST"])
+        app.add_api_route("/api/v1/notifications/me", alerts_public_handler.list_notifications, methods=["GET"])
+        app.add_api_route(
+            "/api/v1/notifications/{notificationId}/read",
+            alerts_public_handler.mark_notification_read,
+            methods=["POST"],
+        )
+        app.add_api_route(
+            "/api/v1/notifications/read-all", alerts_public_handler.mark_all_notifications_read, methods=["POST"]
+        )
+
+    if alerts_admin_handler is not None:
+        app.add_api_route("/api/v1/alerts/admin/summary", alerts_admin_handler.summary, methods=["GET"])
 
     return app
 

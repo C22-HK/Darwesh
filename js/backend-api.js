@@ -754,3 +754,57 @@ export function getRewardConfig(user) {
 export function saveRewardConfig(user, config) {
   return authedRequest(user, 'POST', '/api/v1/access/admin/reward-config', { body: config });
 }
+
+// ---- Property Watch / Area Alerts ------------------------------------------
+//
+// Every wrapper here is a request to app/alerts/alerts_ops.py (the only
+// writer of areaAlerts/areaAlertMatches/notifications -- see
+// firestore.rules). Unlike Arena, there is no signed-out-safe read here: a
+// saved alert IS someone's private saved search, so every call requires a
+// real `user`.
+
+export function createAreaAlert(user, { name, area, filters, notifyMode }) {
+  return authedRequest(user, 'POST', '/api/v1/alerts', { body: { name, area, filters, notifyMode } });
+}
+export function listMyAreaAlerts(user) {
+  return authedRequest(user, 'GET', '/api/v1/alerts/me');
+}
+export function updateAreaAlert(user, alertId, { name, area, filters, notifyMode, status } = {}) {
+  return authedRequest(user, 'PATCH', `/api/v1/alerts/${encodeURIComponent(alertId)}`, {
+    body: { name, area, filters, notifyMode, status }
+  });
+}
+export function deleteAreaAlert(user, alertId) {
+  return authedRequest(user, 'DELETE', `/api/v1/alerts/${encodeURIComponent(alertId)}`, { body: {} });
+}
+export function listAreaAlertMatches(user, alertId, limit) {
+  return authedRequest(user, 'GET', `/api/v1/alerts/${encodeURIComponent(alertId)}/matches`, { query: { limit } });
+}
+export function markAreaAlertMatchViewed(user, matchId) {
+  return authedRequest(user, 'POST', `/api/v1/alerts/matches/${encodeURIComponent(matchId)}/viewed`, { body: {} });
+}
+// The publish-time hook: called right after a listing write succeeds (see
+// admin.html's submission-conversion flow and agent-dashboard.html's
+// direct addDoc path). Fire-and-forget by convention at the call site --
+// the backend re-validates the listing itself before doing anything, so a
+// caller can never force a match through this for a listing that isn't
+// genuinely public/active/verified.
+export function notifyAreaAlertsOfNewListing(user, listingId) {
+  return authedRequest(user, 'POST', '/api/v1/alerts/notify-listing', { body: { listingId } });
+}
+
+export function listMyNotifications(user, limit) {
+  return authedRequest(user, 'GET', '/api/v1/notifications/me', { query: { limit } });
+}
+export function markNotificationRead(user, notificationId) {
+  return authedRequest(user, 'POST', `/api/v1/notifications/${encodeURIComponent(notificationId)}/read`, { body: {} });
+}
+export function markAllNotificationsRead(user) {
+  return authedRequest(user, 'POST', '/api/v1/notifications/read-all', { body: {} });
+}
+
+// ---- Admin: Area Alerts (aggregate-only Demand Intelligence stand-in) ----
+
+export function getAreaAlertsAdminSummary(user) {
+  return authedRequest(user, 'GET', '/api/v1/alerts/admin/summary');
+}

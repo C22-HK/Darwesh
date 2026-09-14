@@ -475,6 +475,14 @@ violation reporting. -->
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M9.5 6.5h5M12 4v5"/></svg>
 <span data-i18n="map.saveSearch">Save Search</span>
 </button>
+<!-- Property Watch / Area Alerts: same trigger position as Save Search,
+     enabled once a draw-circle area or a city is set (see
+     updateSaveAlertButton()). Opens #saveAlertModal rather than writing
+     immediately -- the alert needs a name and a notify-mode choice. -->
+<button id="saveAlertBtn" type="button" disabled class="flex-none flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-secondary hover:bg-surface-container transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+<span data-i18n="alerts.saveButton">Save as Alert</span>
+</button>
 <span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
 </div>
 </div>
@@ -715,6 +723,35 @@ violation reporting. -->
 </div>
 </aside>
 <div class="map-toast" id="mapToast"></div>
+
+<!-- Property Watch / Area Alerts: Save-as-Alert dialog. Built fresh each
+     open by openSaveAlertModal() -- reads the CURRENT drawn circle/city +
+     filters at open time, never stale state carried over from a previous
+     open. -->
+<div id="saveAlertModal" class="fixed inset-0 z-[1300] hidden items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="saveAlertModalTitle">
+<div class="w-full max-w-sm bg-surface-container-lowest rounded-2xl shadow-xl p-5">
+<h2 id="saveAlertModalTitle" class="font-headline-sm text-headline-sm text-on-surface mb-1" data-i18n="alerts.saveModal.title">Save as Property Alert</h2>
+<p id="saveAlertAreaSummary" class="font-body-sm text-body-sm text-on-surface-variant mb-4"></p>
+<label class="block font-label-caps text-label-caps text-on-surface-variant mb-1" for="saveAlertNameInput" data-i18n="alerts.saveModal.nameLabel">Alert name</label>
+<input id="saveAlertNameInput" type="text" maxlength="200" class="w-full bg-surface-container rounded-lg border border-outline-variant px-3 py-2 mb-4 font-body-md text-body-md text-on-surface" data-i18n-placeholder="alerts.saveModal.namePlaceholder" placeholder="e.g. 3BR near Downtown Erbil"/>
+<span class="block font-label-caps text-label-caps text-on-surface-variant mb-1" data-i18n="alerts.saveModal.notifyLabel">Notify me</span>
+<div class="flex flex-col gap-2 mb-5">
+<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface">
+<input type="radio" name="saveAlertNotifyMode" value="instant" checked=""/>
+<span data-i18n="alerts.notifyMode.instant">Instantly</span>
+</label>
+<label class="flex items-center gap-2 font-body-md text-body-md text-on-surface-variant opacity-60 cursor-not-allowed">
+<input type="radio" name="saveAlertNotifyMode" value="daily_digest" disabled=""/>
+<span data-i18n="alerts.notifyMode.dailyDigestSoon">Daily digest (coming soon)</span>
+</label>
+</div>
+<div id="saveAlertError" class="hidden font-body-sm text-body-sm text-error mb-3" role="alert"></div>
+<div class="flex items-center justify-end gap-2">
+<button id="saveAlertCancelBtn" type="button" class="px-4 py-2 rounded-full font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container transition-colors" data-i18n="common.cancel">Cancel</button>
+<button id="saveAlertConfirmBtn" type="button" class="px-4 py-2 rounded-full bg-primary text-on-primary font-label-caps text-label-caps hover:opacity-90 transition-opacity" data-i18n="alerts.saveModal.save">Save Alert</button>
+</div>
+</div>
+</div>
 </div>
 <!-- List panel -- the property wheel lives in #cardList, its own fixed-
      height scroll-snap container; #listPanel itself no longer scrolls
@@ -1023,6 +1060,7 @@ async function initFavorites() {
     document.getElementById('mapModeSeg').classList.toggle('flex', !!user);
     if (!user && currentMapMode === 'myProperties') switchMapMode('explore');
     refresh();
+    if (user) initAlertMatchView(user);
   });
 }
 initFavorites();
@@ -1360,6 +1398,183 @@ async function saveCurrentSearch() {
   showToast(tr('map.searchSavedToAccount', 'Search saved to your account'), 'check_circle');
 }
 document.getElementById('saveSearchBtn').addEventListener('click', saveCurrentSearch);
+
+// ---------------------------------------------------------------------
+// Property Watch / Area Alerts -- draws on the SAME state Save Search
+// already reads (searchCircle, citySearch, activeType, priceMin/Max,
+// selectedHomeTypes): no second area-definition system, no second
+// taxonomy. The matching decision itself is 100% backend (see
+// app/alerts/alerts_ops.py) -- this only ever collects what the visitor
+// already set and asks the backend to save + (once) backfill it.
+// ---------------------------------------------------------------------
+function currentAlertArea() {
+  if (searchCircle) {
+    return { type: 'circle', center: { lat: searchCircle.centre.lat, lng: searchCircle.centre.lng }, radiusM: searchCircle.radius };
+  }
+  const cityVal = document.getElementById('citySearch').value.trim();
+  if (cityVal) return { type: 'city', city: cityVal };
+  return null;
+}
+
+function currentAlertFilters() {
+  const filters = {};
+  if (activeType === 'sale' || activeType === 'rent') filters.dealType = activeType;
+  // A single selected home type maps cleanly onto the alert's one
+  // propertyType field; zero or several selected leaves it unset, so the
+  // alert stays broader rather than guessing which one the visitor meant.
+  if (selectedHomeTypes.size === 1) filters.propertyType = [...selectedHomeTypes][0];
+  if (priceMin !== null) filters.minPrice = priceMin;
+  if (priceMax !== null) filters.maxPrice = priceMax;
+  return filters;
+}
+
+function describeAlertArea(area) {
+  if (!area) return '';
+  if (area.type === 'circle') return trf('alerts.saveModal.areaCircle', 'A {radius} radius area on the map', { radius: fmtRadius(area.radiusM) });
+  return trf('alerts.saveModal.areaCity', 'Properties in {city}', { city: area.city });
+}
+
+function updateSaveAlertButton() {
+  const btn = document.getElementById('saveAlertBtn');
+  if (!btn) return;
+  btn.disabled = !currentAlertArea();
+}
+
+function openSaveAlertModal() {
+  if (!favAuth || !favAuth.currentUser) {
+    showToast(tr('map.loginToSaveSearch', 'Log in to save searches'), 'bookmark_add');
+    setTimeout(() => { window.location.href = 'login.html'; }, 900);
+    return;
+  }
+  const area = currentAlertArea();
+  if (!area) return; // button is disabled in this state, but guard anyway
+  const modal = document.getElementById('saveAlertModal');
+  document.getElementById('saveAlertAreaSummary').textContent = describeAlertArea(area);
+  document.getElementById('saveAlertNameInput').value = '';
+  document.getElementById('saveAlertError').classList.add('hidden');
+  modal.querySelector('input[name="saveAlertNotifyMode"][value="instant"]').checked = true;
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  document.getElementById('saveAlertNameInput').focus();
+}
+
+function closeSaveAlertModal() {
+  const modal = document.getElementById('saveAlertModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+}
+
+async function confirmSaveAlert() {
+  const errEl = document.getElementById('saveAlertError');
+  errEl.classList.add('hidden');
+  const name = document.getElementById('saveAlertNameInput').value.trim();
+  if (!name) {
+    errEl.textContent = tr('alerts.saveModal.nameRequired', 'Please name this alert.');
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const area = currentAlertArea();
+  if (!area) { closeSaveAlertModal(); return; }
+  const notifyMode = document.querySelector('input[name="saveAlertNotifyMode"]:checked')?.value || 'instant';
+  const confirmBtn = document.getElementById('saveAlertConfirmBtn');
+  confirmBtn.disabled = true;
+  const { createAreaAlert, localizeBackendError } = await import('./js/backend-api.js');
+  try {
+    await createAreaAlert(favAuth.currentUser, { name, area, filters: currentAlertFilters(), notifyMode });
+    closeSaveAlertModal();
+    showToast(tr('alerts.saveModal.saved', 'Alert saved — we\'ll notify you about new matches'), 'check_circle');
+  } catch (err) {
+    errEl.textContent = localizeBackendError(err, tr, 'alerts.saveModal.error', 'Could not save this alert — please try again.');
+    errEl.classList.remove('hidden');
+  } finally {
+    confirmBtn.disabled = false;
+  }
+}
+
+document.getElementById('saveAlertBtn').addEventListener('click', openSaveAlertModal);
+document.getElementById('saveAlertCancelBtn').addEventListener('click', closeSaveAlertModal);
+document.getElementById('saveAlertConfirmBtn').addEventListener('click', confirmSaveAlert);
+document.getElementById('saveAlertModal').addEventListener('click', (event) => {
+  if (event.target.id === 'saveAlertModal') closeSaveAlertModal();
+});
+document.getElementById('citySearch').addEventListener('input', updateSaveAlertButton);
+
+// ---------------------------------------------------------------------
+// Property Watch / Area Alerts -- "View Matches" landing (?alertId=...).
+// A deliberately separate, lightweight overlay rather than folding into
+// LISTINGS/priceIcon(): this is a one-off view of a handful of matches
+// for ONE alert, not the map's main dataset, and keeping it independent
+// means it can never destabilize the tuned Explore/My Properties marker
+// pipeline. Runs once auth resolves (initFavorites()'s
+// onAuthStateChanged), since alerts are never a signed-out surface.
+// ---------------------------------------------------------------------
+let alertAreaOutlineLayer = null;
+let alertMatchLayerGroup = null;
+
+async function initAlertMatchView(user) {
+  const alertId = new URLSearchParams(location.search).get('alertId');
+  if (!alertId) return;
+  try {
+    const { listMyAreaAlerts, listAreaAlertMatches, markAreaAlertMatchViewed } = await import('./js/backend-api.js');
+    const alerts = await listMyAreaAlerts(user);
+    const alert = alerts.find((a) => a.id === alertId);
+    if (!alert) return; // not this user's alert, or it no longer exists
+    const matches = await listAreaAlertMatches(user, alertId);
+    renderAlertAreaOutline(alert.area);
+    renderAlertMatchPins(matches, user, markAreaAlertMatchViewed);
+    showToast(trf('alerts.matchView.showing', 'Showing matches for "{name}"', { name: alert.name }), 'notifications_active');
+  } catch (err) {
+    console.error('[map] alert match view failed to load', err);
+  }
+}
+
+function renderAlertAreaOutline(area) {
+  if (alertAreaOutlineLayer) { map.removeLayer(alertAreaOutlineLayer); alertAreaOutlineLayer = null; }
+  if (!area || area.type !== 'circle') return; // city/neighborhood alerts have no shape to outline
+  alertAreaOutlineLayer = L.circle([area.center.lat, area.center.lng], {
+    radius: area.radiusM,
+    interactive: false,
+    color: '#B89A63',
+    weight: 1.5,
+    opacity: 0.7,
+    dashArray: '4 4',
+    fill: false
+  }).addTo(map);
+  map.fitBounds(alertAreaOutlineLayer.getBounds(), { maxZoom: 15, padding: [40, 40] });
+}
+
+// Two subtle, deliberately non-crowding states: a new (unviewed) match
+// is a slightly larger, filled gold dot; a previously-viewed one is a
+// smaller, muted outline -- no badges, no animation, no third state.
+function renderAlertMatchPins(matches, user, markViewed) {
+  if (alertMatchLayerGroup) { map.removeLayer(alertMatchLayerGroup); alertMatchLayerGroup = null; }
+  alertMatchLayerGroup = L.layerGroup().addTo(map);
+  let anyPlotted = false;
+  matches.forEach((match) => {
+    if (typeof match.publicLat !== 'number' || typeof match.publicLng !== 'number') return;
+    anyPlotted = true;
+    const isNew = !match.viewedAt;
+    const marker = L.circleMarker([match.publicLat, match.publicLng], {
+      radius: isNew ? 10 : 7,
+      color: isNew ? '#B89A63' : '#8a8f98',
+      weight: isNew ? 3 : 2,
+      fillColor: isNew ? '#B89A63' : '#c7ccd4',
+      fillOpacity: isNew ? 0.55 : 0.3
+    }).addTo(alertMatchLayerGroup);
+    const popupEl = document.createElement('div');
+    popupEl.className = 'font-body-sm text-body-sm';
+    const priceLabel = typeof match.price === 'number' ? ('$' + match.price.toLocaleString()) : '';
+    popupEl.textContent = [match.city, priceLabel].filter(Boolean).join(' · ');
+    const link = document.createElement('a');
+    link.href = 'listing.html?id=' + encodeURIComponent(match.listingId);
+    link.className = 'block mt-1 text-secondary underline';
+    link.textContent = tr('alerts.matchView.viewListing', 'View listing');
+    link.addEventListener('click', () => { if (isNew) markViewed(user, match.id).catch(() => {}); });
+    popupEl.appendChild(link);
+    marker.bindPopup(popupEl);
+  });
+  if (!anyPlotted) showToast(tr('alerts.matchView.empty', 'No matches yet for this alert'), 'search_off');
+}
 
 function showToast(msg, icon) {
   const el = document.getElementById('mapToast');
@@ -2982,6 +3197,7 @@ function updateAreaControls() {
   drawSearchBtn.style.display = hasCircle ? 'none' : 'flex';
   redrawSearchAreaBtn.style.display = hasCircle ? 'flex' : 'none';
   clearSearchAreaBtn.style.display = (hasCircle || viewportSearchBounds) ? 'flex' : 'none';
+  if (typeof updateSaveAlertButton === 'function') updateSaveAlertButton();
 }
 
 function showRadiusBadge(metres) {

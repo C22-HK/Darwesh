@@ -2575,6 +2575,40 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Property Watch / Area Alerts. A saved search area + property
+    // filters is exactly as private as a saved search itself -- owner
+    // read only, plus an admin holding 'alerts.review' for the (rare)
+    // support case. The matching decision is 100% server-authoritative
+    // (see app.alerts.alerts_ops.notify_new_listing): no client, admin
+    // sessions included, may ever write one of these three collections
+    // directly. Same exact shape as arenaLedger above.
+    match /areaAlerts/{alertId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('alerts.review')));
+      allow write: if false;
+    }
+
+    // One doc per (alert, listing) match -- denormalized public-safe
+    // listing fields only (type/city/price/cover photo/publicLat/
+    // publicLng), never a precise coordinate or owner/buyer data.
+    match /areaAlertMatches/{matchId} {
+      allow read: if isSignedIn()
+                  && (resource.data.uid == request.auth.uid
+                      || (isAdmin() && hasPermission('alerts.review')));
+      allow write: if false;
+    }
+
+    // The first real notification inbox in this codebase (previously
+    // only a facade over `submissions` -- see js/notification-bell.js).
+    // Owner-read only, no admin exception: an admin's own legitimate
+    // support access to alerts/matches never needs to read what someone
+    // else's bell shows them.
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
     // Buyer/deal CRM -- the real business engine (commission revenue),
     // so this is deliberately STRICTER than arenaSubmissions: the
     // participant may read their own deal's coarse stage (to know "what

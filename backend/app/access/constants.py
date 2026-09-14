@@ -210,6 +210,13 @@ KNOWN_PERMISSIONS: frozenset[str] = frozenset(
         # config, rank thresholds and manual point adjustments.
         "arena.review",
         "arena.manage",
+        # Property Watch / Area Alerts -- read-only visibility into the
+        # aggregate admin summary (active alerts, matches this week, by
+        # city). There is deliberately no manage-level counterpart key:
+        # nothing here lets an admin browse or edit another user's saved
+        # alert, only see aggregate counts -- see
+        # app.alerts.alerts_ops.admin_summary.
+        "alerts.review",
     }
 )
 

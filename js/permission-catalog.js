@@ -113,6 +113,11 @@ export const PERMISSION_GROUPS = [
   { key: 'arena', labelKey: 'admin.rd.groupArena', fallback: 'Darwesh Arena', permissions: [
     { key: 'arena.review', rules: true },
     { key: 'arena.manage', rules: true }
+  ] },
+  // Property Watch / Area Alerts. Read-only aggregate visibility only --
+  // no key here lets an admin browse or edit another user's saved alert.
+  { key: 'alerts', labelKey: 'admin.rd.groupAlerts', fallback: 'Property Watch / Area Alerts', permissions: [
+    { key: 'alerts.review', rules: true }
   ] }
 ];
 

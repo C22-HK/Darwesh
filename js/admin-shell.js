@@ -61,6 +61,9 @@
     { key: 'arena', labelKey: 'admin.nav.groupArena', labelText: 'Darwesh Arena', items: [
       { tab: 'arena', icon: 'military_tech', labelKey: 'admin.nav.arena', labelText: 'Challenges & Rewards' }
     ] },
+    { key: 'alerts', labelKey: 'admin.nav.groupAlerts', labelText: 'Property Watch', items: [
+      { tab: 'alerts', icon: 'notifications_active', labelKey: 'admin.nav.alerts', labelText: 'Area Alerts', requires: ['alerts.review'] }
+    ] },
     { key: 'finance', labelKey: 'admin.nav.groupFinance', labelText: 'Finance & Reports', items: [
       { tab: 'financial', icon: 'payments', labelKey: 'admin.nav.financial', labelText: 'Financial Management', soon: true },
       { tab: 'reports', icon: 'monitoring', labelKey: 'admin.nav.reports', labelText: 'Reports', soon: true }
