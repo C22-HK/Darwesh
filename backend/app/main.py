@@ -25,12 +25,12 @@ from app.access.professional_ops import ProfessionalOps
 from app.alerts.alerts_ops import AlertsOps
 from app.alerts.handlers import AlertsAdminHandler, AlertsPublicHandler
 from app.arena.arena_ops import ArenaOps
-from app.brokerage.brokerage_ops import BrokerageOps
-from app.brokerage.handlers import BrokerageAdminHandler
 from app.arena.handlers import ArenaAdminHandler, ArenaPublicHandler
 from app.auth.firebase_reset import FirebaseResetLinkGenerator
 from app.auth.resend_email import ResendEmailSender
 from app.auth.reset import FirestoreRateLimiter, Handler, InMemoryRateLimiter
+from app.brokerage.brokerage_ops import BrokerageOps
+from app.brokerage.handlers import BrokerageAdminHandler
 from app.config import Config, load
 from app.mam.firebase_clients import MamFirebaseClients
 from app.mam.orchestrator import Orchestrator

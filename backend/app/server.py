@@ -483,12 +483,8 @@ def create_app(
         app.add_api_route("/api/v1/alerts/admin/summary", alerts_admin_handler.summary, methods=["GET"])
 
     if brokerage_admin_handler is not None:
-        app.add_api_route(
-            "/api/v1/brokerage/accounts", brokerage_admin_handler.list_accounts, methods=["GET"]
-        )
-        app.add_api_route(
-            "/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.get_account, methods=["GET"]
-        )
+        app.add_api_route("/api/v1/brokerage/accounts", brokerage_admin_handler.list_accounts, methods=["GET"])
+        app.add_api_route("/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.get_account, methods=["GET"])
         app.add_api_route(
             "/api/v1/brokerage/accounts/{uid}", brokerage_admin_handler.set_discount, methods=["PATCH"]
         )
@@ -496,9 +492,7 @@ def create_app(
             "/api/v1/brokerage/accounts/bulk", brokerage_admin_handler.bulk_set_discount, methods=["POST"]
         )
         app.add_api_route("/api/v1/brokerage/history", brokerage_admin_handler.list_history, methods=["GET"])
-        app.add_api_route(
-            "/api/v1/brokerage/compute-fee", brokerage_admin_handler.compute_fee, methods=["POST"]
-        )
+        app.add_api_route("/api/v1/brokerage/compute-fee", brokerage_admin_handler.compute_fee, methods=["POST"])
 
     return app
 

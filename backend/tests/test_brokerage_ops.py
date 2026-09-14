@@ -43,7 +43,9 @@ def _uid(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:10]}"
 
 
-def _seed_user(db, uid: str, *, role: str = "customer", account_type: str = "individual_customer", **overrides) -> None:
+def _seed_user(
+    db, uid: str, *, role: str = "customer", account_type: str = "individual_customer", **overrides
+) -> None:
     doc = {"role": role, "accountType": account_type, "displayName": f"Test {uid}", "city": "Erbil"}
     doc.update(overrides)
     db.collection("users").document(uid).set(doc)
@@ -118,7 +120,9 @@ async def test_set_discount_rejects_admin_target(db, ops):
 async def test_set_discount_and_get_roundtrip(db, ops):
     target = _uid("owner")
     _seed_user(db, target)
-    result = await ops.set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=30, reason="loyal customer")
+    result = await ops.set_discount(
+        admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=30, reason="loyal customer"
+    )
     assert result == {"uid": target, "discountPercent": 30, "discountActive": True}
 
     account = await ops.get_account_discount(uid=target)
@@ -146,7 +150,9 @@ async def test_disable_preserves_percent_and_enable_restores_it_exactly(db, ops)
     _seed_user(db, target)
     await ops.set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=30)
 
-    disabled = await ops.disable_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, reason="fraud review")
+    disabled = await ops.disable_discount(
+        admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, reason="fraud review"
+    )
     assert disabled["discountPercent"] == 30
     assert disabled["discountActive"] is False
     account = await ops.get_account_discount(uid=target)
@@ -175,7 +181,9 @@ async def test_remove_discount_sets_explicit_zero_and_inactive(db, ops):
     target = _uid("owner")
     _seed_user(db, target)
     await ops.set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=20)
-    removed = await ops.remove_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, reason="no longer eligible")
+    removed = await ops.remove_discount(
+        admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, reason="no longer eligible"
+    )
     assert removed == {"uid": target, "discountPercent": 0, "discountActive": False}
     account = await ops.get_account_discount(uid=target)
     assert account["discountPercent"] == 0
@@ -208,7 +216,9 @@ async def test_bulk_set_discount_rejects_empty_or_oversized_list(ops):
     with pytest.raises(ValidationError):
         await ops.bulk_set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uids=[], percent=10)
     with pytest.raises(ValidationError):
-        await ops.bulk_set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uids=[_uid("x") for _ in range(101)], percent=10)
+        await ops.bulk_set_discount(
+            admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uids=[_uid("x") for _ in range(101)], percent=10
+        )
 
 
 # ---- brokerageDiscountHistory: correct previous/new values ------------------
@@ -217,8 +227,12 @@ async def test_bulk_set_discount_rejects_empty_or_oversized_list(ops):
 async def test_history_entries_carry_correct_previous_and_new_values(db, ops):
     target = _uid("owner")
     _seed_user(db, target)
-    await ops.set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=10, reason="first set")
-    await ops.set_discount(admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=25, reason="bumped up")
+    await ops.set_discount(
+        admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=10, reason="first set"
+    )
+    await ops.set_discount(
+        admin_uid=ADMIN_UID, admin_role=ADMIN_ROLE, target_uid=target, percent=25, reason="bumped up"
+    )
 
     rows = await ops.list_history(uid=target)
     assert len(rows) == 2

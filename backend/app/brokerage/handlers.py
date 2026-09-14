@@ -134,15 +134,24 @@ class BrokerageAdminHandler:
         try:
             if op == "disable":
                 result = await self.ops.disable_discount(
-                    admin_uid=caller.uid, admin_role=caller.role or "admin", target_uid=uid, reason=body.get("reason")
+                    admin_uid=caller.uid,
+                    admin_role=caller.role or "admin",
+                    target_uid=uid,
+                    reason=body.get("reason"),
                 )
             elif op == "enable":
                 result = await self.ops.enable_discount(
-                    admin_uid=caller.uid, admin_role=caller.role or "admin", target_uid=uid, reason=body.get("reason")
+                    admin_uid=caller.uid,
+                    admin_role=caller.role or "admin",
+                    target_uid=uid,
+                    reason=body.get("reason"),
                 )
             elif op == "remove":
                 result = await self.ops.remove_discount(
-                    admin_uid=caller.uid, admin_role=caller.role or "admin", target_uid=uid, reason=body.get("reason")
+                    admin_uid=caller.uid,
+                    admin_role=caller.role or "admin",
+                    target_uid=uid,
+                    reason=body.get("reason"),
                 )
             else:
                 result = await self.ops.set_discount(

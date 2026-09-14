@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 from firebase_admin import firestore as fb_firestore
 
@@ -64,8 +64,11 @@ def _jsonable(data: dict) -> dict:
 
 
 def _private_ref(db, uid: str):
-    return db.collection(_USERS_COLLECTION).document(uid).collection(_PRIVATE_PROFILE_SUBCOLLECTION).document(
-        _PRIVATE_PROFILE_DOC
+    return (
+        db.collection(_USERS_COLLECTION)
+        .document(uid)
+        .collection(_PRIVATE_PROFILE_SUBCOLLECTION)
+        .document(_PRIVATE_PROFILE_DOC)
     )
 
 
@@ -151,7 +154,8 @@ class BrokerageOps:
             side_snaps = list(self._db.get_all(private_refs + verification_refs)) if uids else []
             n = len(uids)
             private_by_uid = {
-                uid: ((side_snaps[i].to_dict() or {}) if side_snaps[i].exists else {}) for i, uid in enumerate(uids)
+                uid: ((side_snaps[i].to_dict() or {}) if side_snaps[i].exists else {})
+                for i, uid in enumerate(uids)
             }
             verification_by_uid = {
                 uid: ((side_snaps[n + i].to_dict() or {}) if side_snaps[n + i].exists else {})
@@ -322,7 +326,11 @@ class BrokerageOps:
         transaction as the flip (not a separate read-then-write pair), so
         a concurrent admin edit can never be silently clobbered."""
         return await self._flip_active(
-            admin_uid=admin_uid, admin_role=admin_role, target_uid=target_uid, active=False, reason=reason,
+            admin_uid=admin_uid,
+            admin_role=admin_role,
+            target_uid=target_uid,
+            active=False,
+            reason=reason,
             action="disable",
         )
 
@@ -330,7 +338,11 @@ class BrokerageOps:
         self, *, admin_uid: str, admin_role: str, target_uid: str, reason: object = None
     ) -> dict:
         return await self._flip_active(
-            admin_uid=admin_uid, admin_role=admin_role, target_uid=target_uid, active=True, reason=reason,
+            admin_uid=admin_uid,
+            admin_role=admin_role,
+            target_uid=target_uid,
+            active=True,
+            reason=reason,
             action="enable",
         )
 
@@ -492,6 +504,7 @@ class BrokerageOps:
         }
 
         if record:
+
             def _write() -> str:
                 ref = self._db.collection(model.BROKERAGE_FEE_SNAPSHOTS).document()
                 ref.set(
