@@ -253,11 +253,12 @@ async function run() {
     }
 
     if (vp === 390) {
-      // Mobile List/Map mode switching -- #viewToggle flips between the
-      // two full-screen panes (see map.html's mobileView state).
+      // Mobile List/Map mode switching -- #mobileViewSwitch's two segments
+      // flip between the two full-screen panes (see map.html's mobileView
+      // state / setMobileView()).
       const initialMode = await page.evaluate(() => document.getElementById('mapPanel').classList.contains('hidden') ? 'list' : 'map');
       await shot(page, `map-mobile-${initialMode}-${lang}`, false);
-      await page.click('#viewToggle');
+      await page.click(initialMode === 'map' ? '#mobileViewListBtn' : '#mobileViewMapBtn');
       await page.waitForTimeout(300);
       const otherMode = await page.evaluate(() => document.getElementById('mapPanel').classList.contains('hidden') ? 'list' : 'map');
       check(`${label}: mobile List/Map toggle actually switches panes`, otherMode !== initialMode, `${initialMode} -> ${otherMode}`);
