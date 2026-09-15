@@ -738,6 +738,17 @@ violation reporting. -->
     }
     .map-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
     @media (min-width: 768px) { .map-toast { bottom: 1.5rem; } }
+    /* Optional action link inside a toast (see showToast's actionHtml param)
+       -- pointer-events:auto overrides the toast's own pointer-events:none
+       just for this element, so plain-text toasts stay click-through while
+       a toast that offers a real next step (e.g. "View" after Save as
+       Alert) is actually clickable. P0 fix: an alert save used to leave the
+       user at a dead-end toast with no path back to manage it. */
+    .map-toast-action {
+      pointer-events: auto; color: #D9C39A; font-weight: 700;
+      text-decoration: underline; text-underline-offset: 2px; margin-inline-start: 2px;
+    }
+    .map-toast-action:hover { color: #F0E4C8; }
 
     /* ---- MAM -------------------------------------------------------------
      * There is no floating MAM surface on this page any more -- the
@@ -871,22 +882,22 @@ violation reporting. -->
        just a thin champagne edge on Apply (the one actionable primary in
        each sub-section) and the same glass depth/motion as the rest of
        Map Tools, so the panel reads as one system with the toolbar. */
-    #priceApplyBtn, #homeTypeApplyBtn {
+    #priceApplyBtn {
       background: linear-gradient(180deg, rgba(16,18,24,.92), rgba(10,11,15,.96));
       border: 1px solid rgba(224,190,130,.26);
       box-shadow: 0 2px 8px -4px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06), 0 0 10px -6px rgba(224,190,130,.22);
       transition: background-color 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms cubic-bezier(.2,.8,.2,1);
     }
-    #priceApplyBtn:hover, #homeTypeApplyBtn:hover { border-color: rgba(224,190,130,.4); transform: translateY(-1px); box-shadow: 0 4px 12px -4px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08), 0 0 14px -6px rgba(224,190,130,.32); }
-    #priceApplyBtn:active, #homeTypeApplyBtn:active { transform: translateY(1px) scale(.985); }
+    #priceApplyBtn:hover { border-color: rgba(224,190,130,.4); transform: translateY(-1px); box-shadow: 0 4px 12px -4px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08), 0 0 14px -6px rgba(224,190,130,.32); }
+    #priceApplyBtn:active { transform: translateY(1px) scale(.985); }
     #priceClearBtn, #bedsClearBtn, #homeTypeClearBtn {
       transition: background-color 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1);
     }
     #priceClearBtn:hover, #bedsClearBtn:hover, #homeTypeClearBtn:hover { transform: translateY(-1px); }
     #priceClearBtn:active, #bedsClearBtn:active, #homeTypeClearBtn:active { transform: translateY(1px) scale(.985); }
     @media (prefers-reduced-motion: reduce) {
-      #priceApplyBtn, #homeTypeApplyBtn, #priceClearBtn, #bedsClearBtn, #homeTypeClearBtn { transition: background-color 1ms linear; }
-      #priceApplyBtn:hover, #homeTypeApplyBtn:hover, #priceApplyBtn:active, #homeTypeApplyBtn:active,
+      #priceApplyBtn, #priceClearBtn, #bedsClearBtn, #homeTypeClearBtn { transition: background-color 1ms linear; }
+      #priceApplyBtn:hover, #priceApplyBtn:active,
       #priceClearBtn:hover, #bedsClearBtn:hover, #homeTypeClearBtn:hover,
       #priceClearBtn:active, #bedsClearBtn:active, #homeTypeClearBtn:active { transform: none; }
     }
@@ -908,10 +919,10 @@ violation reporting. -->
        ".cine-scope .drawer-group" rule above is itself two class-selectors
        and would otherwise win on specificity regardless of source order. */
     .cine-scope .drawer-group.area-alert-card {
-      background: linear-gradient(160deg, rgba(198,154,75,0.13), rgba(198,154,75,0.03));
-      border-color: rgba(198,154,75,0.30);
+      background: linear-gradient(160deg, rgba(224,190,130,0.13), rgba(224,190,130,0.03));
+      border-color: rgba(224,190,130,0.30);
     }
-    .area-alert-title { color: #D8B665; }
+    .area-alert-title { color: #D9C39A; }
     .area-alert-status {
       margin: 0 0 2px;
       font-family: 'Inter', sans-serif;
@@ -923,19 +934,32 @@ violation reporting. -->
       display: flex; align-items: center; justify-content: center; gap: 8px;
       width: 100%; min-height: 42px; padding: 10px 14px; border-radius: 11px;
       font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
-      cursor: pointer; transition: background 150ms ease, border-color 150ms ease, filter 150ms ease, opacity 150ms ease;
+      cursor: pointer; transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, opacity 150ms ease;
     }
+    /* Reuses the exact champagne-glass token values already defined for the
+       toolbar's #selectAreaBtn (map.html, .select-area-btn rules) -- this
+       button is that same state, just mirrored inside the drawer, so it
+       should never carry a different recipe. Was previously a solid
+       gold-fill-with-dark-text pill (the "harsh gold" pattern already
+       replaced everywhere else in this file); P0 fix removes that drift. */
     .area-alert-btn-primary {
-      border: none;
-      background: linear-gradient(180deg, #D8B665, #C69A4B);
-      color: #0B0E12;
+      border: 1px solid rgba(180,195,215,.11);
+      background-image: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015));
+      background-color: rgba(20,24,34,.55);
+      color: #F4EFE7;
     }
-    .area-alert-btn-primary:hover { filter: brightness(1.06); }
-    .area-alert-btn-primary.active { background: linear-gradient(180deg, #E4C77E, #D8B665); }
+    .area-alert-btn-primary:hover { border-color: rgba(180,195,215,.2); }
+    .area-alert-btn-primary.active {
+      border-color: rgba(224,190,130,.48);
+      color: #F0E4C8;
+      background-color: rgba(224,190,130,.18);
+      background-image: linear-gradient(180deg, rgba(255,255,255,.1), rgba(255,255,255,.02));
+    }
     .area-alert-btn-primary.select-area-set {
-      background: rgba(198,154,75,0.16);
-      color: #D8B665;
-      border: 1px solid rgba(198,154,75,0.45);
+      border-color: rgba(224,190,130,.36);
+      color: #E4D6B0;
+      background-color: rgba(224,190,130,.1);
+      background-image: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.015));
     }
     .area-alert-btn-secondary {
       border: 1px solid rgba(255,255,255,0.14);
@@ -950,7 +974,7 @@ violation reporting. -->
       color: #B7AF9E; text-decoration: none; padding: 4px; margin-top: -2px;
       transition: color 150ms ease;
     }
-    .area-alert-my-link:hover { color: #D8B665; }
+    .area-alert-my-link:hover { color: #D9C39A; }
   </style>
 </head>
 <body class="cine-scope bg-background text-on-surface font-body-md antialiased overflow-x-hidden pt-[76px] pb-24 md:pb-0">
@@ -1074,7 +1098,7 @@ violation reporting. -->
      -- enabled once a draw-circle area or a city is set (see
      updateSaveAlertButton()). Opens #saveAlertModal rather than writing
      immediately -- the alert needs a name and a notify-mode choice. -->
-<button id="saveAlertBtn" type="button" disabled class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint">
+<button id="saveAlertBtn" type="button" disabled class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint" aria-expanded="false" aria-controls="saveAlertModal">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
 <span data-i18n="alerts.saveButton">Save as Alert</span>
 </button>
@@ -1218,8 +1242,7 @@ violation reporting. -->
 <label class="hometype-card"><input type="checkbox" class="home-type-check" value="shop"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 20v-6h6v6"/></svg></span><span data-i18n="map.shop">Shop</span></label>
 <label class="hometype-card"><input type="checkbox" class="home-type-check" value="commercialProperty"/><span class="hometype-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M9.8 10a2.3 2.3 0 0 1 2.2-1.3c1.3 0 2.3.6 2.3 1.5s-1 1.3-2.3 1.3-2.3.5-2.3 1.5 1 1.5 2.3 1.5a2.3 2.3 0 0 0 2.2-1.3"/></svg></span><span data-i18n="map.commercialProperty">Commercial</span></label>
 </div>
-<div class="flex gap-2">
-<button id="homeTypeApplyBtn" type="button" class="flex-1 bg-primary text-on-primary rounded-full py-2 font-label-caps text-label-caps hover:bg-primary-container transition-colors" data-i18n="map.apply">Apply</button>
+<div class="flex justify-end mt-2">
 <button id="homeTypeClearBtn" type="button" class="px-3 border border-outline-variant rounded-full font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" data-i18n="common.clear">Clear</button>
 </div>
 </div>
@@ -1284,7 +1307,7 @@ violation reporting. -->
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
 <span data-i18n="map.clearSearchArea">Clear area</span>
 </button>
-<button id="drawerSaveAlertBtn" type="button" disabled="" class="area-alert-btn-secondary">
+<button id="drawerSaveAlertBtn" type="button" disabled="" class="area-alert-btn-secondary" aria-expanded="false" aria-controls="saveAlertModal">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
 <span data-i18n="alerts.saveButton">Save as Alert</span>
 </button>
@@ -2114,6 +2137,11 @@ function openSaveAlertModal() {
   saveAlertModalReturnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   modal.classList.remove('hidden');
   modal.classList.add('flex');
+  // P0 fix: both triggers (toolbar + drawer mirror) already carry
+  // aria-controls="saveAlertModal"; aria-expanded now tracks real state on
+  // both, matching the pattern already used for the map-tools edge handle.
+  document.getElementById('saveAlertBtn')?.setAttribute('aria-expanded', 'true');
+  document.getElementById('drawerSaveAlertBtn')?.setAttribute('aria-expanded', 'true');
   document.getElementById('saveAlertNameInput').focus();
 }
 
@@ -2122,6 +2150,8 @@ function closeSaveAlertModal() {
   if (modal.classList.contains('hidden')) return;
   modal.classList.add('hidden');
   modal.classList.remove('flex');
+  document.getElementById('saveAlertBtn')?.setAttribute('aria-expanded', 'false');
+  document.getElementById('drawerSaveAlertBtn')?.setAttribute('aria-expanded', 'false');
   const returnEl = saveAlertModalReturnFocusEl;
   saveAlertModalReturnFocusEl = null;
   // Only re-focus an element that's still actually there and focusable --
@@ -2173,7 +2203,16 @@ async function confirmSaveAlert() {
   try {
     await createAreaAlert(favAuth.currentUser, { name, area, filters: currentAlertFilters(), notifyMode });
     closeSaveAlertModal();
-    showToast(tr('alerts.saveModal.saved', 'Alert saved — we\'ll notify you about new matches'), 'check_circle');
+    // P0 fix: this used to be a dead-end toast with no path back to the
+    // alert just created. "View" links straight to account.html's Alerts
+    // tab, same destination as the drawer's own "My Alerts" link.
+    const viewAlertsLabel = tr('alerts.saveModal.viewAlerts', 'View');
+    showToast(
+      tr('alerts.saveModal.saved', 'Alert saved — we\'ll notify you about new matches'),
+      'check_circle',
+      `<a href="account.html?tab=alerts" class="map-toast-action">${viewAlertsLabel}</a>`,
+      5000
+    );
   } catch (err) {
     errEl.textContent = localizeBackendError(err, tr, 'alerts.saveModal.error', 'Could not save this alert — please try again.');
     errEl.classList.remove('hidden');
@@ -2267,12 +2306,18 @@ function renderAlertMatchPins(matches, user, markViewed) {
   if (!anyPlotted) showToast(tr('alerts.matchView.empty', 'No matches yet for this alert'), 'search_off');
 }
 
-function showToast(msg, icon) {
+// actionHtml/durationMs are optional -- every existing call site omits both
+// and keeps the old plain-text, click-through, 2.6s-auto-dismiss behavior
+// unchanged. actionHtml is only ever built from this file's own tr()
+// output plus a literal href (see confirmSaveAlert's "View" action), never
+// from user input, matching how msg/icon are already trusted call-site
+// values here.
+function showToast(msg, icon, actionHtml, durationMs) {
   const el = document.getElementById('mapToast');
-  el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>`;
+  el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>${actionHtml || ''}`;
   el.classList.add('show');
   clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => el.classList.remove('show'), 2600);
+  showToast._t = setTimeout(() => el.classList.remove('show'), durationMs || 2600);
 }
 
 let activeType = "sale";
@@ -2304,7 +2349,12 @@ let priceCurrency = 'USD';
 // tiles do, so it must never be allowed to exceed this ceiling.
 const MAX_MAP_ZOOM = 15;
 const map = L.map('map', { zoomControl: false, maxZoom: MAX_MAP_ZOOM }).setView([36.35, 44.3], 8);
-L.control.zoom({ position: 'bottomright' }).addTo(map);
+// Leaflet has no built-in RTL awareness -- left unconditional, this control
+// stays physically bottom-right even under Kurdish/Arabic, splitting from
+// the map-tools edge handle (which correctly flips to the left in RTL) into
+// two opposite corners. P0 fix: mirror the corner with the page direction
+// so both sit on the same physical side, in both directions.
+L.control.zoom({ position: document.documentElement.dir === 'rtl' ? 'bottomleft' : 'bottomright' }).addTo(map);
 
 // ---------------------------------------------------------------------
 // Map type (Roadmap/Satellite/Hybrid) -- Roadmap is the existing OSM
@@ -3413,20 +3463,26 @@ document.getElementById('bedsClearBtn').addEventListener('click', () => {
   refresh();
 });
 
-document.getElementById('homeTypeApplyBtn').addEventListener('click', () => {
-  selectedHomeTypes = new Set(
-    Array.from(document.querySelectorAll('.home-type-check:checked')).map(cb => cb.value)
-  );
-  document.getElementById('homeTypeFilterBtn')?.classList.toggle('active', selectedHomeTypes.size > 0);
-  closeAllFilterMenus();
-  updateUrlState(true);
-  refresh();
+// Home Type now commits instantly on click, same as Beds & Baths above --
+// P0 fix for the apply-behavior inconsistency flagged in the Property Map
+// audit (a bed-chip click refiltered immediately while a home-type click
+// silently did nothing until a separate Apply press). No separate Apply
+// button exists in the markup anymore; only Clear remains, mirroring
+// bedsClearBtn's pattern exactly.
+document.querySelectorAll('.home-type-check').forEach((cb) => {
+  cb.addEventListener('change', () => {
+    selectedHomeTypes = new Set(
+      Array.from(document.querySelectorAll('.home-type-check:checked')).map(c => c.value)
+    );
+    document.getElementById('homeTypeFilterBtn')?.classList.toggle('active', selectedHomeTypes.size > 0);
+    updateUrlState(true);
+    refresh();
+  });
 });
 document.getElementById('homeTypeClearBtn').addEventListener('click', () => {
   selectedHomeTypes = new Set();
   document.querySelectorAll('.home-type-check').forEach(cb => { cb.checked = false; });
   document.getElementById('homeTypeFilterBtn')?.classList.remove('active');
-  closeAllFilterMenus();
   updateUrlState(true);
   refresh();
 });
