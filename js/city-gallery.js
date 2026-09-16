@@ -116,9 +116,25 @@
   // The one write. Everything spatial is derived in CSS from --o, so this
   // touches a few properties per plane and nothing else -- no layout reads,
   // no geometry maths in JS.
+  //
+  // --o is the CIRCULAR signed offset from focus, wrapped into the shortest
+  // arc (e.g. with 8 cities, at focus=0 city 7's raw offset is +7, but its
+  // circular offset is -1 -- it IS the previous city, not seven cities
+  // away). Without this, index 0's previous and the last index's next had
+  // no neighbour to show at all (bug: "only 2 cards visible" at the
+  // boundaries) -- go() below wraps focus itself the same way, so clicking
+  // prev/next always has somewhere real to land.
+  function circularOffset(i, focus, n) {
+    let o = i - focus;
+    if (o > n / 2) o -= n;
+    else if (o < -n / 2) o += n;
+    return o;
+  }
+
   function paint() {
+    const n = CITIES.length;
     for (let i = 0; i < planes.length; i++) {
-      const o = i - focus;
+      const o = circularOffset(i, focus, n);
       const near = Math.abs(o) <= 1;
       planes[i].style.setProperty('--o', String(o));
       planes[i].setAttribute('data-focus', o === 0 ? '1' : '0');
@@ -147,7 +163,13 @@
   // scrolling the container again there would fight the gesture still
   // settling under the user's finger.
   function go(next, opts) {
-    focus = Math.max(0, Math.min(CITIES.length - 1, next));
+    // Wraps circularly (08 -> 01 going next, 01 -> 08 going previous)
+    // instead of clamping dead at the ends -- matches paint()'s own
+    // circularOffset() above, so prev/next always has a real neighbour to
+    // land on. The double-modulo handles a negative `next` correctly (JS's
+    // % can return a negative remainder).
+    const n = CITIES.length;
+    focus = ((next % n) + n) % n;
     paint();
     if (isMobileCarousel() && (!opts || !opts.fromScroll)) {
       planes[focus].scrollIntoView({

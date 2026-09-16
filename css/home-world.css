@@ -1126,16 +1126,26 @@ body.world .w-city-copy .w-body { font-size: clamp(0.9375rem, 1vw, 1rem); }
   body.world .w-gallery { justify-content: center; }
 }
 
+/* BUG FIX (not a redesign): flex-start anchored the active card (--o:0,
+   translateX 0) to this container's own left edge, leaving zero room for
+   the previous neighbour (negative --o, translateX negative) to peek --
+   it always cascaded straight off the container's left boundary, fully
+   hidden, at every index (not just index 0 -- confirmed live). Centering
+   gives both the previous and next neighbour's translateX equal room
+   inside this SAME container -- card width/height, step distance, scale,
+   opacity, section spacing and the copy column are all untouched, so
+   "previous + active + next" now shows the way the design already
+   intended once neither side is starved of room. */
 body.world .w-gallery {
   position: relative;
   min-height: clamp(430px, 30vw, 470px);
-  display: flex; align-items: center; justify-content: flex-start;
+  display: flex; align-items: center; justify-content: center;
   touch-action: pan-y;
 }
 body.world .w-wall {
   position: relative;
   width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: flex-start;
+  display: flex; align-items: center; justify-content: center;
 }
 body.world .w-plane {
   position: absolute;
@@ -1286,6 +1296,21 @@ body.world .w-gallery-fill {
    polish -- no min-height/100vh anywhere in this section, so this padding
    plus the cards' own height is the section's entire vertical footprint. */
 body.world .mv.w-city-section { padding-block: clamp(3.75rem, 5vw, 4.5rem); }
+/* BUG FIX (not a spacing change): the shared .mv negative-margin overlap
+   system (section 2 above, margin-block-start: calc(var(--w-air-m) * -1.4))
+   assumes a section's own padding-block absorbs that pull-up so only AIR
+   overlaps the next section, never content. This section's padding-block is
+   intentionally shorter than the shared default (comment above), so the
+   next .mv genuinely overlaps ~49px into this section's own box in normal
+   layout -- verified live via getBoundingClientRect(). Being the later DOM
+   sibling, it was painting over this section's Next/Prev arrows, silently
+   eating real pointer clicks (the focus/counter logic itself was always
+   correct -- programmatic .click() proved that). Giving this section a
+   z-index (its .mv parent rule already sets position:relative) is a
+   stacking-order-only fix: no padding, margin, size or position value
+   changes, so nothing moves on screen -- it only decides which layer wins
+   the pre-existing overlap band. */
+body.world .mv.w-city-section { z-index: 2; }
 
 /* =========================================================================
  * 10. PROPERTIES, SERVICES, OFFER, DEPARTURE
