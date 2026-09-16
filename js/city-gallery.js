@@ -34,7 +34,7 @@
   // The city set is unchanged. Destination updated: a city plane now opens
   // projects.html?city=X (that city's Projects listing) instead of
   // buy.html's raw apartment search -- everything else about this section
-  // (photos, carousel mechanics, arrows/dots/transitions/mobile behavior)
+  // (photos, carousel mechanics, arrows/counter/transitions/mobile behavior)
   // is untouched. Kirkuk leads (and is the default focused/active card)
   // per the approved brief; the rest keep their previous relative order.
   // Root-relative (`/images/...`), not `images/...`: a url() inside a CSS
@@ -55,6 +55,7 @@
 
   const tr = (k, fallback) => (window.t && window.t(k)) || fallback;
   const esc = (s) => (window.escapeHtml ? window.escapeHtml(s) : String(s));
+  const pad2 = (n) => String(n).padStart(2, '0');
 
   let focus = 0;
 
@@ -84,47 +85,105 @@
       '<button type="button" class="w-icon-btn" data-city-prev aria-label="' + esc(tr('common.previous', 'Previous')) + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>' +
       '</button>' +
-      '<span class="w-gallery-dots" role="tablist" aria-label="' + esc(tr('index.browseByCityTitle', 'Cities')) + '">' +
-        CITIES.map((c, i) =>
-          '<button type="button" class="w-dot" role="tab" data-city-dot="' + i + '"' +
-          ' aria-label="' + esc(c.key) + '" aria-current="' + (i === 0 ? 'true' : 'false') + '"></button>').join('') +
-      '</span>' +
+      // Replaces the old row of one-dot-per-city (busy at 8 cities) with a
+      // compact "01 / 08" counter over a thin progress line -- still says
+      // exactly where you are and how many cities there are, without
+      // rendering eight small targets side by side.
+      '<div class="w-gallery-progress">' +
+        '<span class="w-gallery-count" aria-live="polite">' +
+          '<span data-city-current>01</span><span class="w-gallery-count-sep">/</span><span data-city-total>' + pad2(CITIES.length) + '</span>' +
+        '</span>' +
+        '<span class="w-gallery-track" aria-hidden="true"><span class="w-gallery-fill" data-city-fill></span></span>' +
+      '</div>' +
       '<button type="button" class="w-icon-btn" data-city-next aria-label="' + esc(tr('common.next', 'Next')) + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>' +
       '</button>' +
     '</div>';
 
   const planes = Array.prototype.slice.call(mount.querySelectorAll('.w-plane'));
-  const dots = Array.prototype.slice.call(mount.querySelectorAll('.w-dot'));
+  const currentEl = mount.querySelector('[data-city-current]');
+  const fillEl = mount.querySelector('[data-city-fill]');
+  // #cityWall is the OUTER '.w-gallery' div (id kept for backward
+  // compatibility with this variable name) -- on the desktop cascade it is
+  // just the positioning context; on the mobile breakpoint
+  // (css/home-world.css) it becomes the real horizontally-scrolling element,
+  // so it is also what a native swipe/scrollIntoView acts on there.
   const wall = mount.querySelector('#cityWall');
 
+  const isMobileCarousel = () => window.matchMedia('(max-width: 767px)').matches;
+  const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   // The one write. Everything spatial is derived in CSS from --o, so this
-  // touches two properties per plane and nothing else -- no layout reads,
+  // touches a few properties per plane and nothing else -- no layout reads,
   // no geometry maths in JS.
   function paint() {
     for (let i = 0; i < planes.length; i++) {
       const o = i - focus;
+      const near = Math.abs(o) <= 1;
       planes[i].style.setProperty('--o', String(o));
       planes[i].setAttribute('data-focus', o === 0 ? '1' : '0');
-      // Only the focused plane is in the tab order: a wall of eight links
-      // behind each other is a keyboard trap, and the arrows/dots are the
-      // real navigation.
-      planes[i].tabIndex = o === 0 ? 0 : -1;
-      planes[i].setAttribute('aria-hidden', Math.abs(o) > 2 ? 'true' : 'false');
+      // Desktop cascade shows only the focused card and one neighbour on
+      // each side -- css/home-world.css's [data-near="0"] rule hides
+      // everything past that entirely (not just dims it), so ARIA mirrors
+      // the same cutoff rather than the old "hidden past two steps" one.
+      // The mobile carousel ignores data-near (every card is real, reachable
+      // by scroll) so this only matters on the desktop cascade.
+      planes[i].setAttribute('data-near', near ? '1' : '0');
+      // Desktop cascade: only the focused plane is in the tab order, since a
+      // wall of hidden links behind each other is a keyboard trap and the
+      // arrows/dots are the real navigation there. Mobile carousel: every
+      // card is a normal, reachable tab stop -- the browser's own
+      // scroll-into-view-on-focus is exactly the right behaviour for a real
+      // horizontal scroller.
+      planes[i].tabIndex = isMobileCarousel() ? 0 : (o === 0 ? 0 : -1);
+      planes[i].setAttribute('aria-hidden', (!isMobileCarousel() && !near) ? 'true' : 'false');
     }
-    for (let i = 0; i < dots.length; i++) {
-      dots[i].setAttribute('aria-current', i === focus ? 'true' : 'false');
+    if (currentEl) currentEl.textContent = pad2(focus + 1);
+    if (fillEl) fillEl.style.width = ((focus / Math.max(1, CITIES.length - 1)) * 100) + '%';
+  }
+
+  // opts.fromScroll: true when this call is only syncing state to a scroll
+  // the user already performed (see the mobile scroll listener below) --
+  // scrolling the container again there would fight the gesture still
+  // settling under the user's finger.
+  function go(next, opts) {
+    focus = Math.max(0, Math.min(CITIES.length - 1, next));
+    paint();
+    if (isMobileCarousel() && (!opts || !opts.fromScroll)) {
+      planes[focus].scrollIntoView({
+        behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+        inline: 'center',
+        block: 'nearest'
+      });
     }
   }
 
-  function go(next) {
-    focus = Math.max(0, Math.min(CITIES.length - 1, next));
-    paint();
-  }
+  // Mobile: native scroll-snap is the primary gesture (real touch scroll,
+  // not the synthetic swipe below), so arrows/dots/keyboard need to hear
+  // back from it -- otherwise the dots and the focused-card styling would
+  // silently drift out of sync the moment someone swipes with a finger
+  // instead of tapping an arrow. Whichever plane's center sits nearest the
+  // container's center after scrolling settles becomes the new focus.
+  let scrollSyncRaf = null;
+  wall.addEventListener('scroll', () => {
+    if (!isMobileCarousel()) return;
+    if (scrollSyncRaf) cancelAnimationFrame(scrollSyncRaf);
+    scrollSyncRaf = requestAnimationFrame(() => {
+      scrollSyncRaf = null;
+      const wallRect = wall.getBoundingClientRect();
+      const wallCenter = wallRect.left + wallRect.width / 2;
+      let nearest = 0, nearestDist = Infinity;
+      planes.forEach((p, i) => {
+        const r = p.getBoundingClientRect();
+        const dist = Math.abs((r.left + r.width / 2) - wallCenter);
+        if (dist < nearestDist) { nearestDist = dist; nearest = i; }
+      });
+      if (nearest !== focus) go(nearest, { fromScroll: true });
+    });
+  }, { passive: true });
 
   mount.querySelector('[data-city-prev]').addEventListener('click', () => go(focus - 1));
   mount.querySelector('[data-city-next]').addEventListener('click', () => go(focus + 1));
-  dots.forEach((d, i) => d.addEventListener('click', () => go(i)));
 
   // Keyboard: the gallery is one control, arrow keys move along the wall.
   wall.tabIndex = 0;
@@ -137,15 +196,24 @@
     else if (e.key === 'End') { e.preventDefault(); go(CITIES.length - 1); }
   });
 
-  // Touch: a horizontal swipe moves one city. Deliberately only acts once a
-  // gesture is clearly horizontal, so vertical page scrolling is never
-  // captured -- the CSS sets touch-action: pan-y for the same reason.
+  // Touch: a horizontal swipe moves one city -- but only on the desktop/
+  // tablet cascade, where the wall itself does not scroll and this synthetic
+  // gesture is the only way a touch drag can move it. The mobile breakpoint
+  // is a real native scroll-snap container (css/home-world.css); the browser
+  // already handles that drag, and firing go() again on top of an in-flight
+  // native snap would fight it and produce a visible stutter. Deliberately
+  // only acts once a gesture is clearly horizontal, so vertical page
+  // scrolling is never captured -- the CSS sets touch-action: pan-y for the
+  // desktop/tablet cascade for the same reason (mobile's real scroller sets
+  // its own touch-action via overflow-x:auto).
   let sx = 0, sy = 0, tracking = false;
   wall.addEventListener('touchstart', (e) => {
+    if (isMobileCarousel()) return;
     if (e.touches.length !== 1) return;
     sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
   }, { passive: true });
   wall.addEventListener('touchend', (e) => {
+    if (isMobileCarousel()) return;
     if (!tracking) return;
     tracking = false;
     const t = e.changedTouches[0];

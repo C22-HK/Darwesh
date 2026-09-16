@@ -659,7 +659,15 @@ body.world .w-answer {
    not the same property as "does not behave like a shutter".
    What is left is a clip, so the gallery's own overflow stays contained on
    narrow viewports. Nothing about it is animated and no JS writes to it. */
-body.world .w-aperture { overflow: hidden; }
+/* min-width:0 undoes the grid item default (min-width:auto), which would
+   otherwise size .w-city-layout's track -- and the whole page -- to fit
+   .w-aperture's descendants' un-wrapped intrinsic content width (the classic
+   CSS Grid/flex "blowout"). Harmless on the desktop cascade (every .w-plane
+   there is position:absolute and contributes no intrinsic width at all);
+   load-bearing on the mobile carousel, where .w-plane is a real in-flow flex
+   item and this is what lets overflow-x:auto actually clip/scroll instead of
+   the grid track stretching to fit all eight cards side by side. */
+body.world .w-aperture { overflow: hidden; min-width: 0; }
 
 /* =========================================================================
  * 7. ARRIVAL
@@ -1076,16 +1084,16 @@ body.world .mv.w-intent-section { padding-block: clamp(4.5rem, 6vw, 5.5rem); }
 body.world .w-intent-heading { font-size: clamp(2.1rem, 3vw, 2.5rem); font-weight: 600; }
 
 /* =========================================================================
- * 9. CITY DISCOVERY -- layered cascade rebuild
+ * 9. CITY DISCOVERY -- compact editorial city cards
  * =========================================================================
- * Replaces the rotated-wall version (planes on a curved wall, receding in Z
- * and rotating in Y) with a flatter, brighter horizontal cascade: the
- * focused city is the largest card, pinned forward with a gold ring and the
- * strongest shadow; each step away shrinks, drops back slightly and settles
- * behind the one before it, overlapping edge-to-edge -- matching the
- * approved reference (large photographic-feeling cards, layered depth,
- * active card obviously selected) without ever tipping into a literal 3D
- * carousel.
+ * Replaces the wide, eight-deep cascade (fanning out to thin, near-invisible
+ * slivers, and a section tall enough to feel like a separate microsite) with
+ * a tighter system: one large active card plus exactly one neighbour on
+ * each side -- js/city-gallery.js's paint() writes a data-near="0|1" flag
+ * per plane (near = |offset| <= 1) and everything past that is fully
+ * hidden here, not just dim. Split composition unchanged: copy on one side,
+ * cards on the other; arrows/dots/keyboard/click and the real
+ * projects.html?city=X routes are the same existing controller, untouched.
  *
  * ON IMAGERY -- still the honest part, unchanged in substance. No file in
  * this repository is a real, licensed photograph of Kirkuk, Erbil, or any
@@ -1101,21 +1109,18 @@ body.world .w-intent-heading { font-size: clamp(2.1rem, 3vw, 2.5rem); font-weigh
  * optional first layer: the day a real, licensed per-city photograph
  * exists, dropping it into that one custom property adopts it with no
  * other redesign. ========================================================= */
-/* The wall fans out from the focused city, so with the first city focused
-   every plane sits to one side and half the frame was empty. Rather than
-   re-centring the wall (which would push the focused city off-axis), the
-   movement itself becomes asymmetric: type holds the near side, the wall
-   occupies the space it actually fans into. */
 body.world .w-city-layout {
   display: grid;
   grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
   gap: clamp(1.5rem, 3vw, 3rem);
   align-items: center;
 }
-body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
+body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.6rem; }
+body.world .w-city-copy .w-h2 { font-size: clamp(2.375rem, 3vw, 2.75rem); }
+body.world .w-city-copy .w-body { font-size: clamp(0.9375rem, 1vw, 1rem); }
 @media (max-width: 1023px) {
   body.world .w-city-layout { grid-template-columns: 1fr; }
-  body.world .w-city-copy { margin-bottom: var(--w-air-s); }
+  body.world .w-city-copy { margin-bottom: 1.25rem; }
   /* One column means the wall has no side column to fan into, so it goes
      back to fanning symmetrically from the centre. */
   body.world .w-gallery { justify-content: center; }
@@ -1123,7 +1128,7 @@ body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
 
 body.world .w-gallery {
   position: relative;
-  min-height: clamp(340px, 46vh, 480px);
+  min-height: clamp(430px, 30vw, 470px);
   display: flex; align-items: center; justify-content: flex-start;
   touch-action: pan-y;
 }
@@ -1134,34 +1139,38 @@ body.world .w-wall {
 }
 body.world .w-plane {
   position: absolute;
-  width: clamp(230px, 21vw, 320px);
-  aspect-ratio: 3 / 3.7;
-  border-radius: 20px;
+  width: clamp(340px, 22vw, 380px);
+  height: clamp(420px, 30vw, 460px);
+  border-radius: 22px;
   overflow: hidden;
   text-decoration: none;
-  box-shadow: 0 16px 34px -14px rgba(11, 14, 18, 0.28);
+  box-shadow: 0 14px 30px -18px rgba(11, 14, 18, 0.3);
   /* --o is the plane's signed offset from the focused city, written by the
      gallery controller. Position is a pure function of it: a horizontal
-     cascade, not a rotated wall -- each step away from the focused card
-     shifts sideways by --step (less than the card's own width, so
-     neighbours overlap edge-to-edge like the approved reference), shrinks a
-     touch, and settles a few px lower/behind. z-index falls with distance
-     so the focused card always reads as the one in front.
+     cascade, not a rotated wall. z-index falls with distance so the focused
+     card always reads as the one in front. Anything past one step away is
+     cut to opacity 0 by the data-near rule below -- editorial and compact,
+     not a wall of cards disappearing into the dark.
      --dir flips the cascade's physical direction for RTL (below): raw
      translateX is never direction-aware on its own, and the gallery sits on
      the LEFT of its copy column in RTL (the grid's columns mirror with the
      page), so without this the cascade would shift cards rightward -- into
      the copy text -- instead of mirroring away from it as it does in LTR. */
   --dir: 1;
-  --step: clamp(96px, 9vw, 150px);
+  --step: clamp(150px, 12vw, 220px);
   transform:
     translateX(calc(var(--o) * var(--step) * var(--dir)))
-    translateY(calc(min(abs(var(--o)), 1) * 10px))
-    scale(calc(1 - min(abs(var(--o)), 4) * 0.1));
+    translateY(calc(min(abs(var(--o)), 1) * 12px))
+    scale(calc(1 - min(abs(var(--o)), 1) * 0.1));
   z-index: calc(30 - abs(var(--o)));
-  opacity: calc(1 - min(abs(var(--o)), 4) * 0.15);
-  transition: transform var(--w-slow) var(--w-ease-out), opacity var(--w-slow) var(--w-ease-out), box-shadow var(--w-mid) var(--w-ease);
+  opacity: calc(1 - min(abs(var(--o)), 1) * 0.42);
+  transition: transform 240ms cubic-bezier(.2,.8,.2,1), opacity 240ms cubic-bezier(.2,.8,.2,1), box-shadow 240ms cubic-bezier(.2,.8,.2,1);
 }
+/* The hard cutoff: js/city-gallery.js's paint() sets data-near="0" once a
+   plane is more than one step from focus. Past that point it must not just
+   dim -- three cards read as "editorial and compact"; six or seven fading
+   sliver still reads as the rejected wall. */
+body.world .w-plane[data-near="0"] { opacity: 0; pointer-events: none; }
 /* html[dir="rtl"], not body[dir="rtl"]: js/i18n.js only ever sets the dir
    attribute on document.documentElement, never on body (confirmed live --
    document.body.getAttribute('dir') is null even while its computed
@@ -1187,76 +1196,96 @@ body.world .w-plane-face {
   background-size: cover;
   background-position: center;
 }
-/* The one dark note, confined to the lower third so the rest of the card
-   stays bright and fully visible -- "subtle dark gradient ONLY at the
-   bottom of each image", per the brief, replacing the old wash that
-   darkened most of the plane. (The synthetic ground/skyline band that used
-   to sit here for the abstract placeholder is gone now that every plane
-   carries a real photograph -- it would only double up with this scrim and
-   the photo's own real ground.) */
+/* Deep-graphite material, not a dark wash: a shorter, lighter bottom-only
+   gradient so the photograph stays visible across the top two-thirds of the
+   card -- "do NOT make cards overly dark; the city image must remain
+   visible", per the brief -- while the name/CTA text over the bottom still
+   has enough contrast to read. */
 body.world .w-plane-scrim {
   position: absolute; inset: 0; z-index: 0;
-  background: linear-gradient(0deg, rgba(3, 15, 28, 0.86) 0%, rgba(3, 15, 28, 0.4) 34%, transparent 60%);
+  background: linear-gradient(0deg, rgba(8, 10, 14, 0.74) 0%, rgba(8, 10, 14, 0.3) 36%, transparent 64%);
 }
 body.world .w-plane-body {
   position: absolute; inset-inline: 0; bottom: 0; z-index: 1;
-  padding: 1.1rem 1.1rem 1.2rem;
+  padding: 1.2rem 1.3rem 1.35rem;
   display: flex; flex-direction: column; gap: 0.35rem;
 }
 body.world .w-plane-name {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  font-weight: 700; font-size: 1.1rem; letter-spacing: -0.015em; color: #F4EFE7;
+  font-weight: 600; font-size: 1.25rem; letter-spacing: -0.015em; color: #F4EFE7;
   text-shadow: 0 1px 12px rgba(4,4,7,0.9);
-  transition: font-size var(--w-slow) var(--w-ease-out);
+  transition: font-size 240ms cubic-bezier(.2,.8,.2,1);
 }
 body.world .w-plane-note {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   font-size: 0.625rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
   color: rgba(244,239,231,0.7);
 }
+/* Every visible card (active + the one neighbour on each side) shows its
+   own CTA now -- with only 3 cards ever on screen, per-card clarity reads
+   better than a reveal-on-select mechanic built for a wall of eight. */
 body.world .w-plane-go {
   margin-top: 0.5rem; display: inline-flex; align-items: center; gap: 0.45rem;
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
-  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em;
   color: var(--w-gold-hi);
-  opacity: 0; transform: translateY(6px);
-  transition: opacity var(--w-mid) var(--w-ease-out), transform var(--w-mid) var(--w-ease-out);
 }
-/* Only the focused plane offers its action, so there is one obvious thing
-   to do rather than eight competing links. It also carries the whole
-   "obviously selected" language on its own: forward (no offset/scale-down),
-   a thin gold ring, and the strongest shadow of the cascade. */
+/* The focused card still carries the "obviously selected" language --
+   forward (no offset/scale-down), a restrained shadow and a soft champagne
+   ring -- just lighter than the old double-shadow + solid gold ring. */
 body.world .w-plane[data-focus="1"] {
   opacity: 1;
-  box-shadow: 0 30px 56px -16px rgba(11, 14, 18, 0.34), 0 10px 20px -8px rgba(11, 14, 18, 0.2), 0 0 0 2px var(--w-gold) inset;
+  box-shadow: 0 22px 40px -18px rgba(11, 14, 18, 0.36), 0 0 0 1.5px rgba(224,190,130,.55) inset;
 }
-body.world .w-plane[data-focus="1"] .w-plane-go { opacity: 1; transform: none; }
-body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.45rem; }
+body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.5rem; }
 html[dir="rtl"] body.world .w-plane-go svg { transform: scaleX(-1); }
 
 body.world .w-gallery-nav {
-  display: flex; align-items: center; justify-content: center; gap: 0.75rem;
-  margin-top: var(--w-air-s);
+  display: flex; align-items: center; justify-content: center; gap: 0.9rem;
+  margin-top: 1.25rem;
 }
-body.world .w-gallery-dots { display: flex; gap: 0.4rem; align-items: center; }
-/* A REAL 44px button that draws a 6px mark, rather than a 6px button with a
-   padded pseudo-element pretending to be one. The padded version measured
-   44px only exactly, and neighbouring dots' expanded areas overlapped each
-   other so a hit test near the edge landed on the wrong dot. A genuine box
-   with the mark drawn inside it has none of those problems and needs no
-   special case in any test. */
-body.world .w-dot {
-  width: 44px; height: 44px; border: 0; padding: 0; cursor: pointer;
-  background: transparent;
-  display: inline-flex; align-items: center; justify-content: center;
+/* Replaces the old one-dot-per-city row (busy at 8 cities) with a compact
+   "01 / 08" counter over a thin progress line -- still says exactly where
+   you are and how many cities there are, without eight small targets. */
+body.world .w-gallery-progress {
+  display: flex; align-items: center; gap: 0.6rem;
+  min-width: 120px;
 }
-body.world .w-dot::after {
-  content: ''; width: 6px; height: 6px; border-radius: 50%;
-  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.28));
-  transition: background-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+body.world .w-gallery-count {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  white-space: nowrap;
 }
-body.world .w-dot[aria-current="true"]::after { background: var(--w-gold); transform: scale(1.6); }
-body.world .w-gallery-dots { gap: 0; }
+body.world .w-gallery-count [data-city-current] { color: var(--w-gold-hi); }
+body.world .w-gallery-count-sep {
+  margin-inline: 0.2em;
+  color: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.32));
+}
+body.world .w-gallery-track {
+  position: relative;
+  width: 84px; height: 2px; border-radius: 2px;
+  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.18));
+  overflow: hidden;
+}
+/* inset-inline-start is a logical property -- it already resolves to the
+   fill's growth-from-start edge in either direction (left in LTR, right in
+   RTL) with no separate RTL rule needed. */
+body.world .w-gallery-fill {
+  position: absolute; inset-block: 0; inset-inline-start: 0;
+  width: 0%; border-radius: 2px;
+  background: var(--w-gold);
+  transition: width 240ms cubic-bezier(.2,.8,.2,1);
+}
+
+/* Section-scoped padding: content-driven, not the taller shared .mv default
+   -- an additive class on the element, rather than editing the shared rule,
+   keeps every other Home section untouched. Tightened further than the
+   Intent Selector above it (60-72px desktop / 48-52px mobile) per final
+   polish -- no min-height/100vh anywhere in this section, so this padding
+   plus the cards' own height is the section's entire vertical footprint. */
+body.world .mv.w-city-section { padding-block: clamp(3.75rem, 5vw, 4.5rem); }
 
 /* =========================================================================
  * 10. PROPERTIES, SERVICES, OFFER, DEPARTURE
@@ -1462,44 +1491,47 @@ body.world .home-bottomnav {
   body.world .mv.w-intent-section { padding-block: clamp(3rem, 12vw, 3.5rem); }
   body.world .w-intent-heading { font-size: clamp(1.75rem, 7vw, 2.125rem); }
 
-  /* City gallery keeps its perspective -- this is the moment that must not
-     degrade to a list -- but shows fewer neighbours and swipes. */
-  /* The wall fans out from the focused city, so with the first city focused
-   every plane sits to one side and half the frame was empty. Rather than
-   re-centring the wall (which would push the focused city off-axis), the
-   movement itself becomes asymmetric: type holds the near side, the wall
-   occupies the space it actually fans into. */
-body.world .w-city-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
-  gap: clamp(1.5rem, 3vw, 3rem);
-  align-items: center;
-}
-body.world .w-city-copy { display: flex; flex-direction: column; gap: 0.7rem; }
-@media (max-width: 1023px) {
-  body.world .w-city-layout { grid-template-columns: 1fr; }
-  body.world .w-city-copy { margin-bottom: var(--w-air-s); }
-  /* One column means the wall has no side column to fan into, so it goes
-     back to fanning symmetrically from the centre. */
-  body.world .w-gallery { justify-content: center; }
-}
-
-body.world .w-gallery { min-height: 56vh; }
-  /* Phone: one dominant card with the next city peeking in from the side --
-     the same cascade as desktop, just closer together so a neighbour is
-     still reachable by swipe without ever pushing the active card's own
-     content off-screen or overflowing the viewport. */
-  body.world .w-plane {
-    width: 74vw;
-    aspect-ratio: 3 / 3.9;
-    --step: 60vw;
-    transform:
-      translateX(calc(var(--o) * var(--step) * var(--dir)))
-      translateY(calc(min(abs(var(--o)), 1) * 8px))
-      scale(calc(1 - min(abs(var(--o)), 3) * 0.08));
-    opacity: calc(1 - min(abs(var(--o)), 3) * 0.22);
+  /* City gallery: a completely different mobile composition, not the
+     desktop cascade squeezed down. A real horizontally-scrolling,
+     snap-to-center carousel -- #cityWall (the '.w-gallery' div) becomes the
+     scroll container itself, so native touch drag, arrows, dots and
+     keyboard (js/city-gallery.js) all move the same one source of truth.
+     Every plane is a normal in-flow flex item here, not the absolutely
+     positioned cascade card -- the data-near cutoff and --o transform from
+     the desktop rules are switched off below rather than fought. */
+  body.world .mv.w-city-section { padding-block: clamp(3rem, 12vw, 3.25rem); }
+  body.world .w-city-copy .w-h2 { font-size: clamp(1.75rem, 7vw, 2rem); }
+  body.world .w-city-copy .w-body { font-size: 0.875rem; }
+  body.world .w-aperture { overflow: visible; }
+  body.world .w-gallery {
+    --city-gutter: clamp(1.25rem, 4vw, 4.5rem);
+    display: block;
+    min-height: 0;
+    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+    /* touch-action:pan-y (desktop/tablet cascade, above) would block the
+       browser's own horizontal scroll-snap drag here -- auto lets it
+       decide per-axis, exactly what a real horizontal scroller needs while
+       still passing vertical drags up to scroll the page. */
+    touch-action: auto;
+    padding-inline: var(--city-gutter);
+    margin-inline: calc(var(--city-gutter) * -1);
+    scroll-padding-inline: var(--city-gutter);
   }
-  body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.3rem; }
+  body.world .w-gallery::-webkit-scrollbar { display: none; }
+  body.world .w-wall { display: flex; width: max-content; height: auto; gap: 12px; }
+  body.world .w-plane {
+    position: relative;
+    width: auto;
+    height: clamp(300px, 42vw, 330px);
+    flex: 0 0 80vw;
+    scroll-snap-align: center;
+    transform: none !important;
+    opacity: 1 !important;
+    z-index: auto;
+  }
+  body.world .w-plane-name { font-size: 1.125rem; }
+  body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.25rem; }
+  body.world .w-gallery-nav { margin-top: 0.75rem; }
 
   body.world .w-trust { grid-template-columns: 1fr; }
   body.world .w-empty-actions { width: 100%; }
@@ -1562,4 +1594,9 @@ body.world .home-footer-bottom { border-top-color: rgba(244, 239, 231, 0.12); }
      belt and braces rather than the only defence. */
   body.world [data-flow] { transform: none !important; opacity: 1 !important; }
   body.world .w-carry { filter: none; }
+  /* Belt and braces for the mobile city carousel's native scroll-snap: JS
+     already asks for instant (not smooth) scrollIntoView when this media
+     query matches (js/city-gallery.js's prefersReducedMotion()), this just
+     covers any native browser-driven snap settling too. */
+  body.world .w-gallery { scroll-behavior: auto; }
 }

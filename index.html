@@ -292,13 +292,15 @@ violation reporting. -->
 </section>
 
 <!-- ======================= 3. CITY DISCOVERY ==========================
-     APERTURE. Two shutters part as this movement advances, uncovering the
-     world behind the Intent composition rather than starting a new section
-     below it. Behind them stands a curved wall of city planes.
-     Completely rebuilt: the rejected cream rectangle, the arch-card row and
-     the beige emptiness are gone. See js/city-gallery.js for why a plane's
-     face is a composed light-field rather than a photograph. -->
-<section class="mv w-stage" data-cine3d="rail">
+     Redesigned as a compact, editorial city-card system: desktop keeps a
+     layered cascade but caps it at the active card + one neighbour on each
+     side (see js/city-gallery.js paint() -- data-near gates visibility so
+     only 3 cards ever render, never a wall of thinning slivers). Mobile
+     drops the cascade entirely for a native horizontal scroll-snap
+     carousel, matching the Intent Selector's mobile pattern -- both real
+     JS mechanics (arrows/dots/keyboard/click, real Firestore-backed
+     counts, real routes into projects.html?city=X) are unchanged. -->
+<section class="mv w-stage w-city-section" data-cine3d="rail">
 <div class="mv-in w-city-layout">
 <div class="w-city-copy">
 <p class="w-label" data-flow="quiet" data-i18n="index.browseByCityEyebrow">Explore by City</p>
@@ -447,20 +449,6 @@ let cityApartmentCounts = null;
 // rather than about the network. Only 'ready' is allowed to show a number.
 let cityCountsState = 'loading'; // 'loading' | 'ready' | 'error'
 
-// City images -- one real architectural/skyline still per city, reused
-// as the circular card's background. Same CSP-allowed host as every other
-// image on this page.
-const CITY_IMAGES = {
-  Erbil: "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z",
-  Sulaymaniyah: "https://lh3.googleusercontent.com/aida-public/AB6AXuB9cucEo8wpqjJxzhEtls0zTrBUxNpyAlnIoBZDK9mZSYvoVeNEyqIAthGslbja0XOn_2Z2LCc0po-qlZJzHZvHdGCad9x-INBOBT7i9AjYAKzjG7asbXSxRdsimPiEzRE_jwb-GHj_6OiY1FjWBsruEwHLEDtHiKW81r4zuyV1VGwBmvZbXJ68537lf9ufKsd5NyXXgnYbtwUazS-Uz_VyxnQK2udlP2WPabFfuDQ9N0dZr9-tFX9K",
-  Duhok: "https://lh3.googleusercontent.com/aida-public/AB6AXuAXnrKs6P8OU65PpWIRAwU_OSyMRNE-jzLjdRFlnv8r7CdpjKKmQYsyagFZAYcSomNUaaaWMdZ5NKWmR7gTdFiFmOMW5ENypMupjYZ_16_Fpnc45Z-64i9QvvrLviQ3NEVhquVw9vxA1pgajqqX1eXu01BSZuHfB_XmkK_WLyr9US6n3uj-J_aFiv_Fls37St279KqfAlz85QFCAR9OkxjkSxywCHzANk-U7hsVzTONXr_uvaFiTlaz",
-  Zakho: "https://lh3.googleusercontent.com/aida-public/AB6AXuDGtaxWIcftb-EP9u-NdUy9r0UdUqR-6283vKdSpaVQs9ETleHzA7y7MF8dYNCKDoHPlLY6GhmUWLw5VKGOVQ3-Y0hzMxBClpFUGWcSELBJ20pyEDKDhZrN8NEs6YC9QyvFhSon6LnGx_6MSq7BcHr2scHlMPBi5nyRE4ywT8VFMmPUL4lS-1Qy1h9YVNKXLXudDq3luKINQvUb9XzQWgKg4XuPquVIHraqZKXW8AeLZbfriOSyCfPV",
-  Soran: "https://lh3.googleusercontent.com/aida-public/AB6AXuCadS8UKt5hw5G1f_11HN8IvXcjYIZjWdPEERcDXd7KlV6jDQi57D0dt008Ie6vDXaNmO7hrcfiT7OzbLSUzfuCV_ENwWUyEtSuVhmETPfWffweOLgJjF_j3dEu3dINZDVR0ECA1sBUvdWi0ndRERfu2XwOKvFh_0UXtXFvpWNHnBWZSsNKrcoWexb74a4iFiK1IYboC_Ply436SLbKtrliX0ysrJ3K-rI6YstSyhy-xkAb0zjfwVy8",
-  Koya: "https://lh3.googleusercontent.com/aida-public/AB6AXuDii6xTkNXKTsc2msOvTgk_GQRcMSy050_Dub19-3hbsr_7hP2rG706xznOp3AeUptsrkRFQRdDAyRVv34ZC0SUkPNGIL-UJT7JD0cy09YlNtODFbsnXaEF8zJd8aCvsZTCEWBKPj1XViF2xaNk4S5ik9wCMk8rl0kk9lg4Fo1HxPTg6ko3xaad2_K6da2mIldQlUkjAAy1sB7EUWp2DDwZ3zv679mzelRkHr4tPHRSXmBA6Aq8Vhjs",
-  Halabja: "https://lh3.googleusercontent.com/aida-public/AB6AXuCz7g-27mSyKMDlGW9aJh49KOkuxERKG--9kw2cOQn2q4u2WpURkcma7RkzibyOoXVbP187uX-uFI0oL89O6TWR6saP7jV9Ws7TuQpVGDPOSNvSKzWCIa_95jMbOc3LcIlXZjDSlf0bMPm7NDV7T-Nqay5pUQne8Ag5CYlY3yY4pUR9GA2g9DYYmbN1tMlZGoTbUK_AONyXju-tQHBc9DRG4bQy0areXYvKyd3wRgbzf16NybWgm5Ws",
-  Kirkuk: "https://lh3.googleusercontent.com/aida-public/AB6AXuDs7uRtP1wPjHeH8O6ZujWse4l9HjMt-6w9Q9P1ncr1PPhRw2ebXVPRkUnwLkqAk-DbyBUFjgvUEFWSiPyhDR4QnmPtoRI5aB8S_BpEzqMYUUHbU1xcBsULFrdpD1JA21p4e8hlxPBXS8ovBoaGYL2ihSjRJhspv_nN06GICbhH4Fojz4U9z4OMsRUJKwiUbLPc3Z5rhs618RinH5AQU53UkPtMapT0-Q3J5qHjpSjOthmZnuQ8gw1Z"
-};
-
 // City counts -> the spatial gallery (js/city-gallery.js).
 //
 // The gallery owns its own markup; this only hands it REAL numbers. The
@@ -504,7 +492,6 @@ async function loadCityApartmentCounts() {
     cityApartmentCounts = null;
     cityCountsState = 'error';
   }
-  renderCityBrowseGrid();
 }
 
 document.addEventListener('darwesh:langchange', publishCityCounts);
