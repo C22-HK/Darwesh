@@ -1330,6 +1330,40 @@ body.world .mv.w-city-section { padding-block: clamp(3.75rem, 5vw, 4.5rem); }
    the pre-existing overlap band. */
 body.world .mv.w-city-section { z-index: 2; }
 
+/* Home section-spacing refinement: Intent Selector -> City Discovery sat at
+   only ~37px of actual visible air on desktop (Intent's own narrowed 86px
+   bottom padding + City's 72px top padding, minus the shared -1.4x overlap
+   pull-up above) -- both sections read as visually correct on their own,
+   but the boundary between them read as compressed/attached rather than as
+   two distinct movements. Fixed the ONLY way that's safe here: adding to
+   this ONE adjacent-sibling pair's margin-block-start (still ordinary
+   margin flow, never absolute positioning), never touching either
+   section's own approved internal layout, padding, or any other section's
+   boundary. Every other Home section boundary was audited against this one
+   and already lands in one of two consistent existing tiers (~95px where
+   one side uses the narrower content-driven padding, ~167px where both
+   sides use the shared default) -- this was the one real outlier.
+
+   Micro-refinement pass: the first pass's delta (+72-96px desktop,
+   +52-68px mobile) measured correct but slightly too generous once seen
+   live next to the rest of the rhythm -- tuned down to a smaller clamp()
+   so the two sections read as one continuous experience while keeping
+   real breathing room (target ~100-108px desktop / ~88-96px mobile
+   content gap, still layered on the existing overlap formula via calc(),
+   never a from-scratch value). */
+body.world .w-intent-section + .w-city-section {
+  margin-block-start: calc(var(--w-air-m) * -1.4 + clamp(4rem, 4.5vw, 4.5rem));
+  /* Nearly-invisible atmosphere, not a transition band -- a very faint,
+     tightly-contained champagne/graphite glow that fades out well before
+     it could read as a separate rectangular block or a hard edge. */
+  background: radial-gradient(90% 38% at 50% 0%, rgba(198, 154, 75, 0.022), transparent 55%);
+}
+@media (max-width: 767px) {
+  body.world .w-intent-section + .w-city-section {
+    margin-block-start: calc(var(--w-air-s) * -1 + clamp(1.25rem, 4vw, 1.75rem));
+  }
+}
+
 /* =========================================================================
  * 10. PROPERTIES, SERVICES, OFFER, DEPARTURE
  * =========================================================================
