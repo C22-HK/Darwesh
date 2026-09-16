@@ -1,232 +1,120 @@
 /* Darwesh shared site footer -- styling for js/site-footer.js's #siteFooter
    mount. Reuses the exact site-wide obsidian/ivory/gold tokens already
    shipped in css/profile-tokens.css (loaded on every page), never a new
-   palette: --ps-color-surface-container-lowest (#17191b) for the ground,
-   --ps-color-on-primary (#f4efe7, warm ivory) for headings, --ps-color-
-   on-surface-variant (#b8b0a5, muted warm gray) for body/links, --ps-
-   color-secondary (#c69a4b, Darwesh Gold) for hover, --ps-color-outline-
-   variant (#2b2c2a) for dividers. Logical properties throughout (margin-
-   inline/padding-inline/border-inline-*) so Kurdish/Arabic RTL and
-   English LTR share one ruleset -- no separate [dir="rtl"] overrides. */
+   palette: --ps-color-surface-container-lowest (#17191b) for the ground
+   (deep graphite, not pure black), --ps-color-on-primary (#f4efe7, warm
+   ivory) for headings, --ps-color-on-surface-variant (#b8b0a5, muted warm
+   gray) for body/links, --ps-color-secondary (#c69a4b, Darwesh Gold) for
+   hover/accents (used sparingly -- one thin heading tint, one hover
+   color, no gold fills), --ps-color-outline-variant (#2b2c2a) for thin
+   dividers. Logical properties throughout (margin-inline/padding-inline/
+   border-inline-*) so Kurdish/Arabic RTL and English LTR share one
+   ruleset -- no separate [dir="rtl"] overrides needed anywhere here.
+
+   v3 LIGHTER PASS: dropped the ornamental top crest/skyline watermark
+   (::before background art + .sf-crest divider) and the 5-column rigid
+   grid (Properties/Services/Professionals/Company/Account, the last two
+   of which mostly duplicated the same 5-7 links under different labels).
+   Structure is now brand (start) / 3 compact nav groups (center) / one
+   quiet Account utility group (end), all inside one flex row that wraps
+   before the true mobile breakpoint -- materially shorter, calmer, no
+   giant dark empty zones, no bright gold panel. */
 
 .sf-root {
   position: relative;
   background: var(--ps-color-surface-container-lowest, #17191b);
   border-block-start: 1px solid var(--ps-color-outline-variant, #2b2c2a);
   color: var(--ps-color-on-surface-variant, #b8b0a5);
-  overflow: hidden;
-}
-
-/* Restrained architectural line-art, far behind everything, never
-   fighting the text for attention (opacity kept under 6%). A single
-   hand-authored skyline/arch motif tiled along the bottom edge -- not a
-   copy of the real logo, not derived from it. */
-.sf-root::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: 0;
-  height: min(38%, 220px);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='140' viewBox='0 0 420 140'%3E%3Cg fill='none' stroke='%23C69A4B' stroke-width='1'%3E%3Cpath d='M0 140 L40 60 L80 140'/%3E%3Cpath d='M60 140 L110 30 L160 140'/%3E%3Cpath d='M140 140 L180 70 L220 140'/%3E%3Cpath d='M200 140 L255 20 L310 140'/%3E%3Cpath d='M280 140 L320 65 L360 140'/%3E%3Cpath d='M340 140 L380 50 L420 140'/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: repeat-x;
-  background-position: bottom left;
-  background-size: 420px 140px;
-  opacity: 0.05;
-  pointer-events: none;
 }
 
 .sf-inner {
-  position: relative;
   max-width: 1400px;
   margin-inline: auto;
   padding-inline: clamp(20px, 5vw, 64px);
-  padding-block: 0 28px;
+  padding-block: clamp(56px, 6vw, 64px) clamp(24px, 3vw, 28px);
 }
 
-/* -- top crest divider -- */
-
-.sf-crest {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-block: clamp(22px, 3.5vw, 34px);
-}
-
-.sf-crest-line {
-  flex: 1 1 auto;
-  height: 1px;
-  background: linear-gradient(to right, transparent, var(--ps-color-outline-variant, #2b2c2a) 30%, var(--ps-color-outline-variant, #2b2c2a) 70%, transparent);
-}
-
-.sf-crest-glyph {
-  flex-shrink: 0;
-  color: var(--ps-color-secondary, #c69a4b);
-  opacity: 0.85;
-}
+/* -- brand + nav groups + utility, one row -- */
 
 .sf-grid {
-  display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  gap: clamp(32px, 5vw, 64px);
-  padding-block-end: 44px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 36px 56px;
+  padding-block-end: 40px;
   border-block-end: 1px solid var(--ps-color-outline-variant, #2b2c2a);
 }
 
-/* -- brand column -- */
+.sf-brand {
+  flex: 1 1 240px;
+  max-width: 320px;
+  min-width: 220px;
+}
 
 .sf-brand-lockup {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   text-decoration: none;
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   font-weight: 700;
   letter-spacing: -0.01em;
-  font-size: 1.75rem;
+  font-size: clamp(1.375rem, 1.6vw, 1.5rem); /* ~22-24px, within the 22-26px brand spec */
   color: var(--ps-color-on-primary, #f4efe7);
 }
 
-/* Same shared white circular badge as the header (.brand-logo-circle,
-   css/profile-tokens.css) -- sized larger here off the footer lockup's
-   own bigger font-size (1.75rem vs the header's ~22px), so circle and
-   logo scale up together without a second set of magic numbers: same
-   1.95em circle / 1.65em logo ratio as js/site-header.js's .hdr-mark
-   (~85% fill), just larger in absolute px since the base font is
-   larger. */
 .sf-brand-circle {
-  width: 1.95em;
-  height: 1.95em;
+  width: 1.8em;
+  height: 1.8em;
 }
 .sf-brand-mark {
-  height: 1.65em;
-  width: 1.65em;
+  height: 1.5em;
+  width: 1.5em;
   flex-shrink: 0;
 }
 
 .sf-tagline {
-  margin: 20px 0 0;
-  max-width: 36ch;
-  font-size: 0.9375rem;
-  line-height: 1.65;
+  margin: 14px 0 0;
+  max-width: 34ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
   color: var(--ps-color-on-surface-variant, #b8b0a5);
 }
 
-.sf-mamai {
-  margin-block-start: 24px;
+/* -- center: the 3 real nav groups -- */
+
+.sf-groups {
+  flex: 3 1 480px;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--ps-color-outline-variant, #2b2c2a);
-  border-radius: 12px;
-  text-decoration: none;
-  background: linear-gradient(160deg, rgba(198, 154, 75, 0.07), rgba(244, 239, 231, 0.015));
-  transition: border-color 200ms ease, background-color 200ms ease, transform 200ms ease;
+  flex-wrap: wrap;
+  gap: 32px 48px;
 }
 
-.sf-mamai:hover,
-.sf-mamai:focus-visible {
-  border-color: var(--ps-color-secondary, #c69a4b);
-  background: linear-gradient(160deg, rgba(198, 154, 75, 0.14), rgba(244, 239, 231, 0.02));
+/* -- end: quiet Account utility group, visually lighter/narrower than
+   the 3 main nav groups on desktop (no separate markup shape -- see
+   accountGroup()'s shared col() helper -- just a modifier class so it
+   reads as secondary, not a 4th equal column). -- */
+
+.sf-utility {
+  flex: 0 1 148px;
+  min-width: 128px;
 }
 
-.sf-mamai-icon {
-  color: var(--ps-color-secondary, #c69a4b);
-  font-size: 26px;
-  flex-shrink: 0;
-}
-
-.sf-mamai-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.sf-mamai-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ps-color-on-primary, #f4efe7);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
-.sf-mamai-spark {
-  font-size: 15px;
-  color: var(--ps-color-secondary, #c69a4b);
-}
-
-.sf-mamai-tagline {
-  color: var(--ps-color-on-surface-variant, #b8b0a5);
-  font-size: 0.8125rem;
-  line-height: 1.4;
-}
-
-.sf-mamai-cta {
-  margin-block-start: 4px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--ps-color-secondary-container, #d4af60);
-}
-
-.sf-mamai-cta::before {
-  content: '←';
-  display: inline-block;
-  margin-inline-end: 5px;
-  transform: scaleX(-1);
-}
-
-[dir='rtl'] .sf-mamai-cta::before {
-  transform: none;
-}
-
-/* -- link columns -- */
-
-.sf-columns {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 24px;
-  min-width: 0;
+.sf-col {
+  min-width: 120px;
 }
 
 .sf-heading {
-  margin: 0 0 18px;
-  font-size: 0.8125rem;
+  margin: 0 0 14px;
+  font-size: 0.75rem; /* 12px, within the 11-13px spec */
   font-weight: 600;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ps-color-on-primary, #f4efe7);
+  color: color-mix(in oklab, var(--ps-color-secondary, #c69a4b) 55%, var(--ps-color-on-surface-variant, #b8b0a5));
 }
 
-.sf-heading-main {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.sf-heading-icon {
-  font-size: 18px;
-  color: var(--ps-color-secondary, #c69a4b);
-  flex-shrink: 0;
-}
-
-.sf-heading-label {
-  position: relative;
-  display: inline-block;
-  padding-block-end: 8px;
-}
-
-.sf-heading-label::after {
-  content: '';
-  position: absolute;
-  inset-inline-start: 0;
-  inset-block-end: 0;
-  width: 22px;
-  height: 2px;
-  background: var(--ps-color-secondary, #c69a4b);
-  opacity: 0.7;
+.sf-col--utility .sf-heading {
+  opacity: 0.82;
 }
 
 .sf-list {
@@ -235,28 +123,16 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 13px;
-  max-height: none;
-  overflow: visible;
+  gap: 11px;
 }
 
 .sf-link {
   display: inline-block;
   color: var(--ps-color-on-surface-variant, #b8b0a5);
   text-decoration: none;
-  font-size: 0.9375rem;
+  font-size: 0.9375rem; /* 15px, within the 14-16px link spec */
   line-height: 1.3;
-  transition: color 200ms ease;
-}
-
-.sf-link::after {
-  content: '';
-  display: block;
-  width: 0;
-  height: 1px;
-  margin-block-start: 3px;
-  background: var(--ps-color-secondary, #c69a4b);
-  transition: width 220ms ease;
+  transition: color 180ms ease;
 }
 
 .sf-link:hover,
@@ -264,12 +140,7 @@
   color: var(--ps-color-secondary-container, #d4af60);
 }
 
-.sf-link:hover::after,
-.sf-link:focus-visible::after {
-  width: 100%;
-}
-
-/* -- bottom legal strip -- */
+/* -- bottom strip: copyright + location + Back to top -- */
 
 .sf-bottom {
   display: flex;
@@ -277,11 +148,12 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px 20px;
-  padding-block-start: 28px;
+  padding-block-start: 20px;
 }
 
-.sf-copyright {
-  font-size: 0.8125rem;
+.sf-copyright,
+.sf-location {
+  font-size: 0.8125rem; /* 13px, within the 12-13px bottom-strip spec */
   color: var(--ps-color-on-surface-variant, #b8b0a5);
 }
 
@@ -293,35 +165,95 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8125rem;
-  color: var(--ps-color-on-surface-variant, #b8b0a5);
   opacity: 0.85;
+  margin-inline-end: auto;
 }
 
 .sf-location-icon {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--ps-color-secondary, #c69a4b);
 }
 
-/* -- mobile: accordion columns, brand + bottom strip stay visible --
-   Matches the same md breakpoint (767px) js/site-mobile-nav.js's fixed
-   bottom bar uses (Tailwind's md:hidden), so the reserved clearance below
-   only ever applies while that bar is actually on screen. */
+/* Small subtle Liquid-Glass pill, not a large isolated arrow -- a thin
+   optical border, a faint blurred surface, restrained hover, nothing
+   bright or oversized. */
+.sf-backtotop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ps-color-outline-variant, #2b2c2a);
+  background: rgba(244, 239, 231, 0.035);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--ps-color-on-surface-variant, #b8b0a5);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background-color 180ms ease;
+}
+
+.sf-backtotop:hover,
+.sf-backtotop:focus-visible {
+  border-color: var(--ps-color-secondary, #c69a4b);
+  color: var(--ps-color-secondary-container, #d4af60);
+  background: rgba(198, 154, 75, 0.08);
+}
+
+.sf-backtotop .material-symbols-outlined {
+  font-size: 16px;
+}
+
+/* -- mobile: dedicated layout, not a shrunk desktop grid. Brand + tagline
+   stay visible above a compact accordion (Properties/Services/Company/
+   Account, all sharing the same .sf-col shape so wireAccordion() wires
+   all four identically), then the bottom strip. Matches the same md
+   breakpoint (767px) js/site-mobile-nav.js's fixed bottom bar uses
+   (Tailwind's md:hidden), so the reserved clearance below only ever
+   applies while that bar is actually on screen. -- */
 
 @media (max-width: 767px) {
-  .sf-grid {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    padding-block-end: 8px;
+  .sf-inner {
+    padding-inline: clamp(20px, 6vw, 24px);
+    padding-block-start: 40px;
+    padding-block-end: calc(env(safe-area-inset-bottom, 0px) + 84px);
   }
 
-  .sf-columns {
-    grid-template-columns: 1fr;
+  .sf-grid {
+    flex-direction: column;
+    gap: 24px;
+    padding-block-end: 4px;
+    border-block-end: none;
+  }
+
+  .sf-brand {
+    /* .sf-brand's desktop `flex: 1 1 240px` sets a flex-BASIS of 240px --
+       fine when .sf-grid's main axis is horizontal (desktop row), but
+       once .sf-grid switches to flex-direction:column here, that same
+       basis applies to the main axis again, which is now HEIGHT -- so
+       without this reset the brand block sat 240px tall no matter how
+       short its actual content (logo lockup + 2-3 line tagline) was. */
+    flex: none;
+    max-width: none;
+  }
+
+  .sf-groups,
+  .sf-utility {
+    flex-basis: auto;
+    width: 100%;
+  }
+
+  .sf-groups {
+    flex-direction: column;
     gap: 0;
   }
 
   .sf-col {
     border-block-end: 1px solid var(--ps-color-outline-variant, #2b2c2a);
+    min-width: 0;
   }
 
   .sf-heading {
@@ -330,10 +262,14 @@
     justify-content: space-between;
     gap: 12px;
     margin: 0;
-    padding-block: 16px;
+    padding-block: 14px;
     min-height: 44px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .sf-col--utility .sf-heading {
+    opacity: 1; /* same weight as the other 3 accordion rows on mobile */
   }
 
   .sf-heading::after {
@@ -360,41 +296,25 @@
   }
 
   .sf-col.is-open .sf-list {
-    max-height: 480px;
-    padding-block-end: 18px;
-  }
-
-  /* Clears js/site-mobile-nav.js's fixed bottom-0 bar (icon + label +
-     safe-area padding, ~64px, plus a little breathing room) so the last
-     accordion row/legal strip is never hidden behind it. */
-  .sf-inner {
-    padding-block-end: calc(env(safe-area-inset-bottom, 0px) + 84px);
+    max-height: 320px;
+    padding-block-end: 16px;
   }
 
   .sf-bottom {
     flex-direction: column;
     align-items: flex-start;
-    padding-block-start: 20px;
-  }
-
-  .sf-crest {
-    padding-block: 18px;
     gap: 12px;
+    padding-block-start: 18px;
   }
 
-  .sf-crest-glyph {
-    width: 36px;
-    height: 15px;
-  }
-
-  .sf-brand-logo {
-    width: clamp(148px, 42vw, 180px);
+  .sf-location {
+    margin-inline-end: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sf-link::after,
-  .sf-mamai,
+  .sf-link,
+  .sf-backtotop,
   .sf-heading::after,
   .sf-list {
     transition: none;
