@@ -610,7 +610,8 @@ body.world .w-btn:focus-visible,
 body.world .w-action:focus-visible,
 body.world .w-icon-btn:focus-visible,
 body.world .w-intent-card:focus-visible,
-body.world .w-plane:focus-visible {
+body.world .w-plane:focus-visible,
+body.world .w-svc-plane:focus-visible {
   outline: 2px solid var(--w-gold-hi); outline-offset: 3px;
 }
 
@@ -1468,6 +1469,238 @@ body.world .w-departure { display: flex; flex-direction: column; align-items: fl
 body.world .w-departure-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
 
 /* =========================================================================
+ * SERVICES DISCOVERY -- cover-flow layered card system
+ * =========================================================================
+ * Card DATA/content is unchanged (real SERVICE_CATALOG, real routes, real
+ * i18n) -- this pass changed only HOW the cards are presented. Desktop is
+ * a true cover-flow: one fully-visible active card, its immediate
+ * neighbours ~60% visible sitting partly behind it, and a further ring of
+ * cards showing only a narrow sliver -- js/home-services.js's paint()
+ * computes each card's --tx/--scale/opacity/filter/z-index per tier
+ * (three discrete tiers, not one continuous falloff) directly in JS, read
+ * against the card's own rendered width so the cascade stays
+ * proportionally correct across its clamp() range.
+ * A fully separate component from css/services-carousel.css (the shared
+ * carousel services.html's own hero still uses, untouched) -- .w-svc-*
+ * exists only here, on Home.
+ * Card content lives entirely inside the card (image, small category
+ * icon, title, one-line description, "Explore Service ->"), per the
+ * original brief -- no duplicate title/description block below the
+ * carousel. ============================================================ */
+body.world .w-services-section .w-aperture { overflow: visible; }
+body.world .w-svc-copy {
+  max-width: 34rem; margin-inline: auto; margin-bottom: var(--w-air-s);
+  display: flex; flex-direction: column; align-items: center; gap: 0.6rem;
+  text-align: center;
+}
+body.world .w-svc-copy .w-h2 { font-size: clamp(2.375rem, 3vw, 2.75rem); }
+body.world .w-svc-copy .w-body { font-size: clamp(0.9375rem, 1vw, 1rem); max-width: 44ch; margin-inline: auto; }
+
+/* Stage wrap: positioning context for the two flanking arrows (desktop
+   only -- see .w-svc-arrow below) and a width roughly matched to the
+   cover-flow cluster's own footprint so the arrows sit just outside the
+   outer sliver cards, not off at the far edges of the whole section. */
+body.world .w-svc-stage-wrap { position: relative; max-width: 54rem; margin-inline: auto; }
+body.world .w-svc-gallery {
+  position: relative;
+  min-height: clamp(410px, 28vw, 450px);
+  display: flex; align-items: center; justify-content: center;
+  touch-action: pan-y;
+}
+body.world .w-svc-wall {
+  position: relative; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  /* Gives the children's rotateY real foreshortening -- without a
+     perspective on the shared parent, rotateY just skews the flat card
+     rather than reading as depth along a curved path. */
+  perspective: 1400px;
+}
+/* Rotating cover-flow: card content/data/routes are unchanged (see
+   js/home-services.js) -- only HOW each card is placed changed. Position
+   is a pure function of four JS-computed custom properties -- --tx
+   (translateX), --ty (a small downward arc as cards move outward), --ry
+   (rotateY, angling each card to face the centre) and --scale -- all
+   already RTL-aware and pixel/degree-exact against the rendered card's
+   own width, rather than a single --o formula:
+     tier 0 (active):    --tx 0,   --ty 0,   --ry 0deg,        --scale 1    -- fully visible, facing forward
+     tier 1 (neighbour):  ~60% of card width,  ~10px,  ~14deg (8deg mobile), --scale ~0.92 -- ~55-65% visible, curved inward
+     tier 2 (outer):      a further ~25% beyond that, ~16px, ~22deg (14deg mobile), --scale ~0.85 -- narrow sliver
+   opacity/z-index/filter are also set directly per card in paint() (not
+   derived here), since three distinct tiers -- not one continuous
+   falloff -- is what "far-left sliver -> partial -> ACTIVE -> partial ->
+   far-right sliver" actually means. */
+body.world .w-svc-plane {
+  position: absolute;
+  width: clamp(300px, 20vw, 330px);
+  height: clamp(400px, 28vw, 440px);
+  border-radius: 22px;
+  overflow: hidden;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 14px 30px -18px rgba(11, 14, 18, 0.3);
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  transform: translateX(var(--tx, 0px)) translateY(var(--ty, 0px)) rotateY(var(--ry, 0deg)) scale(var(--scale, 1));
+  transition: transform 300ms cubic-bezier(.2,.8,.2,1), opacity 300ms cubic-bezier(.2,.8,.2,1), filter 300ms cubic-bezier(.2,.8,.2,1), box-shadow 300ms cubic-bezier(.2,.8,.2,1);
+}
+/* A partially-visible card reading slightly clearer on hover/focus signals
+   it's interactive (clicking it recentres it) without touching its
+   JS-driven base opacity value, which stylesheet specificity can't safely
+   override without !important against an inline style. */
+body.world .w-svc-plane:not([data-focus="1"]):hover,
+body.world .w-svc-plane:not([data-focus="1"]):focus-visible {
+  filter: saturate(1) brightness(1.08) !important;
+}
+/* Photo-first: real service photography (--img, service-catalog.js's
+   `photo` field) covers a muted, deterministic fallback gradient -- only
+   ever visible on the two catalog entries with no photo yet (maintenance,
+   installment). */
+body.world .w-svc-plane-face {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    var(--img, none),
+    radial-gradient(48% 32% at 74% 16%, hsla(44, 78%, 91%, 0.55), transparent 72%),
+    linear-gradient(180deg,
+      hsl(var(--h) calc(var(--s) * 1%) calc(var(--l) * 1% + 46%)) 0%,
+      hsl(calc(var(--h) - 6) calc(var(--s) * 1%) calc(var(--l) * 1% + 30%)) 48%,
+      hsl(calc(var(--h) - 12) calc(var(--s) * 1%) calc(var(--l) * 1% + 14%)) 100%);
+  background-size: cover;
+  background-position: center;
+}
+/* Shorter, lighter bottom-only gradient (matches City Discovery's own
+   correction): the photograph stays visible, not overly darkened, while
+   the title/description/CTA over the bottom still read clearly. */
+body.world .w-svc-plane-scrim {
+  position: absolute; inset: 0; z-index: 0;
+  background: linear-gradient(0deg, rgba(8, 10, 14, 0.76) 0%, rgba(8, 10, 14, 0.32) 40%, transparent 66%);
+}
+/* Small category icon -- a restrained glass chip over the image, never a
+   large centered emblem competing with the photograph. */
+body.world .w-svc-plane-icon {
+  position: absolute; inset-block-start: 0.9rem; inset-inline-start: 0.9rem; z-index: 1;
+  width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(11,14,18,0.42);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(244,239,231,0.16);
+}
+body.world .w-svc-plane-icon .material-symbols-outlined { font-size: 18px; color: #F4EFE7; }
+body.world .w-svc-plane-body {
+  position: absolute; inset-inline: 0; bottom: 0; z-index: 1;
+  padding: 1.2rem 1.3rem 1.35rem;
+  display: flex; flex-direction: column; gap: 0.35rem;
+}
+body.world .w-svc-plane-title {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600; font-size: 1.2rem; letter-spacing: -0.015em; color: #F4EFE7;
+  text-shadow: 0 1px 12px rgba(4,4,7,0.9);
+  transition: font-size 240ms cubic-bezier(.2,.8,.2,1);
+}
+body.world .w-svc-plane-desc {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.8rem; line-height: 1.42;
+  color: rgba(244,239,231,0.78);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+body.world .w-svc-plane-go {
+  margin-top: 0.35rem; display: inline-flex; align-items: center; gap: 0.45rem;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--w-gold-hi);
+}
+body.world .w-svc-plane[data-focus="1"] {
+  opacity: 1;
+  box-shadow: 0 22px 40px -18px rgba(11, 14, 18, 0.36), 0 0 0 1.5px rgba(224,190,130,.55) inset;
+}
+body.world .w-svc-plane[data-focus="1"] .w-svc-plane-title { font-size: 1.4rem; }
+html[dir="rtl"] body.world .w-svc-plane-go svg { transform: scaleX(-1); }
+/* .w-svc-arrow-prev/-next swap physical sides under RTL via their own
+   inset-inline-start/end (logical, no override needed) -- but each
+   button's chevron SVG path is a fixed shape, so without this it stays
+   pointing the same screen direction after the swap and both arrows end
+   up pointing inward at each other instead of outward, away from the
+   card cluster, same fix already applied to .w-svc-plane-go above. */
+html[dir="rtl"] body.world .w-svc-arrow svg { transform: scaleX(-1); }
+
+body.world .w-svc-gallery-nav {
+  display: flex; align-items: center; justify-content: center; gap: 0.9rem;
+  margin-top: 1.25rem;
+}
+/* "01 / 07" counter + thin progress line -- same cleaner interaction
+   language as City Discovery's pagination, not a row of tiny dots. */
+body.world .w-svc-gallery-progress { display: flex; align-items: center; gap: 0.6rem; min-width: 120px; }
+body.world .w-svc-gallery-count {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in oklab, var(--w-ink) calc((1 - var(--on-stone)) * 100%), var(--w-ink-dark));
+  white-space: nowrap;
+}
+body.world .w-svc-gallery-count [data-svc-current] { color: var(--w-gold-hi); }
+body.world .w-svc-gallery-count-sep { margin-inline: 0.2em; color: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.32)); }
+body.world .w-svc-gallery-track {
+  position: relative; width: 84px; height: 2px; border-radius: 2px;
+  background: color-mix(in oklab, var(--w-hair) calc((1 - var(--on-stone)) * 100%), rgba(11,14,18,0.18));
+  overflow: hidden;
+}
+/* inset-inline-start is a logical property -- already resolves to the
+   fill's growth-from-start edge in either direction, no separate RTL
+   rule needed (see City Discovery's identical .w-gallery-fill comment). */
+body.world .w-svc-gallery-fill {
+  position: absolute; inset-block: 0; inset-inline-start: 0;
+  width: 0%; border-radius: 2px; background: var(--w-gold);
+  transition: width 240ms cubic-bezier(.2,.8,.2,1);
+}
+
+/* Flanking arrows -- outside the left/right edge of the card cluster,
+   never on top of the active card. Desktop/tablet only (mobile hides
+   these below and relies on native swipe, per spec); reuses the existing
+   .w-icon-btn circular chrome, just repositioned via these two classes. */
+body.world .w-svc-arrow { display: none; }
+@media (min-width: 768px) {
+  body.world .w-svc-arrow {
+    display: inline-flex;
+    position: absolute; top: 50%; transform: translateY(-50%);
+    z-index: 40;
+  }
+  body.world .w-svc-arrow-prev { inset-inline-start: 0; }
+  body.world .w-svc-arrow-next { inset-inline-end: 0; }
+}
+
+/* Section-scoped padding: content-driven, same 60-72px desktop / 48-52px
+   mobile rhythm as City Discovery immediately above it -- no min-height,
+   no 100vh, so this padding plus the cards' own height is the section's
+   entire vertical footprint. */
+body.world .mv.w-services-section { padding-block: clamp(3.75rem, 5vw, 4.5rem); }
+
+/* Services -> Trust boundary: after removing the Home-only MAM AI CTA row,
+   the visible gap here measured ~180-250px -- not from this pair's own
+   margin formula (same shared -1.4x overlap every .mv pair uses) but from
+   the Trust section's OWN .w-trust inline margin-top:var(--w-air-m),
+   which exists to separate Trust from the live offer banner ABOVE it
+   inside that same section -- when no offer is currently published
+   (data-offer-section stays hidden, the common case), that margin has
+   nothing above it to separate from and just stacks onto this section
+   boundary's own padding/overlap instead. Never touching that inline
+   margin (Trust's own internal spacing, out of scope) -- this ONE
+   adjacent-pair override pulls the next section up by exactly that much
+   extra, landing the real visible content gap back in the intended
+   ~80-110px desktop / ~56-80px mobile range. */
+body.world .w-services-section + section {
+  margin-block-start: calc(var(--w-air-m) * -1.4 - clamp(3.25rem, 6vw, 5.25rem));
+}
+@media (max-width: 767px) {
+  /* Mobile's own base .mv formula here is a DIFFERENT one (--w-air-s * -1,
+     not --w-air-m * -1.4 -- see the max-width:767px block later in this
+     file) -- building the same desktop pattern on the wrong base term is
+     what overshot the reduction on the first pass (measured 33px against
+     a 56-80px target). Layering on the correct mobile base instead. */
+  body.world .w-services-section + section {
+    margin-block-start: calc(var(--w-air-s) * -1 - clamp(3rem, 10vw, 3.75rem));
+  }
+}
+
+/* =========================================================================
  * 11. HEADER
  * ========================================================================= */
 /* DARK LUXURY CORRECTION: js/site-header.js's own header is neutral
@@ -1623,6 +1856,42 @@ body.world .home-bottomnav {
   body.world .w-plane[data-focus="1"] .w-plane-name { font-size: 1.25rem; }
   body.world .w-gallery-nav { margin-top: 0.75rem; }
 
+  /* Services: the SAME rotating cover-flow as desktop (js/home-services.js
+     computes one transform model on every breakpoint) -- only sized down
+     and lighter-rotated for portrait. Only one card is fully readable;
+     left/right show a small curved portion, outer cards are mostly
+     hidden. .w-svc-gallery breaks out to the full viewport width (its
+     parent .mv-in carries side padding that would otherwise squeeze the
+     sliver's room) and clips there, so a peeking card is cropped cleanly
+     at the screen edge instead of ever forcing page-level horizontal
+     scroll -- there is no native scroll container to rely on any more. */
+  body.world .mv.w-services-section { padding-block: clamp(3rem, 12vw, 3.25rem); }
+  body.world .w-svc-copy { max-width: 100%; padding-inline: 0.5rem; }
+  body.world .w-svc-copy .w-h2 { font-size: clamp(1.75rem, 7vw, 2rem); }
+  body.world .w-svc-copy .w-body { font-size: 0.875rem; }
+  body.world .w-svc-gallery {
+    /* Logical margin-inline (not left/margin-left + position:relative --
+       verified live: that physical-property trick anchors a block wider
+       than its container to the CONTAINING BLOCK'S opposite physical edge
+       under dir:rtl, landing the whole gallery off-centre instead of
+       full-bleed) -- equal negative margin on both logical sides expands
+       symmetrically to the viewport regardless of writing direction. */
+    margin-inline: calc(50% - 50vw);
+    min-height: clamp(285px, 40vw, 305px);
+    overflow: hidden;
+  }
+  /* Narrower than the old 80vw -- at 80vw the active card left almost no
+     room on either side, so a neighbour's peek was either near-zero or, once
+     scaled/rotated, wildly uneven between the two sides. At 74vw the fixed
+     (100vw - 74vw)/2 = 13vw side margin this full-bleed layout leaves on
+     each edge is what actually determines how much of a neighbour peeks out
+     (clipped by the viewport edge, not by translateX) -- same amount on
+     both sides by construction, verified live. */
+  body.world .w-svc-plane { width: 74vw; height: clamp(285px, 40vw, 305px); }
+  body.world .w-svc-plane-title { font-size: 1.05rem; }
+  body.world .w-svc-plane[data-focus="1"] .w-svc-plane-title { font-size: 1.15rem; }
+  body.world .w-svc-gallery-nav { margin-top: 0.75rem; }
+
   body.world .w-trust { grid-template-columns: 1fr; }
   body.world .w-empty-actions { width: 100%; }
   body.world .w-empty-actions .w-btn { flex: 1 1 auto; }
@@ -1669,6 +1938,7 @@ body.world .home-footer-bottom { border-top-color: rgba(244, 239, 231, 0.12); }
  * still changes focus -- instantly instead of gliding. ================== */
 @media (prefers-reduced-motion: reduce) {
   body.world .w-plane,
+  body.world .w-svc-plane,
   body.world .w-intent-card,
   body.world .w-intent-media,
   body.world .w-intent-arrow,
