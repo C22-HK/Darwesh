@@ -23,6 +23,11 @@ import { createAudioController } from './audio-controller.js';
   if (!overlay) return;
 
   const SEEN_KEY = 'darwesh_intro_seen';
+  // P0-6: cross-session marker, read by the inline bootstrap script next
+  // to #cine-intro in index.html -- kept in sync with that literal
+  // string by hand, same as SEEN_KEY already is. Bump the ":v2" suffix
+  // in BOTH places together when the Welcome changes materially.
+  const WELCOME_VERSION_KEY = 'darweshWelcomeSeen:v2';
   const enterBtn = document.getElementById('cineEnterBtn');
   const ringCircle = overlay.querySelector('.cine-enter-ring circle');
   const audioToggle = document.getElementById('cineAudioToggle');
@@ -80,6 +85,7 @@ import { createAudioController } from './audio-controller.js';
 
   function markSeen() {
     try { sessionStorage.setItem(SEEN_KEY, '1'); } catch (_err) { /* private mode -- non-fatal, intro just re-shows next load */ }
+    try { localStorage.setItem(WELCOME_VERSION_KEY, '1'); } catch (_err) { /* private mode -- non-fatal, intro just re-shows next session too */ }
   }
 
   // ---- Mobile radial orbit ------------------------------------------
@@ -179,41 +185,44 @@ import { createAudioController } from './audio-controller.js';
   function fadeAndHide() {
     document.body.classList.remove('cine-intro-open');
     overlay.setAttribute('data-leaving', 'true');
-    const fadeMs = reduceMotion ? 150 : 650;
+    // P0-1: matches #cine-intro's CSS transition duration exactly (see
+    // css/cinematic.css) -- 380ms normal, 150ms reduced-motion. Was
+    // 650ms here against a 600ms CSS transition even before this pass
+    // (a pre-existing, harmless-but-sloppy mismatch); now both numbers
+    // are the single source of truth for "how long the exit fade takes."
+    const fadeMs = reduceMotion ? 150 : 380;
     window.setTimeout(() => { overlay.hidden = true; }, fadeMs);
   }
 
-  // Scenes 07-09: ring reacts (entering) -> the ecosystem unfolds from
-  // the center (expanded) -> ONE controlled orbital sweep (orbit-sweep)
-  // -> the forward-depth Enter exit (exiting-depth) -> the existing exit
-  // fade (fadeAndHide) -- see the matching is-* rules in cinematic.css
-  // for what each stage animates. Classes are additive/never removed
-  // (matching runIntroSequence's own pattern), so by the time
-  // is-exiting-depth lands, every earlier scene class is still present
-  // too; cinematic.css's source order (not extra JS bookkeeping) is what
-  // makes the later stage's animation win where two rules could
-  // otherwise apply to the same element. Reduced motion collapses this
-  // to instant opacity reveals (no flying pillars, no orbit, no depth
-  // flight), per spec -- every setTimeout below still fires so the DOM
-  // ends in the same state regardless of motion preference, just with
-  // all delays zeroed and cinematic.css's own reduced-motion overrides
-  // stripping the animations back to instant.
-  function runExpansionThenExit() {
-    if (ringDrawRaf) cancelAnimationFrame(ringDrawRaf);
-    stopMobileOrbitDrift();
-    addScene('entering');
-    window.setTimeout(() => {
-      addScene('expanded');
-      window.setTimeout(() => {
-        addScene('orbit-sweep');
-        window.setTimeout(() => {
-          addScene('exiting-depth');
-          window.setTimeout(fadeAndHide, reduceMotion ? 0 : 950);
-        }, reduceMotion ? 0 : 1650);
-      }, reduceMotion ? 0 : 900);
-    }, reduceMotion ? 0 : 480);
-  }
-
+  // PERFORMANCE FOUNDATION (P0-1): Enter used to run a four-stage
+  // ~4.6s buildup (entering -> expanded -> orbit-sweep -> exiting-depth)
+  // before Home ever appeared, regardless of how quickly the user
+  // clicked -- a hard violation of "Enter must be immediate" measured
+  // directly from this file's own former setTimeout chain (480+900+
+  // 1650+950 = 3980ms of forced animation, on top of fadeAndHide's own
+  // fade). Enter now does exactly what Skip already did (see
+  // skipImmediately() below, which never had this problem): call
+  // fadeAndHide() immediately. That function sets data-leaving="true"
+  // synchronously, and cinematic.css's `#cine-intro[data-leaving="true"]`
+  // rule sets pointer-events:none in that same synchronous style
+  // recalculation -- so Home underneath is genuinely interactive within
+  // a frame of the click, not after a multi-second sequence. The visible
+  // dissolve on top of that is real but decorative and non-blocking (see
+  // cinematic.css's tightened 380ms/150ms-reduced-motion #cine-intro
+  // transition), matching the brief's ~250-450ms "Enter -> usable Home"
+  // target for when the overlay is fully gone, while the *functional*
+  // handoff happens far sooner than that.
+  //
+  // The old four-stage orbit-sweep choreography is intentionally not
+  // preserved in any compressed form here: replaying it inside a ~400ms
+  // budget would be illegible, and this Welcome's entire visual design
+  // (including the orbit/node diagram those stages animated) is already
+  // scheduled for full replacement in the separately-approved Phase 02
+  // rebuild, not extended here. The matching is-entering/is-expanded/
+  // is-orbit-sweep/is-exiting-depth rules in cinematic.css are simply
+  // unused now rather than removed -- they cost nothing at runtime since
+  // nothing adds those classes anymore, and Phase 02 replaces this
+  // file's CSS wholesale rather than editing it in place.
   function enter() {
     if (entered) return;
     entered = true;
@@ -221,7 +230,9 @@ import { createAudioController } from './audio-controller.js';
     // Must run synchronously inside this real user-gesture handler --
     // audio-controller.js itself never calls play() from anywhere else.
     audio.startFromUserGesture();
-    runExpansionThenExit();
+    if (ringDrawRaf) cancelAnimationFrame(ringDrawRaf);
+    stopMobileOrbitDrift();
+    fadeAndHide();
   }
 
   // Skip/Escape keep their original meaning -- "let me leave right now"

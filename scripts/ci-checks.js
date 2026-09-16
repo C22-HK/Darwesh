@@ -57,17 +57,26 @@ htmlFiles.forEach(f => {
 if (failures === 0) ok(`inline script syntax valid across ${htmlFiles.length} pages`);
 
 // --- 2 & 3. i18n coverage -------------------------------------------
+// PERFORMANCE FOUNDATION (P0-4): js/i18n.js used to inline all three
+// dictionaries (~683KB shipped to every visitor regardless of
+// language); they now live in their own on-demand-loaded files
+// (js/i18n/ku.js, ar.js, tr.js), each just the one language's object
+// literal, with js/i18n.js reduced to the loader/runtime. Read each
+// file directly instead of regex-carving language blocks out of one
+// monolithic source -- simpler now that each file already IS exactly
+// one language's block.
 const i18nPath = path.join(ROOT, 'js/i18n.js');
-const i18nSrc = fs.readFileSync(i18nPath, 'utf8');
-const kuMatch = i18nSrc.match(/ku:\s*\{([\s\S]*?)\r?\n {2}\},\r?\n {2}ar:/);
-const arMatch = i18nSrc.match(/ar:\s*\{([\s\S]*?)\r?\n {2}\},\r?\n {2}tr:/);
-const trMatch = i18nSrc.match(/tr:\s*\{([\s\S]*?)\r?\n {2}\}\s*\};/);
-if (!kuMatch || !arMatch || !trMatch) {
-  fail('js/i18n.js: could not locate ku/ar/tr dictionary blocks (structure changed?)');
+const i18nCoreSrc = fs.readFileSync(i18nPath, 'utf8');
+const kuMatch = [fs.readFileSync(path.join(ROOT, 'js/i18n/ku.js'), 'utf8')];
+const arMatch = [fs.readFileSync(path.join(ROOT, 'js/i18n/ar.js'), 'utf8')];
+const trMatch = [fs.readFileSync(path.join(ROOT, 'js/i18n/tr.js'), 'utf8')];
+const i18nSrc = i18nCoreSrc + '\n' + kuMatch[0] + '\n' + arMatch[0] + '\n' + trMatch[0];
+if (!kuMatch[0] || !arMatch[0] || !trMatch[0]) {
+  fail('js/i18n/{ku,ar,tr}.js: one or more dictionary files missing or empty (structure changed?)');
 } else {
-  const kuKeys = new Set([...kuMatch[1].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
-  const arKeys = new Set([...arMatch[1].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
-  const trKeys = new Set([...trMatch[1].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
+  const kuKeys = new Set([...kuMatch[0].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
+  const arKeys = new Set([...arMatch[0].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
+  const trKeys = new Set([...trMatch[0].matchAll(/'([a-zA-Z0-9_.]+)':/g)].map(m => m[1]));
   const onlyKu = [...kuKeys].filter(k => !arKeys.has(k));
   const onlyAr = [...arKeys].filter(k => !kuKeys.has(k));
   if (onlyKu.length) fail(`js/i18n.js: keys present in ku but missing from ar: ${onlyKu.join(', ')}`);

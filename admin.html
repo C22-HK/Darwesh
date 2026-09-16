@@ -1908,17 +1908,14 @@ function ensureUsersShell() {
   }
 }
 
-async function renderUsers() {
-  ensureUsersShell();
-  renderRoleDefaultsPanel();   // idempotent -- builds the panel once
-
-  // Stage 3: skeleton rows while the fetch below is in flight, not a
-  // spinner -- keeps the table's own dimensions stable instead of
-  // collapsing the panel to nothing between renders.
-  if (!usersState.all.length) {
-    document.getElementById('usersBody').innerHTML = ashSkeletonRows(6, 7);
-  }
-
+// PERFORMANCE FOUNDATION (P0-2): fetch/paint split, same pattern as
+// fetchDashboardData()/paintDashboardTab() below -- see that pair's
+// comment for the full rationale. adminTabCache/ADMIN_TAB_CACHE_STALE_MS
+// are declared later in this file but this function is only ever CALLED
+// (from the tab click handler) after the whole script has finished
+// executing once, by which point that top-level const already exists --
+// source order doesn't matter here, call-time order does.
+async function fetchUsersData() {
   const [usersSnap, companiesSnap, listingsSnap, privateByUid] = await Promise.all([
     getDocs(collection(db, 'users')),
     getDocs(collection(db, 'companies')),
@@ -1942,15 +1939,50 @@ async function renderUsers() {
     u.listingCount = listingCounts[u.uid] || 0;
   });
 
+  return { users, companiesCount: companiesSnap.size };
+}
+
+function paintUsersData(data) {
+  const { users, companiesCount } = data;
   document.getElementById('statTotalUsers').textContent = users.length;
   document.getElementById('statTotalAgents').textContent = users.filter(u => u.role === 'agent').length;
   document.getElementById('statTotalCustomers').textContent = users.filter(u => u.role === 'customer' || !u.role).length;
-  document.getElementById('statTotalCompanies').textContent = companiesSnap.size;
+  document.getElementById('statTotalCompanies').textContent = companiesCount;
 
   usersState.all = users;
   usersState.selected = new Set();
   usersState.page = 1;
   renderUsersTable();
+}
+
+async function renderUsers() {
+  ensureUsersShell();
+  renderRoleDefaultsPanel();   // idempotent -- builds the panel once
+
+  const cached = adminTabCache.users;
+  if (cached) {
+    // Already have data from earlier this session -- paint instantly,
+    // no network at all for a fresh revisit.
+    paintUsersData(cached.data);
+    if (Date.now() - cached.loadedAt <= ADMIN_TAB_CACHE_STALE_MS) return;
+    // Stale -- cached rows are already on screen, refresh quietly.
+    try {
+      const fresh = await fetchUsersData();
+      adminTabCache.users = { data: fresh, loadedAt: Date.now() };
+      paintUsersData(fresh);
+    } catch (err) {
+      console.error('[renderUsers] background refresh failed, keeping cached rows on screen', err);
+    }
+    return;
+  }
+
+  // First open this session -- nothing cached yet. Stage 3: skeleton rows
+  // while the fetch is in flight, not a spinner -- keeps the table's own
+  // dimensions stable instead of collapsing the panel to nothing.
+  document.getElementById('usersBody').innerHTML = ashSkeletonRows(6, 7);
+  const data = await fetchUsersData();
+  adminTabCache.users = { data, loadedAt: Date.now() };
+  paintUsersData(data);
 }
 
 function renderUsersBulkBar() {
@@ -1997,6 +2029,7 @@ async function bulkSetRole(newRole) {
   if (window.AdminShellToast) {
     window.AdminShellToast(failed ? trAdmin('admin.bulkPartialFailure', '{ok} updated, {failed} failed.').replace('{ok}', String(uids.length - failed)).replace('{failed}', String(failed)) : trAdmin('admin.bulkSuccess', '{count} accounts updated.').replace('{count}', String(uids.length)), failed ? 'error' : 'success');
   }
+  adminCacheInvalidate('users'); // P0-2: at least one role write succeeded (or all did) -- cache is stale
   renderUsers();
 }
 
@@ -2129,6 +2162,11 @@ async function onRoleChange(u, newRole) {
     const update = { role: newRole };
     if (grantingCompany) update.companyId = u.requestedCompanyId;
     await updateDoc(doc(db, 'users', uid), update);
+    // P0-2 invalidation: the cached Users data is now stale -- without
+    // this, renderUsers() below would just repaint the pre-mutation
+    // cache and the role change wouldn't visibly appear until the 60s
+    // staleness window passed.
+    adminCacheInvalidate('users');
     renderUsers();
   } catch (err) {
     alert('Could not update role: ' + err.message);
@@ -4324,18 +4362,51 @@ function timeAgo(seconds) {
   return Math.floor(diff / 86400) + trAdmin('admin.daysAgo', 'd ago');
 }
 
-async function renderDashboardTab() {
-  const [listingsSnap, submissionsSnap, companiesSnap, orgsSnap, projectsSnap] = await Promise.all([
+// PERFORMANCE FOUNDATION (P0-2): a small per-tab in-memory cache so
+// re-clicking a tab already visited this session doesn't re-run every
+// Firestore read behind it. Session-memory only -- no localStorage, no
+// state-management framework, just a shared timestamp+data slot each
+// hub opts into explicitly (currently: Dashboard only, the verified
+// offender named in the audit). Cleared on reload/logout for free, since
+// it's just a plain object.
+const ADMIN_TAB_CACHE_STALE_MS = 60000; // 60s: instant on a quick revisit
+// (switch to Users and back a moment later), but an admin who leaves a
+// tab open for a while still gets a background-refreshed number rather
+// than a permanently stale one, without ever blocking the repaint on it.
+const adminTabCache = {};
+function adminCacheInvalidate(key) {
+  // Called by mutation handlers (approve/edit/delete etc.) so the next
+  // render of an affected tab re-fetches instead of showing a result that
+  // predates the admin's own change -- see call sites tagged "P0-2
+  // invalidation" near each mutation this pass wired up.
+  delete adminTabCache[key];
+}
+
+// fetch is split from paint so renderDashboardTab() (below) can serve an
+// already-fetched result from adminTabCache instead of re-running all 6
+// Firestore reads every time the tab is clicked. This function's own
+// contents are otherwise unchanged from before the split -- same 6
+// reads, same shapes.
+async function fetchDashboardData() {
+  const [listingsSnap, submissionsSnap, companiesSnap, orgsSnap, projectsSnap, usersSnapForAgentCount] = await Promise.all([
     getDocs(collection(db, 'listings')),
     getDocs(collection(db, 'submissions')),
     getDocs(collection(db, 'companies')),
     getDocs(collection(db, 'organizations')),
-    getDocs(collection(db, 'projects'))
+    getDocs(collection(db, 'projects')),
+    getDocs(collection(db, 'users'))
   ]);
   const listings = []; listingsSnap.forEach(d => listings.push({ id: d.id, ...d.data() }));
   const submissions = []; submissionsSnap.forEach(d => submissions.push({ id: d.id, ...d.data() }));
   const orgsForAttention = []; orgsSnap.forEach(d => orgsForAttention.push(d.data()));
   const projectsForAttention = []; projectsSnap.forEach(d => projectsForAttention.push(d.data()));
+  let agentCount = 0;
+  usersSnapForAgentCount.forEach(d => { if (d.data().role === 'agent') agentCount++; });
+  return { listings, submissions, orgsForAttention, projectsForAttention, companiesCount: companiesSnap.size, agentCount };
+}
+
+function paintDashboardTab(data) {
+  const { listings, submissions, orgsForAttention, projectsForAttention, companiesCount, agentCount } = data;
   renderNeedsAttention(submissions, orgsForAttention, projectsForAttention);
 
   const nowSec = Math.floor(Date.now() / 1000);
@@ -4381,10 +4452,7 @@ async function renderDashboardTab() {
     : '';
   avgValueEl.className = 'kpi-sub neutral';
 
-  document.getElementById('kpiBranches').textContent = companiesSnap.size.toLocaleString();
-  const usersSnapForAgentCount = await getDocs(collection(db, 'users'));
-  let agentCount = 0;
-  usersSnapForAgentCount.forEach(d => { if (d.data().role === 'agent') agentCount++; });
+  document.getElementById('kpiBranches').textContent = companiesCount.toLocaleString();
   const branchesSubEl = document.getElementById('kpiBranchesSub');
   branchesSubEl.textContent = agentCount ? trAdmin('admin.agentsAcrossBranches', '{n} agents total').replace('{n}', agentCount) : '';
   branchesSubEl.className = 'kpi-sub neutral';
@@ -4436,6 +4504,33 @@ async function renderDashboardTab() {
       <span class="font-data-mono text-[10.5px]" style="color:#b7c8de;">${timeAgo(a.seconds)}</span>
     </div>`;
   }).join('') : `<p class="font-body-md text-[12.5px]" style="color:#8192a7;">${trAdmin('admin.noActivityYet', 'No activity yet.')}</p>`;
+}
+
+// P0-2: the actual tab entry point. First open this session -> fetch,
+// cache, paint. Any revisit within ADMIN_TAB_CACHE_STALE_MS -> paint the
+// cached result immediately (no network at all). A revisit past that
+// window still paints the cached result immediately (never blocks on the
+// network), then quietly re-fetches in the background and repaints again
+// when that resolves -- so Dashboard never shows a spinner just because
+// the admin clicked it twice.
+async function renderDashboardTab() {
+  const cached = adminTabCache.dashboard;
+  if (cached) {
+    paintDashboardTab(cached.data);
+    if (Date.now() - cached.loadedAt <= ADMIN_TAB_CACHE_STALE_MS) return;
+    // Stale -- already showing the cached numbers, refresh quietly.
+    try {
+      const fresh = await fetchDashboardData();
+      adminTabCache.dashboard = { data: fresh, loadedAt: Date.now() };
+      paintDashboardTab(fresh);
+    } catch (err) {
+      console.error('[renderDashboardTab] background refresh failed, keeping cached numbers on screen', err);
+    }
+    return;
+  }
+  const data = await fetchDashboardData();
+  adminTabCache.dashboard = { data, loadedAt: Date.now() };
+  paintDashboardTab(data);
 }
 
 // Market Snapshot — a real per-city breakdown of what's actually on the
@@ -5156,6 +5251,7 @@ document.getElementById('addAgentForm').addEventListener('submit', async (e) => 
     document.getElementById('addAgentSuccessWrap').classList.remove('hidden');
 
     networkExpanded.add(companyId);
+    adminCacheInvalidate('users'); // P0-2: a new agent doc was just written
     renderNetworkTab(); renderAgentsTab(); renderBranchesTab(); renderUsers(); renderLeaderboardTab();
   } catch (err) {
     // Best-effort rollback -- never leave a half-created agent behind. A

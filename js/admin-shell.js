@@ -141,7 +141,7 @@
   mount.innerHTML =
     '<nav class="ash-sidebar" aria-label="Admin navigation">' +
       '<div class="ash-sidebar-head">' +
-        '<span class="ash-sidebar-logo"><img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async"></span>' +
+        '<span class="ash-sidebar-logo"><picture><source srcset="images/brand/darwesh-approved-new-logo-192.webp" type="image/webp"><img src="images/brand/darwesh-approved-new-logo-192.png" alt="" decoding="async"></picture></span>' +
         '<span class="ash-sidebar-brand" data-i18n="admin.title">Darwesh Admin</span>' +
       '</div>' +
       '<div class="ash-sidebar-nav">' + groupsHtml + '</div>' +

@@ -157,7 +157,12 @@
     '<a href="index.html" dir="ltr" class="flex items-center gap-2 whitespace-nowrap" aria-label="Darwesh Group — Home" data-i18n-aria="nav.brandHomeLabel">' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Darwesh</span>' +
       '<span class="brand-logo-circle">' +
-        '<img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async" class="hdr-mark object-contain">' +
+        // PERFORMANCE FOUNDATION (P0-3): 1254x1254 PNG (1.49MB) replaced
+        // with a 192px export -- large enough for 3x DPR at this mark's
+        // biggest rendered size (1.65em) -- as lossless WebP (~15KB,
+        // pixel-identical to the source) with a same-size PNG <picture>
+        // fallback for the rare browser without WebP support.
+        '<picture><source srcset="images/brand/darwesh-approved-new-logo-192.webp" type="image/webp"><img src="images/brand/darwesh-approved-new-logo-192.png" alt="" decoding="async" class="hdr-mark object-contain"></picture>' +
       '</span>' +
       '<span class="font-headline-md font-bold tracking-tight text-[#F4EFE7]">Group</span>' +
     '</a>';
@@ -411,4 +416,67 @@
       if (e.key === 'Escape' && !mapMenu.classList.contains('hidden')) closeMapMenu(false);
     });
   }
+})();
+
+// PERFORMANCE FOUNDATION (P0-7/P0-8): intent-based navigation prefetch.
+// This site is a true multi-page app (no client-side router -- see
+// creative-preview/PERFORMANCE_ARCHITECTURE.md section 6), so every nav
+// click is a real document load. The cheapest, lowest-risk way to make
+// that feel faster is telling the browser to start fetching the
+// destination HTML before the click happens, using the signal a real
+// intent-to-navigate already gives: hover on desktop, touch/press on
+// mobile. This never prefetches the whole site -- only a same-origin nav
+// link the visitor's pointer/finger is already on.
+//
+// A second, self-contained top-level IIFE (not folded into the one
+// above) because it delegates from #siteMobileNav too, a DIFFERENT
+// shared component (js/site-mobile-nav.js) -- this stays correct
+// regardless of that file's own render timing, and living here means
+// every one of the 34 pages that already load js/site-header.js gets it
+// with zero additional <script> tags anywhere.
+(function () {
+  'use strict';
+  var prefetched = Object.create(null);
+
+  function isPrefetchable(href) {
+    if (!href) return false;
+    if (href.charAt(0) === '#') return false;
+    if (/^(mailto:|tel:|javascript:)/i.test(href)) return false;
+    var a = document.createElement('a');
+    a.href = href;
+    if (a.origin !== location.origin) return false;
+    if (a.pathname === location.pathname && a.search === location.search) return false; // already here
+    return true;
+  }
+
+  function prefetch(href) {
+    if (!isPrefetchable(href) || prefetched[href]) return;
+    prefetched[href] = true;
+    var link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
+  function targetHref(el) {
+    var a = el.closest && el.closest('a[href]');
+    return a ? a.getAttribute('href') : null;
+  }
+
+  // pointerenter doesn't bubble, but delegating it via the capture phase
+  // at the document root is the standard way around that.
+  document.addEventListener('pointerenter', function (e) {
+    if (!(e.target.closest && e.target.closest('#siteHeader, #siteMobileNav'))) return;
+    var href = targetHref(e.target);
+    if (href) prefetch(href);
+  }, true);
+
+  // pointerdown covers touch (no hover phase) and is a strictly stronger
+  // intent signal than hover on desktop too -- a cheap no-op if
+  // pointerenter already queued the same href.
+  document.addEventListener('pointerdown', function (e) {
+    if (!(e.target.closest && e.target.closest('#siteHeader, #siteMobileNav'))) return;
+    var href = targetHref(e.target);
+    if (href) prefetch(href);
+  }, true);
 })();

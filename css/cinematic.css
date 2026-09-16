@@ -745,7 +745,16 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
   justify-content: center;
   background: var(--cine-bg-0);
   color: var(--cine-text-primary);
-  transition: opacity var(--motion-slow, 600ms) var(--ease-exit, ease), visibility var(--motion-slow, 600ms) linear;
+  /* PERFORMANCE FOUNDATION (P0-1): deliberately its own duration, not
+     --motion-slow (that token is shared by every entrance reveal
+     animation above -- eyebrow/mark/statement/enter-wrap/hint -- and
+     changing it would also slow those down, which is out of scope here).
+     380ms hits the brief's ~250-450ms "Enter -> usable Home" target for
+     the visible dissolve; actual interactivity is restored sooner still,
+     synchronously, via the pointer-events:none below the moment
+     data-leaving is set -- this transition is decorative on top of an
+     already-usable Home, not a gate in front of it. */
+  transition: opacity 380ms var(--ease-exit, ease), visibility 380ms linear;
 }
 #cine-intro::before {
   content: '';
@@ -845,6 +854,9 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
 @media (prefers-reduced-motion: reduce) {
   .cine-scene-line, .cine-scene-portal, .cine-scene-points { display: none; }
   #cine-intro::before, #cine-intro::after { transition: none; opacity: .85; }
+  /* P0-1: matches js/intro-entry.js's fadeAndHide() reduced-motion fadeMs
+     (150ms) -- near-immediate fade rather than the 380ms default. */
+  #cine-intro { transition-duration: 150ms; }
 }
 #cine-intro[data-leaving="true"] { opacity: 0; pointer-events: none; }
 #cine-intro[hidden] { display: none; }

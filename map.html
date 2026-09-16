@@ -2431,6 +2431,11 @@ let viewportSearchBounds = null;
 // ---------------------------------------------------------------------
 let favAuth = null, favDb = null, favFns = null, favUser = null;
 let favoriteIds = new Set();
+// P0-1 (instant-click perf pass): per-listing in-flight guard so a rapid
+// double-click/tap on the same heart can't fire two overlapping Firestore
+// writes for the same doc -- keyed by the same 'buy-'+id doc id toggleFavorite
+// already uses, cleared in toggleFavorite's finally block either way.
+let favoritePending = new Set();
 
 async function initFavorites() {
   const [{ auth, db, getDocs, addDoc, setDoc, deleteDoc }, authMod, storeMod] = await Promise.all([
@@ -2677,21 +2682,47 @@ async function toggleFavorite(id) {
   // account.html's favorites list (no dedup by underlying listing id)
   // would show it twice. Matched to the site-wide convention.
   const idStr = 'buy-' + id;
+
+  // P0-1 (instant-click perf pass): a click already in flight for this
+  // exact listing is ignored rather than queued or restarted -- prevents
+  // a rapid double-click/tap from firing two overlapping writes (one
+  // add, one delete) whose resolution order isn't guaranteed.
+  if (favoritePending.has(idStr)) return;
+  favoritePending.add(idStr);
+
   const l = LISTINGS.find(x => x.id === id);
   const ref = favFns.doc(favDb, 'users', uid, 'favorites', idStr);
-  if (favoriteIds.has(idStr)) {
-    favoriteIds.delete(idStr);
-    await favFns.deleteDoc(ref);
-    showToast(tr('listing.removedFromFavorites', 'Removed from favorites'), 'favorite');
-  } else {
-    favoriteIds.add(idStr);
-    await favFns.setDoc(ref, {
-      listingId: idStr, address: storedAddress(l), city: l.city,
-      priceLabel: l.priceLabel, img: l.img, savedAt: favFns.serverTimestamp()
-    });
-    showToast(tr('listing.savedToFavorites', 'Saved to favorites'), 'favorite');
-  }
+  const wasFavorited = favoriteIds.has(idStr);
+
+  // Optimistic: flip local state and repaint FIRST, before the network
+  // write -- the heart icon (card(l)'s favActive, driven by
+  // favoriteIds.has()) now changes within one frame of the click instead
+  // of waiting on the Firestore round-trip. The write below still runs
+  // and is still awaited; only the *visible* repaint moved earlier.
+  if (wasFavorited) favoriteIds.delete(idStr); else favoriteIds.add(idStr);
   refresh();
+
+  try {
+    if (wasFavorited) {
+      await favFns.deleteDoc(ref);
+      showToast(tr('listing.removedFromFavorites', 'Removed from favorites'), 'favorite');
+    } else {
+      await favFns.setDoc(ref, {
+        listingId: idStr, address: storedAddress(l), city: l.city,
+        priceLabel: l.priceLabel, img: l.img, savedAt: favFns.serverTimestamp()
+      });
+      showToast(tr('listing.savedToFavorites', 'Saved to favorites'), 'favorite');
+    }
+  } catch (err) {
+    // Roll back to the pre-click state and repaint again -- the optimistic
+    // guess was wrong, so the icon must visibly return to where it was.
+    if (wasFavorited) favoriteIds.add(idStr); else favoriteIds.delete(idStr);
+    refresh();
+    console.error('[toggleFavorite] Firestore write failed, rolled back', err);
+    showToast(tr('listing.favoriteSaveFailed', 'Could not save. Try again'), 'error');
+  } finally {
+    favoritePending.delete(idStr);
+  }
 }
 
 // ---------------------------------------------------------------------

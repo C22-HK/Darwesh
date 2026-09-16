@@ -234,7 +234,7 @@ violation reporting. -->
     </nav>
     </div><!-- /.cine-orbit-ecosystem -->
     <div class="cine-intro-inner">
-      <span class="cine-intro-logo" aria-hidden="true"><img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async"/></span>
+      <span class="cine-intro-logo" aria-hidden="true"><picture><source srcset="images/brand/darwesh-approved-new-logo-192.webp" type="image/webp"><img src="images/brand/darwesh-approved-new-logo-192.png" alt="" decoding="async"/></picture></span>
       <p class="cine-intro-eyebrow" data-i18n="intro.eyebrow">Welcome to</p>
       <p id="cineIntroMark" class="cine-intro-mark">Darwesh Group</p>
       <p class="cine-intro-statement" data-i18n="intro.statement">Property, expertise, and trust -- together in one place.</p>
@@ -288,8 +288,29 @@ violation reporting. -->
 </div>
 <script>
   (function () {
+    // PERFORMANCE FOUNDATION (P0-6): versioned cross-session Welcome
+    // state. 'darwesh_intro_seen' (sessionStorage) is unchanged -- still
+    // skips a replay within the same tab session, with zero flash,
+    // exactly as before. 'darweshWelcomeSeen:v2' (localStorage) is new:
+    // a visitor who has ever completed/skipped the Welcome on this
+    // device, in ANY earlier session, does not see the full cinematic
+    // again -- matching js/intro-entry.js's markSeen(), which is the
+    // only other place this exact key string appears (kept in sync by
+    // hand, same as the pre-existing sessionStorage key already was).
+    // The ":v2" suffix is deliberately bumpable: shipping a materially
+    // different Welcome (e.g. the pending Phase 02 rebuild) means
+    // changing this string to ":v3" in both places, which makes every
+    // returning visitor see the new Welcome once -- so this can never
+    // become a permanent, unremovable "always skip" state that blocks
+    // previewing a future redesign. ?welcome=1 forces the full sequence
+    // regardless of either stored flag, for manual testing.
+    var WELCOME_VERSION_KEY = 'darweshWelcomeSeen:v2';
     try {
-      if (sessionStorage.getItem('darwesh_intro_seen') === '1') return;
+      var forceShow = /[?&]welcome=1(&|$)/.test(location.search);
+      if (!forceShow) {
+        if (sessionStorage.getItem('darwesh_intro_seen') === '1') return;
+        if (localStorage.getItem(WELCOME_VERSION_KEY) === '1') return;
+      }
     } catch (e) { /* private mode -- show the intro rather than guess */ }
     var el = document.getElementById('cine-intro');
     if (el) {

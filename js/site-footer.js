@@ -118,7 +118,9 @@ function brandBlock() {
       '<a href="index.html" dir="ltr" class="sf-brand-lockup" aria-label="Darwesh Group — Home" data-i18n-aria="nav.brandHomeLabel">' +
         '<span class="sf-brand-word">Darwesh</span>' +
         '<span class="brand-logo-circle sf-brand-circle">' +
-          '<img src="images/brand/darwesh-approved-new-logo.png" alt="" decoding="async" class="sf-brand-mark object-contain">' +
+          // P0-3: see js/site-header.js's matching comment -- same 192px
+          // lossless-WebP/PNG export, same reasoning.
+          '<picture><source srcset="images/brand/darwesh-approved-new-logo-192.webp" type="image/webp"><img src="images/brand/darwesh-approved-new-logo-192.png" alt="" decoding="async" class="sf-brand-mark object-contain"></picture>' +
         '</span>' +
         '<span class="sf-brand-word">Group</span>' +
       '</a>' +

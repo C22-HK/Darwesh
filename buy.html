@@ -370,6 +370,10 @@ loadListings();
 // ---------------------------------------------------------------------
 let favAuth = null, favDb = null, favFns = null;
 let favoriteIds = new Set();
+// P0-1 (instant-click perf pass): see map.html's matching declaration --
+// per-listing in-flight guard against a rapid double-click/tap firing two
+// overlapping writes for the same doc.
+let favoritePending = new Set();
 
 function showToast(msg, icon) {
   const el = document.getElementById('buyToast');
@@ -408,21 +412,40 @@ async function toggleFavorite(id) {
   }
   const uid = favAuth.currentUser.uid;
   const idStr = 'buy-' + id;
+
+  // P0-1: ignore a click already in flight for this exact listing --
+  // prevents a rapid double-click/tap from firing two overlapping writes.
+  if (favoritePending.has(idStr)) return;
+  favoritePending.add(idStr);
+
   const l = LISTINGS.find(x => x.id === id);
   const ref = favFns.doc(favDb, 'users', uid, 'favorites', idStr);
-  if (favoriteIds.has(idStr)) {
-    favoriteIds.delete(idStr);
-    await favFns.deleteDoc(ref);
-    showToast('Removed from favorites', 'favorite');
-  } else {
-    favoriteIds.add(idStr);
-    await favFns.setDoc(ref, {
-      listingId: idStr, address: l.address, city: l.city,
-      priceLabel: fmtPrice(l.price), img: l.img, savedAt: favFns.serverTimestamp()
-    });
-    showToast('Saved to favorites', 'favorite');
-  }
+  const wasFavorited = favoriteIds.has(idStr);
+
+  // Optimistic: flip local state and repaint FIRST, before the network
+  // write -- see map.html's toggleFavorite for the full rationale.
+  if (wasFavorited) favoriteIds.delete(idStr); else favoriteIds.add(idStr);
   render();
+
+  try {
+    if (wasFavorited) {
+      await favFns.deleteDoc(ref);
+      showToast('Removed from favorites', 'favorite');
+    } else {
+      await favFns.setDoc(ref, {
+        listingId: idStr, address: l.address, city: l.city,
+        priceLabel: fmtPrice(l.price), img: l.img, savedAt: favFns.serverTimestamp()
+      });
+      showToast('Saved to favorites', 'favorite');
+    }
+  } catch (err) {
+    if (wasFavorited) favoriteIds.add(idStr); else favoriteIds.delete(idStr);
+    render();
+    console.error('[toggleFavorite] Firestore write failed, rolled back', err);
+    showToast('Could not save. Try again', 'error');
+  } finally {
+    favoritePending.delete(idStr);
+  }
 }
 
 async function saveCurrentSearch() {
