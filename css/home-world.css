@@ -664,113 +664,412 @@ body.world .w-aperture { overflow: hidden; }
 /* =========================================================================
  * 7. ARRIVAL
  * ========================================================================= */
+/* =========================================================================
+ * VISUAL REBUILD (design-system Phase 2): centered full-bleed composition,
+ * replacing the split dark-zone/image-plane layout above. Rebuilt to match
+ * the approved Home reference -- a single continuous cinematic photograph
+ * with a dark scrim for legibility, centered copy, no LTR/RTL mirroring
+ * needed since a centered composition is symmetric by construction. The
+ * photograph itself (URL, subject, licensing) is untouched -- only the
+ * crop/position/overlay treatment around it changed. Real content below
+ * the fold (Social Universe, Property Intent rail, Service Universe) is
+ * out of scope for this pass and unchanged.
+ * ========================================================================= */
+/* .mv's own padding-block (var(--w-air-l), ~96-144px) is the spacing
+   between ordinary movements -- correct for every section EXCEPT this
+   first one, where it was leaving a dead gap of solid body background
+   between the floating transparent navbar and the hero photograph (the
+   navbar is `position:fixed` and genuinely transparent -- js/site-header.js
+   -- so nothing was wrong there; the gap was this section starting 144px
+   too low). Zeroing only the top half here lets .w-hero-plane's
+   background-image reach true document y=0 and sit directly behind the
+   glass rail, while padding-block-end (the gap before Quickstart) is
+   untouched. */
+body.world .mv[data-cine3d="hero"] { padding-block-start: 0; }
+/* .mv-in (the shared content gutter every movement uses) was stacking its
+   own padding-inline on TOP of .w-hero's own -- 40px effective margin on
+   mobile instead of the intended 20px, squeezing the search input so
+   narrow its placeholder text got clipped. .w-hero already establishes
+   the hero's own gutter (its decorative elements are positioned relative
+   to it), so .mv-in's copy of that padding is pure double-counting here. */
+body.world .mv[data-cine3d="hero"] .mv-in { padding-inline: 0; }
 body.world .w-hero {
   position: relative;
-  min-height: clamp(600px, 88vh, 900px);
+  min-height: clamp(640px, 92vh, 960px);
   display: flex;
   align-items: flex-end;
-  padding-block: clamp(6rem, 12vh, 9rem) var(--w-air-m);
+  justify-content: flex-start;
+  padding-inline: clamp(1.5rem, 6.5vw, 6.5rem);
+  padding-block: clamp(6rem, 14vh, 9rem) clamp(3.25rem, 9vh, 6rem);
+  overflow: hidden;
 }
-/* The hero photograph is a PLANE inside the world, not a full-bleed
-   background band -- it has soft edges on every side, so it never draws a
-   rectangle across the page. */
+/* The hero photograph is a full-bleed plane, softly vignetted at the very
+   edges only (not carved into a centered oval) so the whole frame reads as
+   one continuous cinematic photograph behind the bottom-left copy block,
+   matching the locked reference composition. */
 body.world .w-hero-plane {
   position: absolute;
-  inset: 0 0 0 34%;
-  z-index: -1;
+  inset: 0;
+  z-index: -2;
   background-size: cover;
   background-position: center 40%;
-  border-start-start-radius: 28px;
-  /* No transform of its own. The hero photograph is the Arrival movement's
-     primary visual, so its motion comes from [data-flow="visual"] -- a
-     small scale change and a fade, nothing else. It previously sat at
-     translateZ(-200px) scale(1.12), which is the "large Z movement" and
-     "big perspective plane" this pass removes: at that distance it read as
-     a separate slab parked behind the page rather than as part of one
-     composition. */
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
-                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
-  -webkit-mask-composite: source-in;
-          mask-image: linear-gradient(90deg, transparent 0%, #000 26%, #000 100%),
-                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
-          mask-composite: intersect;
+  -webkit-mask-image: radial-gradient(ellipse 130% 120% at 50% 46%, #000 76%, transparent 100%);
+          mask-image: radial-gradient(ellipse 130% 120% at 50% 46%, #000 76%, transparent 100%);
 }
-/* RTL composition: the image PLANE moves to the left and the text
-   column reflows to the right -- a deliberate mirrored layout, not a
-   mirrored IMAGE. Only position/inset and the mask's fade direction
-   change here; background-image, background-size, background-position,
-   border-radius (already the logical border-start-start-radius, so it
-   auto-follows to the top-right corner) and the vertical mask are
-   untouched, so the photograph itself is never flipped or distorted.
-   (An earlier pass had this exact rule but scoped it as
-   `body.world[dir="rtl"]`, which -- see the .w-display note above --
-   can never match; that's why it silently never applied.) */
-/* 34% (the LTR dark zone's own width, just mirrored) left too little
-   room, for a reason that only shows up once you check the actual
-   anchor points: .w-hero-copy lives inside .mv-in, which caps at
-   max-width:1340px and centers itself (margin-inline:auto) -- so past
-   a 1340px viewport the copy column's right edge gets pulled inward
-   *faster* than the viewport grows (confirmed empirically: the gap
-   from the true right edge to .mv-in's own edge is 108px at 1440 but
-   362px at 1920), while .w-hero-plane's inset is a plain percentage of
-   the full, uncentered .w-hero width and has no such ceiling. A single
-   inset/max-width pairing tuned to look right at one width silently
-   loses its margin at another. Two changes, checked against both
-   1440 and 1920's real measured anchors rather than assumed to scale
-   uniformly: the image claims 58% (was mirroring LTR's 66%, then 60%
-   in an earlier pass that still wasn't enough room), and the mask's
-   own fade completes sooner (15% of the plane's width instead of 26%)
-   so it's fully transparent well inside the reserved zone rather than
-   still visibly fading at its edge. See the .w-hero-copy rule below
-   for the matching cap, sized off the same two measured anchors so
-   there's a real, positive gap (not just a smaller overlap) at both
-   required widths. */
-html[dir="rtl"] body.world .w-hero-plane {
-  inset: 0 42% 0 0;
-  -webkit-mask-image: linear-gradient(270deg, transparent 0%, #000 15%, #000 100%),
-                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
-          mask-image: linear-gradient(270deg, transparent 0%, #000 15%, #000 100%),
-                      linear-gradient(180deg, transparent 0%, #000 18%, #000 76%, transparent 100%);
+/* Dark scrim: a champagne-neutral obsidian gradient (never a flat black
+   overlay), strongest along the leading (start) edge and the base where
+   the copy block sits, fading out toward the trailing edge and the top so
+   the photograph itself still reads clearly across most of the frame.
+   Direction-aware: the horizontal component points toward the inline-start
+   edge, mirrored for RTL below rather than assuming LTR. */
+body.world .w-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(to right, rgba(9,11,14,.82) 0%, rgba(9,11,14,.46) 34%, rgba(9,11,14,.12) 58%, rgba(9,11,14,0) 80%),
+    linear-gradient(180deg, rgba(9,11,14,.28) 0%, rgba(9,11,14,.03) 26%, rgba(9,11,14,.14) 54%, rgba(9,11,14,.86) 100%);
+  pointer-events: none;
 }
-/* Companion to the inset/mask change above: sized off the same two
-   measured anchor points (copy column's right edge sits at 1332px @
-   1440 and 1558px @ 1920) so it clears the image's right edge (835px @
-   1440, 1114px @ 1920 at the new 58% inset) by a genuine, checked
-   margin at both -- roughly 100px+ at 1440, 35px+ at 1920, the tighter
-   of the two because of .mv-in's centering above. Not LTR's flat
-   44rem: that number was sized for a dark zone nearly twice as wide
-   (66%) and would eat straight back into the image at RTL's zone. */
-html[dir="rtl"] body.world .w-hero-copy { max-width: clamp(18rem, 22vw, 20rem); }
-body.world .w-hero-copy { max-width: 44rem; display: flex; flex-direction: column; gap: 1.3rem; align-items: flex-start; }
+html[dir="rtl"] body.world .w-hero::before {
+  background:
+    linear-gradient(to left, rgba(9,11,14,.82) 0%, rgba(9,11,14,.46) 34%, rgba(9,11,14,.12) 58%, rgba(9,11,14,0) 80%),
+    linear-gradient(180deg, rgba(9,11,14,.28) 0%, rgba(9,11,14,.03) 26%, rgba(9,11,14,.14) 54%, rgba(9,11,14,.86) 100%);
+}
+body.world .w-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+  align-items: start;
+  text-align: start;
+  margin-inline: 0;
+}
+/* At the old 46rem measure "Building the Future." wrapped to a third
+   line, turning a two-line brand statement into three and crowding the
+   frame. The description/value-statement keep their own narrower reading
+   widths (58ch / 38rem) below, so widening this outer box only gives the
+   headline room -- it doesn't widen the body copy. */
+/* Locked-reference headline: bold two-line sans, not the earlier serif
+   pass -- the reference image is explicit and supersedes the prior
+   editorial-serif decision for this one element. Scoped tightly to the
+   hero headline only (other .w-h2/.w-h3 section headings elsewhere on
+   this page are unaffected). Each line is a real, separately-colored
+   child <span> already in the markup (data-i18n="index.heroLine1"/
+   "index.heroLine2") -- no markup change needed, only per-line color. */
+body.world .w-hero-copy .w-display {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.75rem, 6.6vw, 5.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+body.world .w-hero-copy .w-display [data-i18n="index.heroLine1"] { color: #F8F5EC; }
+body.world .w-hero-copy .w-display [data-i18n="index.heroLine2"] { color: var(--w-gold-hi); }
+/* Kurdish/Arabic script reads better at a slightly lower weight and zero
+   tracking than the aggressive Latin negative letter-spacing above. */
+html[dir="rtl"] body.world .w-hero-copy .w-display {
+  font-weight: 700;
+  letter-spacing: 0;
+}
+/* Description reads quieter than the headline -- lighter weight, a touch
+   of opacity, and a narrower measure than .w-body's site-wide 58ch -- so
+   the eye lands on the headline first and the copy never competes with
+   it for weight. Scoped to the hero only; .w-body itself (used by other
+   movements on this page) is unchanged. */
+body.world .w-hero-copy .w-body {
+  max-width: 40ch;
+  font-weight: 400;
+  opacity: 0.82;
+  font-size: clamp(0.96rem, 1.05vw, 1.05rem);
+  text-shadow: 0 1px 8px rgba(0,0,0,.35);
+}
+
+/* ---- Brand-forward hero content: CTA row, values row, supporting
+   statement. These sit inside .w-hero-copy, below the headline/description,
+   and are deliberately quiet -- the headline is still the loudest thing in
+   the frame; this content earns its place through restraint, not size. ---- */
+body.world .w-hero-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+/* Search's circular submit button only now (the CTA row this rule used
+   to also cover has moved to the Quickstart band, out of .w-hero-copy).
+   Same true-glass family as .w-search itself -- near-zero fill, real
+   blur, champagne carried only in the thin border/glow accent, never as
+   an opaque colored fill -- so the button reads as "this glass surface's
+   action," not a separate solid gold disc dropped on top of it. */
+body.world .w-hero-copy .w-btn--primary {
+  background-color: transparent;
+  background-image: linear-gradient(180deg, rgba(224,190,130,.14), rgba(224,190,130,.05));
+  color: #F5EFE0;
+  border: 1px solid rgba(224,190,130,.4);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 16px -8px rgba(224,190,130,.35);
+  backdrop-filter: blur(20px) saturate(108%);
+  -webkit-backdrop-filter: blur(20px) saturate(108%);
+}
+body.world .w-hero-copy .w-btn--primary:hover {
+  filter: none;
+  border-color: rgba(224,190,130,.62);
+  box-shadow: 0 1px 1px rgba(0,0,0,.25), 0 12px 30px -10px rgba(0,0,0,.6), 0 0 28px -8px rgba(224,190,130,.42);
+}
+body.world .w-hero-copy .w-btn--ghost {
+  background: rgba(255,255,255,.02);
+  border-color: rgba(237,231,220,.22);
+  backdrop-filter: blur(6px);
+}
+body.world .w-hero-copy .w-btn--ghost:hover { border-color: rgba(224,190,130,.55); background: rgba(224,190,130,.05); }
+/* Quickstart's own Search button gets the same smoked-glass treatment as
+   the hero's CTAs (not the site-wide solid .w-btn--primary) so the two
+   sections read as one continuous premium system. */
+body.world .w-quickstart .w-btn--primary {
+  background:
+    linear-gradient(180deg, rgba(224,190,130,.26), rgba(224,190,130,.09)),
+    rgba(15,17,20,.78);
+  color: #F5EFE0;
+  border: 1px solid rgba(224,190,130,.42);
+  box-shadow: 0 1px 1px rgba(0,0,0,.25), 0 8px 20px -10px rgba(0,0,0,.5), 0 0 18px -10px rgba(224,190,130,.3);
+}
+body.world .w-quickstart .w-btn--primary:hover { filter: none; border-color: rgba(224,190,130,.6); }
+/* Thin divider lines flank the values row, per the reference composition
+   -- kept as ::before/::after (not real child <span> elements) since
+   js/i18n.js swaps this element's textContent directly on language
+   change; a pseudo-element line can never be wiped out by that swap the
+   way a child element would be. Fixed width (not flex-grow) so the
+   lines read as a restrained flourish, not a stretched full rule. */
+body.world .w-hero-values {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--w-gold-hi);
+  opacity: 0.82;
+  margin: 0.3rem 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+}
+body.world .w-hero-values::before,
+body.world .w-hero-values::after {
+  content: '';
+  width: 2.25rem;
+  height: 1px;
+  flex: none;
+  background: linear-gradient(90deg, transparent, rgba(224,190,130,.5));
+}
+body.world .w-hero-values::after { background: linear-gradient(90deg, rgba(224,190,130,.5), transparent); }
+body.world .w-hero-value-statement {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: #C9C2B6;
+  opacity: 0.86;
+  max-width: 36rem;
+  margin: 0;
+}
+html[dir="rtl"] body.world .w-hero-values { letter-spacing: 0.1em; }
+html[dir="rtl"] body.world .w-hero-value-statement { line-height: 1.9; }
+
+/* ---- Quickstart: search + type chips + stat strip, relocated out of the
+   hero into their own section directly beneath it so the hero's first
+   three seconds stay about the brand, not property search. A soft glass
+   panel (blurred, thin warm border, gently lit top edge) rather than a
+   flat solid rectangle -- so it reads as a continuation of the hero's
+   own glass surfaces (search bar, buttons), not a disconnected dark box
+   dropped underneath it. */
+body.world .w-quickstart {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.3rem;
+  margin-top: calc(var(--w-air-s) * -0.6);
+  padding: calc(var(--w-air-s) * 1.3) var(--w-air-s) var(--w-air-m);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 40%),
+    linear-gradient(180deg, rgba(20,22,26,.55), rgba(11,14,18,.72));
+  border: 1px solid rgba(224,190,130,.12);
+  backdrop-filter: blur(14px) saturate(130%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 30px 60px -30px rgba(0,0,0,.6);
+}
 
 body.world .w-search {
+  position: relative;
   display: flex; align-items: center; gap: 0.5rem;
-  width: 100%; max-width: 38rem; margin-top: 0.4rem;
+  width: 100%; max-width: 30rem; margin-top: 0.2rem; margin-inline: 0;
   padding: 0.5rem 0.5rem 0.5rem 1.15rem;
   border-radius: 22px;
-  /* DARK LUXURY CORRECTION: an elevated dark-NEUTRAL search surface --
-     #101E2A/#13283A (the first pass's input range) were themselves navy
-     hex, so this moves to the same obsidian ramp as everything else
-     (Elevated Dark), lifted off the Hero's obsidian background with a
-     soft shadow rather than a light card, so it never becomes a bright
-     hole in the dark hero. Border is the neutral default hairline, not
-     gold -- gold appears only on focus. */
-  border: 1px solid #2B2C2A;
-  background: #17191B;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.34);
+  /* TRUE APPLE/visionOS GLASS -- the exact same material recipe as
+     js/site-header.js's .site-rail (near-zero fill, blur+saturate+
+     contrast, per-edge hairline borders, a soft top specular sheet via
+     ::before below), not a solid dark panel. The photograph behind the
+     hero must read straight through this surface, same as the navbar. */
+  background-image: linear-gradient(180deg, rgba(255,255,255,.010), rgba(255,255,255,.004));
+  backdrop-filter: blur(26px) saturate(108%) contrast(102%);
+  -webkit-backdrop-filter: blur(26px) saturate(108%) contrast(102%);
+  border-style: solid; border-width: 1px;
+  border-top-color: rgba(255,255,255,.09); border-bottom-color: rgba(0,0,0,.07);
+  border-left-color: rgba(255,255,255,.05); border-right-color: rgba(255,255,255,.05);
+  box-shadow: 0 6px 22px rgba(0,0,0,.09), inset 0 1px 0 rgba(255,255,255,.05);
   transition: border-color var(--w-fast) var(--w-ease), box-shadow var(--w-fast) var(--w-ease);
 }
-body.world .w-search:focus-within { border-color: var(--w-gold); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 10px 30px rgba(198, 154, 75, 0.16); }
-body.world .w-search-icon { flex: none; color: #B8B0A5; }
-body.world .w-search-input {
-  flex: 1; min-width: 0; height: 50px; border: 0; background: transparent;
-  color: var(--w-ink); font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
-  padding-inline: 0.8rem;
+body.world .w-search::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.045) 0%, rgba(255,255,255,.012) 45%, rgba(255,255,255,0) 100%);
 }
-body.world .w-search-input::placeholder { color: #B8B0A5; }
+body.world .w-search:focus-within { border-color: rgba(224,190,130,.55); box-shadow: 0 6px 22px rgba(0,0,0,.09), inset 0 1px 0 rgba(255,255,255,.05), 0 0 0 1px rgba(224,190,130,.2); }
+body.world .w-search-icon { position: relative; flex: none; color: rgba(244,239,231,.72); }
+body.world .w-search-input {
+  position: relative;
+  flex: 1; min-width: 0; height: 50px; border: 0; background: transparent;
+  color: #F8F5EC; font-family: 'Inter', system-ui, sans-serif; font-size: 1rem;
+  padding-inline: 0.8rem;
+  text-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+body.world .w-search-input::placeholder { color: rgba(244,239,231,.55); }
 body.world .w-search-input:focus { outline: none; }
-body.world .w-search .w-btn { min-height: 50px; border-radius: 15px; padding-inline: 1.3rem; }
-body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; }
+/* Circular champagne arrow-submit button, matching the locked reference --
+   the "Search" text stays in the DOM (screen readers, submit semantics)
+   but is visually hidden in favor of the icon-only circle. */
+body.world .w-search .w-btn {
+  min-height: 50px; width: 50px; height: 50px; padding: 0;
+  border-radius: 999px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+}
+body.world .w-search .w-btn-text {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+body.world .w-search .w-btn-arrow { margin: 0; }
+body.world .w-hero-foot { display: flex; flex-wrap: wrap; gap: 1.4rem; align-items: center; justify-content: center; }
+
+/* ---- Property-type chips: quick, functional entry points into the real
+   map.html filter (?types=house etc., the same URL param map.html's own
+   readUrlStateIntoFilters() already reads for its Home Type drawer) --
+   not decorative, every chip is a real working link. ---- */
+body.world .w-chips { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; margin-top: 0.2rem; }
+body.world .w-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(224,190,130,.14), rgba(224,190,130,.05)), rgba(20,22,30,.55);
+  border: 1px solid rgba(224,190,130,.24);
+  color: #F0E8D6; font-family: 'Inter', system-ui, sans-serif; font-size: 0.86rem; font-weight: 600;
+  text-decoration: none; backdrop-filter: blur(6px);
+  transition: border-color var(--w-fast) var(--w-ease), background-color var(--w-fast) var(--w-ease), transform var(--w-fast) var(--w-ease);
+}
+body.world .w-chip svg { width: 15px; height: 15px; flex: none; }
+body.world .w-chip:hover { border-color: rgba(224,190,130,.5); transform: translateY(-1px); }
+body.world .w-chip:focus-visible { outline: 2px solid var(--w-gold); outline-offset: 2px; }
+
+/* ---- Stat strip: real, honestly-stated counts only -- rendered by
+   js loadHeroStats() below, three-state (loading/ready/error) exactly
+   like this page's existing loadCityApartmentCounts(); never a
+   fabricated number. Left-aligned to match the hero's bottom-left
+   composition (was centered when this lived in the centered quickstart
+   band). ---- */
+body.world .w-stats { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: clamp(1.8rem, 4.5vw, 3rem); margin-top: 0.5rem; }
+body.world .w-stat { text-align: start; min-width: 0; }
+body.world .w-stat-num { display: block; font-family: 'Inter', 'IBM Plex Sans', system-ui, sans-serif; font-weight: 700; font-size: clamp(1.4rem, 2.6vw, 1.9rem); color: #F4EFE7; font-variant-numeric: tabular-nums; line-height: 1.1; }
+body.world .w-stat-label { display: block; margin-top: 3px; font-family: 'Inter', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: rgba(244,239,231,.62); }
+body.world .w-stat-num.is-loading { color: #8F887C; }
+
+/* ---- Decorative hero chrome: vertical side label, scroll cue, and
+   resting-state progress dots -- all aria-hidden, none gate or drive
+   real functionality (see the HTML comment above these elements). ---- */
+body.world .w-hero-side-label {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: clamp(1rem, 2.8vw, 2.5rem);
+  top: 50%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transform: translateY(-50%) rotate(90deg);
+  transform-origin: center;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(244,239,231,.7);
+  white-space: nowrap;
+  pointer-events: none;
+}
+body.world .w-hero-side-line {
+  width: 2.25rem;
+  height: 1px;
+  flex: none;
+  background: linear-gradient(90deg, rgba(224,190,130,.75), transparent);
+}
+body.world .w-hero-scroll-cue {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: clamp(1.25rem, 4vw, 3rem);
+  bottom: clamp(1.5rem, 4vh, 2.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  pointer-events: none;
+}
+body.world .w-hero-scroll-icon {
+  width: 40px; height: 40px;
+  flex: none;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(244,239,231,.32);
+  color: rgba(244,239,231,.85);
+  background: rgba(15,17,20,.28);
+  backdrop-filter: blur(6px);
+  animation: w-hero-scroll-bob 2.4s ease-in-out infinite;
+}
+body.world .w-hero-scroll-cue > span:last-child {
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(244,239,231,.6);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+@keyframes w-hero-scroll-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.world .w-hero-scroll-icon { animation: none; }
+}
+body.world .w-hero-dots {
+  position: absolute;
+  z-index: 1;
+  inset-inline-start: clamp(1.5rem, 6.5vw, 6.5rem);
+  bottom: clamp(1.5rem, 4vh, 2.5rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+body.world .w-hero-dots span {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: rgba(244,239,231,.32);
+  transition: width var(--w-fast) var(--w-ease), background-color var(--w-fast) var(--w-ease);
+}
+body.world .w-hero-dots span.is-active {
+  width: 20px;
+  background: var(--w-gold-hi);
+}
 
 /* =========================================================================
  * 8. INTENT -- one wall, five panels, no cards
@@ -1181,34 +1480,92 @@ body.world .home-bottomnav {
   body.world .wf-vignette { display: none; }
 
   body.world .mv { padding-block: var(--w-air-m); margin-block-start: calc(var(--w-air-s) * -1); }
-  body.world .w-hero { min-height: 86svh; padding-block: 5rem var(--w-air-s); }
-  body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
-            mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
-  /* The desktop left/right split (html[dir="rtl"] body.world .w-hero-plane,
-     above) has no width guard of its own and would otherwise outrank this
-     mobile full-bleed reset on specificity alone regardless of viewport --
-     same selector shape, just declared later here so source order breaks
-     the tie back in this rule's favor at mobile widths. Kurdish/Arabic
-     stays the same single stacked mobile composition as English, just with
-     RTL text alignment; the desktop image/text swap never applies here. */
-  html[dir="rtl"] body.world .w-hero-plane { inset: 0; border-radius: 0; transform: none;
-    -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%);
-            mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 100%); }
-  body.world .w-hero-copy { padding-inline-end: 3.2rem; gap: 1rem; }
-  /* The desktop-only clamp(18rem, 22vw, 20rem) cap on .w-hero-copy
-     (above the mobile breakpoint) exists purely to keep the RTL text
-     column clear of the image plane in the two-column split -- at
-     mobile widths that split doesn't happen (this section resets the
-     plane back to full-bleed already), so the same cap has nothing to
-     protect against and only serves to needlessly narrow/shift the
-     text column versus English. Reset it back to parity. */
-  html[dir="rtl"] body.world .w-hero-copy { max-width: 44rem; }
-  body.world .w-search { border-radius: 16px; padding: 0.4rem 0.4rem 0.4rem 0.9rem; }
-  body.world .w-search-input { height: 46px; font-size: 0.975rem; }
-  body.world .w-search .w-btn { min-height: 46px; border-radius: 12px; padding-inline: 0.85rem; }
-  body.world .w-search .w-btn-text { display: none; }
+  body.world .w-hero {
+    min-height: 92svh;
+    padding-inline: 1.25rem;
+    padding-block: 5rem calc(9.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  /* Bottom-left composition needs the image legible lower in the frame
+     than desktop's more central crop, since there's no side column to
+     fall back on -- a taller, wider mask. */
+  body.world .w-hero-plane {
+    -webkit-mask-image: radial-gradient(ellipse 160% 100% at 50% 42%, #000 70%, transparent 100%);
+            mask-image: radial-gradient(ellipse 160% 100% at 50% 42%, #000 70%, transparent 100%);
+  }
+  /* Mobile hero refinements: the headline was reading too tall/crowded --
+     a smaller clamp ceiling + tighter line-height keeps the two-line
+     headline from wrapping into a third, and every element below gets
+     its own considered spacing rather than one flat gap, so nothing
+     feels stacked on top of its neighbour. */
+  body.world .w-hero-copy { gap: 1.05rem; max-width: 100%; }
+  /* Eyebrow: smaller + slightly tighter tracking than desktop, and capped
+     to a width that forces an even two-line break (the full string at
+     desktop's wide tracking wrapped 3-words/1-word, reading lopsided). */
+  /* LTR (English) only -- max-width in px (not ch, which doesn't track
+     this face's real glyph widths under the wide letter-spacing) tuned
+     so the break lands right after "DEVELOPMENT ·" (206px measured) and
+     before "SERVICES ·" (292px), producing a genuinely balanced two-line
+     wrap instead of a lopsided 3-word/1-word or 2-word/1-word break.
+     Scoped away from RTL: Kurdish/Arabic already get their own narrower
+     tracking (html[dir="rtl"] .w-label above) and a different string
+     length entirely, so this fixed px budget would misfit them. */
+  html:not([dir="rtl"]) body.world .w-hero-copy .w-label { font-size: 0.625rem; letter-spacing: 0.19em; max-width: 240px; }
+  body.world .w-hero-copy .w-display { font-size: clamp(2.15rem, 9.5vw, 2.9rem); line-height: 1.06; }
+  /* Slightly warmer + higher-contrast than the desktop dimming (opacity
+     .82 over an inherited light ink) without going bright white -- still
+     clearly secondary to the headline. */
+  body.world .w-hero-copy .w-body { max-width: 34ch; font-size: 0.92rem; line-height: 1.58; color: rgba(247,243,234,.88); opacity: 1; }
+  body.world .w-hero-copy .w-search { max-width: 100%; }
+  /* Tighter row-gap than column-gap so the 2-up/1-down stat group reads
+     as one cluster, not two evenly-spaced rows. */
+  body.world .w-hero-copy .w-stats { column-gap: 1.4rem; row-gap: 0.55rem; }
+  body.world .w-hero-cta-row { gap: 0.7rem; margin-top: 0.2rem; }
+  body.world .w-hero-cta-row .w-btn { padding-inline: 1.3rem; min-height: 44px; font-size: 0.875rem; }
+  body.world .w-hero-values { font-size: 0.635rem; letter-spacing: 0.18em; margin-top: 0.1rem; }
+  body.world .w-hero-value-statement { font-size: 0.82rem; max-width: 30ch; line-height: 1.6; }
+  body.world .w-quickstart { margin-top: calc(var(--w-air-s) * -0.35); padding: var(--w-air-s) 1rem calc(var(--w-air-m) * 0.8); border-radius: 22px; }
+  /* Tighter gutters/gap than desktop -- every px here goes straight to
+     the placeholder's readable width -- while the action circle stays at
+     the 44px accessible minimum (never smaller). */
+  body.world .w-search { border-radius: 16px; padding: 0.3rem 0.3rem 0.3rem 0.65rem; gap: 0.4rem; }
+  body.world .w-search-icon { width: 17px; height: 17px; }
+  body.world .w-search-input { height: 44px; font-size: 0.85rem; min-width: 0; padding-inline: 0.5rem; text-overflow: ellipsis; }
+  body.world .w-search .w-btn { width: 44px; height: 44px; min-height: 44px; }
+  /* The rotated side label reads as clutter at phone width with no room
+     to breathe -- drop it, keep the scroll cue + dots (both compact and
+     still legible narrow). */
+  body.world .w-hero-side-label { display: none; }
+  /* The fixed floating mobile bottom nav (js/site-mobile-nav.js's
+     .dmnav-bar: 10px bottom offset + 76px height = 86px above the
+     viewport bottom before its own safe-area addition) sits on top of
+     whatever the page scrolls beneath it -- clear it explicitly here
+     since these two elements are deliberately pinned near the hero's
+     visual bottom edge, unlike normal in-flow content that just scrolls
+     underneath. */
+  body.world .w-hero-scroll-cue { bottom: calc(1.1rem + 86px + env(safe-area-inset-bottom, 0px)); inset-inline-end: 1.1rem; gap: 0; }
+  body.world .w-hero-scroll-icon { width: 34px; height: 34px; }
+  /* Icon-only on mobile -- the vertical writing-mode label needs more
+     stacked height than the narrower bottom clearance budget affords
+     here; the desktop composition keeps the full label. */
+  body.world .w-hero-scroll-cue > span:last-child { display: none; }
+  body.world .w-hero-dots { bottom: calc(1.25rem + 86px + env(safe-area-inset-bottom, 0px)); inset-inline-start: 1.25rem; }
+}
 
+/* Short mobile screens (iPhone SE and similar, <=700px tall): the fixed
+   86px bottom nav budget above doesn't shrink with the viewport, so on a
+   short screen the stat row's own bottom edge was landing right against
+   it with almost no breathing room. Compresses the space ABOVE the stats
+   (hero top padding, inter-element gaps) rather than touching the fixed
+   safe-area clearance itself, so the stats/dots/scroll-cue keep the same
+   guaranteed distance from the bottom nav regardless of screen height. */
+@media (max-width: 767px) and (max-height: 700px) {
+  body.world .w-hero { padding-block-start: 3.5rem; }
+  body.world .w-hero-copy { gap: 0.75rem; }
+  body.world .w-hero-copy .w-display { font-size: clamp(1.9rem, 8.6vw, 2.6rem); }
+  body.world .w-hero-copy .w-body { -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+}
+
+@media (max-width: 767px) {
   /* Intent: the panel wall becomes a horizontal snap-scroller. There is no
      hover on touch, so js/home-intent-panels.js tracks whichever panel
      sits nearest the row's centre and marks it .is-active -- dominant

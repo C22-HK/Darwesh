@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Map P1 IA — Preview Only</title>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<!-- PREVIEW ONLY -- isolated static mockup, not wired into production.
+     Links the real repo stylesheets + a verbatim copy of map.html's own
+     <style> block (map-current-styles.css) so every "CURRENT" element here
+     renders with pixel-accurate current tokens; "PROPOSED" elements reuse
+     the same classes/recipes wherever the proposal keeps a control as-is,
+     and new mockup-only classes (prefixed .pv-) for genuinely new pieces
+     (Filters button/panel, merged Save flow, trimmed Map Tools). -->
+<link href="../css/tailwind.css" rel="stylesheet"/>
+<link href="../css/profile-tokens.css" rel="stylesheet"/>
+<link href="../css/cinematic.css" rel="stylesheet"/>
+<link href="map-current-styles.css" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&family=IBM+Plex+Sans:wght@600&family=Inter:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<style>
+  /* ---- Preview chrome only -- never appears in the real product ---- */
+  :root{ --pv-bg:#0c0d10; --pv-card:#15171b; --pv-line:#262931; --pv-ink:#EFEBE1; --pv-ink-dim:#9a9488; --pv-accent:#D9C39A; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{ background:var(--pv-bg); color:var(--pv-ink); font-family:'Inter',sans-serif; padding-inline:20px; }
+  .material-symbols-outlined{ font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; vertical-align:middle; line-height:1; }
+  .pv-shell{ max-width:1220px; margin-inline:auto; padding-block:36px 80px; }
+  .pv-banner{
+    position:sticky; top:0; z-index:50; margin-inline:-20px; padding:10px 20px; text-align:center;
+    background:linear-gradient(180deg,#7a2a1f,#5c1f17); color:#F6E4DE; font-family:'IBM Plex Sans',sans-serif;
+    font-size:12.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
+    border-bottom:1px solid rgba(255,255,255,.12);
+  }
+  .pv-head{ margin-block:38px 18px; }
+  .pv-eyebrow{ font-family:'IBM Plex Sans',sans-serif; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--pv-accent); font-weight:600; }
+  .pv-title{ font-family:'Fraunces',serif; font-size:23px; font-weight:600; margin:4px 0 6px; }
+  .pv-sub{ font-size:13.5px; color:var(--pv-ink-dim); max-width:78ch; line-height:1.55; margin:0; }
+  .pv-scene{
+    border:1px solid var(--pv-line); border-radius:16px; background:radial-gradient(1200px 300px at 20% -10%, rgba(224,190,130,.05), transparent), #0b0c0e;
+    padding:22px; margin-bottom:14px; overflow:hidden;
+  }
+  .pv-scene-label{ display:inline-flex; align-items:center; gap:6px; font-family:'IBM Plex Sans',sans-serif; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; padding:4px 10px; border-radius:999px; margin-bottom:14px; }
+  .pv-label-current{ background:rgba(255,255,255,.06); color:#B7AF9E; border:1px solid rgba(255,255,255,.1); }
+  .pv-label-proposed{ background:rgba(224,190,130,.14); color:#F0E4C8; border:1px solid rgba(224,190,130,.35); }
+  .pv-stage{ position:relative; background:#101111; border-radius:12px; padding:18px; min-height:70px; display:flex; align-items:flex-start; }
+  .pv-annot{ margin-top:12px; display:flex; flex-wrap:wrap; gap:8px 20px; font-size:12px; color:var(--pv-ink-dim); }
+  .pv-annot b{ color:var(--pv-ink); }
+  .pv-annot .rm{ color:#E5A5A0; }
+  .pv-annot .add{ color:#9FD6B4; }
+  .pv-two-col{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:900px){ .pv-two-col{ grid-template-columns:1fr; } }
+  .pv-arrow-row{ display:flex; align-items:center; justify-content:center; gap:10px; color:var(--pv-ink-dim); font-size:12px; margin:2px 0 14px; }
+  .pv-arrow-row .ln{ flex:1; height:1px; background:var(--pv-line); }
+  .pv-mobile-frame{ width:390px; max-width:100%; margin-inline:auto; border:1px solid var(--pv-line); border-radius:28px; overflow:hidden; background:#101111; }
+  .pv-mobile-frame .pv-stage{ border-radius:0; }
+  #toc{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:30px; }
+  #toc a{ font-size:12px; color:var(--pv-ink-dim); text-decoration:none; border:1px solid var(--pv-line); border-radius:999px; padding:5px 12px; }
+  #toc a:hover{ color:var(--pv-ink); border-color:rgba(224,190,130,.4); }
+
+  /* ---- New (proposed-only) mockup components, built from the same
+     champagne-glass token family already used throughout map.html -- not
+     invented colors, just new layouts for controls that don't exist yet. */
+  .pv-filters-btn{
+    display:flex; align-items:center; gap:6px; border-radius:13px; padding:8px 14px;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:#F0E4C8;
+    background-image:linear-gradient(180deg, rgba(224,190,130,.18), rgba(224,190,130,.06));
+    background-color:rgba(20,22,30,.62); border:1px solid rgba(224,190,130,.3); min-height:40px;
+  }
+  .pv-filters-badge{
+    display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px; padding:0 4px;
+    border-radius:999px; background:rgba(224,190,130,.9); color:#241C0F; font-size:10.5px; font-weight:800;
+  }
+  .pv-maptools-btn{
+    display:flex; align-items:center; gap:6px; border-radius:13px; padding:8px 12px;
+    font-family:'Inter',sans-serif; font-size:13px; font-weight:600; color:#F4EFE7;
+    background-image:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.015));
+    background-color:rgba(20,24,34,.55); border:1px solid rgba(180,195,215,.11); min-height:40px;
+  }
+  .pv-panel{
+    background:linear-gradient(180deg, rgba(26,23,16,0.94) 0%, rgba(14,13,9,0.97) 100%);
+    border:1px solid rgba(216,182,101,0.22); border-radius:16px; padding:16px 18px; width:320px; max-width:100%;
+    box-shadow:0 24px 48px -20px rgba(0,0,0,.6);
+  }
+  .pv-panel h4{ font-family:'IBM Plex Sans',sans-serif; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:#8F887C; margin:0 0 10px; }
+  .pv-toggle-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-top:1px solid rgba(255,255,255,.07); }
+  .pv-toggle-row:first-child{ border-top:none; }
+  .pv-toggle-row span{ font-size:13px; color:#F4EFE7; font-weight:500; }
+  .pv-switch{ width:36px; height:20px; border-radius:999px; background:rgba(255,255,255,.1); position:relative; flex:none; }
+  .pv-switch.on{ background:rgba(224,190,130,.55); }
+  .pv-switch i{ position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:999px; background:#EFE6D2; transition:left .15s; }
+  .pv-switch.on i{ left:18px; }
+  .pv-toast{
+    display:inline-flex; align-items:center; gap:8px; background:#17150F; color:#F2EEE5; border:1px solid #5D482B;
+    padding:10px 18px; border-radius:999px; font-family:'Inter',sans-serif; font-size:13.5px; font-weight:500;
+  }
+  .pv-toast a{ color:#D9C39A; font-weight:700; text-decoration:underline; margin-inline-start:4px; }
+  .pv-mini-icon-btn{
+    width:40px; height:40px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+    background-color:rgba(20,24,34,.55); border:1px solid rgba(180,195,215,.11); color:#EFEBE1;
+  }
+</style>
+</head>
+<body class="cine-scope bg-background text-on-surface font-body-md antialiased">
+
+<div class="pv-banner">⚠ PREVIEW ONLY — NOT IMPLEMENTED — no production code was changed to build this page</div>
+
+<div class="pv-shell">
+
+  <div class="pv-head">
+    <div class="pv-eyebrow">Property Map · P1 information-architecture preview</div>
+    <h1 class="pv-title">What the audit's P1 recommendations would look like</h1>
+    <p class="pv-sub">Static mockups only, built from the real current champagne-glass tokens (this page links the actual repo stylesheets). Nothing here is wired to filters, Firebase, or routing — the live map.html is untouched. Every scene below shows CURRENT (as shipped after the P0 fixes) directly against PROPOSED.</p>
+  </div>
+
+  <nav id="toc">
+    <a href="#scene-toolbar">A · Toolbar</a>
+    <a href="#scene-filters">B · Filters panel</a>
+    <a href="#scene-maptools">C · Map Tools</a>
+    <a href="#scene-alert">D · Area Alert flow</a>
+    <a href="#scene-save">Save Search + Alert options</a>
+    <a href="#scene-mobile-map">E · Mobile map</a>
+    <a href="#scene-mobile-filters">F · Mobile filters</a>
+    <a href="#scene-rtl-ku">G · Kurdish RTL</a>
+    <a href="#scene-rtl-ar">H · Arabic RTL</a>
+  </nav>
+
+  <!-- ================= A. TOOLBAR ================= -->
+  <section id="scene-toolbar" class="pv-scene">
+    <span class="pv-scene-label pv-label-current">A · Current</span>
+    <div class="pv-stage">
+      <div id="filterBarWrap" style="position:relative; left:0; right:0; top:0; width:100%; margin:0;">
+        <div class="max-w-container-max mx-auto px-3 md:px-4 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          <div id="typeSeg" class="flex items-center rounded-full p-1 flex-none">
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">Buy</button>
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">Rent</button>
+            <span class="flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">Sell</span>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div id="mapModeSeg" class="flex items-center rounded-full p-1 flex-none">
+            <button class="map-mode-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">Explore</button>
+            <button class="map-mode-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">My Properties</button>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">location_on</span>Any city</button>
+            <button class="select-area-btn flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">radio_button_unchecked</span>Select Area</button>
+            <button class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">swap_vert</span>Sort<span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></button>
+            <button class="toolbar-btn-quiet flex-none flex items-center gap-1 rounded-full px-3 py-2 font-label-caps text-label-caps"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>Save Search</button>
+            <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps"><span class="material-symbols-outlined" style="font-size:16px;">notifications_active</span>Save as Alert</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pv-annot">
+      <span><b>Order:</b> Buy/Rent/Sell → Explore/My Properties → City → Select Area → Sort → Save Search → Save as Alert</span>
+      <span class="rm">Price / Beds / Home Type have no toolbar presence at all</span>
+    </div>
+  </section>
+
+  <div class="pv-arrow-row"><div class="ln"></div><span class="material-symbols-outlined">arrow_downward</span><div class="ln"></div></div>
+
+  <section class="pv-scene">
+    <span class="pv-scene-label pv-label-proposed">A · Proposed</span>
+    <div class="pv-stage">
+      <div id="filterBarWrap" style="position:relative; left:0; right:0; top:0; width:100%; margin:0;">
+        <div class="max-w-container-max mx-auto px-3 md:px-4 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          <div id="typeSeg" class="flex items-center rounded-full p-1 flex-none">
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">Buy</button>
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">Rent</button>
+            <span class="flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">Sell</span>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div id="mapModeSeg" class="flex items-center rounded-full p-1 flex-none">
+            <button class="map-mode-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">Explore</button>
+            <button class="map-mode-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">My Properties</button>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button class="pv-filters-btn"><span class="material-symbols-outlined" style="font-size:16px;">tune</span>Filters<span class="pv-filters-badge">2</span></button>
+            <button class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">location_on</span>Any city</button>
+            <button class="select-area-btn flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">radio_button_unchecked</span>Select Area</button>
+            <button class="pv-maptools-btn"><span class="material-symbols-outlined" style="font-size:16px;">settings</span>Map Tools</button>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button class="filter-dropdown-btn flex items-center gap-1 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">swap_vert</span>Sort<span class="material-symbols-outlined" style="font-size:16px;">expand_more</span></button>
+            <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>Save<span style="opacity:.75;font-weight:500;">+ notify</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pv-annot">
+      <span class="add">+ Filters button</span>
+      <span class="add">+ Map Tools icon (replaces the edge-handle as the discovery path)</span>
+      <span class="rm">− Sort moves after the primary group, no longer ranks above filters</span>
+      <span class="rm">− Save Search + Save as Alert merge into one Save action</span>
+      <b>What stays unchanged:</b> Buy/Rent/Sell, Explore/My Properties, Any city, Select Area — same controls, same position.
+    </div>
+  </section>
+
+  <!-- ================= B. FILTERS PANEL ================= -->
+  <section id="scene-filters" class="pv-scene">
+    <span class="pv-scene-label pv-label-proposed">B · Proposed — Filters panel open</span>
+    <div class="pv-stage" style="justify-content:flex-start;">
+      <div class="pv-panel">
+        <h4>Price</h4>
+        <div class="currency-toggle" style="display:inline-flex;">
+          <button class="currency-opt" aria-pressed="true">USD</button>
+          <button class="currency-opt" aria-pressed="false">IQD</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2" style="margin-top:10px;">
+          <input class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="Min" style="background:transparent;color:#EFEBE1;"/>
+          <input class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="Any" style="background:transparent;color:#EFEBE1;"/>
+        </div>
+        <h4 style="margin-top:18px;">Beds &amp; Baths</h4>
+        <div class="chip-row" style="margin-bottom:8px;">
+          <button class="chip-opt" aria-pressed="false">Any</button>
+          <button class="chip-opt" aria-pressed="true">2+</button>
+          <button class="chip-opt" aria-pressed="false">3+</button>
+          <button class="chip-opt" aria-pressed="false">4+</button>
+        </div>
+        <h4 style="margin-top:18px;">Home Type</h4>
+        <div style="display:flex; flex-wrap:wrap; gap:6px;">
+          <button class="chip-opt" aria-pressed="true">🏠 House</button>
+          <button class="chip-opt" aria-pressed="false">🏢 Apartment</button>
+          <button class="chip-opt" aria-pressed="false">🏡 Villa</button>
+          <button class="chip-opt" aria-pressed="false">🏗 Land</button>
+        </div>
+        <div class="pv-toggle-row" style="margin-top:16px;">
+          <span>Verified only</span>
+          <div class="pv-switch on"><i></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="pv-annot">
+      <span><b>Instant-commit throughout:</b> Beds/Baths and Home Type are both discrete chip taps (same one-model rule from the P0 fix)</span>
+      <span><b>Price</b> stays on an explicit Apply — free-text input, avoids refiltering on every keystroke</span>
+      <span class="add">Verified toggle promoted to a visible row (was buried in a collapsed "More Filters" accordion)</span>
+    </div>
+  </section>
+
+  <!-- ================= C. MAP TOOLS (trimmed) ================= -->
+  <section id="scene-maptools" class="pv-scene">
+    <div class="pv-two-col">
+      <div>
+        <span class="pv-scene-label pv-label-current">C · Current — 4 sections</span>
+        <div class="pv-panel" style="width:100%;">
+          <h4>Property filters</h4>
+          <div style="font-size:12px;color:#8f887c;margin-bottom:10px;">Price · Beds &amp; Baths · Home Type · More Filters</div>
+          <h4>Area Alert</h4>
+          <div style="font-size:12px;color:#8f887c;margin-bottom:10px;">Select Area · Save as Alert · My Alerts</div>
+          <h4>Map options</h4>
+          <div style="font-size:12px;color:#8f887c;margin-bottom:10px;">Map type · My Location · Reset view · Search this area</div>
+          <h4>View</h4>
+          <div style="font-size:12px;color:#8f887c;">Fullscreen</div>
+        </div>
+      </div>
+      <div>
+        <span class="pv-scene-label pv-label-proposed">C · Proposed — map-only</span>
+        <div class="pv-panel" style="width:100%;">
+          <h4>Map options</h4>
+          <div class="tool-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;color:#F4EFE7;font-size:13px;"><span class="material-symbols-outlined" style="font-size:18px;color:#D9C39A;">satellite_alt</span>Map type</div>
+          <div class="tool-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;color:#F4EFE7;font-size:13px;"><span class="material-symbols-outlined" style="font-size:18px;color:#D9C39A;">my_location</span>My Location</div>
+          <div class="tool-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;color:#F4EFE7;font-size:13px;"><span class="material-symbols-outlined" style="font-size:18px;color:#D9C39A;">restart_alt</span>Reset view</div>
+          <div class="tool-row" style="display:flex;align-items:center;gap:10px;padding:9px 0;color:#F4EFE7;font-size:13px;"><span class="material-symbols-outlined" style="font-size:18px;color:#D9C39A;">fullscreen</span>Fullscreen</div>
+          <div class="pv-toggle-row" style="border-top:1px solid rgba(255,255,255,.07);">
+            <span>3 active alerts</span>
+            <a href="#" style="color:#D9C39A;font-size:12px;font-weight:700;text-decoration:none;">Manage →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pv-annot">
+      <span class="rm">− Property filters section moves out entirely (now the Filters panel, scene B)</span>
+      <span class="rm">− Area Alert's Select-Area/Save-as-Alert controls move out (they're already mirrored in the toolbar — this removes the duplicate, keeping only alert status + a management link)</span>
+      <span>Map type, My Location, Reset view, Fullscreen — unchanged, just no longer sharing space with the high-frequency filters</span>
+    </div>
+  </section>
+
+  <!-- ================= D. AREA ALERT FLOW ================= -->
+  <section id="scene-alert" class="pv-scene">
+    <span class="pv-scene-label pv-label-proposed">D · Proposed area alert flow</span>
+    <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-start;">
+      <div class="pv-panel" style="width:230px;">
+        <h4>1 · Select Area</h4>
+        <button class="select-area-btn flex-none flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface" style="width:100%;justify-content:center;"><span class="material-symbols-outlined" style="font-size:16px;">radio_button_unchecked</span>Select Area</button>
+        <p style="font-size:12px;color:#8f887c;margin-top:10px;">Drag on the map to set a radius — unchanged from today.</p>
+      </div>
+      <span class="material-symbols-outlined" style="align-self:center;color:#6b6a63;">arrow_forward</span>
+      <div class="pv-panel" style="width:230px;">
+        <h4>2 · Save this search</h4>
+        <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps" style="width:100%;justify-content:center;"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>Save this search</button>
+        <p style="font-size:12px;color:#8f887c;margin-top:10px;">One button — replaces the current Save Search / Save as Alert pair.</p>
+      </div>
+      <span class="material-symbols-outlined" style="align-self:center;color:#6b6a63;">arrow_forward</span>
+      <div class="pv-panel" style="width:250px;">
+        <h4>3 · Name + notify (inline, not a modal)</h4>
+        <input class="w-full border border-outline-variant rounded-lg px-3 py-2 font-body-md text-body-md" placeholder="e.g. Family homes near Erbil" style="background:transparent;color:#EFEBE1;margin-bottom:10px;"/>
+        <div class="pv-toggle-row" style="border-top:none;padding-top:0;">
+          <span>Notify me about new matches</span>
+          <div class="pv-switch on"><i></i></div>
+        </div>
+      </div>
+      <span class="material-symbols-outlined" style="align-self:center;color:#6b6a63;">arrow_forward</span>
+      <div class="pv-panel" style="width:270px;">
+        <h4>4 · Success</h4>
+        <div class="pv-toast"><span class="material-symbols-outlined" style="font-size:18px;">check_circle</span>Search saved — we'll notify you<a href="#">View</a></div>
+        <p style="font-size:12px;color:#8f887c;margin-top:10px;">Already shipped in the P0 fix — the toast keeps a real path to My Alerts.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Save Search / Save as Alert: Option A vs B ================= -->
+  <section id="scene-save" class="pv-scene">
+    <div class="pv-two-col">
+      <div>
+        <span class="pv-scene-label pv-label-current">Option A · Keep separate (current)</span>
+        <div class="pv-stage" style="flex-direction:column; align-items:stretch; gap:10px;">
+          <button class="toolbar-btn-quiet flex-none flex items-center gap-1 rounded-full px-3 py-2 font-label-caps text-label-caps" style="justify-content:center;"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>Save Search</button>
+          <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps" style="justify-content:center;"><span class="material-symbols-outlined" style="font-size:16px;">notifications_active</span>Save as Alert</button>
+        </div>
+        <div class="pv-annot"><span>Two buttons, two storage systems (a Firestore bookmark vs a backend-monitored subscription), distinguished mainly by ~10-15% visual weight.</span></div>
+      </div>
+      <div>
+        <span class="pv-scene-label pv-label-proposed">Option B · Merge with inline toggle</span>
+        <div class="pv-stage" style="flex-direction:column; align-items:stretch; gap:10px;">
+          <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps" style="justify-content:center;"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>Save this search</button>
+          <div class="pv-toggle-row" style="background:rgba(255,255,255,.03); border-radius:10px; padding:10px 12px; border-top:none;">
+            <span style="font-size:12.5px;">🔔 Notify me about new matches</span>
+            <div class="pv-switch on"><i></i></div>
+          </div>
+        </div>
+        <div class="pv-annot"><span>One action, one mental model. Off = today's Save Search behavior; On = today's Save as Alert behavior — no second button to explain.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= E. MOBILE — MAP ================= -->
+  <section id="scene-mobile-map" class="pv-scene">
+    <span class="pv-scene-label pv-label-proposed">E · 390px mobile — proposed toolbar row</span>
+    <div class="pv-mobile-frame">
+      <div class="pv-stage" style="flex-direction:column; gap:8px; padding:14px;">
+        <div style="display:flex; gap:6px; width:100%;">
+          <div id="typeSeg" class="flex items-center rounded-full p-1 flex-none" style="flex:1;">
+            <button class="type-toggle flex-1 px-3 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">Buy</button>
+            <button class="type-toggle flex-1 px-3 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">Rent</button>
+            <span class="flex-1 px-3 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">Sell</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:6px; width:100%; flex-wrap:wrap;">
+          <button class="pv-filters-btn" style="flex:1;justify-content:center;"><span class="material-symbols-outlined" style="font-size:15px;">tune</span>Filters<span class="pv-filters-badge">2</span></button>
+          <button class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface" style="flex:1;justify-content:center;"><span class="material-symbols-outlined" style="font-size:15px;">location_on</span>City</button>
+          <button class="pv-maptools-btn" style="width:40px;justify-content:center;padding:8px;"><span class="material-symbols-outlined" style="font-size:16px;">settings</span></button>
+        </div>
+      </div>
+    </div>
+    <div class="pv-annot"><span>Filters gets equal top billing with City on mobile too — not just a desktop-only fix.</span></div>
+  </section>
+
+  <!-- ================= F. MOBILE — FILTERS ================= -->
+  <section id="scene-mobile-filters" class="pv-scene">
+    <span class="pv-scene-label pv-label-proposed">F · 390px mobile — Filters panel (bottom sheet)</span>
+    <div class="pv-mobile-frame">
+      <div class="pv-stage" style="align-items:flex-end; padding:0;">
+        <div class="pv-panel" style="width:100%; border-radius:20px 20px 0 0; border-bottom:none;">
+          <div style="width:36px;height:4px;background:rgba(255,255,255,.15);border-radius:999px;margin:0 auto 14px;"></div>
+          <h4>Home Type</h4>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;">
+            <button class="chip-opt" aria-pressed="true">🏠 House</button>
+            <button class="chip-opt" aria-pressed="false">🏢 Apartment</button>
+            <button class="chip-opt" aria-pressed="false">🏡 Villa</button>
+          </div>
+          <h4>Beds &amp; Baths</h4>
+          <div class="chip-row"><button class="chip-opt" aria-pressed="false">Any</button><button class="chip-opt" aria-pressed="true">2+</button><button class="chip-opt" aria-pressed="false">3+</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= G. KURDISH RTL ================= -->
+  <section id="scene-rtl-ku" class="pv-scene" dir="rtl" lang="ku">
+    <span class="pv-scene-label pv-label-proposed">G · Kurdish (Sorani) RTL — proposed toolbar</span>
+    <div class="pv-stage">
+      <div id="filterBarWrap" style="position:relative; left:0; right:0; top:0; width:100%; margin:0;">
+        <div class="max-w-container-max mx-auto px-3 md:px-4 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          <div id="typeSeg" class="flex items-center rounded-full p-1 flex-none">
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">کڕین</button>
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">کرێ</button>
+            <span class="flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">فرۆشتن</span>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button class="pv-filters-btn"><span class="material-symbols-outlined" style="font-size:16px;">tune</span>فلتەرەکان<span class="pv-filters-badge">2</span></button>
+            <button class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">location_on</span>هەر شارێک</button>
+            <button class="pv-maptools-btn"><span class="material-symbols-outlined" style="font-size:16px;">settings</span>ئامرازەکانی نەخشە</button>
+          </div>
+          <div class="toolbar-divider"></div>
+          <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>پاشەکەوتکردن</button>
+        </div>
+      </div>
+    </div>
+    <div class="pv-annot"><span>Group order mirrors automatically (flex row-reverse via the page's own <code>dir="rtl"</code> handling, same mechanism as production); icons stay leading-edge relative to their own label per the existing pattern.</span></div>
+  </section>
+
+  <!-- ================= H. ARABIC RTL ================= -->
+  <section id="scene-rtl-ar" class="pv-scene" dir="rtl" lang="ar">
+    <span class="pv-scene-label pv-label-proposed">H · Arabic RTL — proposed toolbar</span>
+    <div class="pv-stage">
+      <div id="filterBarWrap" style="position:relative; left:0; right:0; top:0; width:100%; margin:0;">
+        <div class="max-w-container-max mx-auto px-3 md:px-4 flex items-center gap-2 overflow-x-auto hide-scrollbar">
+          <div id="typeSeg" class="flex items-center rounded-full p-1 flex-none">
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center bg-primary text-on-primary">شراء</button>
+            <button class="type-toggle flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">إيجار</button>
+            <span class="flex-1 px-4 py-1.5 rounded-full font-label-caps text-label-caps text-center text-on-surface-variant">بيع</span>
+          </div>
+          <div class="toolbar-divider"></div>
+          <div class="toolbar-group">
+            <button class="pv-filters-btn"><span class="material-symbols-outlined" style="font-size:16px;">tune</span>الفلاتر<span class="pv-filters-badge">2</span></button>
+            <button class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface"><span class="material-symbols-outlined" style="font-size:16px;">location_on</span>أي مدينة</button>
+            <button class="pv-maptools-btn"><span class="material-symbols-outlined" style="font-size:16px;">settings</span>أدوات الخريطة</button>
+          </div>
+          <div class="toolbar-divider"></div>
+          <button class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps"><span class="material-symbols-outlined" style="font-size:16px;">bookmark_add</span>حفظ</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div style="margin-top:30px; padding:20px 22px; border-radius:14px; border:1px dashed var(--pv-line); font-size:13px; color:var(--pv-ink-dim);">
+    <b style="color:var(--pv-ink);">Nothing here is implemented.</b> This page exists only to make the P1 audit recommendations concrete before any of them becomes real work. Tell me which scene(s) to approve and I'll scope the actual implementation next — none of it touches map.html until you do.
+  </div>
+
+</div>
+</body>
+</html>

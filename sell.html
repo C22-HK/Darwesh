@@ -129,8 +129,13 @@ own initLocationPicker()). -->
     }
     .dh-mismatch-btn { padding: 6px 12px; }
 
-    /* Full-screen location picker modal. */
-    .dh-lp-modal { position: fixed; inset: 0; z-index: 50; }
+    /* Full-screen location picker modal. Raised 50 -> 65 alongside the
+       mobile nav rebuild: it tied with the OLD .home-bottomnav's z-50 and
+       relied on DOM order (this modal's markup comes after the nav mount)
+       to still paint on top -- the new floating .dmnav-bar/.dmnav-panel
+       sit at z-index:60 (css/cinematic.css), which would otherwise show
+       through this modal regardless of DOM order. */
+    .dh-lp-modal { position: fixed; inset: 0; z-index: 65; }
     .dh-lp-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.7); }
     .dh-lp-dialog {
       position: absolute; inset: 0;
@@ -261,10 +266,16 @@ own initLocationPicker()). -->
        programmatic/browser-driven scroll-into-view (not just a plain CSS
        margin, which only affects layout position, never where a browser
        decides scrolling has gone "far enough") stops clear of the dead
-       zone instead of landing a tap-target behind it. */
+       zone instead of landing a tap-target behind it.
+       Bumped 140px -> 160px for the floating .dmnav-bar mobile nav
+       rebuild: its worst-case on-device footprint (10px offset + 76px
+       height + ~34px safe-area inset = ~120px) is taller than the old
+       bar's (~104px), so the buffer above it was widened by the same
+       ~20px to keep the same ~40px safety margin this comment already
+       explains the reasoning for. */
     @media (max-width: 767px) {
-      #wizardNav { margin-bottom: 140px !important; }
-      #nextBtn, #submitBtn, #backBtn { scroll-margin-bottom: 140px; }
+      #wizardNav { margin-bottom: 160px !important; }
+      #nextBtn, #submitBtn, #backBtn { scroll-margin-bottom: 160px; }
     }
   </style>
   </head>

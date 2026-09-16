@@ -16,13 +16,22 @@
  * map.html's previous location dot had no animation at all).
  */
 
+/* Smoked-glass surface -- a gradient wash over a translucent obsidian
+ * base plus backdrop-blur, matching the same "dark glass, not flat
+ * navy" recipe used across the toolbar/navbar/hero (Leaflet markers are
+ * real DOM elements, so backdrop-filter works on them exactly like any
+ * other panel). Border/shadow/verified-ring colors are unchanged -- this
+ * is a surface refinement, not a new marker language. */
 .price-pin {
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   font-size: 12px;
   padding: 4px 10px 4px 4px;
   border-radius: 999px;
-  background: #17150F;
+  background-image: linear-gradient(180deg, rgba(224,190,130,.1), rgba(224,190,130,.02));
+  background-color: rgba(15,14,11,.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1.5px solid #5D482B;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4), 0 0 14px -6px rgba(184,154,99,0.55);
   white-space: nowrap;
@@ -33,27 +42,28 @@
   align-items: center;
   gap: 6px;
 }
+/* Default marker language: a small champagne dot, not a property-type
+ * glyph -- "● $285K", never an oversized house icon. Verified/unverified
+ * read as a thin ring around the dot (tiny accent only, never a
+ * whole-marker color change); unverified is the ordinary, common state
+ * for most pins on this map, so it gets a neutral ring, not red (red
+ * reads as "something's wrong" in UI convention) -- verified stays
+ * green, the one state actually worth calling out. */
 .price-pin .price-pin-icon {
-  width: 20px; height: 20px; flex-shrink: 0;
-  border-radius: 999px; box-sizing: border-box; padding: 3px;
-  background: rgba(184,154,99,0.16); color: #D9C79A;
+  width: 9px; height: 9px; flex-shrink: 0; border-radius: 999px;
+  background: #E0BE82;
+  box-shadow: 0 0 0 2px rgba(143,136,124,.4);
 }
 .price-pin .price-pin-label { line-height: 1; }
-/* Unverified is the ordinary, common state for most pins on this map --
- * not an error or a warning -- so it gets a neutral ring, not red (red
- * reads as "something's wrong" in UI convention). P0 fix: this used to
- * be #E5787A, which made a normal majority state look alarming at a
- * glance across a map with many pins. Verified stays green -- it's the
- * one state actually worth calling out. */
-.price-pin.pin-unverified .price-pin-icon { box-shadow: inset 0 0 0 1.5px #8F887C; }
-.price-pin.pin-verified .price-pin-icon { box-shadow: inset 0 0 0 1.5px #6FCB7F; }
+.price-pin.pin-unverified .price-pin-icon { box-shadow: 0 0 0 2px rgba(143,136,124,.4); }
+.price-pin.pin-verified .price-pin-icon { box-shadow: 0 0 0 2px rgba(111,203,127,.65); }
 .price-pin:hover { transform: scale(1.08); z-index: 1000 !important; border-color: #B89A63; }
 
-/* Compact (zoomed-out) mode — icon only, no price text. */
+/* Compact (zoomed-out) mode — dot only, no price text. */
 .price-pin.price-pin-compact {
-  width: 28px; height: 28px; padding: 0; justify-content: center;
+  width: 16px; height: 16px; padding: 0; justify-content: center; align-items: center;
 }
-.price-pin.price-pin-compact .price-pin-icon { width: 100%; height: 100%; padding: 5px; background: none; }
+.price-pin.price-pin-compact .price-pin-icon { width: 10px; height: 10px; }
 
 .price-pin.active {
   transform: scale(1.16);

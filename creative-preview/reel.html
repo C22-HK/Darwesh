@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Darwesh Group — Concept Reel</title>
+<link rel="stylesheet" href="preview.css">
+<style>
+  html, body { background: #000; }
+  #stage {
+    width: 1440px; height: 900px; position: relative; overflow: hidden;
+    background: var(--charcoal);
+  }
+  .reel-scene {
+    position: absolute; inset: 0; opacity: 0;
+    transition: opacity 0.7s ease;
+    pointer-events: none;
+  }
+  .reel-scene.show { opacity: 1; }
+
+  /* ---------- Scene 01 — logo intro ---------- */
+  #s1 { display: flex; align-items: center; justify-content: center; background: var(--charcoal); }
+  #s1 .mark-wrap { text-align: center; opacity: 0; transform: translateY(8px); transition: opacity 1.5s ease, transform 1.5s ease; }
+  #s1.show .mark-wrap { opacity: 1; transform: translateY(0); }
+  #s1 img { width: 76px; height: 76px; object-fit: contain; margin-bottom: 22px; }
+  #s1 .name { font: 500 30px/1 var(--font-display); color: var(--ivory); letter-spacing: 0.01em; }
+  #s1 .sub { font: 600 11.5px/1 var(--font-body); letter-spacing: 0.18em; text-transform: uppercase; color: var(--gold-soft); margin-top: 12px; }
+
+  /* ---------- Scene 02 — home hero ---------- */
+  #s2 .hero { height: 900px; position: relative; display: flex; flex-direction: column; justify-content: space-between; }
+  #s2 .surface { position: absolute; inset: 0; transform: scale(1); animation: kenburns 4.2s ease-out forwards; }
+  #s2.show .surface { }
+  @keyframes kenburns { from { transform: scale(1); } to { transform: scale(1.045); } }
+  #s2 .hero-copy { padding: 74px 56px 0; max-width: 760px; position: relative; z-index: 3;
+    opacity: 0; transform: translateY(14px); transition: opacity 0.7s ease 0.25s, transform 0.7s ease 0.25s; }
+  #s2.show .hero-copy { opacity: 1; transform: translateY(0); }
+  #s2 h1.display { font-size: 60px; color: var(--ivory); margin: 18px 0 20px; }
+  #s2 h1.display em { font-style: normal; color: var(--gold-soft); }
+  #s2 .search-pill {
+    position: absolute; z-index: 4; right: 56px; bottom: 130px; width: 360px;
+    background: rgba(20,23,28,0.55); backdrop-filter: blur(18px);
+    border: 1px solid var(--line-on-dark); border-radius: var(--radius-lg); padding: 18px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6);
+    opacity: 0; transform: translateY(14px); transition: opacity 0.7s ease 0.4s, transform 0.7s ease 0.4s;
+  }
+  #s2.show .search-pill { opacity: 1; transform: translateY(0); }
+  #s2 .search-pill input { width: 100%; background: rgba(247,242,232,0.06); border: 1px solid var(--line-on-dark); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--ivory); font: 500 13px var(--font-body); }
+
+  /* ---------- Scene 03 — service universe ---------- */
+  #s3 .wrap { padding: 46px 56px 0; }
+  #s3 .head { max-width: 640px; margin-bottom: 24px; }
+  #s3 h2.display { font-size: 36px; color: var(--ivory); margin: 12px 0 8px; }
+  #s3 .track { overflow: hidden; }
+  #s3 .grid { display: flex; gap: 16px; transform: translateX(0); transition: transform 3.6s linear; }
+  #s3.show .grid { transform: translateX(-320px); }
+  #s3 .svc-card {
+    position: relative; border-radius: var(--radius-lg); overflow: hidden; height: 168px; width: 300px; flex: 0 0 auto;
+    border: 1px solid var(--line-on-dark);
+  }
+  #s3 .svc-card .veil { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(20,23,28,0) 30%, rgba(15,17,21,0.92) 100%); }
+  #s3 .svc-card .body { position: absolute; left: 18px; right: 18px; bottom: 16px; }
+  #s3 .svc-card .name { font: 600 17px/1.15 var(--font-display); color: var(--ivory); margin-bottom: 4px; }
+  #s3 .svc-card .tag { font: 500 11.5px/1.3 var(--font-body); color: rgba(247,242,232,0.72); }
+
+  /* ---------- Scene 04 — about cinematic ---------- */
+  #s4 .stage { height: 900px; position: relative; display: flex; align-items: center; justify-content: center; }
+  #s4 .layer { position: absolute; text-align: center; opacity: 0; transition: opacity 1.2s ease, transform 1.2s ease; }
+  #s4.show .layer { opacity: 1; }
+  #s4 .layer.back { transform: scale(1.15); filter: blur(1.5px); opacity: 0; top: 130px; transition-delay: 0s; }
+  #s4.show .layer.back { opacity: 0.35; }
+  #s4 .layer.mid { top: 270px; transition-delay: 0.25s; }
+  #s4.show .layer.mid { opacity: 0.75; }
+  #s4 .layer.front { top: 390px; transition-delay: 0.5s; }
+  #s4 .layer .word { font-family: var(--font-display); font-size: 28px; color: var(--ivory); }
+  #s4 .layer.front .word { font-size: 52px; }
+
+  /* ---------- Scene 05 — map + alert ---------- */
+  #s5 .map-stage { height: 900px; position: relative; }
+  #s5 .marker { position: absolute; width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg) scale(1);
+    background: var(--gold); box-shadow: 0 10px 24px -12px rgba(201,162,39,0.7); animation: pulse 1.8s ease-in-out 0.4s 2; }
+  @keyframes pulse { 0%,100% { transform: rotate(-45deg) scale(1); } 50% { transform: rotate(-45deg) scale(1.25); } }
+  #s5 .save-alert { position: absolute; left: 200px; bottom: 22px; z-index: 5; }
+  #s5 .listing-card {
+    position: absolute; right: 22px; bottom: 22px; width: 280px; z-index: 6;
+    background: #fff; border-radius: var(--radius-lg); overflow: hidden;
+    box-shadow: 0 30px 60px -24px rgba(20,23,28,0.4); border: 1px solid var(--line-on-light);
+    opacity: 0; transform: translateY(40px); transition: opacity 0.6s ease 0.5s, transform 0.6s ease 0.5s;
+  }
+  #s5.show .listing-card { opacity: 1; transform: translateY(0); }
+  #s5 .listing-card .img { height: 110px; background: linear-gradient(200deg, #d8cdae, #efe7d6); }
+  #s5 .listing-card .body { padding: 14px 16px; }
+  #s5 .listing-card .price { font: 700 17px/1 var(--font-display); color: var(--ink-on-light); }
+  #s5 .listing-card .addr { font: 500 12px/1.3 var(--font-body); color: var(--ink-on-light-dim); margin-top: 5px; }
+
+  /* ---------- Scene 06 — montage ---------- */
+  #s6 .montage-frame { position: absolute; inset: 0; opacity: 0; transform: scale(1); transition: opacity 0.35s ease; }
+  #s6 .montage-frame.on { opacity: 1; animation: scaleup 1.3s ease-out forwards; }
+  @keyframes scaleup { from { transform: scale(1); } to { transform: scale(1.02); } }
+  #s6 .m-body { background: var(--ivory); padding: 40px 56px; height: 900px; }
+  #s6 .m-avatar { width: 96px; height: 96px; border-radius: 20px; background: linear-gradient(160deg, #d8cdae, #efe7d6); margin-bottom: 18px; }
+  #s6 .m-name { font: 600 26px/1.15 var(--font-display); color: var(--ink-on-light); margin: 0 0 8px; }
+  #s6 .m-role { font: 500 13px/1 var(--font-body); color: var(--ink-on-light-dim); }
+  #s6 .ring { width: 110px; height: 110px; margin: 40px 0 0; border-radius: 50%; background: conic-gradient(var(--gold) 0% 72%, rgba(27,31,39,0.1) 72% 100%); display: flex; align-items: center; justify-content: center; }
+  #s6 .ring-inner { width: 88px; height: 88px; border-radius: 50%; background: var(--charcoal-2); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  #s6 .ring-inner b { font: 700 20px/1 var(--font-display); color: var(--ivory); }
+  #s6 .ring-inner span { font: 500 9.5px/1 var(--font-body); color: var(--ink-on-dark-dim); margin-top: 3px; }
+
+  /* ---------- Scene 07 — mobile ---------- */
+  #s7 { background: var(--charcoal); display: flex; align-items: center; justify-content: center; }
+  #s7 .phone {
+    width: 390px; height: 780px; border-radius: 44px; border: 8px solid #232833; background: var(--charcoal);
+    overflow: hidden; position: relative; box-shadow: 0 40px 80px -20px rgba(0,0,0,0.6);
+    transform: translateY(60px); opacity: 0; transition: transform 0.7s var(--ease-premium), opacity 0.7s ease;
+  }
+  #s7.show .phone { transform: translateY(0); opacity: 1; }
+  #s7 .m-hero { height: 320px; position: relative; }
+  #s7 .m-hero .content { position: absolute; left: 20px; right: 20px; bottom: 24px; }
+  #s7 .m-hero h1 { font: 500 28px/1.12 var(--font-display); color: var(--ivory); margin: 8px 0 0; }
+  #s7 .m-search { margin: -26px 20px 0; background: rgba(20,23,28,0.7); backdrop-filter: blur(16px); border: 1px solid var(--line-on-dark); border-radius: var(--radius-lg); padding: 14px; position: relative; z-index: 3; }
+  #s7 .m-search input { width: 100%; background: rgba(247,242,232,0.06); border: 1px solid var(--line-on-dark); border-radius: var(--radius-sm); padding: 11px 12px; color: var(--ivory); font: 500 12px var(--font-body); }
+  #s7 .m-bottomnav { position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: rgba(20,23,28,0.85); backdrop-filter: blur(18px); border-top: 1px solid var(--line-on-dark); display: flex; align-items: center; justify-content: space-around; }
+  #s7 .m-nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 9px/1 var(--font-body); color: var(--ink-on-dark-dim); }
+  #s7 .m-nav-item.active { color: var(--gold-soft); }
+  #s7 .m-nav-item .dot { width: 16px; height: 16px; border-radius: 5px; background: currentColor; opacity: 0.9; }
+  #s7 .m-fab { position: absolute; right: 18px; bottom: 88px; width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(180deg, var(--gold-soft), var(--gold)); box-shadow: 0 14px 26px -10px rgba(201,162,39,0.6); }
+
+  /* ---------- Scene 08 — closing ---------- */
+  #s8 { display: flex; align-items: center; justify-content: center; background: var(--charcoal); }
+  #s8 .close-line { font: 500 26px/1.3 var(--font-display); color: var(--ivory); text-align: center; max-width: 640px; }
+  #s8 .close-line em { font-style: normal; color: var(--gold-soft); }
+  #s8 img { width: 46px; height: 46px; object-fit: contain; display: block; margin: 0 auto 26px; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <div class="reel-scene on-dark" id="s1">
+    <div class="mark-wrap">
+      <img src="../images/brand/darwesh-mark.png" alt="">
+      <div class="name">Darwesh Group</div>
+      <div class="sub">People · Property · Possibility</div>
+    </div>
+  </div>
+
+  <div class="reel-scene on-dark" id="s2">
+    <div class="hero">
+      <div class="surface photo-surface"></div>
+      <div class="skyline">
+        <svg viewBox="0 0 1440 340" preserveAspectRatio="none">
+          <defs><linearGradient id="sky2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2a2d33"/><stop offset="100%" stop-color="#0c0e11"/></linearGradient></defs>
+          <rect x="0" y="120" width="90" height="220" fill="url(#sky2)"/><rect x="100" y="60" width="70" height="280" fill="url(#sky2)"/>
+          <rect x="185" y="150" width="120" height="190" fill="url(#sky2)"/><rect x="320" y="20" width="60" height="320" fill="url(#sky2)"/>
+          <rect x="395" y="100" width="150" height="240" fill="url(#sky2)"/><rect x="560" y="170" width="90" height="170" fill="url(#sky2)"/>
+          <rect x="665" y="40" width="80" height="300" fill="url(#sky2)"/><rect x="760" y="130" width="140" height="210" fill="url(#sky2)"/>
+          <rect x="915" y="70" width="65" height="270" fill="url(#sky2)"/><rect x="995" y="160" width="110" height="180" fill="url(#sky2)"/>
+          <rect x="1120" y="10" width="70" height="330" fill="url(#sky2)"/><rect x="1205" y="120" width="130" height="220" fill="url(#sky2)"/>
+          <rect x="1350" y="90" width="90" height="250" fill="url(#sky2)"/>
+        </svg>
+      </div>
+      <div class="grain"></div>
+      <div class="vignette"></div>
+      <nav class="nav" style="position:relative; z-index:5;">
+        <div class="nav-mark"><div class="dot"></div>Darwesh Group</div>
+        <div class="nav-links"><a class="active">Home</a><a>Buy</a><a>Projects</a><a>Services</a><a>Challenge</a></div>
+        <div></div>
+      </nav>
+      <div class="hero-copy">
+        <div class="eyebrow">Darwesh Group · Kurdistan</div>
+        <h1 class="display">Kurdistan's next<br>chapter, <em>built well.</em></h1>
+        <p class="lede">Connecting people to property — and to the professionals who build it right.</p>
+      </div>
+      <div class="search-pill">
+        <div style="font:600 12px var(--font-body); color:var(--ink-on-dark-dim); margin-bottom:10px;">City or neighborhood…</div>
+        <button class="btn btn-primary" style="width:100%; justify-content:center;">Search Properties</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="reel-scene on-dark" id="s3">
+    <nav class="nav">
+      <div class="nav-mark"><div class="dot"></div>Darwesh Group</div>
+      <div class="nav-links"><a>Home</a><a class="active">Services</a><a>Projects</a><a>Challenge</a></div>
+      <div></div>
+    </nav>
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Service Universe</div>
+        <h2 class="display">One network. Every step.</h2>
+      </div>
+      <div class="track"><div class="grid" id="s3grid"></div></div>
+    </div>
+  </div>
+
+  <div class="reel-scene on-dark" id="s4">
+    <div class="stage">
+      <div class="photo-surface" style="background:
+        radial-gradient(90% 70% at 50% 0%, rgba(201,162,39,0.16), transparent 60%),
+        radial-gradient(120% 90% at 50% 100%, rgba(74,87,68,0.28), transparent 60%),
+        linear-gradient(180deg, #191c22 0%, #0e1013 100%);"></div>
+      <div class="grain"></div>
+      <div class="layer back"><div class="word">Architecture</div></div>
+      <div class="layer mid"><div class="word">People</div></div>
+      <div class="layer front"><div class="word">Rooted in Kurdistan.<br>Built for what's next.</div></div>
+    </div>
+  </div>
+
+  <div class="reel-scene on-light" id="s5">
+    <div class="map-stage">
+      <div class="map-bg" style="position:absolute; inset:0; background:
+        repeating-linear-gradient(100deg, rgba(27,31,39,0.05) 0 2px, transparent 2px 90px),
+        repeating-linear-gradient(10deg, rgba(27,31,39,0.05) 0 2px, transparent 2px 90px),
+        linear-gradient(160deg, #efe7d6, #e3d9c0 60%, #d8cdae 100%);"></div>
+      <nav class="nav" style="position:relative; z-index:6;">
+        <div class="nav-mark"><div class="dot"></div>Darwesh Group</div>
+        <div class="nav-links"><a>Home</a><a class="active">Map</a><a>Projects</a></div>
+        <div></div>
+      </nav>
+      <button class="btn btn-ghost-light save-alert">Save as Alert</button>
+      <div class="marker" style="left:640px; top:420px;"></div>
+      <div class="marker" style="left:960px; top:250px; animation-delay:0.6s;"></div>
+      <div class="listing-card">
+        <div class="img"></div>
+        <div class="body"><div class="price">$185,000</div><div class="addr">3 bed villa · 40 Meter Road, Erbil</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="reel-scene on-light" id="s6">
+    <div class="montage-frame" id="s6-profile">
+      <div class="m-body">
+        <nav class="nav" style="padding:0 0 30px;"><div class="nav-mark"><div class="dot"></div>Darwesh Group</div><div></div><div></div></nav>
+        <div class="m-avatar"></div>
+        <div class="m-name">Hana Rasul</div>
+        <div class="m-role">Interior Designer · Erbil</div>
+        <div class="badges-row" style="margin-top:14px;"><span class="badge badge-verified">✓ Verified</span> <span class="badge badge-gold">Top Rated</span></div>
+      </div>
+    </div>
+    <div class="montage-frame on-dark" id="s6-arena">
+      <div class="m-body" style="background:var(--charcoal); color:var(--ivory);">
+        <nav class="nav" style="padding:0 0 30px;"><div class="nav-mark"><div class="dot"></div>Darwesh Group</div><div></div><div></div></nav>
+        <div class="eyebrow">Darwesh Challenge</div>
+        <h2 style="font:500 34px var(--font-display); color:var(--ivory); margin:10px 0 24px;">Real work. Real rank.</h2>
+        <div class="ring"><div class="ring-inner"><b>72%</b><span>To Gold Rank</span></div></div>
+      </div>
+    </div>
+    <div class="montage-frame on-dark" id="s6-projects">
+      <div class="m-body" style="background:var(--charcoal); color:var(--ivory);">
+        <nav class="nav" style="padding:0 0 30px;"><div class="nav-mark"><div class="dot"></div>Darwesh Group</div><div></div><div></div></nav>
+        <div class="eyebrow">Projects</div>
+        <h2 style="font:500 34px var(--font-display); color:var(--ivory); margin:10px 0 24px;">Follow what's being built.</h2>
+        <div style="position:relative; height:320px; border-radius:var(--radius-lg); overflow:hidden; background:linear-gradient(200deg,#232833,#0e1013 70%);">
+          <div style="position:absolute; left:32px; bottom:28px;">
+            <span class="badge badge-gold">Now Selling</span>
+            <div style="font:500 30px var(--font-display); color:var(--ivory); margin-top:10px;">Sartip Heights</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="reel-scene" id="s7">
+    <div class="phone">
+      <div class="m-hero">
+        <div class="photo-surface" style="background: radial-gradient(140% 90% at 50% 0%, rgba(220,195,114,0.3), transparent 55%), linear-gradient(180deg, #2a2d33, #0d0f13 100%);"></div>
+        <div class="content">
+          <div class="eyebrow">Kurdistan · Real Estate</div>
+          <h1>Find home.<br>Build right.</h1>
+        </div>
+      </div>
+      <div class="m-search"><input placeholder="City or neighborhood…" readonly></div>
+      <div class="m-fab"></div>
+      <div class="m-bottomnav">
+        <div class="m-nav-item active"><div class="dot"></div>Home</div>
+        <div class="m-nav-item"><div class="dot"></div>Map</div>
+        <div class="m-nav-item"><div class="dot"></div>Challenge</div>
+        <div class="m-nav-item"><div class="dot"></div>Account</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="reel-scene" id="s8">
+    <div class="close-line">
+      <img src="../images/brand/darwesh-mark.png" alt="">
+      DARWESH GROUP<br><em>People. Property. Possibility.</em>
+    </div>
+  </div>
+
+</div>
+<script>
+const SERVICES = [
+  { name: 'Properties', tag: 'Find where you belong.', hue: [201,162,39] },
+  { name: 'Projects', tag: 'Watch the city grow.', hue: [90,110,150] },
+  { name: 'Design', tag: 'Spaces with intention.', hue: [176,110,90] },
+  { name: 'Engineering', tag: 'Built with confidence.', hue: [110,120,132] },
+  { name: 'Legal', tag: 'Clarity at every step.', hue: [70,75,90] },
+  { name: 'Landscaping', tag: 'Make space grow.', hue: [74,87,68] },
+];
+document.getElementById('s3grid').innerHTML = SERVICES.map(s => `
+  <div class="svc-card">
+    <div class="bg" style="position:absolute; inset:0; background:
+      radial-gradient(120% 100% at 20% 0%, rgba(${s.hue.join(',')},0.55), transparent 60%),
+      linear-gradient(160deg, rgba(${s.hue.join(',')},0.22), #14171c 70%);"></div>
+    <div class="veil"></div>
+    <div class="body"><div class="name">${s.name}</div><div class="tag">${s.tag}</div></div>
+  </div>
+`).join('');
+
+function show(id) { document.getElementById(id).classList.add('show'); }
+function hide(id) { document.getElementById(id).classList.remove('show'); }
+
+const scenes = ['s1','s2','s3','s4','s5','s6','s7','s8'];
+const cuts = [0, 3000, 7000, 11000, 15000, 19000, 23000, 24500, 25500];
+
+scenes.forEach((id, i) => {
+  setTimeout(() => show(id), cuts[i]);
+  setTimeout(() => hide(id), cuts[i + 1]);
+});
+
+// Scene 6 internal montage sub-cuts
+setTimeout(() => document.getElementById('s6-profile').classList.add('on'), 19000);
+setTimeout(() => { document.getElementById('s6-profile').classList.remove('on'); document.getElementById('s6-arena').classList.add('on'); }, 20300);
+setTimeout(() => { document.getElementById('s6-arena').classList.remove('on'); document.getElementById('s6-projects').classList.add('on'); }, 21600);
+setTimeout(() => document.getElementById('s6-projects').classList.remove('on'), 23000);
+
+window.__reelDone = false;
+setTimeout(() => { window.__reelDone = true; }, 26200);
+</script>
+</body>
+</html>

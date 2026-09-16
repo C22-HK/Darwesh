@@ -37,24 +37,28 @@
   }
 
   // priceIcon(L, listing, { active, compact, private }) -- `listing` needs
-  // `.id`, `.propertyType`, `.verified`, `.priceLabel` (only required when
-  // not compact).
+  // `.id`, `.verified`, `.priceLabel` (only required when not compact).
+  // Default visual is a small champagne dot + dark glass price label
+  // ("● $285K"), not an oversized property-type glyph -- the dot is
+  // the ONE marker language now; propertyTypeIconSvg()/PROPERTY_TYPE_
+  // ICON_PATHS stay exported and in use elsewhere (e.g. the property
+  // card's type badge), just not as the map marker itself.
   function priceIcon(L, listing, opts) {
     opts = opts || {};
     const statusClass = listing.verified ? 'pin-verified' : 'pin-unverified';
     const privateClass = opts.private ? ' pin-private' : '';
-    const icon = propertyTypeIconSvg(listing.propertyType, 'class="price-pin-icon"');
+    const dot = '<span class="price-pin-icon" aria-hidden="true"></span>';
     if (opts.compact && !opts.active) {
       return L.divIcon({
         className: '',
-        html: '<div class="price-pin price-pin-compact ' + statusClass + privateClass + '" data-id="' + listing.id + '">' + icon + '</div>',
-        iconSize: [26, 26],
-        iconAnchor: [13, 13]
+        html: '<div class="price-pin price-pin-compact ' + statusClass + privateClass + '" data-id="' + listing.id + '">' + dot + '</div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
       });
     }
     return L.divIcon({
       className: '',
-      html: '<div class="price-pin ' + statusClass + privateClass + (opts.active ? ' active' : '') + '" data-id="' + listing.id + '">' + icon + '<span class="price-pin-label">' + (listing.priceLabel || '') + '</span></div>',
+      html: '<div class="price-pin ' + statusClass + privateClass + (opts.active ? ' active' : '') + '" data-id="' + listing.id + '">' + dot + '<span class="price-pin-label">' + (listing.priceLabel || '') + '</span></div>',
       iconSize: null,
       iconAnchor: [30, 15]
     });

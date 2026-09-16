@@ -70,7 +70,41 @@ violation reporting. -->
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     body { min-height: max(884px, 100dvh); }
+    /* ROOT-CAUSE CHECK (done before writing any of the CSS below): grepped
+       this entire file for .leaflet-tile/.leaflet-tile-pane/#map rules and
+       for any filter/opacity/mix-blend-mode/overlay touching the map --
+       there is none. #map's own background (below) is only the fallback
+       colour shown through gaps before/while tiles paint; roadmapLayer
+       (search "L.tileLayer" for the OSM layer) is added with no opacity
+       option and no className, so it renders at its native colours with
+       nothing dimming it. The black map seen in this sandbox's QA
+       screenshots is this environment's own egress proxy rejecting
+       tile.openstreetmap.org (confirmed via a direct curl: "connect_rejected
+       -- organization policy"), the same documented CDN-block limitation
+       as Leaflet/Firebase all session -- not a CSS regression. Nothing
+       here needed removing; the overlay below is a pure ADDITION. */
     #map { background: #101111; }
+    /* Map-only luxury tone -- a near-invisible wash over the LIVE TILES
+       only, never touching the surrounding glass UI (no shared token, no
+       .leaflet-container rule, no global selector). Scoped to #map's own
+       ::after so it can never bleed onto #filterBarWrap/.list-drawer/
+       .rotary-dock/the bottom nav, which each paint their own independent
+       surface elsewhere in this file. #map already has position:relative
+       (set by Leaflet's own leaflet.css on every map container), so this
+       pseudo-element's inset:0 sizes to the map's own bounds, nothing
+       wider. z-index sits above the tile/marker panes (Leaflet's own
+       panes cap out at z-index:650) but pointer-events:none means it can
+       never intercept a tap that should reach a marker/the map itself,
+       and it stays far below every real UI z-index in this file (toolbar
+       1200+, drawers 1155+, dock 55 -- still deliberately higher than
+       650 so a future marker/control z-index bump can't slip under it by
+       accident, while 700 is nowhere near any real control's z-index). */
+    .map-luxury-tone {
+      position: absolute; inset: 0; z-index: 700; pointer-events: none;
+      background-image:
+        linear-gradient(180deg, rgba(8,12,16,.04), rgba(8,12,16,.10)),
+        radial-gradient(circle at 70% 20%, rgba(205,168,100,.035), transparent 42%);
+    }
     /* Marker/pin CSS (.price-pin, .neighborhood-pin, .admin-boundary-label,
        .price-cluster, .private-city-badge) now lives in
        css/darwesh-marker.css -- the one shared marker system for Explore,
@@ -129,6 +163,107 @@ violation reporting. -->
     @media (prefers-reduced-motion: reduce) {
       #cardList { scroll-behavior: auto; }
       .listing-card { transition: none; transform: none !important; opacity: 1 !important; }
+    }
+    /* ---- Property card (wheelCard()/.lc) -- premium compact editorial
+       card. .lc-* had NO CSS at all before this pass -- wheelCard()
+       already emitted the full .lc-media/.lc-body/.lc-head/.lc-title/
+       .lc-meta/.lc-facts/.lc-foot/.lc-price/.lc-actions/.lc-fav/.lc-deal
+       markup (and fact() already emitted .lc-fact), but every one of
+       those classes had zero matching rules anywhere in this file -- a
+       bare unstyled <article> with no background, no layout, no image
+       sizing. That is the real root cause of "huge empty dark block /
+       cards are not the visual focus": the cards were functionally
+       invisible against the sheet's dark background, not merely
+       under-designed. #cardList is the one element shared by BOTH the
+       desktop side drawer and the mobile bottom sheet (#listPanel), so
+       this styling fixes both surfaces from their true unstyled
+       baseline -- it adds missing base presentation, it does not change
+       any approved desktop layout/positioning/behavior. Palette: warm
+       graphite surface (not pure black), restrained champagne only for
+       price/verified/active-edge accents -- Darwesh luxury system, no
+       gold fills. */
+    .lc {
+      display: flex; align-items: stretch; gap: 10px;
+      height: 100%; padding: 8px; box-sizing: border-box;
+      background-color: rgba(255,255,255,.035);
+      border: 1px solid rgba(255,255,255,.065);
+      border-radius: 17px;
+      transition: border-color 200ms ease, background-color 200ms ease, box-shadow 200ms ease;
+    }
+    .lc.active {
+      border-color: rgba(221,189,123,.4);
+      background-color: rgba(255,255,255,.05);
+      box-shadow: 0 0 0 1px rgba(221,189,123,.12), 0 8px 22px rgba(0,0,0,.22);
+    }
+    .lc-media {
+      position: relative; flex: none; width: 112px; align-self: stretch;
+      border-radius: 12px; overflow: hidden; background: #181713;
+    }
+    .lc-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .lc-noimg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgba(243,238,229,.3); }
+    .lc-noimg svg { width: 26px; height: 26px; }
+    .lc-lock {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(9,11,13,.62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); color: #F3EEE5;
+    }
+    .lc-lock svg { width: 20px; height: 20px; }
+    .lc-fav {
+      position: absolute; top: 6px; inset-inline-end: 6px; z-index: 2;
+      width: 24px; height: 24px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+      background: rgba(9,11,13,.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,.12); color: #F3EEE5;
+      transition: transform 150ms ease;
+    }
+    .lc-fav svg { width: 13px; height: 13px; }
+    .lc-fav:active { transform: scale(.88); }
+    .lc-fav.is-on { color: #DDBD7B; }
+    .lc-deal {
+      position: absolute; bottom: 6px; inset-inline-start: 6px; z-index: 2;
+      padding: 2px 7px; border-radius: 999px;
+      background: rgba(9,11,13,.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,.1);
+      color: #F3EEE5; font-family: 'Inter', sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: .02em;
+    }
+    .lc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; padding-block: 1px; }
+    .lc-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
+    .lc-title {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #F3EEE5; font-family: 'Inter', sans-serif; font-size: 14.5px; font-weight: 600; line-height: 1.25;
+    }
+    .lc-verified { flex: none; width: 14px; height: 14px; color: #6FCB7F; }
+    .lc-meta { display: flex; align-items: center; gap: 4px; min-width: 0; margin-block-start: 2px; }
+    .lc-type { flex: none; display: flex; align-items: center; color: rgba(243,238,229,.5); }
+    .lc-type-icon { width: 12px; height: 12px; }
+    .lc-place {
+      min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: rgba(243,238,229,.62); font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 500;
+    }
+    .lc-facts { display: flex; align-items: center; gap: 9px; margin-block-start: 5px; }
+    .lc-fact { display: flex; align-items: center; gap: 3px; color: rgba(243,238,229,.55); font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .lc-fact svg { width: 12px; height: 12px; flex: none; }
+    .lc-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-block-start: 6px; }
+    .lc-price {
+      color: #DDBD7B; font-family: 'Inter', sans-serif; font-size: 16.5px; font-weight: 650;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lc-actions { flex: none; display: flex; align-items: center; gap: 5px; }
+    .lc-action {
+      width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+      background-color: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08);
+      color: rgba(243,238,229,.75); transition: transform 150ms ease, border-color 150ms ease;
+    }
+    .lc-action svg { width: 14px; height: 14px; }
+    .lc-action:active { transform: scale(.92); }
+    @media (prefers-reduced-motion: reduce) {
+      .lc, .lc-fav, .lc-action { transition: none; }
+    }
+    /* Mobile-only: the card's own height target (118-138px) is slightly
+       shorter than desktop's .listing-card height (140px, line ~127
+       above) -- tightened media/gap/padding so the same markup still
+       reads as a compact editorial card rather than a stretched one. */
+    @media (max-width: 767px) {
+      .listing-card.lc { height: 128px; margin-block: 6px; }
+      .lc-media { width: 100px; }
     }
     .leaflet-container { font-family: 'Inter', sans-serif; cursor: default; }
     .leaflet-container.draw-mode { cursor: crosshair; }
@@ -224,22 +359,52 @@ violation reporting. -->
        data-attribute/handler below is unchanged from before this pass --
        purely a visual system, no control added/removed/rewired, no JS
        touched. */
+    /* ROOT CAUSE (found by inspecting computed styles before touching
+       anything): #filterBarWrap is `position:fixed` (the .fixed utility
+       class in the markup) with `left:24px; right:24px; width:auto` --
+       per the CSS spec, an absolutely/fixed-positioned box with both
+       inset edges set and width:auto stretches to fill the space between
+       them, capped only by max-width. At 1440px that resolved to 1392px
+       (measured), regardless of how little the actual controls needed --
+       this is the "page-wide empty bar" the controls just happened to
+       sit inside. The inner row's own `max-w-container-max mx-auto`
+       (markup, unchanged) compounded it by ALSO trying to stretch/center
+       within that already-stretched outer box. Fix: give the outer box
+       an intrinsic width (max-content) instead of auto -- left/right
+       stay as the two edges the box is centered between (margin-inline:
+       auto absorbs the leftover space on both sides once width is no
+       longer 'auto'), so it now behaves like a classic centered
+       fixed-width box, sized by its own content. Mobile explicitly resets
+       width back to auto below (its own two-row architecture depends on
+       the outer box stretching so its rows can wrap) -- this change is
+       desktop/tablet only in effect. */
     #filterBarWrap {
-      left: 24px; right: 24px; width: auto; max-width: 1560px; margin-inline: auto;
+      left: 24px; right: 24px; width: max-content; max-width: calc(100vw - 48px); margin-inline: auto;
       top: calc(4rem + 14px);
-      border-radius: 20px;
-      background: linear-gradient(180deg, rgba(18,20,24,.82), rgba(11,12,15,.88));
-      backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
+      border-radius: 24px;
+      padding-inline: 10px;
+      background-image: linear-gradient(180deg, rgba(255,255,255,.014), rgba(255,255,255,.008));
+      background-color: transparent;
+      backdrop-filter: blur(28px) saturate(112%); -webkit-backdrop-filter: blur(28px) saturate(112%);
       border: 1px solid rgba(255,255,255,.08);
-      box-shadow: 0 20px 48px -18px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.06);
+      box-shadow: 0 8px 26px rgba(0,0,0,.12), inset 0 1px 0 rgba(255,255,255,.05);
     }
-    #filterBarWrap > div:first-child { gap: 10px; padding-block: 7px; min-height: auto; }
+    #filterBarWrap > div:first-child {
+      max-width: none; margin-inline: 0; padding-inline: 0;
+      gap: 8px; padding-block: 6px; min-height: auto;
+    }
     /* Typography: 13-14px labels throughout the bar, selected = 600,
        unselected = 500 -- overrides font-label-caps's flat 12px/600 for
        everything living inside this toolbar specifically. */
     #filterBarWrap .font-label-caps { font-size: 13px; letter-spacing: 0.01em; }
     .toolbar-divider { width: 1px; align-self: stretch; margin-block: 8px; background: rgba(255,255,255,.09); flex: none; }
     .toolbar-group { display: flex; align-items: center; gap: 6px; flex: none; }
+    /* Mobile-only compact label pairs (Filters/City) -- desktop always
+       shows the full label; the compact one is swapped in only under the
+       mobile media query below, so the desktop copy the user approved
+       never changes. */
+    .tlbl-compact { display: none; }
+    .sheet-only { display: none; }
     .toolbar-row-break { display: none; }
     /* Mobile "More" sheet: Select Area + Save Search collapse behind this
        on small screens (spec #10/#11) so the toolbar doesn't grow into a
@@ -249,6 +414,17 @@ violation reporting. -->
     .toolbar-more-btn { display: none; }
     .toolbar-more-actions { display: contents; }
 
+    /* Mobile-only "Save" consolidation (spec: merge Save Search + Save as
+       Alert into one entry point, presentation only -- see markup
+       comment above #mapSaveMenuBtn). Desktop: the trigger stays
+       display:none (set inside .map-save-menu-btn's own base rule below)
+       and .map-save-menu is display:contents, so #saveSearchBtn/
+       #saveAlertBtn render as plain flex siblings of everything else in
+       .toolbar-group, byte-for-byte the same as before this pass. */
+    .map-save-menu-btn { display: none; }
+    .map-save-menu { display: contents; }
+    .map-save-menu-wrap { display: contents; }
+
     /* ---- Mobile: two clean rows instead of one shrunk/scrolling row ----
        Row 1 stays Buy/Rent/Sell + Explore/My Properties (the same mode
        segments, just narrower margins/no logo wordmark to make room);
@@ -256,17 +432,75 @@ violation reporting. -->
        Save-as-Alert onto row 2. Every control that exists on desktop
        still exists here -- nothing is hidden or dropped, only reflowed. */
     @media (max-width: 767px) {
-      #filterBarWrap { left: 12px; right: 12px; top: calc(4rem + 10px); border-radius: 18px; }
-      #filterBarWrap > div:first-child { flex-wrap: wrap; overflow-x: visible; row-gap: 8px; padding-block: 7px; }
-      .toolbar-group { flex-wrap: wrap; row-gap: 8px; max-width: 100%; }
+      /* No outer card on mobile -- this was the actual root cause of the
+         previous pass still reading as "the old layout, just smaller":
+         #filterBarWrap kept painting its own background/blur/border/
+         shadow, so shrinking padding/heights inside it could never stop
+         it looking like one big rounded box. #filterBarWrap and its
+         child row wrapper are now pure positioning/layout elements with
+         NO paint of their own -- every visual surface lives on the
+         individual controls (#typeSeg/#mapModeSeg's own pill, each
+         .filter-dropdown-btn/.toolbar-btn-quiet/.save-alert-btn-primary's
+         own pill), so what actually renders is a set of small
+         independent floating glass groups over the map, not a card
+         containing them. */
+      #filterBarWrap {
+        left: 10px; right: 10px; top: calc(4rem + 8px);
+        width: auto; max-width: none; margin-inline: 0; padding-inline: 0;
+        background: none; background-image: none;
+        backdrop-filter: none; -webkit-backdrop-filter: none;
+        border: none; box-shadow: none; border-radius: 0;
+      }
+      #filterBarWrap > div:first-child {
+        flex-wrap: wrap; overflow-x: visible; overflow-y: visible;
+        row-gap: 7px; column-gap: 5px;
+        padding: 0; background: none;
+      }
+      /* display:contents (not flex-wrap on the group itself) -- the two
+         desktop .toolbar-group wrappers (Filters / Map actions) were each
+         staying one rigid flex-none block on mobile too, so the second
+         group wrapped onto its own THIRD row instead of packing beside
+         the tail of the first the moment their combined width (~408px)
+         exceeded the ~350px row. Dissolving the group boxes makes every
+         individual button (Filters/City/Sort/More/Save) a direct flex
+         child of the row itself, so wrapping happens per-button against
+         the real available width -- this is what actually keeps row 2
+         to its target height instead of spilling a 3rd row. */
+      .toolbar-group { display: contents; }
       .toolbar-divider { display: none; }
       .toolbar-row-break { display: block; flex-basis: 100%; height: 0; }
-      /* Collapse Select Area + Save Search behind a "More" pill; Save as
-         Alert (outside #toolbarMoreActions in the markup) stays visible at
-         all times, per spec #11's mobile action priority. */
+      /* Collapse Select Area behind the existing "More" pill; the new
+         Save menu (below) replaces the old always-visible Save Search +
+         Save as Alert pair with one entry point, per this pass's spec. */
       .toolbar-more-btn { display: flex; }
       .toolbar-more-actions { display: none; flex-basis: 100%; }
-      .toolbar-more-actions.toolbar-more-open { display: flex; flex-wrap: wrap; gap: 8px; }
+      .toolbar-more-actions.toolbar-more-open { display: flex; flex-wrap: wrap; gap: 5px; }
+      #filterBarWrap .font-label-caps { font-size: 12.5px; }
+
+      /* Save menu: the trigger (hidden on desktop, spec #12) becomes the
+         one visible "Save" chip on mobile; the wrap becomes its real
+         anchor and the menu becomes a real popover instead of the
+         display:contents passthrough both use on desktop. Closed by
+         default -- .is-open (toggled by the click handler beside
+         toolbarMoreBtn's own open/close JS) reveals it. inset-inline-end
+         (not right) so it self-mirrors under RTL like every other
+         positioned control in this file. */
+      .map-save-menu-btn { display: flex; }
+      .map-save-menu-wrap { display: block; position: relative; }
+      .map-save-menu {
+        display: none;
+        position: absolute; top: calc(100% + 6px); inset-inline-end: 0;
+        z-index: 60; min-width: 168px;
+        flex-direction: column; gap: 5px; padding: 6px;
+        background-image: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.008));
+        background-color: rgba(14,15,20,.6);
+        backdrop-filter: blur(26px) saturate(110%); -webkit-backdrop-filter: blur(26px) saturate(110%);
+        border: 1px solid rgba(255,255,255,.09);
+        border-radius: 15px;
+        box-shadow: 0 10px 28px -10px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06);
+      }
+      .map-save-menu.is-open { display: flex; }
+      .map-save-menu #saveSearchBtn, .map-save-menu #saveAlertBtn { width: 100%; justify-content: flex-start; }
     }
 
     /* Segmented controls (Search Mode / View Mode) -- a subtle recessed
@@ -310,6 +544,39 @@ violation reporting. -->
       #typeSeg .type-toggle.bg-primary, #mapModeSeg .map-mode-toggle.bg-primary { transition: background-color 1ms linear, color 1ms linear; }
       #typeSeg .type-toggle:active, #typeSeg a:active, #mapModeSeg .map-mode-toggle:active { transform: none; }
     }
+    /* Mobile: slimmer Apple-style track, ~34px tall (was 42px). Placed
+       here (immediately after the real base rule above, not inside the
+       earlier #filterBarWrap mobile block) so it actually wins the
+       cascade -- a min-height declared earlier in the file at equal
+       (single-descendant-selector) specificity loses to this file's own
+       later, unconditional `min-height: 36px` rule regardless of media-
+       query wrapping; source position is what decides ties, not where
+       the @media block sits. */
+    @media (max-width: 767px) {
+      /* Near-colorless Darwesh Spatial Glass, replacing the dark navy
+         recessed track used on desktop -- one small floating pill per
+         segment group, matching the bottom nav / top navbar material
+         instead of the toolbar's own desktop-only recipe. */
+      #typeSeg, #mapModeSeg {
+        padding: 1px; border-radius: 15px;
+        background-image: linear-gradient(180deg, rgba(255,255,255,.014), rgba(255,255,255,.006));
+        background-color: transparent;
+        border: 1px solid rgba(255,255,255,.08);
+        backdrop-filter: blur(24px) saturate(110%); -webkit-backdrop-filter: blur(24px) saturate(110%);
+        box-shadow: 0 4px 14px rgba(0,0,0,.12);
+      }
+      #typeSeg .type-toggle, #mapModeSeg .map-mode-toggle { min-height: 30px; }
+      /* flex:none + nowrap (overriding the shared desktop flex-1 utility
+         class) -- "My Properties" is nearly twice "Explore"'s length, so
+         forcing both segments to equal width was wrapping the longer
+         label onto 2 lines and pushing the whole control past its height
+         target. Sizing each segment to its own content keeps both on one
+         line without touching the copy or the underlying mode-switch
+         logic. */
+      #mapModeSeg .map-mode-toggle { flex: none; white-space: nowrap; padding-block: 2px; padding-inline: 8px; }
+      #typeSeg .type-toggle, #typeSeg a { padding-block: 2px; padding-inline: 9px; }
+      #typeSeg .type-toggle, #typeSeg a, #mapModeSeg .map-mode-toggle { font-size: 12px; }
+    }
 
     /* Save Search: secondary, quiet neutral glass -- sits beside the
        promoted Save-as-Alert action and should read as the lesser-used
@@ -325,30 +592,105 @@ violation reporting. -->
     }
     .toolbar-btn-quiet:hover { color: #F0ECE2; background-color: rgba(32,37,52,.62); border-color: rgba(180,195,215,.18); transform: translateY(-1px); }
     .toolbar-btn-quiet:active { transform: translateY(1px) scale(.985); }
-    /* Save as Alert: the one strong action, but per spec it should whisper
-       rather than shout -- only ~10-15% more prominent than the segmented
-       controls' active state, still dark glass with a champagne tint (not
-       a solid gold fill), just a touch stronger tint/edge/glow and a
-       slightly bolder off-white text weight. */
+    /* Save as Alert -- the one promoted action beside the quiet Save
+       Search pill, in the canonical smoked-champagne-glass recipe used
+       for every active/primary state across this page (toolbar segments,
+       markers, navbar). Deliberately a whisper of warm light inside dark
+       glass, not a solid gold fill. */
     .save-alert-btn-primary {
-      color: #F5EFE0;
-      background-image: linear-gradient(180deg, rgba(224,190,130,.27), rgba(224,190,130,.09));
-      background-color: rgba(22,24,32,.72);
-      border: 1px solid rgba(224,190,130,.4);
-      border-radius: 13px;
-      min-height: 40px; font-weight: 600;
-      box-shadow: 0 3px 11px -5px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.1), 0 0 14px -6px rgba(224,190,130,.32);
-      transition: background-color 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms cubic-bezier(.2,.8,.2,1);
+      color: #F5EFE0; font-weight: 600; min-height: 40px; border-radius: 13px;
+      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+      background-color: rgba(20,22,30,.68);
+      border: 1px solid rgba(224,190,130,.32);
+      box-shadow: 0 2px 7px -3px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08), 0 0 10px -5px rgba(224,190,130,.28);
+      transition: background-color 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1);
     }
-    .save-alert-btn-primary:hover:not(:disabled) { background-color: rgba(28,30,40,.8); border-color: rgba(224,190,130,.52); box-shadow: 0 5px 15px -5px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.13), 0 0 18px -6px rgba(224,190,130,.4); transform: translateY(-1px); }
+    .save-alert-btn-primary svg { color: #E0BE82; flex: none; }
+    .save-alert-btn-primary:hover:not(:disabled) { border-color: rgba(224,190,130,.48); transform: translateY(-1px); }
     .save-alert-btn-primary:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+    .save-alert-btn-primary:disabled { background-image: none; background-color: rgba(22,26,38,.5); border-color: rgba(180,195,215,.1); box-shadow: none; }
+    .save-alert-btn-primary:disabled svg { color: rgba(185,179,165,.42); }
     .save-alert-btn-primary:focus-visible { outline: 2px solid rgba(224,190,130,.55); outline-offset: 2px; }
-    .save-alert-btn-primary:disabled { background-image: none; background-color: rgba(255,255,255,.03); border-color: rgba(255,255,255,.08); color: rgba(185,179,165,.42); box-shadow: none; }
     @media (prefers-reduced-motion: reduce) {
       .toolbar-btn-quiet, .save-alert-btn-primary { transition: background-color 1ms linear, color 1ms linear; }
       .toolbar-btn-quiet:hover, .toolbar-btn-quiet:active,
       .save-alert-btn-primary:hover, .save-alert-btn-primary:active { transform: none; }
     }
+    /* Mobile: secondary action pills (Filters / City / Sort / Save /
+       More) drop to 34px tall, near-colorless Darwesh Spatial Glass
+       (replacing each button's own desktop-only navy-tinted fill),
+       compact radius/padding -- placed after all four base rules above
+       (.filter-dropdown-btn, .select-area-btn, .toolbar-btn-quiet,
+       .save-alert-btn-primary) so it wins on source order at equal
+       specificity, the same cascade fix as the segmented-control rule
+       above. Each button keeps its own independent pill (no shared row
+       background), which is what actually makes these read as small
+       floating glass chips over the map now that #filterBarWrap itself
+       paints nothing. The 44px touch target is preserved by the row's
+       own row-gap plus the button's own line-height, not by inflating
+       the visible chrome. */
+    @media (max-width: 767px) {
+      .filter-dropdown-btn, .select-area-btn, .toolbar-btn-quiet, .save-alert-btn-primary, .map-save-menu-btn {
+        min-height: 34px; border-radius: 13px; padding-inline: 7px; gap: 4px;
+        background-image: linear-gradient(180deg, rgba(255,255,255,.014), rgba(255,255,255,.006));
+        background-color: transparent;
+        border-color: rgba(255,255,255,.08);
+        backdrop-filter: blur(24px) saturate(110%); -webkit-backdrop-filter: blur(24px) saturate(110%);
+        box-shadow: 0 4px 14px rgba(0,0,0,.12);
+        font-size: 12.5px;
+      }
+      /* Icons shrink to match the compact chip scale (16px was sized for
+         the old 40px-tall buttons); Sort's leading icon is redundant with
+         its own label and the trailing chevron already implies "opens a
+         menu", so it's dropped on mobile only -- this and the padding/gap
+         trim above are what actually gets Filters+City+Sort+More+Save to
+         fit on ONE row within ~370px instead of the row-2 content itself
+         (not the .toolbar-group wrapper) forcing a spillover 3rd row. */
+      .filter-dropdown-btn svg, .toolbar-btn-quiet svg, .save-alert-btn-primary svg, .map-save-menu-btn svg {
+        width: 13px; height: 13px;
+      }
+      #sortBtn svg:first-child { display: none; }
+      /* Filters/City swap to their short Kurdish/Arabic mobile labels here
+         (English's own full labels are already short enough, so its
+         .tlbl-compact text is identical to .tlbl-full and this swap is a
+         no-op for EN) -- this is what stops row 2 wrapping to a 3rd row
+         in Kurdish/Arabic without touching the approved desktop copy. */
+      .tlbl-full { display: none; }
+      .tlbl-compact { display: inline; }
+      /* Enabled Save-as-Alert / active Filters keep a tiny champagne
+         accent on top of the near-colorless default above -- these two
+         selectors are still single-class-equivalent (.save-alert-btn-
+         primary and .filter-dropdown-btn.active are each their own
+         rule here, positioned after the shared rule above), so they win
+         on source order alone. The existing `:disabled` rule (defined
+         earlier in the file, at higher specificity via the pseudo-class)
+         is untouched and still wins while disabled, keeping that muted
+         state exactly as before. */
+      .save-alert-btn-primary {
+        border-color: rgba(224,190,130,.34);
+        background-image: linear-gradient(180deg, rgba(224,190,130,.16), rgba(224,190,130,.05));
+      }
+      .filter-dropdown-btn.active {
+        border-color: rgba(224,190,130,.34);
+        background-image: linear-gradient(180deg, rgba(224,190,130,.16), rgba(224,190,130,.05));
+      }
+    }
+    /* Filters trigger badge -- small champagne dot/count showing an active
+       filter exists (price/beds/baths/home type/verified/area), driven by
+       updateFiltersActiveBadge() below. */
+    .filters-active-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 16px; height: 16px; padding-inline: 3px; border-radius: 999px;
+      background-image: linear-gradient(180deg, rgba(224,190,130,.9), rgba(198,154,75,.9));
+      color: #14161A; font-family: 'IBM Plex Sans', sans-serif; font-size: 10px; font-weight: 700;
+      line-height: 1;
+    }
+    /* Tailwind's .hidden{display:none} and this rule are both single-class
+       selectors of equal specificity -- whichever loads later in the
+       cascade would otherwise win regardless of which class is actually
+       present. #filtersActiveBadge.hidden (id+class) outranks both, so the
+       badge reliably disappears at zero active filters. */
+    #filtersActiveBadge.hidden { display: none; }
 
     /* Mobile List/Map switch -- floating segmented pill, positioned above
        the bottom nav, matching the top toolbar's glass surface language
@@ -358,46 +700,87 @@ violation reporting. -->
        media-query-wrapped rule on source order alone, same bug class as
        the earlier hidden/lg:inline cases in this file); shown only inside
        the mobile media query below. */
-    .mobile-view-switch {
-      display: none;
-      position: fixed; bottom: 6rem; left: 50%; transform: translateX(-50%); z-index: 50;
-      gap: 2px; padding: 3px;
-      background: linear-gradient(180deg, rgba(14,17,26,.9), rgba(7,8,13,.94));
-      backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%);
-      border: 1px solid rgba(255,255,255,.09);
-      border-radius: 999px;
-      box-shadow: 0 12px 28px -12px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07), inset 0 -1px 2px rgba(0,0,0,.3);
+    /* ---- Rotary Discovery Dock (mobile only) --------------------------
+       Replaces the old wide List/Map capsule entirely (spec: "Do NOT keep
+       the old List/Map toggle"). Closed: a single raised circular "current
+       mode" control. Tapped: the two real supported modes (Map/List) fan
+       out to each side of that same raised control at equal radius, watch-
+       crown style -- no literal semicircle trig, the symmetric left/right
+       fan reads the same way at only 2 items and keeps the motion simple
+       and mechanical per spec (no bounce). display:none by default, same
+       "own CSS, not a utility class" reasoning as the control it replaces
+       -- shown only inside the mobile media query further down. */
+    .rotary-dock { display: none; position: fixed; bottom: 6rem; left: 50%; transform: translateX(-50%); z-index: 55; }
+    .rotary-fan { position: relative; width: 64px; height: 64px; }
+    .rotary-current {
+      position: relative; z-index: 2;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      width: 64px; height: 64px; border-radius: 999px;
+      /* Smoked champagne glass -- deliberately warmer/lighter than the
+         previous near-black-with-a-tint recipe, per the explicit request
+         that the selected Map mode stop reading as a dull black/brown
+         circle. No dark background-color layered underneath any more;
+         the gradient + thin border + inner highlight ARE the surface. */
+      background-image: linear-gradient(180deg, rgba(221,189,123,.18), rgba(201,163,94,.07));
+      border: 1px solid rgba(221,189,123,.38);
+      box-shadow: 0 8px 30px rgba(0,0,0,.20), 0 0 22px rgba(201,163,94,.10), inset 0 1px rgba(255,255,255,.11);
+      color: #F3EEE5; font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600;
+      transition: transform 240ms cubic-bezier(.2,.8,.2,1);
     }
-    .mobile-view-btn {
-      display: flex; align-items: center; gap: 6px;
-      padding: 8px 16px; border-radius: 999px; border: 1px solid transparent; background: transparent;
-      color: #ADA79A; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
-      transition: background-color 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms cubic-bezier(.2,.8,.2,1), color 180ms cubic-bezier(.2,.8,.2,1), transform 180ms cubic-bezier(.2,.8,.2,1);
+    .rotary-current:active { transform: scale(.96); }
+    .rotary-current svg { width: 18px; height: 18px; }
+    /* Fan options: absolutely centered on the hub (invisible/inert) until
+       [data-expanded="true"] moves them out sideways -- 220-320ms,
+       cubic-bezier(.2,.8,.2,1), no bounce, per spec. */
+    .rotary-option {
+      position: absolute; top: 50%; left: 50%; z-index: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      width: 46px; height: 46px; border-radius: 999px;
+      background-image: linear-gradient(180deg, rgba(255,255,255,.016), rgba(255,255,255,.006));
+      background-color: transparent;
+      backdrop-filter: blur(22px) saturate(110%); -webkit-backdrop-filter: blur(22px) saturate(110%);
+      border: 1px solid rgba(255,255,255,.08);
+      color: #ADA79A; font-family: 'Inter', sans-serif; font-size: 9.5px; font-weight: 500;
+      opacity: 0; visibility: hidden; pointer-events: none;
+      transform: translate(-50%, -50%) scale(.7);
+      transition: transform 260ms cubic-bezier(.2,.8,.2,1), opacity 220ms ease, visibility 260ms;
     }
-    .mobile-view-btn:active { transform: translateY(1px) scale(.985); }
-    .mobile-view-btn.active {
-      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
-      background-color: rgba(20,22,30,.68);
-      border-color: rgba(224,190,130,.32);
-      color: #F2ECDD; font-weight: 600;
-      box-shadow: 0 2px 7px -3px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08), 0 0 10px -5px rgba(224,190,130,.28);
+    .rotary-option svg { width: 14px; height: 14px; }
+    .rotary-option:active { transform: translate(-50%, -50%) scale(.92); }
+    .rotary-option.active { border-color: rgba(224,190,130,.30); color: #F2ECDD; background-image: linear-gradient(180deg, rgba(224,190,130,.14), rgba(224,190,130,.04)); }
+    #rotaryDock[data-expanded="true"] .rotary-option {
+      opacity: 1; visibility: visible; pointer-events: auto;
     }
+    /* Only 2 real modes exist, and the current one is already shown by
+       the raised center hub -- showing it again as a flanking option too
+       would be a redundant "Map / Map (hub) / List" row. Expanded state
+       surfaces just the ONE other mode instead. */
+    #rotaryDock[data-expanded="true"] .rotary-option.active {
+      opacity: 0; visibility: hidden; pointer-events: none;
+    }
+    #rotaryDock[data-expanded="true"] #mobileViewListBtn { transform: translate(calc(-50% - 54px), -50%) scale(1); }
+    #rotaryDock[data-expanded="true"] #mobileViewMapBtn { transform: translate(calc(-50% + 54px), -50%) scale(1); }
+    [dir="rtl"] #rotaryDock[data-expanded="true"] #mobileViewListBtn { transform: translate(calc(-50% + 54px), -50%) scale(1); }
+    [dir="rtl"] #rotaryDock[data-expanded="true"] #mobileViewMapBtn { transform: translate(calc(-50% - 54px), -50%) scale(1); }
     @media (prefers-reduced-motion: reduce) {
-      .mobile-view-btn { transition: background-color 1ms linear, color 1ms linear; }
-      .mobile-view-btn:active { transform: none; }
+      .rotary-current, .rotary-option { transition: opacity 1ms linear; }
+      .rotary-current:active, .rotary-option:active { transform: none; }
     }
-    /* This override MUST come after the full .mobile-view-switch rule
-       above (not inside the earlier mobile media-query block near the top
-       of this style section) -- both declare `display` at equal
-       specificity, so whichever comes LAST in source order wins whenever
-       both could apply, regardless of which one is wrapped in a media
-       query. Putting the mobile "display:flex" override before the base
-       "display:none" rule silently loses on every mobile viewport (the
-       exact class of bug already called out elsewhere in this file, e.g.
-       the hidden/lg:inline cases) -- confirmed live via computed-style
-       inspection after the color-polish pass. */
     @media (max-width: 767px) {
-      .mobile-view-switch { display: flex; }
+      .rotary-dock { display: block; }
+      /* The sheet and the dock occupy the exact same fixed bottom-6rem
+         real estate (both anchored to #mainSplit's own bottom-24 offset),
+         but #mainSplit has no explicit z-index while #rotaryDock does --
+         z-index only resolves within one stacking context, so the dock's
+         z-index:55 would otherwise render it ABOVE the sheet regardless
+         of the sheet's own (much higher, but stacking-context-local)
+         z-index:1160. Fading the dock out whenever the sheet is open
+         (driven by the exact same body[data-list-drawer] attribute
+         setListDrawerOpen() already maintains -- no new JS) sidesteps the
+         cross-context comparison entirely instead of fighting it. */
+      body[data-list-drawer="open"] .rotary-dock {
+        opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+      }
     }
 
     /* ---- Listings pane data states (loading / error / empty) --------
@@ -497,7 +880,17 @@ violation reporting. -->
     }
     .chip-opt:hover { border-color: #B89A63; }
     .chip-opt:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
-    .chip-opt[aria-pressed="true"] { background: #B89A63; border-color: #B89A63; color: #090A0A; }
+    /* DESIGN-SYSTEM CONSOLIDATION (Phase 1): was a solid #B89A63 fill with
+       dark text -- the exact "casino gold" pattern the #typeSeg comment
+       above already explains map.html moved away from once. Converted to
+       the same smoked-champagne glass recipe so the whole toolbar now
+       has one active-state gold, not two. */
+    .chip-opt[aria-pressed="true"] {
+      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+      background-color: rgba(20,22,30,.68);
+      border-color: rgba(224,190,130,.32);
+      color: #F2ECDD;
+    }
 
     /* ---- Home Type cards ------------------------------------------------
      * Same checkboxes as before (`.home-type-check`, still what the
@@ -516,7 +909,15 @@ violation reporting. -->
     .hometype-card:hover { border-color: #8E7448; }
     .hometype-card svg { width: 20px; height: 20px; stroke: currentColor; }
     .hometype-card input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-    .hometype-card:has(input:checked) { border-color: #B89A63; background: #221E15; color: #B89A63; }
+    /* DESIGN-SYSTEM CONSOLIDATION (Phase 1): see .chip-opt above -- same
+       solid-fill-to-glass conversion, one gold family for every selected
+       chip/card state in this drawer. */
+    .hometype-card:has(input:checked) {
+      border-color: rgba(224,190,130,.32);
+      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+      background-color: rgba(20,22,30,.68);
+      color: #F2ECDD;
+    }
     .hometype-card:has(input:focus-visible) { outline: 2px solid #B89A63; outline-offset: 2px; }
 
     /* ---- Price currency toggle ------------------------------------------
@@ -534,7 +935,12 @@ violation reporting. -->
     }
     .currency-opt:hover:not([aria-pressed="true"]) { background: rgba(184,154,99,0.14); color: #F2EEE5; }
     .currency-opt:focus-visible { outline: 2px solid #B89A63; outline-offset: 2px; }
-    .currency-opt[aria-pressed="true"] { background: #B89A63; color: #090A0A; }
+    /* DESIGN-SYSTEM CONSOLIDATION (Phase 1): see .chip-opt above. */
+    .currency-opt[aria-pressed="true"] {
+      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+      background-color: rgba(20,22,30,.68);
+      color: #F2ECDD;
+    }
 
     /* ---- verified-only toggle switch (More panel) -----------------------
      * Same #verifiedOnlyCheck checkbox as before -- a real switch look
@@ -646,7 +1052,16 @@ violation reporting. -->
       transition: background .2s ease;
     }
     .map-overlay-btn:hover { background: #221E15; }
-    .map-overlay-btn.active { background: #B89A63; color: #090A0A; }
+    /* DESIGN-SYSTEM CONSOLIDATION (Phase 1): see .chip-opt above. Note:
+       .search-this-area-chip below stays solid gold deliberately -- it's
+       a primary-CTA action chip, not a selected/active toggle, and the
+       brief's 3-tier system (subtle / selected-active / primary CTA)
+       keeps solid gold for that tier. */
+    .map-overlay-btn.active {
+      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+      background-color: rgba(20,22,30,.68);
+      color: #F2ECDD;
+    }
     .map-overlay-btn-labeled { padding: 10px 16px 10px 12px; }
     .map-overlay-btn-icon { padding: 12px; }
     .map-overlay-btn .icon { font-size: 20px; }
@@ -683,7 +1098,12 @@ violation reporting. -->
       color: #A79F91; background: transparent; border: none; border-radius: 999px;
       padding: 6px 10px; cursor: pointer; white-space: nowrap; transition: background .15s ease, color .15s ease;
     }
-    .map-type-btn.active { background: #B89A63; color: #090A0A; }
+    /* DESIGN-SYSTEM CONSOLIDATION (Phase 1): see .chip-opt above. */
+    .map-type-btn.active {
+      background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+      background-color: rgba(20,22,30,.68);
+      color: #F2ECDD;
+    }
     .map-type-btn:hover:not(.active) { color: #F2EEE5; }
     /* Search-this-area chip — reuses .map-search-chip's shell but sits
        top-center (distinct from the drawn-boundary chip, which stays
@@ -804,6 +1224,207 @@ violation reporting. -->
       border-color: rgba(255,255,255,0.12);
       background: rgba(255,255,255,0.04);
     }
+
+    /* ---- Property Drawer: the same edge-drawer shell as Map Tools
+       (.map-drawer/.map-edge-handle above), mirrored to the map's
+       LEADING edge instead of trailing. Only the anchor side, corner
+       rounding, border and default (closed) transform direction differ
+       -- everything else (glass background, blur, shadow depth, drawer
+       head/close-button chrome, drag physics) is the exact same shared
+       language, deliberately, per the "one glass drawer shell" system. */
+    .cine-scope .list-drawer {
+      inset-inline-start: 0; inset-inline-end: auto;
+      border-inline-start: none;
+      border-inline-end: 1px solid rgba(198,154,75,0.28);
+      border-start-start-radius: 0; border-end-start-radius: 0;
+      border-start-end-radius: 18px; border-end-end-radius: 18px;
+      box-shadow: 18px 0 48px rgba(0,0,0,0.5);
+      transform: translateX(calc(-1 * var(--drawer-x, 100%)));
+      padding-inline-start: env(safe-area-inset-left, 0px);
+      padding-inline-end: 0;
+    }
+    .cine-scope [dir="rtl"] .list-drawer,
+    [dir="rtl"] .cine-scope .list-drawer { transform: translateX(var(--drawer-x, 100%)); }
+    .cine-scope .list-edge-handle {
+      inset-inline-end: auto; inset-inline-start: 0;
+      border-inline-start: none;
+      border-inline-end: 1px solid rgba(198,154,75,0.35);
+      border-start-start-radius: 0; border-end-start-radius: 0;
+      border-start-end-radius: 11px; border-end-end-radius: 11px;
+      box-shadow: 3px 0 16px rgba(0,0,0,0.42);
+      /* Sits well above the Map Tools handle so both are reachable at
+         once as two distinct slim handles, not stacked on each other. */
+      top: 38%;
+    }
+    .cine-scope .list-edge-handle:hover { border-color: rgba(216,182,101,0.55); }
+    @media (max-width: 767px) {
+      /* ---- List mode is now a draggable BOTTOM SHEET, not a side/full-
+         screen drawer (spec: "DO NOT open the old side drawer... Open a
+         draggable BOTTOM SHEET"). Reuses the exact same #listPanel/
+         #cardList DOM and data -- only the axis (translateY instead of
+         translateX), anchor (bottom instead of a side edge) and the
+         open/closed states (3 heights instead of binary open/closed)
+         change. .map-drawer's own base rule (position:absolute inside
+         #mapPanel, which already reserves space above the bottom nav via
+         #mainSplit's own bottom-24) still owns everything else -- glass
+         background/blur/shadow depth are untouched from the shared
+         .map-drawer recipe. */
+      .cine-scope .list-drawer {
+        inset-inline: 0; inset-block-start: auto; inset-block-end: 0;
+        width: 100%;
+        /* Closed = zero height, not "peek height + translateY(100%)". The
+         previous translateY approach moved the box down by only its OWN
+         height, not the container's -- since #mapPanel doesn't clip
+         overflow (drawers are expected to be visible while animating),
+         a 30%-tall "closed" box only ever moved ~30% of the container
+         off-screen, leaving its head/title genuinely visible, overlapping
+         the bottom nav. Animating height from 0 instead is both simpler
+         and actually correct: the sheet has nothing to render when
+         closed, and grows upward from the bottom edge it's already
+         anchored to. */
+        height: 0; overflow: hidden;
+        max-height: calc(100% - 8px);
+        border-start-start-radius: 28px; border-start-end-radius: 28px;
+        border-end-start-radius: 0; border-end-end-radius: 0;
+        border-inline-end: none; border-inline-start: none;
+        border-block-start: 1px solid rgba(221,189,123,.15);
+        /* Luxury bottom-sheet material -- a layered warm-graphite-to-
+           obsidian gradient (never pure #000), replacing the shared
+           .map-drawer navy-glass recipe on mobile ONLY (desktop's side
+           drawer keeps that recipe untouched via the base rule above).
+           No thick border around the whole sheet -- only this single
+           champagne-tinted top edge. */
+        background-image: linear-gradient(180deg, rgba(31,28,23,.96) 0%, rgba(17,18,19,.97) 42%, rgba(10,12,14,.98) 100%);
+        backdrop-filter: blur(28px) saturate(110%); -webkit-backdrop-filter: blur(28px) saturate(110%);
+        box-shadow: 0 -18px 60px rgba(0,0,0,.32);
+        transform: none;
+        transition: height 300ms cubic-bezier(.22,1.2,.36,1);
+        padding-inline-start: 0;
+        padding-block-end: env(safe-area-inset-bottom, 0px);
+        display: flex; flex-direction: column;
+      }
+      /* PEEK must already show useful content -- drag handle + header +
+         ONE full property preview card, not just the header floating
+         over empty space (spec target ~220-260px). 30% of this
+         container measured ~178px, too short to fit a real card under
+         the header; 36% clears the 220-260px target across the safe-
+         area-adjusted viewport range this page supports. */
+      .cine-scope .list-drawer.is-open { height: 36%; overflow: visible; }
+      .cine-scope .list-drawer.is-open[data-sheet-state="half"] { height: 60%; }
+      .cine-scope .list-drawer.is-open[data-sheet-state="full"] { height: 92%; }
+      .cine-scope .list-drawer.is-dragging { transition: none; }
+      /* Small centered drag handle -- the one visible affordance that this
+         is draggable; the header row (count/Sort/Filter) below is also a
+         drag surface via the JS, so the handle isn't the only hit area. */
+      .sheet-drag-handle {
+        width: 38px; height: 3px; border-radius: 999px;
+        background: rgba(243,238,229,.30);
+        margin: 10px auto 2px;
+        flex: none;
+      }
+      /* Clean product-style header: small eyebrow above the region/count
+         block (spec: "PROPERTIES / Kurdistan Region / 124 homes"),
+         replacing the old single detached-looking headline. Only the
+         eyebrow is new markup -- the existing h2/count stay the exact
+         same elements/ids/data-i18n keys desktop already renders,
+         restyled smaller here so the whole block reads as one compact
+         group instead of a lone oversized title floating over empty
+         space. */
+      .sheet-eyebrow {
+        display: block;
+        color: rgba(221,189,123,.75);
+        font-family: 'Inter', sans-serif; font-size: 9.5px; font-weight: 700;
+        letter-spacing: .1em; text-transform: uppercase;
+        margin-block-end: 1px;
+      }
+      .cine-scope .list-drawer .map-drawer-head .font-headline-sm { font-size: 15px; }
+      #resultCountMobile { font-size: 11.5px; color: rgba(243,238,229,.55); }
+      .sheet-head-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+      .sheet-head-btn {
+        display: flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; border-radius: 12px;
+        background-image: linear-gradient(180deg, rgba(255,255,255,.014), rgba(255,255,255,.006));
+        border: 1px solid rgba(255,255,255,.08);
+        color: #ADA79A;
+      }
+      .sheet-head-btn:active { transform: scale(.94); }
+      /* .sheet-only: elements that exist purely for the mobile bottom-
+         sheet presentation and have no desktop equivalent (drag handle,
+         header Sort/Filter shortcuts) -- .sheet-only{display:none} is the
+         desktop-safe base rule (near .tlbl-compact above); this override
+         is what actually shows them, mobile-only. */
+      .sheet-only { display: flex; }
+      .sheet-drag-handle.sheet-only { display: block; }
+      /* List no longer has its own side handle -- choosing List is now
+         the rotary dock's job (spec #20/#7). The button stays in the DOM
+         (desktop still uses it) but is invisible and non-interactive on
+         mobile. */
+      #listEdgeHandle { display: none; }
+
+      /* ---- Micro edge indicators (mobile only) --------------------------
+         Previous round's 8x48px glass sliver with a border/blur still read
+         as "a narrow vertical dark button" -- a visible body, just a
+         smaller one. This round removes the body entirely: the BUTTON
+         stays an invisible 40x48px hit target (real tap area, no
+         accessibility loss) and the ONLY painted content is a single
+         `::after` trace -- 3px wide, 32px tall, fully rounded, plain
+         champagne fill with no border/blur/shadow of its own. Both edge
+         handles share one `.map-edge-handle::after` rule (list-edge-handle
+         carries that class too), so Map Tools (trailing edge) and Property
+         List (leading edge) read as the exact same minimal mark,
+         distinguished only by which side of the screen they sit on --
+         inset-inline-end/-start throughout (see the shared desktop rule in
+         css/cinematic.css and the .list-edge-handle override above this
+         media query) so this self-mirrors under RTL with no separate rule.
+         The pre-existing .meh-grip (map handle) and .meh-list-icon (list
+         handle) child elements are hidden on mobile -- the trace above
+         replaces both so there is exactly one visible mark, not a mark
+         plus an icon/line stacked on top of it. */
+      .cine-scope .map-edge-handle {
+        width: 40px;
+        height: 48px;
+        background: none;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+      /* The shared desktop :hover rule (css/cinematic.css) narrows the
+         handle to 26px on hover at higher specificity (an added :hover
+         pseudo-class) than the unconditional 40px rule just above, so it
+         would otherwise win here too regardless of source order. Same
+         specificity, later position wins -- this repeats the shrink at
+         :hover so the tap target never narrows on mobile. */
+      .cine-scope .map-edge-handle:hover { width: 40px; }
+      .cine-scope .map-edge-handle::after {
+        content: "";
+        position: absolute;
+        left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
+        width: 3px; height: 32px;
+        border-radius: 999px;
+        background: rgba(224,190,130,.34);
+        transition: background-color 160ms ease;
+        pointer-events: none;
+      }
+      .cine-scope .map-edge-handle:hover::after,
+      .cine-scope .map-edge-handle:active::after {
+        background: rgba(224,190,130,.55);
+      }
+      .cine-scope .map-edge-handle[data-drawing="1"]::after {
+        background: rgba(224,190,130,.75);
+      }
+      .cine-scope .meh-grip { display: none; }
+      .cine-scope .meh-dot { z-index: 1; inset-inline-end: 10px; top: 9px; }
+      .cine-scope .list-edge-handle .meh-list-icon { display: none; }
+      @media (prefers-reduced-motion: reduce) {
+        .cine-scope .map-edge-handle::after { transition: none; }
+      }
+    }
+    /* #cardList carries its own scroll/snap (see the Property Wheel rules
+       above) so it deliberately sits outside .map-drawer-body -- only the
+       side padding that class would have given it is repeated here. */
+    .list-drawer #cardList { padding-inline: 14px; padding-block-end: 14px; }
 
     /* ---- Top toolbar: pill borders inside the bar (background/blur for
        #filterBarWrap itself now live solely in the ONE-bar block above --
@@ -1022,10 +1643,37 @@ violation reporting. -->
      logical action group (previously two separate groups; merged per
      the redesign spec's explicit grouping). -->
 <div class="toolbar-group" role="group" aria-label="Filters" data-i18n-aria="map.toolbarGroupFilters">
+<!-- Filters -- a dedicated entry point into the SAME Property filters
+     section already living inside #mapDrawer (Price/Beds & Baths/Home
+     Type/More), rather than requiring visitors to discover it under the
+     generic "Map tools" handle. No second filter system: this only opens
+     the drawer and scrolls its existing [data-group="filters"] section
+     into view -- see the filtersTriggerBtn click handler below. The badge
+     mirrors the same module-level filter state price/beds/baths/home-type/
+     verified/area already drive, via updateFiltersActiveBadge(). -->
+<div class="relative flex-none">
+<button id="filtersTriggerBtn" type="button" class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" aria-haspopup="dialog" aria-expanded="false" aria-controls="mapDrawer">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M7 12h10M10 19h4"/></svg>
+<!-- Mobile-only compact label (spec: shorter mobile labels, full desktop
+     label unchanged) -- .tlbl-full/.tlbl-compact swap via a plain media
+     query below; both stay declaratively data-i18n bound so language
+     switches (which re-sweep every [data-i18n] element) keep both in
+     sync without any extra JS. -->
+<span class="tlbl-full" data-i18n="map.filtersLabel">Filters</span>
+<span class="tlbl-compact" data-i18n="map.filtersLabelMobile">Filters</span>
+<span id="filtersActiveBadge" class="filters-active-badge hidden" aria-hidden="true"></span>
+</button>
+</div>
 <div class="relative flex-none">
 <button id="cityTriggerBtn" type="button" class="filter-dropdown-btn flex items-center gap-1.5 border border-outline-variant rounded-full pl-3 pr-3 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors" style="max-width:180px;">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-<span id="cityTriggerLabel" class="truncate" data-i18n="map.anyCity">Any city</span>
+<!-- Both spans are kept in sync by updateCityTriggerLabel() below
+     whenever a real city is chosen (same value written into both), and
+     independently by the declarative data-i18n keys for the "no city
+     selected" placeholder -- so whichever one CSS shows is always
+     correct. -->
+<span id="cityTriggerLabel" class="truncate tlbl-full" data-i18n="map.anyCity">Any city</span>
+<span id="cityTriggerLabelMobile" class="truncate tlbl-compact" data-i18n="map.anyCityMobile">Any city</span>
 </button>
 <div id="cityFilterMenu" class="filter-dropdown-menu hidden bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg p-3" style="width:240px;">
 <input id="citySearch" class="w-full bg-surface-container rounded-lg border border-outline-variant focus:ring-2 focus:ring-secondary text-body-md text-on-surface px-3 py-2 placeholder-outline-variant" placeholder="City, e.g. Erbil, Duhok..." type="text" data-i18n-placeholder="map.searchCity" autocomplete="off"/>
@@ -1088,20 +1736,40 @@ violation reporting. -->
 </span>
 </span>
 </button>
-<button id="saveSearchBtn" type="button" class="toolbar-btn-quiet flex-none flex items-center gap-1 rounded-full px-3 py-2 font-label-caps text-label-caps transition-colors">
-<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/><path d="M9.5 6.5h5M12 4v5"/></svg>
+</div>
+<!-- Save Search + Save as Alert -- two visually separate desktop actions
+     (per the approved reference; a unified dropdown was tried and
+     explicitly reverted). On mobile ONLY, this pass wraps both behind
+     one "Save" entry point (#mapSaveMenuBtn / #mapSaveMenu below) so the
+     toolbar doesn't carry two permanent large buttons -- presentation
+     consolidation only, per this pass's explicit scope. .map-save-menu
+     is display:contents on desktop, so saveSearchBtn/saveAlertBtn still
+     render as plain inline siblings there, completely unchanged. Both
+     keep their EXACT original ids/handlers (saveCurrentSearch(),
+     openSaveAlertModal(), updateSaveAlertButton()) unchanged -- only
+     their container and mobile visibility change. -->
+<div class="relative flex-none map-save-menu-wrap">
+<button id="mapSaveMenuBtn" type="button" class="toolbar-btn-quiet map-save-menu-btn flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps transition-colors" aria-haspopup="true" aria-expanded="false" aria-controls="mapSaveMenu">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+<span data-i18n="map.saveMenuLabel">Save</span>
+</button>
+<div id="mapSaveMenu" class="map-save-menu">
+<button id="saveSearchBtn" type="button" class="toolbar-btn-quiet flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps transition-colors">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
 <span data-i18n="map.saveSearch">Save Search</span>
 </button>
-</div>
 <!-- Property Watch / Area Alerts: the one "special action" this toolbar
-     promotes above the rest (a gold wash, not just another outline pill)
-     -- enabled once a draw-circle area or a city is set (see
+     promotes above the quiet Save Search pill (a champagne glass wash) --
+     enabled once a draw-circle area or a city is set (see
      updateSaveAlertButton()). Opens #saveAlertModal rather than writing
      immediately -- the alert needs a name and a notify-mode choice. -->
-<button id="saveAlertBtn" type="button" disabled class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint" aria-expanded="false" aria-controls="saveAlertModal">
+<button id="saveAlertBtn" type="button" disabled class="save-alert-btn-primary flex-none flex items-center gap-1.5 rounded-full px-4 py-2 font-label-caps text-label-caps disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title="Draw an area or enter a city first" data-i18n-title="alerts.saveButtonHint" aria-expanded="false" aria-controls="saveAlertModal">
 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
 <span data-i18n="alerts.saveButton">Save as Alert</span>
 </button>
+</div>
+</div>
+</div>
 </div>
 <span id="resultCount" class="flex-none ml-auto font-data-mono text-data-mono text-on-surface-variant hidden md:block"></span>
 </div>
@@ -1110,8 +1778,8 @@ violation reporting. -->
 <!-- Main split view -->
 <main id="mainSplit" class="fixed bottom-24 md:bottom-0 left-0 w-full flex flex-col md:flex-row">
 <!-- Map panel -->
-<div id="mapPanel" class="relative w-full md:w-1/2 lg:w-3/5 h-full order-1 md:order-2">
-<div id="map" class="w-full h-full"></div>
+<div id="mapPanel" class="relative w-full h-full order-1 md:order-2">
+<div id="map" class="w-full h-full"><div class="map-luxury-tone" aria-hidden="true"></div></div>
 <!-- Location-edit mode bar -- shown while window.DarweshLocationEdit is
      active (My Properties' "Edit Location" action). Owns Save/Cancel and
      the lat/lng readout; the shared component (js/darwesh-location-edit.js)
@@ -1355,17 +2023,62 @@ violation reporting. -->
 
 </div>
 </aside>
-<div class="map-toast" id="mapToast"></div>
+
+<!-- ===================================================================
+     PROPERTY DRAWER -- closed by default, mirrored to the map's LEADING
+     edge (opposite Map Tools). Same edge-drawer mechanics as #mapDrawer
+     above (see setListDrawerOpen() below): a slim handle when closed, a
+     glass panel sliding over the map when open, never a permanent
+     always-visible column -- the map stays the dominant surface and is
+     never rebuilt or resized when this opens. Only one of the two edge
+     drawers is ever open at a time (see the mutual-exclusion calls in
+     setDrawerOpen()/setListDrawerOpen()), matching the "never Property
+     Drawer + Filters + Map Tools all at once" crowding rule. The
+     property wheel lives in #cardList, its own fixed-height scroll-snap
+     container; #listPanel itself doesn't scroll (a flex column: static
+     title/count header + #cardList filling the rest) so wireWheel()'s
+     centering math has a real, stable height to measure against. -->
+<button id="listEdgeHandle" type="button" class="map-edge-handle list-edge-handle"
+        aria-label="Property list" title="Property list" aria-expanded="false" aria-controls="listPanel"
+        data-i18n-aria="map.propertyList" data-i18n-title="map.propertyList">
+<svg class="meh-list-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="3.4" rx="1"/><rect x="3.5" y="10.3" width="17" height="3.4" rx="1"/><rect x="3.5" y="15.6" width="17" height="3.4" rx="1"/></svg>
+</button>
+<div id="listDrawerScrim" class="map-drawer-scrim" aria-hidden="true"></div>
+<aside id="listPanel" class="map-drawer list-drawer hide-scrollbar" role="dialog" aria-modal="false" aria-label="Property list" data-i18n-aria="map.propertyList">
+<!-- Mobile-only drag handle for the bottom-sheet presentation (spec:
+     "Bottom Sheet Header" / peek-half-full drag). display:none on
+     desktop via the shared .sheet-only class below; the drag JS itself
+     is also gated to mobile widths so desktop's existing side-drawer
+     drag is completely untouched. -->
+<div class="sheet-drag-handle sheet-only" aria-hidden="true"></div>
+<div class="map-drawer-head">
+<div class="flex flex-col min-w-0">
+<span class="sheet-eyebrow sheet-only" data-i18n="map.propertiesEyebrow">PROPERTIES</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate" data-i18n="map.pageTitle">Kurdistan Region Listings</h2>
+<p id="resultCountMobile" class="font-body-sm text-body-sm text-on-surface-variant"></p>
 </div>
-<!-- List panel -- the property wheel lives in #cardList, its own fixed-
-     height scroll-snap container; #listPanel itself no longer scrolls
-     (it's a flex column: static title/count header + #cardList filling
-     the rest), so the wheel's spacer/centering math in wireWheel() has a
-     real, stable viewport height to measure against. -->
-<div id="listPanel" class="w-full md:w-1/2 lg:w-2/5 h-full hide-scrollbar order-2 md:order-1 bg-surface p-4 md:p-6 hidden flex flex-col md:flex">
-<p class="font-headline-md text-headline-md text-on-surface mb-1 flex-none" data-i18n="map.pageTitle">Kurdistan Region Listings</p>
-<p id="resultCountMobile" class="font-body-md text-body-md text-on-surface-variant mb-4 flex-none"></p>
+<!-- Mobile-only compact Sort/Filter shortcuts inside the sheet header
+     (spec: "124 Properties  Sort  [filter]") -- these are NOT a second
+     filter/sort system, they simply forward a click to the existing
+     #sortBtn/#filtersTriggerBtn already wired to the real sort/filter
+     logic in the top toolbar, so opening the sheet never loses access
+     to either. -->
+<div class="sheet-head-actions sheet-only">
+<button id="sheetSortBtn" type="button" class="sheet-head-btn" aria-label="Sort" data-i18n-aria="map.sortLabel">
+<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3 4 7l4 4"/><path d="M4 7h11"/><path d="m16 21 4-4-4-4"/><path d="M20 17H9"/></svg>
+</button>
+<button id="sheetFilterBtn" type="button" class="sheet-head-btn" aria-label="Filters" data-i18n-aria="map.filtersLabel">
+<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16M7 12h10M10 19h4"/></svg>
+</button>
+</div>
+<button id="listDrawerCloseBtn" type="button" class="map-drawer-close" aria-label="Close" data-i18n-aria="common.close" title="Close" data-i18n-title="common.close">
+<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+</div>
 <div id="cardList" class="flex-1 min-h-0"></div>
+</aside>
+
+<div class="map-toast" id="mapToast"></div>
 </div>
 </main>
 
@@ -1425,19 +2138,31 @@ violation reporting. -->
 </div>
 </div>
 
-<!-- Mobile List/Map switch -- premium floating segmented pill, same glass
-     language as the top toolbar (spec #16); shows the CURRENT mode
-     highlighted rather than the old single-button "tap to go to X"
-     control it replaces. -->
-<div id="mobileViewSwitch" class="mobile-view-switch" role="group" aria-label="View" data-i18n-aria="drm.viewSwitch">
-<button id="mobileViewListBtn" type="button" class="mobile-view-btn" aria-pressed="false">
-<span class="material-symbols-outlined text-[16px]">format_list_bulleted</span>
+<!-- Rotary Discovery Dock (mobile only) -- replaces the old wide List/Map
+     capsule. Closed: a compact pill showing the current mode. Tapping it
+     (or #rotaryToggle) fans out the two REAL supported modes (Map/List --
+     "Saved"/"Nearby" from the reference design are not built features and
+     are deliberately not fabricated here). Selecting a mode calls the
+     exact same setMobileView()/mobileView* click handlers the old switch
+     used -- #mobileViewListBtn/#mobileViewMapBtn keep their original ids,
+     aria-pressed state and click wiring; only their container/visual
+     presentation changed. See setMobileView() and the rotary open/close
+     JS further down the page. -->
+<div id="rotaryDock" class="rotary-dock" data-expanded="false">
+<div class="rotary-fan" role="group" aria-label="View" data-i18n-aria="drm.viewSwitch">
+<button id="mobileViewListBtn" type="button" class="rotary-option" aria-pressed="false">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="3.4" rx="1"/><rect x="3.5" y="10.3" width="17" height="3.4" rx="1"/><rect x="3.5" y="15.6" width="17" height="3.4" rx="1"/></svg>
 <span data-i18n="drm.listView">List</span>
 </button>
-<button id="mobileViewMapBtn" type="button" class="mobile-view-btn active" aria-pressed="true">
-<span class="material-symbols-outlined text-[16px]">map</span>
+<button id="rotaryToggle" type="button" class="rotary-current" aria-haspopup="true" aria-expanded="false" aria-controls="rotaryDock">
+<svg id="rotaryCurrentIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+<span id="rotaryCurrentLabel" data-i18n="drm.mapView">Map</span>
+</button>
+<button id="mobileViewMapBtn" type="button" class="rotary-option active" aria-pressed="true">
+<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
 <span data-i18n="drm.mapView">Map</span>
 </button>
+</div>
 </div>
 
 <!-- BottomNavBar (Mobile Only) -->
@@ -2349,6 +3074,15 @@ let priceCurrency = 'USD';
 // tiles do, so it must never be allowed to exceed this ceiling.
 const MAX_MAP_ZOOM = 15;
 const map = L.map('map', { zoomControl: false, maxZoom: MAX_MAP_ZOOM }).setView([36.35, 44.3], 8);
+// Re-append the map-only luxury tone overlay after Leaflet's own init --
+// defensive only (Leaflet does not clear #map's existing children, but
+// this guarantees the overlay survives regardless), so it keeps sitting
+// above every tile/marker pane without depending on DOM-insertion order.
+{
+  const luxuryTone = document.querySelector('#map .map-luxury-tone') || Object.assign(document.createElement('div'), { className: 'map-luxury-tone' });
+  luxuryTone.setAttribute('aria-hidden', 'true');
+  document.getElementById('map').appendChild(luxuryTone);
+}
 // Leaflet has no built-in RTL awareness -- left unconditional, this control
 // stays physically bottom-right even under Kurdish/Arabic, splitting from
 // the map-tools edge handle (which correctly flips to the left in RTL) into
@@ -2592,7 +3326,7 @@ function buildMarkers() {
   if (currentMapMode === 'explore') solo.forEach(l => addApproxHalo(l, approxHalos));
   solo.forEach(l => {
     const marker = L.marker([l.lat, l.lng], { icon: priceIcon(l, l.id === activeId) });
-    marker.on('click', () => selectListing(l.id, { scrollList: true }));
+    marker.on('click', () => { selectListing(l.id, { scrollList: true }); setListDrawerOpen(true); });
     marker.bindPopup(() => card(l) + locationPrecisionNote(), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
     marker.addTo(map);
     markers[l.id] = marker;
@@ -2602,7 +3336,7 @@ function buildMarkers() {
     if (activeListing) {
       if (currentMapMode === 'explore') addApproxHalo(activeListing, approxHalos);
       const marker = L.marker([activeListing.lat, activeListing.lng], { icon: priceIcon(activeListing, true) });
-      marker.on('click', () => selectListing(activeListing.id, { scrollList: true }));
+      marker.on('click', () => { selectListing(activeListing.id, { scrollList: true }); setListDrawerOpen(true); });
       marker.bindPopup(() => card(activeListing) + locationPrecisionNote(), { maxWidth: 240, minWidth: 240, className: 'map-popup-card', autoPanPadding: [20, 80] });
       marker.addTo(map);
       markers[activeListing.id] = marker;
@@ -3334,6 +4068,7 @@ window.addEventListener('resize', () => {
 function refresh() {
   buildMarkers();
   renderList();
+  updateFiltersActiveBadge();
   // Keeps the URL shareable/refreshable after every change (replaceState
   // -- never spams history on its own); the specific handlers below that
   // represent a real "search step" additionally call updateUrlState(true)
@@ -3341,6 +4076,34 @@ function refresh() {
   // back/forward-able history entry instead.
   if (typeof updateUrlState === 'function') updateUrlState(false);
 }
+
+// Dedicated Filters trigger (#filtersTriggerBtn) -- opens the SAME
+// #mapDrawer the Map Tools edge handle opens, scrolled to its existing
+// "Property filters" section, and shows a small count badge for however
+// many of price/beds/baths/home-type/verified/area are currently set.
+// Reads the exact module-level state every other filter control already
+// writes to -- never a second source of truth.
+function updateFiltersActiveBadge() {
+  const badge = document.getElementById('filtersActiveBadge');
+  const trigger = document.getElementById('filtersTriggerBtn');
+  if (!badge || !trigger) return;
+  let count = 0;
+  if (priceMin !== null || priceMax !== null) count++;
+  if (bedsMin > 0) count++;
+  if (bathsMin > 0) count++;
+  if (selectedHomeTypes.size > 0) count++;
+  if (verifiedOnly) count++;
+  if (areaMin !== null || areaMax !== null) count++;
+  badge.textContent = String(count);
+  badge.classList.toggle('hidden', count === 0);
+  trigger.classList.toggle('active', count > 0);
+}
+document.getElementById('filtersTriggerBtn')?.addEventListener('click', () => {
+  setDrawerOpen(true);
+  requestAnimationFrame(() => {
+    document.querySelector('#mapDrawer [data-group="filters"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
 
 // ---------------------------------------------------------------------
 // Filter dropdowns (Price / Beds & Baths / Home Type) — each toggle
@@ -3353,9 +4116,14 @@ function closeAllFilterMenus() {
   document.querySelectorAll('.filter-dropdown-menu').forEach(m => m.classList.add('hidden'));
 }
 document.querySelectorAll('.filter-dropdown-btn').forEach(btn => {
+  // #filtersTriggerBtn borrows this class purely for its visual style --
+  // it opens the map drawer via its own dedicated handler below, not a
+  // popover menu, so it has no .filter-dropdown-menu sibling. Skip it
+  // here rather than crash on a null menu.
+  const menu = btn.nextElementSibling;
+  if (!menu || !menu.classList.contains('filter-dropdown-menu')) return;
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    const menu = btn.nextElementSibling;
     const wasHidden = menu.classList.contains('hidden');
     closeAllFilterMenus();
     if (wasHidden) {
@@ -3656,6 +4424,7 @@ function renderCitySuggestions(filterText) {
 function updateCityTriggerLabel() {
   const val = document.getElementById('citySearch').value.trim();
   document.getElementById('cityTriggerLabel').textContent = val || tr('map.anyCity', 'Any city');
+  document.getElementById('cityTriggerLabelMobile').textContent = val || tr('map.anyCityMobile', 'City');
 }
 document.getElementById('citySearch').addEventListener('input', () => {
   renderCitySuggestions(document.getElementById('citySearch').value);
@@ -3665,21 +4434,18 @@ document.getElementById('citySearch').addEventListener('input', () => {
 renderCitySuggestions('');
 updateCityTriggerLabel();
 
-const listPanel = document.getElementById('listPanel');
 const mapPanel = document.getElementById('mapPanel');
 const mobileViewListBtn = document.getElementById('mobileViewListBtn');
 const mobileViewMapBtn = document.getElementById('mobileViewMapBtn');
 let mobileView = 'map';
+// The map is never hidden any more -- "List" now means "the Property
+// Drawer is open" (full-viewport on mobile, see .list-drawer's mobile
+// media query above), not "swap the map out for a full-screen list".
+// setListDrawerOpen() is defined below (function declarations hoist), and
+// itself keeps mobileView/the pill's active state in sync so a drag/tap
+// on the handle stays consistent with this same pill.
 function setMobileView(mode) {
-  mobileView = mode;
-  const isList = mode === 'list';
-  listPanel.classList.toggle('hidden', !isList);
-  mapPanel.classList.toggle('hidden', isList);
-  mobileViewListBtn.classList.toggle('active', isList);
-  mobileViewListBtn.setAttribute('aria-pressed', String(isList));
-  mobileViewMapBtn.classList.toggle('active', !isList);
-  mobileViewMapBtn.setAttribute('aria-pressed', String(!isList));
-  if (!isList) setTimeout(() => map.invalidateSize(), 200);
+  setListDrawerOpen(mode === 'list');
 }
 mobileViewListBtn.addEventListener('click', () => setMobileView('list'));
 mobileViewMapBtn.addEventListener('click', () => setMobileView('map'));
@@ -3698,7 +4464,41 @@ function closeToolbarMore() {
 toolbarMoreBtn.addEventListener('click', () => {
   const open = toolbarMoreActions.classList.toggle('toolbar-more-open');
   toolbarMoreBtn.setAttribute('aria-expanded', String(open));
+  if (open) closeMapSaveMenu();
 });
+
+// Mobile "Save" menu -- consolidates Save Search + Save as Alert behind
+// one entry point (spec: presentation-only merge). Same open/close shape
+// as the More sheet above; #saveSearchBtn/#saveAlertBtn keep their exact
+// original ids/handlers (saveCurrentSearch(), openSaveAlertModal(),
+// updateSaveAlertButton()) untouched -- only visibility/positioning of
+// their shared container changes here. Inert on desktop (the trigger
+// stays display:none there, so this only ever runs from a mobile tap).
+const mapSaveMenuBtn = document.getElementById('mapSaveMenuBtn');
+const mapSaveMenu = document.getElementById('mapSaveMenu');
+function closeMapSaveMenu() {
+  mapSaveMenu.classList.remove('is-open');
+  mapSaveMenuBtn.setAttribute('aria-expanded', 'false');
+}
+mapSaveMenuBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const open = mapSaveMenu.classList.toggle('is-open');
+  mapSaveMenuBtn.setAttribute('aria-expanded', String(open));
+  if (open) closeToolbarMore();
+});
+document.addEventListener('click', (e) => {
+  if (!mapSaveMenu.classList.contains('is-open')) return;
+  if (e.target.closest('#mapSaveMenu, #mapSaveMenuBtn')) return;
+  closeMapSaveMenu();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && mapSaveMenu.classList.contains('is-open')) closeMapSaveMenu();
+});
+// Choosing either action inside the menu closes it, same as any other
+// popover -- the actions themselves (saveCurrentSearch/openSaveAlertModal)
+// are wired to these same ids elsewhere, unchanged.
+document.getElementById('saveSearchBtn').addEventListener('click', closeMapSaveMenu);
+document.getElementById('saveAlertBtn').addEventListener('click', closeMapSaveMenu);
 
 // ---------------------------------------------------------------------
 // MAP TOOLS EDGE DRAWER
@@ -3745,6 +4545,10 @@ function setDrawerOpen(open, opts) {
   // this handler needing to know the orb exists.
   document.body.dataset.mapDrawer = open ? 'open' : 'closed';
   if (open) mapEdgeHandle.dataset.attention = '0';
+  // Crowding rule: never Map Tools + Property Drawer open at once -- one
+  // edge drawer open at a time, map stays dominant. setListDrawerOpen is
+  // declared below (function declarations hoist).
+  if (open) setListDrawerOpen(false, { silent: true });
   if (open && !(opts && opts.silent)) {
     // Move focus in so keyboard users land on a tool, not back at the top
     // of the page. Not a focus trap: the drawer is non-modal by design
@@ -3882,6 +4686,234 @@ document.addEventListener('pointerdown', (e) => {
 });
 mapDrawerScrim.addEventListener('click', () => { if (drawerOpen) setDrawerOpen(false); });
 
+// ---------------------------------------------------------------------
+// PROPERTY DRAWER -- the exact same edge-drawer mechanics as Map Tools
+// above (open/close, pointer drag with commit-fraction/flick-velocity,
+// scrim, Escape, click-outside), mirrored to the map's LEADING edge.
+// Kept as a parallel block rather than a shared abstraction so this
+// drawer's behavior stays provably identical to the already-shipped,
+// already-tested Map Tools drawer above.
+// ---------------------------------------------------------------------
+const listDrawer = document.getElementById('listPanel');
+const listEdgeHandle = document.getElementById('listEdgeHandle');
+const listDrawerScrim = document.getElementById('listDrawerScrim');
+const listDrawerCloseBtn = document.getElementById('listDrawerCloseBtn');
+
+let listDrawerOpen = false;
+
+function setListDrawerOpen(open, opts) {
+  listDrawerOpen = open;
+  listDrawer.classList.toggle('is-open', open);
+  listDrawer.style.removeProperty('--drawer-x');
+  listDrawer.style.removeProperty('height');
+  // Mobile bottom sheet: every fresh open (from the rotary dock, a marker
+  // tap, etc.) starts at PEEK, same as the reference's "List selected ->
+  // sheet at PEEK" flow -- mid-drag snaps are handled separately by
+  // onSheetDragEnd, which sets this same attribute without going through
+  // setListDrawerOpen again.
+  if (open) listDrawer.dataset.sheetState = 'peek';
+  listEdgeHandle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  listDrawerScrim.classList.toggle('is-open', open);
+  document.body.dataset.listDrawer = open ? 'open' : 'closed';
+  mobileView = open ? 'list' : 'map';
+  mobileViewListBtn.classList.toggle('active', open);
+  mobileViewListBtn.setAttribute('aria-pressed', String(open));
+  mobileViewMapBtn.classList.toggle('active', !open);
+  mobileViewMapBtn.setAttribute('aria-pressed', String(!open));
+  syncRotaryCurrent();
+  // Crowding rule, the other direction: opening the Property Drawer
+  // closes Map Tools if it was open.
+  if (open) setDrawerOpen(false, { silent: true });
+  if (open && !(opts && opts.silent)) {
+    const first = listDrawer.querySelector('#cardList');
+    if (first) first.focus({ preventScroll: true });
+  }
+}
+
+listEdgeHandle.setAttribute('aria-expanded', 'false');
+
+let listDragActive = false, listDragStartX = 0, listDragStartTime = 0, listDragStartOpen = false, listDragMoved = false, listDragWidth = 0;
+
+function onListDragStart(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  // Mobile drives the same #listPanel as a vertical bottom sheet instead
+  // (see onSheetDragStart/Move/End below) -- this horizontal, translateX-
+  // based drag would otherwise still fire alongside it (both are bound to
+  // #listPanel itself, not just the handle) and fight over listDrawerOpen.
+  if (window.matchMedia('(max-width: 767px)').matches) return;
+  listDragActive = true;
+  listDragMoved = false;
+  listDragStartX = e.clientX;
+  listDragStartTime = e.timeStamp;
+  listDragStartOpen = listDrawerOpen;
+  listDragWidth = listDrawer.getBoundingClientRect().width || 1;
+  listDrawer.classList.add('is-dragging');
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* not captureable */ }
+}
+function onListDragMove(e) {
+  if (!listDragActive) return;
+  // The property drawer opens toward the START edge, i.e. the opposite
+  // sign from Map Tools' dirSign() for the same physical drag direction.
+  const dx = (e.clientX - listDragStartX) * dirSign() * -1;
+  if (Math.abs(dx) > 4) listDragMoved = true;
+  const base = listDragStartOpen ? 0 : listDragWidth;
+  const next = Math.min(listDragWidth, Math.max(0, base + dx));
+  listDrawer.style.setProperty('--drawer-x', (next / listDragWidth * 100) + '%');
+  listDrawerScrim.classList.toggle('is-open', next < listDragWidth * 0.9);
+}
+function onListDragEnd(e) {
+  if (!listDragActive) return;
+  listDragActive = false;
+  listDrawer.classList.remove('is-dragging');
+  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) { /* fine */ }
+  if (!listDragMoved) { setListDrawerOpen(!listDrawerOpen); return; }
+  const dx = (e.clientX - listDragStartX) * dirSign() * -1;
+  const dt = Math.max(1, e.timeStamp - listDragStartTime);
+  const velocity = dx / dt;
+  const travelled = Math.abs(dx) / listDragWidth;
+  if (Math.abs(velocity) > DRAWER_FLICK_VELOCITY) {
+    setListDrawerOpen(velocity < 0);
+  } else if (listDragStartOpen) {
+    setListDrawerOpen(travelled < DRAWER_COMMIT_FRACTION || dx < 0);
+  } else {
+    setListDrawerOpen(dx < 0 && travelled >= DRAWER_COMMIT_FRACTION);
+  }
+}
+[listEdgeHandle, listDrawer].forEach(el => {
+  el.addEventListener('pointerdown', (e) => {
+    if (el === listDrawer && e.target.closest('button, input, select, a')) return;
+    onListDragStart(e);
+  });
+  el.addEventListener('pointermove', onListDragMove);
+  el.addEventListener('pointerup', onListDragEnd);
+  el.addEventListener('pointercancel', () => {
+    if (!listDragActive) return;
+    listDragActive = false;
+    listDrawer.classList.remove('is-dragging');
+    setListDrawerOpen(listDragStartOpen);
+  });
+});
+listEdgeHandle.addEventListener('click', (e) => { e.preventDefault(); });
+listEdgeHandle.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setListDrawerOpen(!listDrawerOpen); }
+});
+listDrawerCloseBtn.addEventListener('click', () => { setListDrawerOpen(false); listEdgeHandle.focus(); });
+document.addEventListener('pointerdown', (e) => {
+  if (!listDrawerOpen) return;
+  const t = e.target;
+  // #rotaryDock is excluded too -- it sits outside #listPanel but is how
+  // the sheet gets opened/closed/kept-open on mobile (expanding the dock
+  // or picking Map/List while the sheet is already open must not also
+  // trigger this generic "tap outside closes it" rule on the same tap).
+  if (t && typeof t.closest === 'function' && t.closest('#listPanel, #listEdgeHandle, #rotaryDock')) return;
+  setListDrawerOpen(false);
+});
+listDrawerScrim.addEventListener('click', () => { if (listDrawerOpen) setListDrawerOpen(false); });
+
+// ---------------------------------------------------------------------
+// ROTARY DISCOVERY DOCK (mobile only) -- replaces the old List/Map
+// capsule. #mobileViewListBtn/#mobileViewMapBtn keep their exact original
+// ids and click wiring (setMobileView above); this only adds the expand/
+// collapse chrome and keeps the closed-state hub's icon/label in sync
+// with whichever of the two is currently active.
+const rotaryDock = document.getElementById('rotaryDock');
+const rotaryToggle = document.getElementById('rotaryToggle');
+const rotaryCurrentIcon = document.getElementById('rotaryCurrentIcon');
+const rotaryCurrentLabel = document.getElementById('rotaryCurrentLabel');
+const ROTARY_ICONS = {
+  map: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  list: '<rect x="3.5" y="5" width="17" height="3.4" rx="1"/><rect x="3.5" y="10.3" width="17" height="3.4" rx="1"/><rect x="3.5" y="15.6" width="17" height="3.4" rx="1"/>',
+};
+function syncRotaryCurrent() {
+  const isList = mobileView === 'list';
+  rotaryCurrentIcon.innerHTML = ROTARY_ICONS[isList ? 'list' : 'map'];
+  rotaryCurrentLabel.textContent = (isList ? mobileViewListBtn : mobileViewMapBtn).querySelector('span').textContent;
+}
+function setRotaryExpanded(expanded) {
+  rotaryDock.dataset.expanded = expanded ? 'true' : 'false';
+  rotaryToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
+rotaryToggle.addEventListener('click', () => {
+  setRotaryExpanded(rotaryDock.dataset.expanded !== 'true');
+});
+[mobileViewListBtn, mobileViewMapBtn].forEach((btn) => {
+  btn.addEventListener('click', () => setRotaryExpanded(false));
+});
+document.addEventListener('pointerdown', (e) => {
+  if (rotaryDock.dataset.expanded !== 'true') return;
+  if (e.target.closest && e.target.closest('#rotaryDock')) return;
+  setRotaryExpanded(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && rotaryDock.dataset.expanded === 'true') setRotaryExpanded(false);
+});
+syncRotaryCurrent();
+
+// ---------------------------------------------------------------------
+// MOBILE BOTTOM SHEET DRAG (List mode) -- vertical peek/half/full drag,
+// completely separate from the desktop horizontal drawer drag above
+// (onListDragStart already bails out on mobile widths so the two never
+// run at once). Dragging the drag handle OR the sheet's own header both
+// move the sheet; dragging inside #cardList is left alone so the list
+// itself can still scroll normally.
+const SHEET_STATES = { peek: 0.30, half: 0.62, full: 0.94 };
+let sheetDragActive = false, sheetDragStartY = 0, sheetDragStartHeight = 0, sheetDragMoved = false, sheetContainerHeight = 1;
+function sheetHeightFor(state) { return SHEET_STATES[state] ?? SHEET_STATES.peek; }
+function onSheetDragStart(e) {
+  if (e.button !== undefined && e.button !== 0) return;
+  if (!window.matchMedia('(max-width: 767px)').matches) return;
+  sheetDragActive = true;
+  sheetDragMoved = false;
+  sheetDragStartY = e.clientY;
+  sheetContainerHeight = mapPanel.getBoundingClientRect().height || 1;
+  sheetDragStartHeight = listDrawer.getBoundingClientRect().height;
+  listDrawer.classList.add('is-dragging');
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* not captureable */ }
+}
+function onSheetDragMove(e) {
+  if (!sheetDragActive) return;
+  const dy = e.clientY - sheetDragStartY;
+  if (Math.abs(dy) > 4) sheetDragMoved = true;
+  const nextPx = Math.min(sheetContainerHeight * SHEET_STATES.full, Math.max(sheetContainerHeight * 0.08, sheetDragStartHeight - dy));
+  listDrawer.style.height = nextPx + 'px';
+}
+function onSheetDragEnd(e) {
+  if (!sheetDragActive) return;
+  sheetDragActive = false;
+  listDrawer.classList.remove('is-dragging');
+  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (err) { /* fine */ }
+  listDrawer.style.removeProperty('height');
+  if (!sheetDragMoved) return; // a plain tap on the handle/header does nothing extra
+  const fraction = Math.max(0, Math.min(1, (listDrawer.getBoundingClientRect().height) / sheetContainerHeight));
+  // Snap to nearest of the 3 states, or close entirely if dragged well
+  // below peek.
+  if (fraction < SHEET_STATES.peek * 0.55) { setListDrawerOpen(false); return; }
+  const dists = Object.entries(SHEET_STATES).map(([k, v]) => [k, Math.abs(v - fraction)]);
+  dists.sort((a, b) => a[1] - b[1]);
+  listDrawer.dataset.sheetState = dists[0][0];
+}
+const sheetDragHandleEl = document.querySelector('#listPanel .sheet-drag-handle');
+const sheetHeadEl = document.querySelector('#listPanel .map-drawer-head');
+[sheetDragHandleEl, sheetHeadEl].forEach((el) => {
+  if (!el) return;
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button')) return; // let Sort/Filter/Close still work
+    onSheetDragStart(e);
+  });
+  el.addEventListener('pointermove', onSheetDragMove);
+  el.addEventListener('pointerup', onSheetDragEnd);
+  el.addEventListener('pointercancel', () => {
+    if (!sheetDragActive) return;
+    sheetDragActive = false;
+    listDrawer.classList.remove('is-dragging');
+    listDrawer.style.removeProperty('height');
+  });
+});
+// Sheet header Sort/Filter shortcuts -- forward to the real, existing
+// controls rather than duplicating sort/filter logic (spec #21/#13).
+document.getElementById('sheetSortBtn').addEventListener('click', () => document.getElementById('sortBtn').click());
+document.getElementById('sheetFilterBtn').addEventListener('click', () => document.getElementById('filtersTriggerBtn').click());
+
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   // Escape backs out of the innermost thing first: the Save-as-Alert
@@ -3897,7 +4929,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
   if (drawMode) { setDrawMode(false); return; }
-  if (drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); }
+  if (drawerOpen) { setDrawerOpen(false); mapEdgeHandle.focus(); return; }
+  if (listDrawerOpen) { setListDrawerOpen(false); listEdgeHandle.focus(); }
 });
 
 const clearSearchAreaBtn = document.getElementById('clearSearchAreaBtn');

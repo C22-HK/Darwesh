@@ -1,26 +1,17 @@
 // Darwesh shared public mobile bottom navigation -- the ONE canonical
-// bottom nav bar (Home, MAM AI, Properties Map, Sell, Services,
-// Challenge [Darwesh Arena, arena.html], Profile) for every public
-// content page at mobile widths. Just ONE map item,
-// matching js/site-header.js's own consolidation (see that file's header
-// comment) -- a bottom tab bar has no room for Buy/Rent as separate icons
-// too, and doesn't need them: map.html opens straight into Buy mode by
-// default, its own in-page Buy/Rent/All toggle switches modes in one tap,
-// and the MAM AI dock on that page understands "show me rentals" just as
-// well.
+// mobile nav for every public content page: a floating "Darwesh Spatial
+// Glass" capsule with 5 primary actions (Home, AI, Map, Sell, More) plus
+// a More panel that opens ABOVE the bar for the 4 secondary destinations
+// (Services, Challenge, About Us, Profile).
 //
-// Sell IS its own item, though, and deliberately so: it is not a mode of
-// the map, it is a separate funnel (sell.html), and it had no entry point
-// anywhere in global navigation before. Five items sat comfortably at
-// 390px; MAM AI (mam-ai.html, the Command Center's own dedicated page --
-// distinct from the compact MAM assistant that stays present on every
-// page unchanged) is the sixth, verified at 390/430px alongside this
-// change rather than assumed to still fit.
-// Reuses the exact .home-bottomnav / .home-bottomnav-item classes and
-// cine-scope design tokens already proven on index.html rather than
-// inventing new styling -- see css/cinematic.css's own .home-bottomnav*
-// rules (including the safe-area-aware bottom padding added alongside
-// this file).
+// Replaces the older 7-icon-across-the-bar design in full: Services,
+// Challenge (Darwesh Arena, arena.html) and Profile no longer sit on the
+// bar itself -- there wasn't room to keep them readable at phone width
+// (see the old version's own header comment / mobile-RTL-polish pass for
+// that history) -- they now live as rows inside the More panel, which has
+// enough width to use the same full desktop label strings (nav.services,
+// arena.navLabel, nav.profile) instead of needing shorter mobile-only
+// translations.
 //
 // Same classic-script, early-mount-point contract as js/site-header.js
 // (see that file's own header comment for the full reasoning): this must
@@ -33,53 +24,152 @@
 // other script tag on the page:
 //   <div id="siteMobileNav" data-active="propertiesMap"></div>
 //   <script src="./js/site-mobile-nav.js"></script>
-// `data-active` uses the same keys as js/site-header.js: home, mamai,
-// propertiesMap, sell, services -- omit/leave blank for a page with no
-// matching destination. There is no separate "profile" key: Profile's
-// real destination is decided dynamically by js/nav-auth.js (which page
-// a signed-in user actually lands on), so it never shows as "current".
+// `data-active` values:
+//   Primary (highlights a bar item): home, mamai, propertiesMap, sell
+//   Secondary (highlights the More button itself, since that item now
+//   lives inside the panel): services, arena, about
+//   Leave blank for a page with no matching destination (e.g. account
+//   pages) -- nothing on the bar or the More button is marked current.
+// There is no separate "profile" active key: Profile's real destination
+// is decided dynamically by js/nav-auth.js (which page a signed-in user
+// actually lands on), so it never shows as "current" here either.
 (function () {
   var mount = document.getElementById('siteMobileNav');
   if (!mount) return;
   var active = mount.getAttribute('data-active') || '';
 
+  var PRIMARY_KEYS = { home: 1, mamai: 1, propertiesMap: 1, sell: 1 };
+  var SECONDARY_KEYS = { services: 1, arena: 1, about: 1 };
+  var isSecondaryActive = !!SECONDARY_KEYS[active];
+
   function itemClass(key) {
-    return 'home-bottomnav-item flex flex-col items-center justify-center px-2 py-1 transition-transform duration-300 ease-in-out active:scale-90' +
-      (key === active ? ' is-active' : '');
+    return 'dmnav-item' + (key === active ? ' is-active' : '');
   }
   function ariaCurrent(key) {
     return key === active ? ' aria-current="page"' : '';
   }
 
+  var CHEVRON = '<svg class="dmnav-row-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
+
   mount.innerHTML =
-    '<nav class="home-bottomnav md:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-1" aria-label="Primary mobile">' +
+    '<nav class="dmnav-bar md:hidden" aria-label="Primary mobile">' +
       '<a class="' + itemClass('home') + '" href="index.html"' + ariaCurrent('home') + '>' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.home">Home</span>' +
+        '<span class="dmnav-content">' +
+          '<span class="dmnav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg></span>' +
+          '<span class="dmnav-label" data-i18n="nav.home">Home</span>' +
+        '</span>' +
       '</a>' +
       '<a class="' + itemClass('mamai') + '" href="mam-ai.html"' + ariaCurrent('mamai') + '>' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M12 8a4 4 0 0 0 4 4 4 4 0 0 0-4 4 4 4 0 0 0-4-4 4 4 0 0 0 4-4Z"/></svg></span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="mamai.navLabel">MAM AI</span>' +
+        '<span class="dmnav-content">' +
+          '<span class="dmnav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5c.4 2.4 1 4 1.9 4.9.9.9 2.5 1.5 4.9 1.9-2.4.4-4 1-4.9 1.9-.9.9-1.5 2.5-1.9 4.9-.4-2.4-1-4-1.9-4.9-.9-.9-2.5-1.5-4.9-1.9 2.4-.4 4-1 4.9-1.9.9-.9 1.5-2.5 1.9-4.9Z"/></svg></span>' +
+          '<span class="dmnav-label" data-i18n="nav.aiShort">AI</span>' +
+        '</span>' +
       '</a>' +
       '<a class="' + itemClass('propertiesMap') + '" href="map.html"' + ariaCurrent('propertiesMap') + '>' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3Z"/><path d="M9 4v13M15 7v13"/></svg></span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.propertiesMap">Properties Map</span>' +
+        '<span class="dmnav-content">' +
+          '<span class="dmnav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4-6 3v13l6-3 6 3 6-3V4l-6 3Z"/><path d="M9 4v13M15 7v13"/></svg></span>' +
+          '<span class="dmnav-label" data-i18n="nav.map">Map</span>' +
+        '</span>' +
       '</a>' +
       '<a class="' + itemClass('sell') + '" href="sell.html"' + ariaCurrent('sell') + '>' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 12 22l-9-9 8.6-8.6A2 2 0 0 1 13 4h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.4Z"/><circle cx="16.5" cy="7.5" r="1"/></svg></span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.sell">Sell</span>' +
+        '<span class="dmnav-content">' +
+          '<span class="dmnav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 12 22l-9-9 8.6-8.6A2 2 0 0 1 13 4h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.4 1.4Z"/><circle cx="16.5" cy="7.5" r="1"/></svg></span>' +
+          '<span class="dmnav-label" data-i18n="nav.sell">Sell</span>' +
+        '</span>' +
       '</a>' +
-      '<a class="' + itemClass('services') + '" href="services.html"' + ariaCurrent('services') + '>' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.services">Services</span>' +
+      '<button type="button" class="dmnav-item dmnav-more' + (isSecondaryActive ? ' is-active' : '') + '" id="dmnavMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="dmnavPanel">' +
+        '<span class="dmnav-content">' +
+          '<span class="dmnav-icon" aria-hidden="true">' +
+            '<svg class="dmnav-icon-dots" viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>' +
+            '<svg class="dmnav-icon-close" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>' +
+          '</span>' +
+          '<span class="dmnav-label" data-i18n="nav.more">More</span>' +
+        '</span>' +
+      '</button>' +
+    '</nav>' +
+    '<div class="dmnav-backdrop" id="dmnavBackdrop"></div>' +
+    '<div class="dmnav-panel" id="dmnavPanel" role="menu" aria-hidden="true" aria-label="More navigation">' +
+      '<a class="dmnav-row" href="services.html" role="menuitem">' +
+        '<span class="dmnav-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>' +
+        '<span class="dmnav-row-label" data-i18n="nav.services">Services</span>' +
+        CHEVRON +
       '</a>' +
-      '<a class="' + itemClass('arena') + '" href="arena.html"' + ariaCurrent('arena') + '>' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg></span>' +
-        '<span class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="arena.navLabel">Challenge</span>' +
+      '<a class="dmnav-row" href="arena.html" role="menuitem">' +
+        '<span class="dmnav-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v4a5 5 0 0 1-5 5 5 5 0 0 1-5-5V4Z"/><path d="M7 6H4a1 1 0 0 0-1 1c0 2.5 1.8 4.5 4.2 4.9M17 6h3a1 1 0 0 1 1 1c0 2.5-1.8 4.5-4.2 4.9"/><path d="M12 13v4M8.5 20c0-1.7 1.6-3 3.5-3s3.5 1.3 3.5 3M9 20h6"/></svg></span>' +
+        '<span class="dmnav-row-label" data-i18n="arena.navLabel">Challenge</span>' +
+        CHEVRON +
       '</a>' +
-      '<a id="navProfileLinkMobile" class="' + itemClass('') + '" href="login.html" aria-label="Profile">' +
-        '<span aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>' +
-        '<span id="navProfileLabelMobile" class="font-label-caps text-label-caps mt-1 text-center leading-tight" data-i18n="nav.profile">Profile</span>' +
+      '<a class="dmnav-row" href="about.html" role="menuitem">' +
+        '<span class="dmnav-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.75v.01"/></svg></span>' +
+        '<span class="dmnav-row-label" data-i18n="nav.about">About Us</span>' +
+        CHEVRON +
       '</a>' +
-    '</nav>';
+      '<a id="navProfileLinkMobile" class="dmnav-row" href="login.html" role="menuitem" aria-label="Profile">' +
+        '<span class="dmnav-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>' +
+        '<span id="navProfileLabelMobile" class="dmnav-row-label" data-i18n="nav.profile">Profile</span>' +
+        CHEVRON +
+      '</a>' +
+    '</div>';
+
+  var moreBtn = document.getElementById('dmnavMoreBtn');
+  var panel = document.getElementById('dmnavPanel');
+  var backdrop = document.getElementById('dmnavBackdrop');
+  if (!moreBtn || !panel || !backdrop) return;
+
+  var isOpen = false;
+
+  function focusableRows() {
+    return Array.prototype.slice.call(panel.querySelectorAll('.dmnav-row'));
+  }
+
+  function openPanel() {
+    if (isOpen) return;
+    isOpen = true;
+    moreBtn.setAttribute('aria-expanded', 'true');
+    panel.classList.add('is-open');
+    panel.setAttribute('aria-hidden', 'false');
+    panel.inert = false;
+    backdrop.classList.add('is-open');
+  }
+
+  function closePanel(returnFocus) {
+    if (!isOpen) return;
+    isOpen = false;
+    moreBtn.setAttribute('aria-expanded', 'false');
+    panel.classList.remove('is-open');
+    panel.setAttribute('aria-hidden', 'true');
+    panel.inert = true;
+    backdrop.classList.remove('is-open');
+    if (returnFocus) moreBtn.focus();
+  }
+
+  moreBtn.addEventListener('click', function () {
+    if (isOpen) { closePanel(false); } else { openPanel(); }
+  });
+
+  backdrop.addEventListener('click', function () {
+    closePanel(false);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || !isOpen) return;
+    closePanel(true);
+  });
+
+  panel.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab' || !isOpen) return;
+    var rows = focusableRows();
+    if (!rows.length) return;
+    var first = rows[0];
+    var last = rows[rows.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+
+  panel.inert = true;
 })();

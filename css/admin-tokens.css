@@ -30,30 +30,52 @@
  * while --ash-text was dark (a light theme), but this pass makes --ash-text
  * a light colour (for dark surfaces) -- so "fill" and "text" needed to
  * become two different tokens, not one reused for both meanings.
+ *
+ * DESIGN-SYSTEM CONSOLIDATION (Phase 1): every value below is now a
+ * literal COPY of css/profile-tokens.css's canonical --ps-color-* value
+ * (nearest matching surface tier for the two that weren't already
+ * byte-identical), not a var() reference -- admin.html deliberately does
+ * not load profile-tokens.css (see admin.html's own comment explaining
+ * why: it would re-theme 89+ unrelated Tailwind-class usages on this
+ * page). Keeping this file as a value-synced copy gets the "one canonical
+ * source of truth" outcome (identical hex, resolved through admin's own
+ * scoped --ash-* names so admin-shell.css/admin-legacy.css need no
+ * changes) without that risk. If this file's values and
+ * profile-tokens.css's ever diverge, profile-tokens.css is the one that's
+ * right. --ash-border/--ash-border-strong are intentionally NOT
+ * repointed to --ps-color-outline-variant: that canonical value is a
+ * solid dark hex, safe on the ivory/obsidian public-page hairlines it's
+ * used for; admin's own surfaces sit at a different point in the same
+ * dark family and a solid #2b2c2a border would read as invisible against
+ * several of them, so the translucent-white hairline technique stays.
  */
 
 body.admin-shell {
-  /* ---- Surfaces ---- */
-  --ash-bg: #15171b;
-  --ash-surface: #1c1f24;
-  --ash-surface-sunken: #23262c;
+  /* ---- Surfaces (= --ps-color-surface-container-low/-high/-highest) ---- */
+  --ash-bg: #111315;
+  --ash-surface: #1c1f21;
+  --ash-surface-sunken: #22262a;
   --ash-border: rgba(247, 242, 232, 0.10);
 
-  /* ---- Text ---- */
-  --ash-text: #f3efe6;
-  --ash-text-secondary: rgba(243, 239, 230, 0.62);
+  /* ---- Text (= --ps-color-on-surface / -on-surface-variant / -outline) ---- */
+  --ash-text: #f4efe7;
+  --ash-text-secondary: #b8b0a5;
 
-  /* ---- Solid dark fill (toasts, active pagination/filter chips, sidebar) ---- */
-  --ash-ink: #101215;
-  --ash-on-ink: #f3efe6;
+  /* ---- Solid dark fill (toasts, active pagination/filter chips, sidebar)
+   * (= --ps-color-surface-bright / -on-surface) ---- */
+  --ash-ink: #0b0e12;
+  --ash-on-ink: #f4efe7;
 
-  /* ---- Accent: Darwesh Gold, state only ---- */
+  /* ---- Accent: Darwesh Gold, state only
+   * (= --ps-color-gold / -gold-strong / -gold-subtle / brand-gold-on) ---- */
   --ash-accent: #c69a4b;
-  --ash-accent-strong: #dab876;
+  --ash-accent-strong: #d4af60;
   --ash-accent-wash: rgba(198, 154, 75, 0.16);
-  --ash-on-accent: #201705;
+  --ash-on-accent: #0b0e12;
 
-  /* ---- Semantic ---- */
+  /* ---- Semantic (= --ps-color-success/-warning/-error/-info -- this
+   * file's own values were the source profile-tokens.css's new semantic
+   * tier copied, so these were already canonical) ---- */
   --ash-success: #4ae183;
   --ash-success-wash: rgba(74, 225, 131, 0.14);
   --ash-warning: #e0ab52;
@@ -70,10 +92,12 @@ body.admin-shell {
    * §5. --ash-border-strong is for a dividing line that needs to read as
    * an edge, not the default hairline (e.g. a sticky table header's
    * bottom rule); --ash-text-muted is for tertiary label/timestamp text
-   * one step quieter than --ash-text-secondary. */
+   * one step quieter than --ash-text-secondary (= --ps-color-outline).
+   * --ash-surface-hover has no canonical-ladder equivalent yet -- left as
+   * its own literal, a state color rather than a brand color. */
   --ash-surface-hover: #24272d;
   --ash-border-strong: rgba(247, 242, 232, 0.18);
-  --ash-text-muted: rgba(243, 239, 230, 0.42);
+  --ash-text-muted: #8f887c;
 
   /* ---- Layout ---- */
   --ash-sidebar-w: 264px;

@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>One Visual Language</title>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#0b0e12; --surface:#141619; --surface-2:#1c1f24; --surface-3:#20242a;
+  --border:rgba(244,239,231,.11); --border-strong:rgba(244,239,231,.20);
+  --text:#f4efe7; --text-2:#b8b0a5; --text-3:#8f887c;
+  --accent:#c69a4b; --accent-hi:#d9b76a; --accent-glass:rgba(224,190,130,.85);
+  --accent-wash:rgba(198,154,75,.14);
+  --danger:#e5787a; --danger-wash:rgba(229,120,122,.14);
+  --success:#6bd99a; --success-wash:rgba(107,217,154,.14);
+  --warning:#e0ab52; --warning-wash:rgba(224,171,82,.14);
+  --info:#7fb0e8; --info-wash:rgba(127,176,232,.14);
+  --shadow: 0 10px 30px -12px rgba(0,0,0,.55);
+  --radius-sm:8px; --radius-md:12px; --radius-lg:18px;
+  color-scheme: dark;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);}
+body{
+  font-family:'Inter',system-ui,sans-serif; color:var(--text);
+  padding-inline:20px; padding-block: max(24px, env(safe-area-inset-top,0px)) max(60px, env(safe-area-inset-bottom,0px));
+  font-size:15px; line-height:1.6;
+}
+h1,h2,h3,.label{font-family:'IBM Plex Sans',system-ui,sans-serif;}
+a{color:inherit;}
+::selection{background:var(--accent-wash);}
+
+.wrap{max-width:1080px; margin-inline:auto;}
+
+/* ---- top banner ---- */
+.banner{
+  position:sticky; top: env(safe-area-inset-top,0px); z-index:50;
+  margin-inline: -20px; margin-block-start: calc(-1 * max(24px, env(safe-area-inset-top,0px)));
+  background: linear-gradient(180deg, rgba(198,154,75,.24), rgba(198,154,75,.10));
+  border-bottom:1px solid var(--border-strong);
+  backdrop-filter: blur(14px);
+  padding: 10px 20px;
+  font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:11.5px;
+  letter-spacing:.08em; text-transform:uppercase; text-align:center; color:var(--accent-hi);
+}
+
+/* ---- hero ---- */
+.hero{padding-block:56px 40px;}
+.eyebrow{
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:'IBM Plex Sans',sans-serif; font-weight:600; font-size:11.5px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--text-2);
+  border:1px solid var(--border); border-radius:999px; padding:6px 14px;
+  background:var(--surface);
+}
+h1{
+  font-size: clamp(32px, 5vw, 52px); line-height:1.08; font-weight:700;
+  margin: 20px 0 16px; text-wrap:balance; letter-spacing:-.01em;
+}
+h1 em{font-style:normal; color:var(--accent-hi);}
+.lede{font-size:17px; color:var(--text-2); max-width:70ch; margin:0 0 28px;}
+.callout{
+  border:1px solid var(--border-strong); border-radius:var(--radius-lg);
+  background: var(--surface); padding:20px 22px; max-width:78ch;
+  border-inline-start: 3px solid var(--accent);
+}
+.callout p{margin:0 0 10px;}
+.callout p:last-child{margin-bottom:0;}
+.callout strong{color:var(--text);}
+
+/* ---- stat strip ---- */
+.stats{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:1px;
+  background:var(--border); border:1px solid var(--border); border-radius:var(--radius-lg);
+  overflow:hidden; margin-block:36px;
+}
+.stat{background:var(--surface); padding:18px 16px;}
+.stat .n{font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:28px; color:var(--accent-hi); font-variant-numeric:tabular-nums;}
+.stat .l{font-size:12px; color:var(--text-2); margin-top:4px;}
+
+/* ---- section shell ---- */
+section{padding-block:52px; border-block-start:1px solid var(--border);}
+section:first-of-type{border-block-start:none;}
+.kicker{font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--accent);}
+h2{font-size:clamp(24px,3.4vw,32px); margin:8px 0 14px; text-wrap:balance;}
+.section-lede{color:var(--text-2); max-width:72ch; margin:0 0 28px;}
+
+/* ---- nav ---- */
+nav.toc{
+  display:flex; flex-wrap:wrap; gap:8px; margin-block:24px 8px;
+}
+nav.toc a{
+  font-size:12.5px; font-weight:600; color:var(--text-2);
+  border:1px solid var(--border); border-radius:999px; padding:7px 13px;
+  text-decoration:none; white-space:nowrap;
+}
+nav.toc a:hover{color:var(--text); border-color:var(--border-strong);}
+
+/* ---- tables ---- */
+.table-scroll{overflow-x:auto; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface);}
+table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px;}
+th,td{text-align:start; padding:10px 14px; border-block-end:1px solid var(--border); white-space:nowrap;}
+th{font-family:'IBM Plex Sans',sans-serif; font-size:11px; letter-spacing:.05em; text-transform:uppercase; color:var(--text-3); font-weight:600; background:var(--surface-2); position:sticky; top:0;}
+tr:last-child td{border-block-end:none;}
+td.wrap-cell{white-space:normal;}
+.yes{color:var(--success); font-weight:600;}
+.no{color:var(--danger); font-weight:600;}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--text-2);}
+
+/* ---- swatches ---- */
+.swatch-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-block:18px;}
+.swatch{border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden; background:var(--surface);}
+.swatch .chip{height:56px;}
+.swatch .meta{padding:10px 12px;}
+.swatch .hex{font-family:ui-monospace,monospace; font-size:12.5px; font-weight:600;}
+.swatch .use{font-size:11.5px; color:var(--text-3); margin-top:3px; line-height:1.4;}
+
+/* ---- finding cards ---- */
+.finding{
+  border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface);
+  padding:20px 22px; margin-block-end:16px;
+}
+.finding h3{font-size:16px; margin:0 0 6px; display:flex; align-items:center; gap:10px;}
+.count-pill{
+  font-family:'IBM Plex Sans',sans-serif; font-size:11px; font-weight:700;
+  background:var(--accent-wash); color:var(--accent-hi); border-radius:999px; padding:3px 10px;
+  font-variant-numeric:tabular-nums;
+}
+.finding p{margin:0 0 8px; color:var(--text-2); font-size:14px;}
+.finding ul{margin:8px 0 0; padding-inline-start:20px; font-size:13.5px; color:var(--text-2);}
+.finding li{margin-block-end:4px;}
+.finding li b{color:var(--text);}
+
+/* ---- component cards ---- */
+.comp-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin-block:20px;}
+.comp-card{border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); padding:20px;}
+.comp-card .icon{
+  width:38px; height:38px; border-radius:10px; background:var(--accent-wash); color:var(--accent-hi);
+  display:flex; align-items:center; justify-content:center; font-size:18px; margin-bottom:12px;
+}
+.comp-card h3{font-size:15.5px; margin:0 0 6px;}
+.comp-card .seed{font-size:12px; color:var(--text-3); margin-block:8px 10px;}
+.comp-card .seed b{color:var(--text-2);}
+.comp-card ul{margin:0; padding-inline-start:18px; font-size:13px; color:var(--text-2);}
+.comp-card li{margin-block-end:3px;}
+
+/* ---- phases ---- */
+.phases{display:flex; flex-direction:column; gap:0; margin-block:24px; position:relative;}
+.phase{
+  display:grid; grid-template-columns:52px 1fr; gap:18px; padding-block-end:28px; position:relative;
+}
+.phase:last-child{padding-block-end:0;}
+.phase .num{
+  width:40px; height:40px; border-radius:50%; background:var(--surface-2); border:1px solid var(--border-strong);
+  display:flex; align-items:center; justify-content:center; font-family:'IBM Plex Sans',sans-serif;
+  font-weight:700; color:var(--accent-hi); z-index:1;
+}
+.phase:not(:last-child)::before{
+  content:''; position:absolute; inset-inline-start:19px; top:44px; bottom:-4px; width:2px;
+  background:var(--border);
+}
+.phase .body{border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); padding:18px 20px;}
+.phase h3{font-size:15.5px; margin:0 0 6px;}
+.phase p{margin:0 0 8px; color:var(--text-2); font-size:13.5px;}
+.phase .tag{
+  display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--text-3); border:1px solid var(--border); border-radius:6px; padding:2px 8px; margin-inline-end:6px; margin-block-end:6px;
+}
+
+/* ---- questions ---- */
+.qgrid{display:grid; gap:14px; margin-block:20px;}
+.q{border:1px solid var(--warning); border-radius:var(--radius-md); background:var(--warning-wash); padding:16px 18px;}
+.q .qn{font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:12px; color:var(--warning); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;}
+.q p{margin:0; font-size:14px; color:var(--text);}
+
+footer.end{
+  margin-block-start:40px; padding:22px; border:1px dashed var(--border-strong); border-radius:var(--radius-lg);
+  text-align:center; color:var(--text-2); font-size:13.5px;
+}
+footer.end b{color:var(--text);}
+
+@media (max-width:600px){
+  table{min-width:480px;}
+  .hero{padding-block:36px 24px;}
+}
+</style>
+</head>
+<body>
+<div class="banner">Audit only — no code changed. Read before Phase 1 begins.</div>
+<div class="wrap">
+
+  <section class="hero" id="top">
+    <span class="eyebrow">Darwesh Group &middot; Design System Audit</span>
+    <h1>Forty-two pages, <em>ten golds,</em> one brand.</h1>
+    <p class="lede">You approved two reference screenshots as the final visual language. Both are screenshots of pages already in production &mdash; <span class="mono" style="color:var(--text)">map.html</span>'s toolbar and <span class="mono" style="color:var(--text)">index.html</span>'s hero. The approved look already exists. The problem is everywhere else.</p>
+    <div class="callout">
+      <p><strong>The core finding:</strong> the site has one real token file (<span class="mono">css/profile-tokens.css</span>, the Obsidian&nbsp;/&nbsp;Darwesh&nbsp;Gold&nbsp;/&nbsp;Warm&nbsp;Ivory system) that the shared header, footer, mobile nav, and most public pages already build on correctly. Alongside it, four more token systems evolved independently &mdash; admin's <span class="mono">--ash-*</span>, Arena's <span class="mono">--ar-*</span>, MAM's <span class="mono">--mamco-*</span>, and map.html's own hand-rolled &ldquo;bronze&rdquo; palette &mdash; plus a long tail of pages that hardcode raw hex instead of referencing any of them. Nine button systems, five segmented-control systems, seven card systems, eight badge systems. This is a consolidation problem, not a redesign problem.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n">42</div><div class="l">pages audited</div></div>
+      <div class="stat"><div class="n">8&ndash;10</div><div class="l">distinct golds live</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">dark surface colors</div></div>
+      <div class="stat"><div class="n">4</div><div class="l">competing token namespaces</div></div>
+      <div class="stat"><div class="n">9</div><div class="l">button systems</div></div>
+      <div class="stat"><div class="n">8</div><div class="l">non-shared-header pages</div></div>
+    </div>
+    <nav class="toc">
+      <a href="#pages">Page inventory</a>
+      <a href="#inconsistencies">Inconsistencies</a>
+      <a href="#conflicts">Conflicts vs. reference</a>
+      <a href="#tokens">Proposed tokens</a>
+      <a href="#components">Proposed components</a>
+      <a href="#migration">Migration order</a>
+      <a href="#questions">Open questions</a>
+    </nav>
+  </section>
+
+  <section id="pages">
+    <span class="kicker">01 &middot; Inventory</span>
+    <h2>Every page, and what it currently loads</h2>
+    <p class="section-lede">34 of 42 pages already mount the shared header + mobile nav. Only 5 load the shared footer. The 8 pages below with no shared header are the auth / account / admin / dashboard / verify family &mdash; each hand-rolls its own compact header, but (good news) using the same token-compatible Tailwind classes, not a conflicting palette.</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Page</th><th>Shared header</th><th>Mobile nav</th><th>Footer</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>index.html</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td class="wrap-cell">Home hero &mdash; one of the two approved references</td></tr>
+          <tr><td>map.html</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td><td class="wrap-cell">Toolbar screenshot is the other approved reference; ~910-line inline stylesheet, its own token family</td></tr>
+          <tr><td>about.html</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td></td></tr>
+          <tr><td>arena.html</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td></td></tr>
+          <tr><td>arena-challenge.html</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td></td></tr>
+          <tr><td>offer.html</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td><td></td></tr>
+          <tr><td>account.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Custom header, token-compatible classes; own hardcoded <span class="mono">.fav-card</span>/<span class="mono">.status-badge</span></td></tr>
+          <tr><td>admin.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Deliberately separate <span class="mono">--ash-*</span> system; denser, operational &mdash; see Phase 4 scope note</td></tr>
+          <tr><td>agent-dashboard.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Hardcoded fork of admin's badge classes with <em>different</em> colors &mdash; a real collision risk</td></tr>
+          <tr><td>login.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Minimal brand-only header, token-compatible</td></tr>
+          <tr><td>reset-password.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Hardcoded hex <span class="mono">.auth-card</span>, third definition of that class</td></tr>
+          <tr><td>signup.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Minimal brand-only header, token-compatible</td></tr>
+          <tr><td>signup-professional.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">Minimal brand-only header, token-compatible</td></tr>
+          <tr><td>verify.html</td><td class="no">no</td><td class="no">no</td><td class="no">no</td><td class="wrap-cell">No header/nav at all &mdash; full-screen camera flow; own 5-role token set</td></tr>
+          <tr><td colspan="5" style="color:var(--text-3); font-style:italic;">+ 28 more pages (buy / rent / sell / listing / project(s) / org-projects / organization / office / agent / customer / designer / engineer / lawyer / cleaning / landscaping / maintenance / design / build / renovate / installments / service(s) / insights / promo / mam-ai / work / add-work) &mdash; all shared header + mobile nav, no footer</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="inconsistencies">
+    <span class="kicker">02 &middot; Fragmentation</span>
+    <h2>What's actually inconsistent, by component</h2>
+    <p class="section-lede">Every category below converges on the same shape: one reasonably shared system already exists, and several more independently-authored ones sit alongside it &mdash; sometimes in the very same file.</p>
+
+    <div class="finding">
+      <h3>Color tokens <span class="count-pill">4 namespaces + hardcoded outliers</span></h3>
+      <p><span class="mono">--ps-color-*</span> / <span class="mono">--brand-*</span> (css/profile-tokens.css) is the canonical Obsidian / Darwesh Gold / Warm Ivory system, mirrored in <span class="mono">tailwind.config.js</span> and reused by <span class="mono">css/cinematic.css</span>. Three more namespaces evolved in parallel:</p>
+      <ul>
+        <li><b>--ash-*</b> &mdash; admin.html only. Deliberately not loading profile-tokens.css (an explicit code comment explains why). Close in spirit (<span class="mono">#c69a4b</span> gold is identical) but different neutral hexes.</li>
+        <li><b>--ar-*</b> &mdash; Arena pages. Own re-seeded obsidian/gold/ivory ramp.</li>
+        <li><b>--mamco-*</b> &mdash; MAM chat panel + spatial UI. Own obsidian/gold ramp, sometimes mixed with hardcoded hex fallbacks in the same rule.</li>
+        <li><b>map.html's own family</b> &mdash; ~910 lines of inline styles, no custom properties at all. Two golds live inside this one file: a solid-fill <span class="mono">#B89A63</span> "bronze" (shared with css/darwesh-marker.css, sell.html, MAM chat) and a newer translucent <span class="mono">rgba(224,190,130)</span> "smoked champagne glass" &mdash; the exact accent visible in the approved Map reference on the Buy/Explore pills.</li>
+      </ul>
+      <div class="swatch-grid">
+        <div class="swatch"><div class="chip" style="background:#c69a4b"></div><div class="meta"><div class="hex">#C69A4B</div><div class="use">Darwesh Gold &middot; canonical, 80 hits across profile-tokens/cinematic/footer/admin</div></div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(224,190,130,.85)"></div><div class="meta"><div class="hex">rgba(224,190,130)</div><div class="use">Smoked champagne glass &middot; map.html only, 85 hits &mdash; the reference-screenshot accent</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#B89A63"></div><div class="meta"><div class="hex">#B89A63</div><div class="use">Bronze &middot; 125 hits, map/MAM/marker/sell &mdash; a fourth, older gold</div></div></div>
+        <div class="swatch"><div class="chip" style="background:rgba(216,182,101,.9)"></div><div class="meta"><div class="hex">rgba(216,182,101)</div><div class="use">Cinematic glow gold &middot; 46 hits, hover/focus states only</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#d9b76a"></div><div class="meta"><div class="hex">#D9B76A</div><div class="use">Admin hardcoded &middot; bypasses its own --ash-accent token in 7 places</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#0b0e12"></div><div class="meta"><div class="hex">#0B0E12</div><div class="use">Obsidian &middot; canonical dark surface, profile-tokens/cinematic</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#17150F"></div><div class="meta"><div class="hex">#17150F</div><div class="use">Bronzed Black &middot; 64 hits, map/MAM/sell/marker family</div></div></div>
+        <div class="swatch"><div class="chip" style="background:#15171b"></div><div class="meta"><div class="hex">#15171B</div><div class="use">Admin's own near-identical obsidian &mdash; one digit off canonical</div></div></div>
+      </div>
+      <p style="margin-top:14px;">Already cleaned up, for context: admin-shell.css's old dead warm-cream token pass (<span class="mono">#e7ded0</span> / <span class="mono">#f5f0e7</span>) is fully retired and documented in comments &mdash; no live rule uses it. Two leftover fragments of an abandoned "Deep Navy" era (<span class="mono">#031D39</span>, <span class="mono">#071B2F</span>) are still live in signup.html, signup-professional.html, agent-dashboard.html, and admin-legacy.css.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Buttons <span class="count-pill">9 systems</span></h3>
+      <p>Only three classes see real reuse: <span class="mono">.auth-btn-*</span> (3 pages), <span class="mono">.vr-btn</span> (7 pages, one embedded widget), <span class="mono">.ps-tab</span> for tabs (9 pages). Everything else &mdash; <span class="mono">.w-btn</span> (home only), <span class="mono">.vj-btn</span>/<span class="mono">.vjc-btn</span> (verify only), <span class="mono">.ar-btn</span> (arena only), admin's <span class="mono">.ash-detail-btn*</span>, map.html's own local button vocabulary, org-projects.html's own <span class="mono">.op-btn</span> &mdash; is page-local. The dominant pattern on buy.html, rent.html, agent.html, offer.html, and work.html is no class at all: the same Tailwind utility string hand-retyped independently at every call site.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Segmented controls <span class="count-pill">5 systems</span></h3>
+      <p>map.html's own Buy/Rent/Sell + Explore/My Properties control &mdash; the approved reference &mdash; is the best implementation in the repo (sliding pill, glass-gold active state). But its <em>own file</em> also contains a second, contradictory pattern for Map-type and filter chips: a solid <span class="mono">#B89A63</span> fill with dark text, not the glass treatment. Admin, profile pages, and account.html each independently reimplement an underline-tab pattern with no shared class between them.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Cards <span class="count-pill">7 systems</span></h3>
+      <p>The good news: seven differently-named card classes (<span class="mono">.proj-card</span>, <span class="mono">.ar-card</span>, <span class="mono">.home-property-card</span>, <span class="mono">.svc-provider-card</span>, etc.) already converge on the same token values &mdash; one recipe, seven names. The bad news: <span class="mono">.fav-card</span> (account.html, reused by the alerts panel) hardcodes its own hex instead of tokens, admin's <span class="mono">.ash-entity-card</span> sits in the separate <span class="mono">--ash-*</span> namespace, and browse-grid cards on buy/rent/listing use raw Tailwind with no class at all.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Panels, drawers &amp; modals <span class="count-pill">4 systems</span></h3>
+      <p>map.html's dark-glass blurred <span class="mono">#mapDrawer</span> is the strongest pattern in the repo. A second, unnamed convention (<span class="mono">fixed inset-0 bg-black/50</span>, toggled via <span class="mono">.hidden</span>) is reused &mdash; but never componentized &mdash; across map's Save-as-Alert modal, listing.html, rent.html, org-projects.html, and several admin overlays. Admin additionally has its own <span class="mono">AdminDialog</span> component and a separate <span class="mono">.ash-detail-panel</span> bottom sheet, both solid-surface with no blur, visually distinct from map's glass drawer.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Forms <span class="count-pill">5 systems</span></h3>
+      <p><span class="mono">.ps-input</span>/<span class="mono">.auth-input</span> is a genuine, well-used shared primitive (14 pages). buy.html/rent.html's filter forms use the same token <em>names</em> via raw Tailwind but no shared class, so radius and focus rings already drift input-to-input on the same page. Admin (<span class="mono">--ash-*</span>) and Arena (<span class="mono">--ar-*</span>) each have their own input styling. map.html's drawer inputs hardcode rgba directly. The one custom toggle switch in the whole site is map.html's &mdash; rent.html's conceptually identical "Verified only" filter is a bare native checkbox.</p>
+    </div>
+
+    <div class="finding">
+      <h3>Badges &amp; status pills <span class="count-pill">8 systems</span></h3>
+      <p>The sharpest collision in the audit: <span class="mono">agent-dashboard.html</span> hardcodes a <em>fork</em> of admin's <span class="mono">.badge-sale</span>/<span class="mono">.badge-rent</span>/<span class="mono">.badge-verified</span> class names with entirely different hardcoded colors &mdash; if both stylesheets ever loaded on one page, they'd collide. Admin itself ships two overlapping badge systems on the same page (admin-legacy.css and admin-shell.css). account.html has a third, independent system. The token-based <span class="mono">.ps-badge</span> exists but only reaches 8 professional-profile pages &mdash; agent.html, work.html, verify.html, and offer.html use none of it.</p>
+    </div>
+  </section>
+
+  <section id="conflicts">
+    <span class="kicker">03 &middot; Against the reference</span>
+    <h2>What specifically contradicts the approved images</h2>
+    <p class="section-lede">Your brief rules out bright/orange/mustard/neon gold, a second glass style, and mixing old UI with the new. Here's what's live today that breaks those rules, distinct from ordinary token drift above.</p>
+    <ul style="padding-inline-start:20px; color:var(--text-2); font-size:14.5px; line-height:1.8;">
+      <li><b style="color:var(--text)">A second glass style, inside the reference file itself.</b> map.html's chip/Map-type toggles use a solid <span class="mono">#B89A63</span> fill, not the "smoked champagne glass" the reference screenshot actually shows on Buy/Explore. This needs to converge on the glass pattern, not the other way around.</li>
+      <li><b style="color:var(--text)">A more saturated, "cinematic glow" gold</b> (<span class="mono">rgba(216,182,101)</span>, 46 uses in cinematic.css hover/focus states) sits noticeably closer to the "neon gold" the brief explicitly rules out than the restrained <span class="mono">#C69A4B</span>/champagne-glass family does.</li>
+      <li><b style="color:var(--text)">Admin bypasses its own accent token</b> in 7 places with a brighter, unmanaged <span class="mono">#D9B76A</span> &mdash; exactly the kind of uncoordinated small gold usage the brief calls out.</li>
+      <li><b style="color:var(--text)">Two dead Deep-Navy fragments</b> (<span class="mono">#031D39</span>, <span class="mono">#071B2F</span>) are still live in signup.html, signup-professional.html, agent-dashboard.html, and admin-legacy.css &mdash; the exact "corporate/banking blue" cinematic.css's own header says the brand deliberately moved away from.</li>
+      <li><b style="color:var(--text)">Colliding badge class names with different colors</b> (agent-dashboard.html vs. admin) is precisely "mixing old and new styles" under one class name.</li>
+      <li><b style="color:var(--text)">Notification bell dropdown is a fully separate light theme</b> (white background, near-black text, its own status colors) dropped onto an otherwise dark header &mdash; the single most visually jarring inconsistency found.</li>
+    </ul>
+  </section>
+
+  <section id="tokens">
+    <span class="kicker">04 &middot; Proposal</span>
+    <h2>One token system</h2>
+    <p class="section-lede">Adopt <span class="mono">css/profile-tokens.css</span>'s Obsidian / Darwesh Gold / Warm Ivory system as the single canonical source &mdash; it's already the most widely used, already what the shared header/footer/mobile-nav render through, and requires the least migration. Extend it with two things it's missing today, then retire the other three namespaces into it.</p>
+
+    <div class="comp-grid">
+      <div class="comp-card">
+        <div class="icon">◆</div>
+        <h3>Formalize the glass-gold accent</h3>
+        <div class="seed">Seed: <b>map.html's rgba(224,190,130) treatment</b></div>
+        <p>Add <span class="mono">--ps-color-accent-glass</span> as a first-class token alongside the existing flat <span class="mono">--ps-color-secondary</span> (#C69A4B). This is the literal accent in your approved reference &mdash; it becomes the canonical "selected/active" treatment for segmented controls, active tabs, and primary CTAs, replacing solid-fill golds everywhere.</p>
+      </div>
+      <div class="comp-card">
+        <div class="icon">▦</div>
+        <h3>Adopt a real spacing/radius/shadow scale</h3>
+        <div class="seed">Seed: <b>css/admin-tokens.css's --space-*/--radius-*/--shadow-*</b></div>
+        <p>The public site has no explicit spacing scale today &mdash; admin already built one. Generalize it from <span class="mono">--ash-*</span> naming to <span class="mono">--ps-*</span> and make it site-wide, so "elegant spacing" is enforced by a token, not eyeballed per page.</p>
+      </div>
+    </div>
+
+    <div class="table-scroll" style="margin-top:8px;">
+      <table>
+        <thead><tr><th>Retiring</th><th>Into</th><th>Migration cost</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">--ash-*</td><td class="mono">--ps-* (+ admin-specific density overrides kept)</td><td class="wrap-cell">Low &mdash; values are already near-identical; admin.html gets to finally load profile-tokens.css</td></tr>
+          <tr><td class="mono">--ar-*</td><td class="mono">--ps-*</td><td class="wrap-cell">Low &mdash; Arena is self-contained, one file</td></tr>
+          <tr><td class="mono">--mamco-*</td><td class="mono">--ps-*</td><td class="wrap-cell">Low &mdash; 2 CSS files, already obsidian/gold in spirit</td></tr>
+          <tr><td class="wrap-cell">map.html's bronze family (#B89A63/#5D482B/#17150F)</td><td class="wrap-cell">Mapped to nearest --ps-* equivalents; glass-gold formalized as its own token</td><td class="wrap-cell">Medium &mdash; largest single file (~910 inline lines), shared with darwesh-marker.css and MAM chat</td></tr>
+          <tr><td class="mono">agent-dashboard.html hardcoded badges</td><td class="wrap-cell">Shared --ps-badge system</td><td class="wrap-cell">Low, but urgent &mdash; currently a live naming collision with admin</td></tr>
+          <tr><td class="wrap-cell">#031D39 / #071B2F dead-navy fragments</td><td class="wrap-cell">Removed outright, replaced with token equivalents</td><td class="wrap-cell">Low &mdash; 5 known call sites</td></tr>
+          <tr><td class="wrap-cell">Notification bell's own light theme</td><td class="wrap-cell">--ps-* dark tokens + semantic status washes</td><td class="wrap-cell">Medium &mdash; full visual rebuild of the dropdown, not just token swap</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="components">
+    <span class="kicker">05 &middot; Proposal</span>
+    <h2>Seven shared components</h2>
+    <p class="section-lede">Each one already has a best-in-class implementation somewhere in the codebase. The work is generalizing that implementation into a reusable class/component, not inventing a new look.</p>
+    <div class="comp-grid">
+      <div class="comp-card"><div class="icon">▭</div><h3>Navbar</h3><div class="seed">Seed: <b>js/site-header.js (already exists)</b></div><ul><li>Roll onto the 8 orphan pages</li><li>Rebuild notification bell in dark tokens</li><li>Footer rollout beyond current 5 pages &mdash; open question</li></ul></div>
+      <div class="comp-card"><div class="icon">●</div><h3>Button</h3><div class="seed">Seed: <b>.auth-btn-* + map.html glass treatment</b></div><ul><li>Primary / Secondary / Ghost / Danger / Icon</li><li>Replaces 9 systems + all one-off Tailwind strings</li></ul></div>
+      <div class="comp-card"><div class="icon">⇄</div><h3>Segmented control</h3><div class="seed">Seed: <b>map.html #typeSeg / #mapModeSeg</b></div><ul><li>Sliding glass-gold pill, formalized as JS+CSS</li><li>Unifies map.html's own two competing patterns</li><li>Reused for admin tabs, profile tabs, account tabs</li></ul></div>
+      <div class="comp-card"><div class="icon">▤</div><h3>Card</h3><div class="seed">Seed: <b>.proj-card / .ar-card family</b></div><ul><li>One flat bordered tile, token-based</li><li>Documented "floating shadow" modifier for carousels</li></ul></div>
+      <div class="comp-card"><div class="icon">▥</div><h3>Panel / Drawer / Modal</h3><div class="seed">Seed: <b>map.html #mapDrawer + admin's AdminDialog</b></div><ul><li>Dark-glass slide-in drawer, one canonical recipe</li><li>Componentize the unnamed overlay convention (5+ pages)</li></ul></div>
+      <div class="comp-card"><div class="icon">▢</div><h3>Input / Select / Toggle</h3><div class="seed">Seed: <b>.ps-input / .auth-input</b></div><ul><li>Extend to every filter form (buy/rent/sell)</li><li>One shared toggle-switch component</li></ul></div>
+      <div class="comp-card"><div class="icon">◉</div><h3>Badge</h3><div class="seed">Seed: <b>.ps-badge</b></div><ul><li>Status variants: verified / pending / rejected / private</li><li>Retires agent-dashboard's colliding fork first</li></ul></div>
+    </div>
+  </section>
+
+  <section id="migration">
+    <span class="kicker">06 &middot; Sequencing</span>
+    <h2>Migration order</h2>
+    <p class="section-lede">Tokens and components first, with zero visible page changes &mdash; then roll out page-by-page, cheapest and highest-risk-of-collision first, admin last since it's already internally consistent and lowest urgency.</p>
+    <div class="phases">
+      <div class="phase">
+        <div class="num">1</div>
+        <div class="body">
+          <span class="tag">No visual change</span><span class="tag">Lowest risk</span>
+          <h3>Consolidate tokens</h3>
+          <p>Extend <span class="mono">css/profile-tokens.css</span> with the glass-gold accent + spacing/radius/shadow scale. Point <span class="mono">--ash-*</span>/<span class="mono">--ar-*</span>/<span class="mono">--mamco-*</span> at the same values so nothing regresses while the file split is removed underneath. Fix the agent-dashboard badge collision immediately &mdash; it's a live bug, not just drift.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="num">2</div>
+        <div class="body">
+          <span class="tag">Build once</span>
+          <h3>Build the shared component library</h3>
+          <p>Button, Segmented Control, Card, Panel/Drawer/Modal, Input/Toggle, Badge &mdash; each generalized from its best existing implementation. No page migrations yet; components ship inert alongside old CSS.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="num">3</div>
+        <div class="body">
+          <span class="tag">Navbar completion</span>
+          <h3>Roll the shared header/footer onto every page</h3>
+          <p>account, admin, agent-dashboard, login, reset-password, signup, signup-professional, verify get the shared header (admin keeps its denser sidebar underneath). Rebuild the notification bell in dark tokens. Resolve the footer-rollout open question before this phase starts.</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="num">4</div>
+        <div class="body">
+          <span class="tag">Page-by-page</span>
+          <h3>Migrate components, in priority order</h3>
+          <p>Public discovery (buy/rent/map/listing) → profile pages (agent/office/organization/etc.) → transactional (sell/signup/verify) → creative/misc (insights/offer/arena) → admin last (token swap only; density and layout stay as-is per the brief).</p>
+        </div>
+      </div>
+      <div class="phase">
+        <div class="num">5</div>
+        <div class="body">
+          <span class="tag">Cleanup</span><span class="tag">Full QA</span>
+          <h3>Remove dead CSS + final consistency pass</h3>
+          <p>Delete the now-unused bronze family, retired namespaces, and dead-navy fragments. Full sweep against your checklist: desktop, mobile, Kurdish RTL, Arabic RTL, reduced motion.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="questions">
+    <span class="kicker">Before phase 1</span>
+    <h2>Three things I need a call on</h2>
+    <div class="qgrid">
+      <div class="q"><div class="qn">Footer rollout</div><p>Only 5 of 42 pages currently show the shared footer. Should every page get it, or does the current allowlist (index/about/arena/arena-challenge/offer) stay intentional? This changes Phase 3's scope materially.</p></div>
+      <div class="q"><div class="qn">Map.html's second gold pattern</div><p>Map-type/filter chips inside map.html use a solid gold fill, not the glass treatment your reference shows on Buy/Explore. Converge everything on glass-gold, or keep the solid chip as a deliberate secondary "utility" pattern?</p></div>
+      <div class="q"><div class="qn">Admin visual depth</div><p>Confirming: admin keeps its current sidebar/density/layout exactly as-is and only receives the token swap (colors/spacing/shadows), not a structural redesign &mdash; consistent with "Admin can be denser... but must still use the same Darwesh visual DNA."</p></div>
+    </div>
+  </section>
+
+  <footer class="end">Nothing in the repository has changed. <b>map.html</b>, every other production page, backend, Firebase, and Firestore rules are untouched. Approve the phases (and the three questions above) and I'll start with Phase 1.</footer>
+
+</div>
+</body>
+</html>

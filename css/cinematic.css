@@ -102,6 +102,14 @@
   --cine-text-primary: #F4EFE7;
   --cine-text-secondary: #B8B0A5;
   --cine-success: #6BD99A;
+  /* DESIGN-SYSTEM CONSOLIDATION (Phase 1): every raw `rgba(216,182,101,…)`
+     literal in this file (hover/focus/glow states, ~40 sites) has been
+     mechanically swapped to `rgba(198,154,75,…)` -- the exact rgb-decimal
+     of --cine-gold-1 above, same file, same intent, just never actually
+     referencing it. That stray third gold read closer to the "neon gold"
+     the brand brief rules out than the restrained --cine-gold-1/2 pair
+     already defined right here. Every individual alpha value is
+     untouched -- this changed hue only, not opacity/intensity. */
 
   /* ---- Calmer motion on the cinematic pages -- same variable names as
    * profile-tokens.css's global defaults, just slower/softer, so every
@@ -383,8 +391,8 @@ html[lang="ku"] .cine-scope .lang-option[data-lang="ku"],
 html[lang="ar"] .cine-scope .lang-option[data-lang="ar"],
 html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
   color: var(--ps-color-secondary);
-  border-color: rgba(216, 182, 101, 0.35);
-  background: rgba(216, 182, 101, 0.07);
+  border-color: rgba(198, 154, 75, 0.35);
+  background: rgba(198, 154, 75, 0.07);
   font-weight: 700;
 }
 .cine-scope .lang-option-check { color: var(--ps-color-secondary); }
@@ -710,43 +718,6 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
 }
 
 /* =========================================================================
- * Cursor follower -- a decorative halo layer, never the hit-testing
- * target. Position is written directly via style.transform from
- * js/cursor-follower.js's rAF loop (no React/state re-render, no layout
- * writes -- transform/opacity only).
- * ========================================================================= */
-
-#cine-cursor {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 28px;
-  height: 28px;
-  margin: -14px 0 0 -14px;
-  border-radius: 999px;
-  border: 1px solid rgba(216, 182, 101, 0.55);
-  background: rgba(216, 182, 101, 0.06);
-  pointer-events: none;
-  z-index: 9999;
-  will-change: transform;
-  transition: width 260ms var(--ease-premium, ease), height 260ms var(--ease-premium, ease), margin 260ms var(--ease-premium, ease), opacity 200ms ease, border-color 200ms ease, background-color 200ms ease;
-  opacity: 0;
-}
-#cine-cursor.cine-cursor-active { opacity: 1; }
-#cine-cursor.cine-cursor-hover {
-  width: 52px;
-  height: 52px;
-  margin: -26px 0 0 -26px;
-  border-color: rgba(216, 182, 101, 0.8);
-  background: rgba(216, 182, 101, 0.1);
-}
-#cine-cursor.cine-cursor-down { background: rgba(216, 182, 101, 0.18); }
-
-@media (hover: none), (pointer: coarse) {
-  #cine-cursor { display: none !important; }
-}
-
-/* =========================================================================
  * Entry / intro overlay
  * ========================================================================= */
 
@@ -766,16 +737,436 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 1000px 700px at 50% 20%, rgba(216, 182, 101, 0.08), transparent 60%),
+    radial-gradient(ellipse 1000px 700px at 50% 20%, rgba(198, 154, 75, 0.08), transparent 60%),
     radial-gradient(ellipse 800px 600px at 80% 90%, rgba(93, 72, 43, 0.06), transparent 55%);
   pointer-events: none;
+  /* Scene 01 "total darkness" keeps only a bare trace of this glow
+     (spec: "an extremely faint ambient architectural light"); Scene 03
+     ramps it to full once the portal opens. */
+  opacity: .12;
+  transition: opacity 900ms ease;
+}
+#cine-intro.is-portal::before { opacity: 1; }
+/* Architectural atmosphere -- no real photography asset exists in this
+   repo (checked images/ for anything architecture/skyline/residence-
+   shaped; none found), so this is a restrained CSS/SVG silhouette
+   standing in for it: two soft building-mass shapes at the left/right
+   edges fading to nothing well before the center text column, plus a
+   faint horizon band low in the frame reading as a reflective floor
+   line. Sits behind ::before's radial glow and above #cine-intro's own
+   solid background -- never brighter than the champagne glow, never
+   competing with the text/orbit for attention. */
+#cine-intro::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(180deg, transparent 78%, rgba(198,154,75,.05) 92%, transparent 100%),
+    radial-gradient(ellipse 620px 900px at -6% 55%, rgba(60,54,44,.5), transparent 60%),
+    radial-gradient(ellipse 620px 900px at 106% 55%, rgba(60,54,44,.5), transparent 60%),
+    linear-gradient(180deg, rgba(10,11,13,.7) 0%, transparent 22%);
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+#cine-intro.is-portal::after { opacity: .85; }
+
+/* =========================================================================
+ * Cinematic reveal sequence -- see js/intro-entry.js's runIntroSequence()
+ * for the class timeline (is-line -> is-portal -> is-points -> is-core,
+ * then on Enter: is-entering -> is-expanded -> the existing data-leaving
+ * exit fade). Classes are additive/cumulative (never removed once set),
+ * so every selector below reads as "has this scene been reached yet",
+ * matching how CSS can't express ">=" directly.
+ * ========================================================================= */
+
+/* ---- Scene 02: the line -------------------------------------------- */
+.cine-scene-line {
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 1.5px;
+  background: linear-gradient(180deg, transparent, rgba(198,154,75,.95) 30%, rgba(198,154,75,.95) 70%, transparent);
+  box-shadow: 0 0 12px rgba(198,154,75,.5);
+  opacity: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+#cine-intro.is-line .cine-scene-line { animation: cine-line-sweep 700ms cubic-bezier(.16,.84,.24,1) forwards; }
+#cine-intro.is-portal .cine-scene-line { opacity: 0; transition: opacity 300ms ease; animation: none; }
+@keyframes cine-line-sweep {
+  0% { right: 0; opacity: 0; }
+  12% { opacity: 1; }
+  100% { right: 50%; opacity: 1; }
+}
+
+/* ---- Scene 03: portal open (two panels sliding apart) --------------- */
+.cine-scene-portal {
+  position: absolute;
+  top: 0; bottom: 0; width: 50%;
+  background: var(--cine-bg-0);
+  z-index: 4;
+  transition: transform 950ms cubic-bezier(.16,.84,.24,1), opacity 500ms ease 500ms;
+}
+.cine-scene-portal--left { left: 0; }
+.cine-scene-portal--right { right: 0; }
+#cine-intro.is-portal .cine-scene-portal--left { transform: translateX(-7%); }
+#cine-intro.is-portal .cine-scene-portal--right { transform: translateX(7%); }
+#cine-intro.is-core .cine-scene-portal { opacity: 0; pointer-events: none; }
+
+/* ---- Scene 04: activation points ------------------------------------ */
+.cine-scene-points { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.cine-scene-point {
+  position: absolute; top: 50%; left: 50%;
+  width: 3px; height: 3px; border-radius: 999px;
+  background: rgba(198, 154, 75, .9);
+  box-shadow: 0 0 6px rgba(198, 154, 75, .6);
+  opacity: 0;
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
+  transition: opacity 450ms ease var(--d, 0ms), transform 650ms cubic-bezier(.16,.84,.24,1) var(--d, 0ms);
+}
+#cine-intro.is-points .cine-scene-point { opacity: 1; transform: translate(-50%, -50%); }
+#cine-intro.is-core .cine-scene-points { opacity: 0; transition: opacity 400ms ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-scene-line, .cine-scene-portal, .cine-scene-points { display: none; }
+  #cine-intro::before, #cine-intro::after { transition: none; opacity: .85; }
 }
 #cine-intro[data-leaving="true"] { opacity: 0; pointer-events: none; }
 #cine-intro[hidden] { display: none; }
+/* Side editorial micro-copy -- desktop only, low-opacity, purely
+   decorative (aria-hidden in markup), echoing the reference's thin
+   architectural captions along the outer edges. */
+.cine-intro-sidecopy {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  writing-mode: vertical-rl;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(243, 237, 227, 0.22);
+  pointer-events: none;
+  opacity: 0;
+}
+#cine-intro.is-core .cine-intro-sidecopy { animation: cine-fade-up 900ms var(--ease-enter, ease-out) 900ms forwards; }
+.cine-intro-sidecopy--start { inset-inline-start: 3%; }
+.cine-intro-sidecopy--end { inset-inline-end: 3%; transform: translateY(-50%) rotate(180deg); }
+@media (max-width: 1099px) { .cine-intro-sidecopy { display: none; } }
 
 /* Background scroll stays locked only while the overlay is actually up
  * -- removed the instant Enter fires, never left dangling. */
 body.cine-intro-open { overflow: hidden; }
+
+/* ---- Orbital welcome stage --------------------------------------------
+ * The brand/Enter card sits centered inside a wide stage; the ten
+ * platform pillars flank it in two columns, each joined to the center by
+ * a thin curved line drawn once in the shared .cine-orbit-lines SVG (see
+ * the inline path/pillar coordinates in index.html for how the two stay
+ * aligned). Below 900px there is no honest compressed form of a 10-item
+ * diagram, so the columns and lines are hidden entirely and only the
+ * center card remains -- see the max-width:899px block at the end of
+ * this section. */
+.cine-orbit-stage {
+  position: relative;
+  width: min(94vw, 1400px);
+  aspect-ratio: 1400 / 900;
+  max-height: 92vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cine-orbit-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+[dir="rtl"] .cine-orbit-lines {
+  /* The paths/nodes are drawn as physical left/right coordinates in the
+     markup; the two ring circles are centered so scaleX doesn't change
+     them. Mirroring the whole SVG is what actually flips the drawn
+     connections to match the pillar columns swapping sides below,
+     rather than just flipping text-align. */
+  transform: scaleX(-1);
+}
+/* Three concentric rings (was two), each drifting at its own very slow
+   independent speed (20-50s loops, spec-driven) so the depth reads as
+   alive without ever looking like it's "spinning" -- transform-origin
+   is the shared center (700,450 in the SVG's own coordinate space, i.e.
+   the geometric middle of the stage), and rotation is the only thing
+   animated so the stroke itself never distorts. */
+/* Scene 09: "the system should construct itself" -- rings/paths/nodes
+   stay fully inert (no rotation, no fade-in) until is-expanded fires
+   (post-Enter), then draw in cascade: inner arc first, mid second,
+   outer ring last, matching the spec's explicit ordering. Rotation
+   itself only starts once each ring has actually appeared. */
+.cine-orbit-ring { fill: none; stroke: rgba(198, 154, 75, 0.13); stroke-width: 1; transform-origin: 700px 450px; opacity: 0; }
+.cine-orbit-ring--mid { stroke: rgba(198, 154, 75, 0.16); }
+.cine-orbit-ring--inner { stroke: rgba(198, 154, 75, 0.2); }
+#cine-intro.is-expanded .cine-orbit-ring--inner { opacity: 1; transition: opacity 450ms ease 500ms; animation: cine-orbit-drift 24s linear infinite 950ms; }
+#cine-intro.is-expanded .cine-orbit-ring--mid { opacity: 1; transition: opacity 450ms ease 680ms; animation: cine-orbit-drift 34s linear infinite reverse 1130ms; }
+#cine-intro.is-expanded .cine-orbit-ring--outer { opacity: 1; transition: opacity 450ms ease 860ms; animation: cine-orbit-drift 46s linear infinite 1310ms; }
+@keyframes cine-orbit-drift { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cine-orbit-ring, #cine-intro.is-expanded .cine-orbit-ring { animation: none; opacity: 1; transition: none; } }
+.cine-orbit-path {
+  fill: none;
+  stroke: rgba(198, 154, 75, 0.3);
+  stroke-width: 1.25;
+  opacity: 0;
+}
+#cine-intro.is-expanded .cine-orbit-path { animation: cine-orbit-fade-in 500ms ease-out 550ms forwards; }
+/* Nodes as thin champagne rings, not filled discs -- "no filled gold
+   circles" applies to every orbital accent, not just the pillar icons.
+   The fade-in keeps its own opacity; a second, separate "breathing"
+   animation modulates only stroke-opacity around that resting value so
+   the two motions can't fight over the same property. */
+.cine-orbit-node {
+  r: 3.5;
+  fill: none;
+  stroke: rgba(198, 154, 75, 0.85);
+  stroke-width: 1.25;
+  opacity: 0;
+}
+#cine-intro.is-expanded .cine-orbit-node { animation: cine-orbit-fade-in 400ms ease-out 700ms forwards, cine-node-breathe 6s ease-in-out 1600ms infinite; }
+@keyframes cine-orbit-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cine-node-breathe { 0%, 100% { stroke-opacity: .55; } 50% { stroke-opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cine-orbit-node, #cine-intro.is-expanded .cine-orbit-node { animation: none; opacity: 1; } }
+
+.cine-orbit-pillars {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26%;
+  /* Decorative labels for a dialog whose only real controls are
+     Enter/Skip/audio -- pointer-events off so they can never become
+     stray, non-actionable tab stops or click targets. */
+  pointer-events: none;
+}
+.cine-orbit-pillars--left { left: 0; }
+.cine-orbit-pillars--right { right: 0; }
+
+/* Scene 08 "ecosystem expansion" -- each pillar starts pulled in toward
+   the center (translateX(var(--fly-x)), scaled down, invisible) and
+   only travels out to its resting top:X% position once is-expanded
+   fires (post-Enter), staggered per item so the ecosystem visibly
+   "unfolds from the center" rather than sitting there from page load.
+   A literal 4-step dot->line->icon->label->descriptor micro-sequence
+   per pillar was simplified to 2 stages for robustness: the connecting
+   SVG path (.cine-orbit-path, gated above) draws first, then this
+   whole label+descriptor group arrives as one staggered unit -- still
+   reads as "content following the line out," just without four
+   separately-timed child animations per pillar. */
+.cine-orbit-pillar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(-50%) translateX(var(--fly-x, 0px)) scale(.85);
+  transition: opacity 550ms cubic-bezier(.16,.84,.24,1), transform 650ms cubic-bezier(.16,.84,.24,1);
+}
+.cine-orbit-pillars--left .cine-orbit-pillar { justify-content: flex-end; text-align: right; padding-inline-end: 8%; --fly-x: 170px; }
+.cine-orbit-pillars--right .cine-orbit-pillar { justify-content: flex-start; text-align: left; padding-inline-start: 8%; --fly-x: -170px; }
+#cine-intro.is-expanded .cine-orbit-pillar { opacity: 1; transform: translateY(-50%) translateX(0) scale(1); }
+/* RTL: swap which physical side each column renders on (the SVG's own
+   left/right node coordinates mirror via .cine-orbit-lines's scaleX
+   above), rather than only flipping text-align -- so the connecting
+   lines from the mirrored SVG still land on the correct column, and the
+   fly-in direction reverses to still mean "toward the mirrored center". */
+[dir="rtl"] .cine-orbit-pillars--left { left: auto; right: 0; }
+[dir="rtl"] .cine-orbit-pillars--right { right: auto; left: 0; }
+[dir="rtl"] .cine-orbit-pillars--left .cine-orbit-pillar { justify-content: flex-start; text-align: left; padding-inline-end: 0; padding-inline-start: 8%; --fly-x: -170px; }
+[dir="rtl"] .cine-orbit-pillars--right .cine-orbit-pillar { justify-content: flex-end; text-align: right; padding-inline-start: 0; padding-inline-end: 8%; --fly-x: 170px; }
+.cine-orbit-pillar:nth-child(1) { transition-delay: 0ms; }
+.cine-orbit-pillar:nth-child(2) { transition-delay: 90ms; }
+.cine-orbit-pillar:nth-child(3) { transition-delay: 180ms; }
+.cine-orbit-pillar:nth-child(4) { transition-delay: 270ms; }
+.cine-orbit-pillar:nth-child(5) { transition-delay: 360ms; }
+@media (prefers-reduced-motion: reduce) {
+  .cine-orbit-pillar { transition: none; transform: translateY(-50%); opacity: 0; }
+  #cine-intro.is-expanded .cine-orbit-pillar { opacity: 1; }
+}
+
+/* ---- Darwesh symbol family -------------------------------------------
+   One consistent monoline icon per pillar (spec: "same stroke weight,
+   same optical size, same corner language, same champagne/ivory
+   material, same glass-circle container logic"). Every <svg> passed
+   into .cine-symbol-ring shares viewBox 0 0 24 24, stroke-width 1.6,
+   round caps/joins -- enforced by drawing every icon that way, not by
+   a shared class the markup could drift from. Container: a thin
+   spatial-glass RING (transparent center, thin champagne edge, tiny
+   inner highlight), never a filled/solid badge. */
+.cine-symbol-ring {
+  width: 30px; height: 30px;
+  flex: none;
+  border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.07), rgba(255,255,255,.01) 62%);
+  border: 1px solid rgba(198, 154, 75, .3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 10px -5px rgba(198, 154, 75, .4);
+  color: rgba(243, 238, 229, .78);
+  opacity: 0;
+  transform: scale(.6);
+  transition: opacity 380ms cubic-bezier(.16,.84,.24,1), transform 380ms cubic-bezier(.16,.84,.24,1),
+              border-color 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+.cine-symbol-ring svg { width: 15px; height: 15px; }
+#cine-intro.is-expanded .cine-orbit-pillar .cine-symbol-ring { opacity: 1; transform: scale(1); }
+/* Text arrives a touch after its own symbol -- the simplified 2-stage
+   version of the spec's 5-step per-section reveal (point/ring/stroke/
+   title/descriptor): symbol first, then label+descriptor as one group,
+   still staggered pillar-to-pillar at the existing 90ms cadence so the
+   whole ecosystem stays inside its ~1.2-1.6s budget. */
+#cine-intro.is-expanded .cine-orbit-pillar .cine-orbit-pillar-text { transition-delay: calc(var(--pillar-delay, 0ms) + 110ms); }
+#cine-intro.is-expanded .cine-orbit-pillar .cine-symbol-ring { transition-delay: var(--pillar-delay, 0ms); }
+
+.cine-orbit-num {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgba(198, 154, 75, 0.85);
+  font-variant-numeric: tabular-nums;
+}
+.cine-orbit-pillar-text { display: flex; flex-direction: column; gap: 2px; opacity: 0; transition: opacity 450ms cubic-bezier(.16,.84,.24,1); }
+#cine-intro.is-expanded .cine-orbit-pillar .cine-orbit-pillar-text { opacity: 1; }
+.cine-orbit-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--cine-text-secondary);
+  white-space: nowrap;
+  transition: color 200ms ease;
+}
+.cine-orbit-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 10.5px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: rgba(243, 237, 227, 0.4);
+  white-space: nowrap;
+}
+/* Micro-interaction: brighten symbol + label, tiny depth lift. No
+   enlargement, no click target -- these stay decorative (no tabindex,
+   nothing to activate), so this is a pointer-hover response only,
+   scoped to the ecosystem's settled state. */
+#cine-intro.is-expanded .cine-orbit-pillar { pointer-events: auto; }
+.cine-orbit-pillar:hover { transform: translate(var(--fly-x, 0px), calc(-50% - 2px)); }
+#cine-intro.is-expanded .cine-orbit-pillar:hover { transform: translateY(calc(-50% - 2px)); }
+.cine-orbit-pillar:hover .cine-symbol-ring {
+  border-color: rgba(221, 189, 123, .6);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 16px -4px rgba(198, 154, 75, .55);
+  color: #F3EEE5;
+}
+.cine-orbit-pillar:hover .cine-orbit-label { color: #F3EEE5; }
+@media (prefers-reduced-motion: reduce) {
+  .cine-symbol-ring, .cine-orbit-pillar-text { transition: none; opacity: 1; transform: scale(1); }
+  .cine-orbit-pillar:hover { transform: translateY(-50%); }
+}
+
+.cine-intro-logo {
+  /* Storyboard reference shows no logo badge on any frame, desktop or
+     mobile -- the Darwesh mark appears naturally inside the site after
+     entering, not on the Welcome overlay itself. */
+  display: none;
+}
+/* Scene 05: the Darwesh core (logo/eyebrow/mark/statement/enter/hint) --
+   nothing here fires until is-core is reached; the timing/delays below
+   are relative to THAT moment (js/intro-entry.js's t=0 for this scene),
+   not page load, matching the "nothing visible until the sequence
+   reaches it" requirement. */
+#cine-intro.is-core .cine-intro-logo { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 60ms forwards; }
+.cine-intro-logo img { width: 32px; height: 32px; object-fit: contain; }
+
+@media (max-width: 899px) {
+  .cine-orbit-lines, .cine-orbit-pillars { display: none; }
+  .cine-orbit-stage { width: 100%; aspect-ratio: auto; max-height: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-orbit-path, .cine-orbit-node, .cine-orbit-pillar, .cine-intro-logo { animation: none; opacity: 1; }
+}
+
+/* ---- Mobile Welcome composition refinement ----------------------------
+   The logo badge is now hidden universally (see .cine-intro-logo above),
+   so this block only handles mobile-specific layout/typography -- scoped
+   to the same <=899px breakpoint the rest of the mobile Welcome
+   composition already uses. */
+@media (max-width: 899px) {
+  /* Shift the whole composition up out of dead-center (spec: "not
+     vertically centered too low," roughly upper-middle) -- #cine-intro
+     itself stays a centering flex container for every OTHER context
+     (desktop, reduced-motion fallback), so only this breakpoint swaps
+     to a top-anchored layout. */
+  #cine-intro { align-items: flex-start; }
+  .cine-orbit-stage { align-items: flex-start; padding-block-start: 15vh; }
+  .cine-intro-eyebrow { letter-spacing: 0.26em; }
+  .cine-intro-mark { font-size: clamp(28px, 8vw, 34px); }
+  .cine-intro-statement { max-width: 280px; font-size: 13.5px; line-height: 1.5; }
+  .cine-enter-wrap { width: 146px; height: 146px; }
+  .cine-enter-btn { border-color: rgba(215, 180, 115, .5); }
+  .cine-enter-btn:hover { transform: scale(1.012); }
+}
+
+/* ---- Mobile pillar carousel -------------------------------------------
+   Dedicated mobile composition (spec: "Do NOT shrink the desktop orbital
+   scene"), not the 10-item two-column diagram hidden above. A native
+   horizontally-scrollable, scroll-snap row -- real swipe/drag for free
+   from the platform, no gesture JS to write or risk breaking. Shows
+   ~3-4 chips at once at this width; a small IntersectionObserver (see
+   index.html) toggles .is-focused on whichever chip is nearest center,
+   giving the "current item slightly stronger" read the spec asks for. */
+.cine-mobile-orbit { display: none; }
+@media (max-width: 899px) {
+  .cine-mobile-orbit {
+    display: flex; gap: 10px; width: 100%; max-width: 440px;
+    overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+    padding-inline: calc(50% - 64px);
+    margin-block-start: 4px;
+    /* Mobile's own scaled-down "ecosystem expansion" -- only ~2-3 chips
+       are ever visible at once in this scroll-snap row (spec: "Do NOT
+       try to send 10 elements to all four edges on mobile... 3-4 at
+       once"), so the group fades/rises in together on is-expanded
+       rather than each chip flying out individually. */
+    opacity: 0; transform: translateY(14px);
+    transition: opacity 550ms ease, transform 550ms cubic-bezier(.16,.84,.24,1);
+  }
+  #cine-intro.is-expanded .cine-mobile-orbit { opacity: 1; transform: translateY(0); }
+  @media (prefers-reduced-motion: reduce) {
+    .cine-mobile-orbit { transition: none; transform: none; }
+  }
+  .cine-mobile-orbit::-webkit-scrollbar { display: none; }
+  .cine-mobile-orbit-chip {
+    flex: none; scroll-snap-align: center;
+    width: 108px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 10px 6px; border-radius: 16px;
+    background: rgba(198, 154, 75, .025);
+    border: 1px solid rgba(198, 154, 75, .14);
+    opacity: .5; transform: scale(.9);
+    transition: opacity 240ms ease, transform 240ms ease, border-color 240ms ease;
+  }
+  .cine-mobile-orbit-chip.is-focused { opacity: 1; transform: scale(1); border-color: rgba(198, 154, 75, .4); background: rgba(198, 154, 75, .05); }
+  /* The mobile chip's own symbol ring is always visible once its parent
+     .cine-mobile-orbit fades in as a group (see the base rule further
+     up) -- it doesn't get the desktop pillar's independent per-symbol
+     stagger, matching "the active symbol becomes slightly stronger"
+     (handled by .is-focused above) rather than each mobile icon
+     animating in on its own. */
+  .cine-mobile-orbit-chip .cine-symbol-ring { opacity: 1; transform: scale(1); transition: none; width: 26px; height: 26px; margin-block-end: 1px; }
+  .cine-mobile-orbit-chip .cine-symbol-ring svg { width: 13px; height: 13px; }
+  .cine-mobile-orbit-chip.is-focused .cine-symbol-ring { border-color: rgba(221, 189, 123, .55); color: #F3EEE5; }
+  .cine-mobile-orbit-num { font-family: 'IBM Plex Sans', sans-serif; font-size: 9.5px; font-weight: 700; color: rgba(198, 154, 75, .85); }
+  .cine-mobile-orbit-title { font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 600; color: var(--cine-text-primary); text-align: center; white-space: nowrap; }
+  .cine-mobile-orbit-desc { font-family: 'Inter', sans-serif; font-size: 9px; color: rgba(243, 237, 227, .42); text-align: center; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) {
+    .cine-mobile-orbit-chip { transition: none; }
+  }
+}
 
 .cine-intro-inner {
   position: relative;
@@ -786,7 +1177,7 @@ body.cine-intro-open { overflow: hidden; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 22px;
+  gap: 18px;
 }
 
 .cine-intro-eyebrow {
@@ -797,8 +1188,8 @@ body.cine-intro-open { overflow: hidden; }
   text-transform: uppercase;
   color: var(--cine-gold-1);
   opacity: 0;
-  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 150ms forwards;
 }
+#cine-intro.is-core .cine-intro-eyebrow { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 150ms forwards; }
 
 .cine-intro-mark {
   font-family: 'IBM Plex Sans', sans-serif;
@@ -808,8 +1199,8 @@ body.cine-intro-open { overflow: hidden; }
   line-height: 1.1;
   color: var(--cine-text-primary);
   opacity: 0;
-  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 320ms forwards;
 }
+#cine-intro.is-core .cine-intro-mark { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 320ms forwards; }
 
 .cine-intro-statement {
   font-family: 'Inter', sans-serif;
@@ -818,8 +1209,8 @@ body.cine-intro-open { overflow: hidden; }
   color: var(--cine-text-secondary);
   max-width: 420px;
   opacity: 0;
-  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 480ms forwards;
 }
+#cine-intro.is-core .cine-intro-statement { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 480ms forwards; }
 
 @keyframes cine-fade-up {
   from { opacity: 0; transform: translateY(10px); }
@@ -837,12 +1228,25 @@ body.cine-intro-open { overflow: hidden; }
 
 .cine-enter-wrap {
   position: relative;
-  width: 128px;
-  height: 128px;
+  width: 148px;
+  height: 148px;
   margin-block-start: 12px;
   opacity: 0;
-  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 640ms forwards;
 }
+#cine-intro.is-core .cine-enter-wrap { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 640ms forwards; }
+/* Scene 07: the ring reacts the instant Enter is pressed -- brighten +
+   soft glow, arrow already nudges via .cine-enter-btn:hover's own rule
+   (a real click always passes through a hover/focus state first on
+   pointer devices; touch gets the brighten+glow which is the primary
+   cue there). One outward pulse ring, not an explosion. */
+#cine-intro.is-entering .cine-enter-btn { border-color: rgba(198, 154, 75, .9); background: radial-gradient(circle, rgba(198,154,75,.12), rgba(198,154,75,.02) 70%); }
+#cine-intro.is-entering .cine-enter-wrap::after {
+  content: ''; position: absolute; inset: -8px; border-radius: 999px;
+  border: 1px solid rgba(198, 154, 75, .5);
+  animation: cine-pulse-out 600ms cubic-bezier(.16,.84,.24,1) forwards;
+  pointer-events: none;
+}
+@keyframes cine-pulse-out { from { transform: scale(1); opacity: .85; } to { transform: scale(1.55); opacity: 0; } }
 
 .cine-enter-btn {
   position: relative;
@@ -850,7 +1254,7 @@ body.cine-intro-open { overflow: hidden; }
   height: 100%;
   border-radius: 999px;
   background: transparent;
-  border: 1px solid rgba(216, 182, 101, 0.4);
+  border: 1px solid rgba(198, 154, 75, 0.4);
   color: var(--cine-text-primary);
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 11px;
@@ -865,9 +1269,22 @@ body.cine-intro-open { overflow: hidden; }
   padding: 0 30px;
   transition: border-color var(--motion-standard, 300ms) var(--ease-premium, ease), transform var(--motion-standard, 300ms) var(--ease-premium, ease), background-color var(--motion-standard, 300ms) var(--ease-premium, ease);
 }
-.cine-enter-btn:hover { border-color: rgba(216, 182, 101, 0.85); background: rgba(216, 182, 101, 0.06); }
+.cine-enter-btn:hover {
+  border-color: rgba(198, 154, 75, 0.85);
+  background: radial-gradient(circle, rgba(198, 154, 75, 0.1), rgba(198, 154, 75, 0.02) 70%);
+  transform: scale(1.015);
+}
 .cine-enter-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cine-bg-0), 0 0 0 4px var(--cine-gold-1); }
-.cine-enter-btn:active { transform: scale(0.97); }
+.cine-enter-btn:active { transform: scale(0.985); }
+.cine-enter-btn-label { display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.35; }
+.cine-enter-arrow { display: inline-block; transition: transform 200ms var(--ease-premium, ease); }
+.cine-enter-btn:hover .cine-enter-arrow { transform: translateX(3px); }
+[dir="rtl"] .cine-enter-btn:hover .cine-enter-arrow { transform: translateX(-3px) scaleX(-1); }
+[dir="rtl"] .cine-enter-arrow { display: inline-block; transform: scaleX(-1); }
+@media (prefers-reduced-motion: reduce) {
+  .cine-enter-btn:hover { transform: none; }
+  .cine-enter-arrow { transition: none; }
+}
 
 .cine-enter-ring {
   position: absolute;
@@ -894,13 +1311,15 @@ body.cine-intro-open { overflow: hidden; }
   font-size: 11.5px;
   color: var(--cine-text-secondary);
   opacity: 0;
-  animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 760ms forwards;
 }
+#cine-intro.is-core .cine-intro-hint { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 760ms forwards; }
 
 @media (prefers-reduced-motion: reduce) {
-  .cine-intro-eyebrow, .cine-intro-mark, .cine-intro-statement, .cine-enter-wrap, .cine-intro-hint {
-    animation: none;
-    opacity: 1;
+  .cine-intro-eyebrow, .cine-intro-mark, .cine-intro-statement, .cine-enter-wrap, .cine-intro-hint, .cine-intro-logo,
+  .cine-intro-sidecopy, .cine-mobile-orbit-chip {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
   }
   #cine-intro { transition: opacity 150ms linear; }
 }
@@ -924,7 +1343,7 @@ body.cine-intro-open { overflow: hidden; }
   cursor: pointer;
   transition: border-color var(--motion-fast, 180ms) var(--ease-premium, ease), color var(--motion-fast, 180ms) var(--ease-premium, ease);
 }
-.cine-audio-toggle:hover { border-color: rgba(216, 182, 101, 0.6); color: var(--cine-gold-2); }
+.cine-audio-toggle:hover { border-color: rgba(198, 154, 75, 0.6); color: var(--cine-gold-2); }
 .cine-audio-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cine-bg-0), 0 0 0 4px var(--cine-gold-1); }
 .cine-audio-toggle[hidden] { display: none; }
 
@@ -969,7 +1388,7 @@ body.cine-intro-open { overflow: hidden; }
 /* Success gold -> green convergence used on the final "verified"/
  * "profile ready" confirmation icon circle. */
 @keyframes cine-success-glow {
-  0% { box-shadow: 0 0 0 0 rgba(216, 182, 101, 0.5); }
+  0% { box-shadow: 0 0 0 0 rgba(198, 154, 75, 0.5); }
   60% { box-shadow: 0 0 0 14px rgba(127, 184, 154, 0); }
   100% { box-shadow: 0 0 0 0 rgba(127, 184, 154, 0); }
 }
@@ -1052,7 +1471,7 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-property-card:focus-within { border-color: var(--ps-color-secondary); }
 .cine-scope .home-property-media { border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--ps-color-surface-container); }
 .cine-scope .home-property-media-fallback { color: var(--ps-color-outline); background: linear-gradient(135deg, var(--ps-color-surface-container) 0%, var(--ps-color-surface-container-low) 100%); }
-.cine-scope .home-property-badge { background: rgba(216, 182, 101, 0.16); border: 1px solid rgba(216, 182, 101, 0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); backdrop-filter: blur(3px); }
+.cine-scope .home-property-badge { background: rgba(198, 154, 75, 0.16); border: 1px solid rgba(198, 154, 75, 0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); backdrop-filter: blur(3px); }
 .cine-scope .home-property-title { color: var(--ps-color-on-surface); }
 .cine-scope .home-property-meta { color: var(--ps-color-on-surface-variant); }
 .cine-scope .home-property-meta .material-symbols-outlined { color: var(--ps-color-outline); }
@@ -1070,14 +1489,14 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-service-card:hover { border-color: var(--ps-color-secondary); background: var(--ps-color-surface-container); transform: translateY(-2px); }
 .cine-scope .home-service-card:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-color: var(--ps-color-secondary); }
 .cine-scope .home-service-icon { background: var(--ps-color-surface-container); color: var(--cine-gold-1); border-radius: var(--radius-sm); font-size: 21px; transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
-.cine-scope .home-service-card:hover .home-service-icon { background: rgba(216, 182, 101, 0.14); }
+.cine-scope .home-service-card:hover .home-service-icon { background: rgba(198, 154, 75, 0.14); }
 .cine-scope .home-service-title { color: var(--ps-color-on-surface); }
 .cine-scope .home-service-desc { color: var(--ps-color-on-surface-variant); line-height: 1.55; }
 
 /* ---- Promo / discount banner --------------------------------------------- */
 .cine-scope .home-promo { background: var(--ps-color-surface-container-low); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-lg); position: relative; overflow: hidden; }
 .cine-scope .home-promo::before { content: ''; position: absolute; inset-block-start: 0; inset-inline: 0; height: 2px; background: var(--ps-gold-edge); opacity: 0.7; }
-.cine-scope .home-promo-badge { background: rgba(216, 182, 101, 0.14); border: 1px solid rgba(216, 182, 101, 0.35); color: var(--cine-gold-2); border-radius: var(--radius-sm); }
+.cine-scope .home-promo-badge { background: rgba(198, 154, 75, 0.14); border: 1px solid rgba(198, 154, 75, 0.35); color: var(--cine-gold-2); border-radius: var(--radius-sm); }
 .cine-scope .home-promo-title { color: var(--ps-color-on-surface); }
 .cine-scope .home-promo-body { color: var(--ps-color-on-surface-variant); }
 .cine-scope .home-promo-link { color: var(--ps-color-secondary); transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
@@ -1105,7 +1524,7 @@ body.cine-intro-open { overflow: hidden; }
   width: 40px; height: 40px; flex: none;
   border-radius: 12px;
   background: rgba(23, 21, 15, 0.72);
-  border: 1px solid rgba(216, 182, 101, 0.32);
+  border: 1px solid rgba(198, 154, 75, 0.32);
   color: var(--cine-gold-1, #C69A4B);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -1114,7 +1533,7 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .cine-carousel-arrow svg { width: 18px; height: 18px; }
 .cine-scope .cine-carousel-arrow:hover:not(:disabled) {
   border-color: var(--cine-gold-1, #C69A4B);
-  box-shadow: 0 0 0 4px rgba(216, 182, 101, 0.1), 0 6px 16px -4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 0 4px rgba(198, 154, 75, 0.1), 0 6px 16px -4px rgba(0, 0, 0, 0.4);
   transform: translateY(-1px);
 }
 .cine-scope .cine-carousel-arrow:active:not(:disabled) { transform: translateY(0) scale(0.95); }
@@ -1168,7 +1587,7 @@ body.cine-intro-open { overflow: hidden; }
   position: relative;
 }
 .cine-scope .home-city-circle:hover .home-city-circle-media,
-.cine-scope .home-city-circle:focus-visible .home-city-circle-media { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 5px rgba(216,182,101,0.12), var(--ps-shadow-3d-2); }
+.cine-scope .home-city-circle:focus-visible .home-city-circle-media { border-color: var(--ps-color-secondary); box-shadow: 0 0 0 5px rgba(198,154,75,0.12), var(--ps-shadow-3d-2); }
 .cine-scope .home-city-circle-media::after { content: ''; position: absolute; inset: 0; border-radius: 999px; background: linear-gradient(180deg, rgba(9,10,10,0) 55%, rgba(9,10,10,0.4) 100%); }
 .cine-scope .home-city-circle-name { color: var(--ps-color-on-surface); font-weight: 600; }
 .cine-scope .home-city-circle-count { color: var(--ps-color-on-surface-variant); }
@@ -1188,8 +1607,8 @@ body.cine-intro-open { overflow: hidden; }
   transition: transform 220ms var(--ease-premium, ease), border-color 220ms var(--ease-premium, ease), box-shadow 220ms var(--ease-premium, ease);
 }
 .cine-scope .home-service-card-v2:hover, .cine-scope .home-service-card-v2:focus-visible { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
-.cine-scope .home-service-card-v2::before { content: ''; position: absolute; inset-inline-start: -30%; inset-block-start: -60%; width: 70%; height: 140%; background: radial-gradient(circle, rgba(216,182,101,0.1) 0%, transparent 70%); pointer-events: none; }
-.cine-scope .home-service-icon-v2 { width: 42px; height: 42px; border-radius: var(--radius-sm, 10px); background: rgba(216,182,101,0.12); color: var(--cine-gold-1, #C69A4B); display: flex; align-items: center; justify-content: center; flex: none; }
+.cine-scope .home-service-card-v2::before { content: ''; position: absolute; inset-inline-start: -30%; inset-block-start: -60%; width: 70%; height: 140%; background: radial-gradient(circle, rgba(198,154,75,0.1) 0%, transparent 70%); pointer-events: none; }
+.cine-scope .home-service-icon-v2 { width: 42px; height: 42px; border-radius: var(--radius-sm, 10px); background: rgba(198,154,75,0.12); color: var(--cine-gold-1, #C69A4B); display: flex; align-items: center; justify-content: center; flex: none; }
 .cine-scope .home-service-icon-v2 svg { width: 22px; height: 22px; }
 
 /* ---- 7% section (redesigned oversized editorial numeral; the real
@@ -1299,21 +1718,264 @@ body.cine-intro-open { overflow: hidden; }
   [data-cine3d="promo"] .home-promo-qr { transform: none !important; opacity: 1 !important; }
 }
 
-/* ---- Mobile bottom nav ------------------------------------------------------ */
-.cine-scope .home-bottomnav { background: var(--ps-color-surface-container-lowest); border-top: 1px solid var(--ps-color-outline-variant); }
-.cine-scope .home-bottomnav-item { color: var(--ps-color-on-surface-variant); min-width: 0; transition: color var(--motion-fast, 150ms) var(--ease-premium, ease); }
-.cine-scope .home-bottomnav-item.is-active { color: var(--ps-color-secondary); }
-.cine-scope .home-bottomnav-fab { background: var(--ps-color-primary); border: 3px solid var(--ps-color-surface-container-lowest); box-shadow: var(--ps-shadow-3d-2); }
-.cine-scope .home-bottomnav-fab .material-symbols-outlined { color: var(--ps-color-secondary); }
-/* Real bottom padding is set in px here (not a Tailwind pb-* utility on
-   the element, deliberately) so js/site-mobile-nav.js's shared markup
-   controls the exact same clearance everywhere it's used: at least 10px
-   of breathing room on every device, growing to clear the home
-   indicator/gesture bar on notched phones via env(safe-area-inset-bottom)
-   (a no-op, resolving to 0, on every device without one). */
-.cine-scope .home-bottomnav { padding-top: 8px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
-.cine-scope .home-bottomnav-item:focus-visible,
-.cine-scope .home-bottomnav-fab:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); border-radius: var(--radius-xs); }
+/* ---- Mobile bottom nav: "Darwesh Spatial Glass" floating capsule ------------
+ * Full rebuild (was a flat edge-to-edge 7-icon strip, .home-bottomnav*) --
+ * a floating 5-item bar (Home/AI/Map/Sell/More) plus a More panel that
+ * opens above it for the 4 secondary destinations. Same near-colorless
+ * white-based glass recipe as #siteHeader .site-rail (js/site-header.js)
+ * -- whatever color shows through is the page behind it, never a tinted
+ * navy/gold/black fill. Geometry is chosen so its total footprint (10px
+ * offset + 76px height = 86px baseline) only shifts 3px from the old
+ * bar's measured ~83px, keeping css/home-world.css's hero scroll-cue/dots
+ * clearance and sell.html's wizard-button safety margin (both updated
+ * alongside this file) small, low-risk corrections rather than a
+ * site-wide clearance audit.
+ * Scoped entirely inside this file's own @media (max-width: 767px) block
+ * (rather than depending on the markup's Tailwind `md:hidden` class to
+ * hide it on desktop) because `.cine-scope .dmnav-bar{display:flex}` is a
+ * 2-class selector -- higher specificity than Tailwind's single-class
+ * `.md\:hidden{display:none}` utility, so it would otherwise always win
+ * and leave the bar visible above 768px regardless of that class.
+ * ------------------------------------------------------------------------ */
+@media (max-width: 767px) {
+.cine-scope .dmnav-bar {
+  position: fixed;
+  inset-inline: 14px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  height: 76px;
+  border-radius: 28px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  padding-inline: 4px;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.024), rgba(255, 255, 255, 0.011));
+  backdrop-filter: blur(28px) saturate(112%) contrast(101%);
+  -webkit-backdrop-filter: blur(28px) saturate(112%) contrast(101%);
+  border-style: solid;
+  border-width: 1px;
+  border-top-color: rgba(255, 255, 255, 0.10);
+  border-bottom-color: rgba(0, 0, 0, 0.07);
+  border-left-color: rgba(255, 255, 255, 0.07);
+  border-right-color: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+.cine-scope .dmnav-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.012) 45%, rgba(255, 255, 255, 0) 100%);
+}
+
+.cine-scope .dmnav-item {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: rgba(245, 242, 235, 0.74);
+  background: none;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--motion-fast, 150ms) var(--ease-premium, ease), transform var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .dmnav-item:active { transform: scale(0.94); }
+
+/* Content chip -- icon + label belong to ONE small piece of glass, not a
+   circular halo behind the icon alone. At rest fully transparent (no
+   box/border/shadow at all); the active/expanded glass below is the only
+   time this ever paints. Sized to the content itself (not the item's own
+   76px-tall stretched hit target), landing in the ~54-64 x 54-62px range
+   requested -- padding does the sizing, so no fixed height fights the
+   label's real line height. */
+.cine-scope .dmnav-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 54px;
+  padding: 9px 10px;
+  border-radius: 18px;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  transition: background-color var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease);
+}
+
+/* Active state -- a thin, near-colorless piece of Darwesh Spatial Glass
+   with a delicate champagne edge and a soft warm reflection, reusing
+   map.html's own "smoked champagne glass" tokens (--ps-color-gold-glass-*,
+   css/profile-tokens.css). Never a large pill, never solid gold, never a
+   heavy ring -- icon and label sit inside the SAME thin glass piece. The
+   More button gets the identical treatment while its panel is open
+   (aria-expanded), independent of its own route-active state. */
+.cine-scope .dmnav-item.is-active .dmnav-content,
+.cine-scope .dmnav-more[aria-expanded="true"] .dmnav-content {
+  background: linear-gradient(180deg, var(--ps-color-gold-glass-1), var(--ps-color-gold-glass-2));
+  border-color: var(--ps-color-gold-glass-border);
+  box-shadow: 0 0 10px var(--ps-color-gold-glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.cine-scope .dmnav-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+}
+.cine-scope .dmnav-item.is-active .dmnav-icon,
+.cine-scope .dmnav-item.is-active .dmnav-label,
+.cine-scope .dmnav-more[aria-expanded="true"] .dmnav-icon,
+.cine-scope .dmnav-more[aria-expanded="true"] .dmnav-label {
+  color: var(--ps-color-gold-glass-text);
+}
+
+.cine-scope .dmnav-label {
+  position: relative;
+  font-family: var(--nav-font, 'Inter', ui-sans-serif, system-ui, sans-serif);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  white-space: nowrap;
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cine-scope .dmnav-item.is-active .dmnav-label,
+.cine-scope .dmnav-more[aria-expanded="true"] .dmnav-label { font-weight: 600; }
+
+/* More button's dots<->close icon morph -- two stacked SVGs cross-fading
+   with a small rotate, no bounce/spring. */
+.cine-scope .dmnav-more .dmnav-icon { position: relative; }
+.cine-scope .dmnav-icon-dots,
+.cine-scope .dmnav-icon-close {
+  position: absolute;
+  inset: 0;
+  transition: opacity var(--motion-standard, 220ms) var(--ease-premium, ease), transform var(--motion-standard, 220ms) var(--ease-premium, ease);
+}
+.cine-scope .dmnav-icon-close { opacity: 0; transform: rotate(-45deg) scale(0.75); }
+.cine-scope .dmnav-more[aria-expanded="true"] .dmnav-icon-dots { opacity: 0; transform: rotate(45deg) scale(0.75); }
+.cine-scope .dmnav-more[aria-expanded="true"] .dmnav-icon-close { opacity: 1; transform: rotate(0deg) scale(1); }
+
+.cine-scope .dmnav-item:focus-visible {
+  outline: none;
+  box-shadow: var(--ps-focus-ring);
+  border-radius: 18px;
+}
+
+/* ---- More panel: a thin, light floating extension of the bar, not a
+   separate modal -- same glass family (near-colorless white-based fill,
+   blur+saturate, per-edge borders, top specular ::before) as .dmnav-bar
+   above, just with its own slightly stronger blur so it reads as "in
+   front of" the bar it hovers over. ---- */
+.cine-scope .dmnav-panel {
+  position: fixed;
+  inset-inline: 20px;
+  bottom: calc(76px + 10px + 12px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  max-height: 58vh;
+  overflow-y: auto;
+  border-radius: 22px;
+  padding: 7px;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.016), rgba(255, 255, 255, 0.008));
+  backdrop-filter: blur(28px) saturate(110%) contrast(101%);
+  -webkit-backdrop-filter: blur(28px) saturate(110%) contrast(101%);
+  border-style: solid;
+  border-width: 1px;
+  border-top-color: rgba(255, 255, 255, 0.09);
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+  border-left-color: rgba(255, 255, 255, 0.075);
+  border-right-color: rgba(255, 255, 255, 0.075);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(10px) scale(0.99);
+  transition: opacity 240ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 240ms;
+}
+.cine-scope .dmnav-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 40%, rgba(255, 255, 255, 0) 100%);
+}
+.cine-scope .dmnav-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition: opacity 240ms cubic-bezier(0.2, 0.8, 0.2, 1), transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 0s;
+}
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+  .cine-scope .dmnav-panel,
+  .cine-scope .dmnav-item,
+  .cine-scope .dmnav-content,
+  .cine-scope .dmnav-icon-dots,
+  .cine-scope .dmnav-icon-close { transition: none; }
+}
+
+.cine-scope .dmnav-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding-inline: 10px;
+  border-radius: 12px;
+  color: rgba(248, 246, 240, 0.88);
+  text-decoration: none;
+  border-block-end: 1px solid rgba(255, 255, 255, 0.07);
+  transition: background-color var(--motion-fast, 150ms) var(--ease-premium, ease);
+}
+.cine-scope .dmnav-row:last-child { border-block-end: none; }
+.cine-scope .dmnav-row:hover,
+.cine-scope .dmnav-row:active { background-color: rgba(255, 255, 255, 0.04); }
+.cine-scope .dmnav-row:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .dmnav-row-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--ps-color-gold-glass-text);
+}
+.cine-scope .dmnav-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: start;
+}
+.cine-scope .dmnav-row-chevron { flex: none; color: rgba(245, 242, 235, 0.35); }
+html[dir="rtl"] .cine-scope .dmnav-row-chevron { transform: scaleX(-1); }
+
+/* ---- Backdrop: very subtle dim only -- the panel's own glass + shadow
+   provide the separation, not a darkened screen. Page content behind it
+   (e.g. the Home hero) must stay clearly visible. ---- */
+.cine-scope .dmnav-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(6, 7, 9, 0.10);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+.cine-scope .dmnav-backdrop.is-open { opacity: 1; pointer-events: auto; }
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) { .cine-scope .dmnav-backdrop { transition: none; } }
+} /* end @media (max-width: 767px) -- mobile bottom nav */
 
 /* js/site-header.js's desktop nav links and js/site-mobile-nav.js's
    bottom-nav items are plain <a> tags styled with Tailwind color
@@ -1407,8 +2069,8 @@ body.cine-intro-open { overflow: hidden; }
    * at low opacity, as a quiet "engineering" signature. */
   content: ''; position: absolute; inset: 0;
   background-image:
-    repeating-linear-gradient(0deg, rgba(216,182,101,0.07) 0 1px, transparent 1px 32px),
-    repeating-linear-gradient(90deg, rgba(216,182,101,0.07) 0 1px, transparent 1px 32px);
+    repeating-linear-gradient(0deg, rgba(198,154,75,0.07) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(198,154,75,0.07) 0 1px, transparent 1px 32px);
   mix-blend-mode: overlay;
   opacity: 0.5;
 }
@@ -1427,8 +2089,8 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .rp-hero--lawyer .rp-hero-media::before {
   content: ''; position: absolute; inset: 0;
   background-image:
-    repeating-radial-gradient(circle at 85% 15%, rgba(216,182,101,0.08) 0 1px, transparent 1px 26px),
-    repeating-linear-gradient(0deg, rgba(216,182,101,0.05) 0 1px, transparent 1px 40px);
+    repeating-radial-gradient(circle at 85% 15%, rgba(198,154,75,0.08) 0 1px, transparent 1px 26px),
+    repeating-linear-gradient(0deg, rgba(198,154,75,0.05) 0 1px, transparent 1px 40px);
   mix-blend-mode: overlay;
   opacity: 0.5;
 }
@@ -1441,7 +2103,7 @@ body.cine-intro-open { overflow: hidden; }
   content: ''; position: absolute; inset: 0;
   background-image:
     radial-gradient(ellipse 60% 40% at 20% 30%, rgba(127,184,154,0.10), transparent 70%),
-    radial-gradient(ellipse 50% 35% at 80% 70%, rgba(216,182,101,0.08), transparent 70%);
+    radial-gradient(ellipse 50% 35% at 80% 70%, rgba(198,154,75,0.08), transparent 70%);
   opacity: 0.7;
 }
 
@@ -1462,8 +2124,8 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .rp-fallback .material-symbols-outlined { font-size: 40px; color: var(--ps-color-outline); opacity: 0.7; }
 .cine-scope .rp-fallback--engineer {
   background:
-    repeating-linear-gradient(45deg, rgba(216,182,101,0.05) 0 2px, transparent 2px 22px),
-    repeating-linear-gradient(-45deg, rgba(216,182,101,0.05) 0 2px, transparent 2px 22px),
+    repeating-linear-gradient(45deg, rgba(198,154,75,0.05) 0 2px, transparent 2px 22px),
+    repeating-linear-gradient(-45deg, rgba(198,154,75,0.05) 0 2px, transparent 2px 22px),
     var(--ps-color-surface-container);
 }
 .cine-scope .rp-fallback--designer {
@@ -1471,7 +2133,7 @@ body.cine-intro-open { overflow: hidden; }
 }
 .cine-scope .rp-fallback--lawyer {
   background:
-    repeating-radial-gradient(circle at 50% 50%, rgba(216,182,101,0.06) 0 1px, transparent 1px 24px),
+    repeating-radial-gradient(circle at 50% 50%, rgba(198,154,75,0.06) 0 1px, transparent 1px 24px),
     var(--ps-color-surface-container);
 }
 .cine-scope .rp-fallback--landscaping {
@@ -1495,7 +2157,7 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .rp-project-card { background: var(--ps-color-surface-container-lowest); border: 1px solid var(--ps-color-outline-variant); border-radius: var(--radius-md); overflow: hidden; transition: transform var(--motion-standard, 220ms) var(--ease-premium, ease), border-color var(--motion-standard, 220ms) var(--ease-premium, ease), box-shadow var(--motion-standard, 220ms) var(--ease-premium, ease); }
 .cine-scope .rp-project-card:hover, .cine-scope .rp-project-card:focus-within { transform: translateY(-3px); border-color: var(--ps-color-secondary); box-shadow: var(--ps-shadow-3d-2); }
 .cine-scope .rp-project-media { position: relative; width: 100%; aspect-ratio: 4/3; background-size: cover; background-position: center; background-color: var(--ps-color-surface-container); overflow: hidden; }
-.cine-scope .rp-project-status { position: absolute; top: 10px; inset-inline-end: 10px; background: rgba(216,182,101,0.16); border: 1px solid rgba(216,182,101,0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); padding: 3px 9px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; backdrop-filter: blur(3px); }
+.cine-scope .rp-project-status { position: absolute; top: 10px; inset-inline-end: 10px; background: rgba(198,154,75,0.16); border: 1px solid rgba(198,154,75,0.4); color: var(--cine-gold-2); border-radius: var(--radius-xs); padding: 3px 9px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; backdrop-filter: blur(3px); }
 .cine-scope .rp-project-title { color: var(--ps-color-on-surface); }
 .cine-scope .rp-project-meta { color: var(--ps-color-on-surface-variant); }
 .cine-scope .rp-project-meta .material-symbols-outlined { color: var(--ps-color-outline); font-size: 15px; }
@@ -1585,7 +2247,7 @@ body.cine-intro-open { overflow: hidden; }
  * existing type treatment rather than inventing a second heading style. */
 .cine-scope .pwork-form-section { padding-block-start: 32px; margin-block-start: 32px; border-block-start: 1px solid var(--ps-color-outline-variant); }
 .cine-scope .pwork-form-section:first-of-type { padding-block-start: 0; margin-block-start: 28px; border-block-start: none; }
-.cine-scope .pwork-section-number { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--radius-xs); background: rgba(216, 182, 101, 0.12); color: var(--cine-gold-2); font-size: 10px; font-weight: 700; margin-inline-end: 8px; }
+.cine-scope .pwork-section-number { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: var(--radius-xs); background: rgba(198, 154, 75, 0.12); color: var(--cine-gold-2); font-size: 10px; font-weight: 700; margin-inline-end: 8px; }
 
 .cine-scope .pwork-cover-zone { position: relative; width: 100%; aspect-ratio: 16/9; border: 1.5px dashed var(--ps-color-outline-variant); border-radius: var(--radius-md); background: var(--ps-color-surface-container); display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; transition: border-color var(--motion-fast, 150ms) var(--ease-premium, ease); }
 .cine-scope .pwork-cover-zone:hover, .cine-scope .pwork-cover-zone:focus-visible { border-color: var(--ps-color-secondary); }
@@ -1711,7 +2373,7 @@ body.cine-intro-open { overflow: hidden; }
   border-radius: 12px;
   transition: background-color .15s ease, border-color .15s ease, transform .1s ease;
 }
-.cine-scope .map-overlay-btn:hover { background: rgba(216,182,101,0.16); }
+.cine-scope .map-overlay-btn:hover { background: rgba(198,154,75,0.16); }
 .cine-scope .map-overlay-btn:active { transform: scale(0.96); }
 
 /* A visible keyboard focus ring -- these are icon-only controls, so
@@ -1758,7 +2420,7 @@ body.cine-intro-open { overflow: hidden; }
   flex: none;
   border-radius: 50%;
   border: 1.5px solid var(--cine-gold-1, #C69A4B);
-  background: rgba(216,182,101,0.25);
+  background: rgba(198,154,75,0.25);
 }
 
 /* ---- Cluster vs listing marker -------------------------------------- */
@@ -1832,6 +2494,10 @@ body.cine-intro-open { overflow: hidden; }
  * centering correctly.
  * ===================================================================== */
 
+/* Smoked-glass card surface -- a soft gradient wash over translucent
+ * obsidian plus backdrop-blur, matching the same recipe used by the
+ * toolbar/navbar/hero (not the previous flat #17191B fill), so the list
+ * column and the rest of the page read as one visual system. */
 .cine-scope .lc {
   display: flex;
   align-items: stretch;
@@ -1839,13 +2505,16 @@ body.cine-intro-open { overflow: hidden; }
   overflow: hidden;
   position: relative;
   cursor: pointer;
-  border-radius: 14px;
-  background: #17191B;
-  border: 1px solid var(--ps-color-outline-variant);
+  border-radius: 16px;
+  background-image: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 45%);
+  background-color: rgba(23,25,27,.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(224,190,130,.12);
   box-shadow: var(--ps-shadow-3d-1);
 }
 .cine-scope .lc:hover {
-  border-color: var(--cine-gold-1, #C69A4B);
+  border-color: rgba(224,190,130,.4);
   box-shadow: var(--ps-shadow-3d-2);
 }
 /* The selected card is the one the map is showing. A gold rail on the
@@ -1857,7 +2526,7 @@ body.cine-intro-open { overflow: hidden; }
  * correct side under RTL with no separate rule. */
 .cine-scope .lc.active {
   border-color: var(--cine-gold-1, #C69A4B);
-  background: linear-gradient(180deg, rgba(216,182,101,0.16) 0%, rgba(216,182,101,0.06) 100%), #17191B;
+  background: linear-gradient(180deg, rgba(198,154,75,0.16) 0%, rgba(198,154,75,0.06) 100%), #17191B;
 }
 .cine-scope .lc.active::before {
   content: '';
@@ -2045,7 +2714,7 @@ body.cine-intro-open { overflow: hidden; }
 }
 .cine-scope .lc-action svg { width: 14px; height: 14px; }
 .cine-scope .lc-action:hover {
-  background: rgba(216,182,101,0.16);
+  background: rgba(198,154,75,0.16);
   border-color: var(--cine-gold-1, #C69A4B);
   color: #C69A4B;
 }
@@ -2088,7 +2757,7 @@ body.cine-intro-open { overflow: hidden; }
   width: 22px;
   height: 92px;
   padding: 0;
-  border: 1px solid rgba(216,182,101,0.35);
+  border: 1px solid rgba(198,154,75,0.35);
   border-inline-end: none;
   border-start-start-radius: 11px;
   border-end-start-radius: 11px;
@@ -2105,7 +2774,7 @@ body.cine-intro-open { overflow: hidden; }
   touch-action: none;      /* the handle owns its gesture, not the map */
   transition: width .18s ease, background-color .18s ease, border-color .18s ease;
 }
-.cine-scope .map-edge-handle:hover { width: 26px; border-color: rgba(216,182,101,0.7); }
+.cine-scope .map-edge-handle:hover { width: 26px; border-color: rgba(198,154,75,0.7); }
 .cine-scope .map-edge-handle:focus-visible {
   outline: 2px solid var(--cine-gold-1, #C69A4B);
   outline-offset: 2px;
@@ -2156,7 +2825,7 @@ body.cine-intro-open { overflow: hidden; }
   background: linear-gradient(180deg, rgba(26,23,16,0.90) 0%, rgba(14,13,9,0.94) 100%);
   backdrop-filter: blur(18px) saturate(1.15);
   -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  border-inline-start: 1px solid rgba(216,182,101,0.28);
+  border-inline-start: 1px solid rgba(198,154,75,0.28);
   border-start-start-radius: 18px;
   border-end-start-radius: 18px;
   box-shadow: -18px 0 48px rgba(0,0,0,0.5);
@@ -2229,7 +2898,7 @@ body.cine-intro-open { overflow: hidden; }
   justify-content: space-between;
   gap: 8px;
   padding: 13px 14px 11px;
-  border-block-end: 1px solid rgba(216,182,101,0.16);
+  border-block-end: 1px solid rgba(198,154,75,0.16);
 }
 .cine-scope .map-drawer-title {
   margin: 0;
@@ -2251,7 +2920,7 @@ body.cine-intro-open { overflow: hidden; }
   cursor: pointer;
 }
 .cine-scope .map-drawer-close svg { width: 15px; height: 15px; }
-.cine-scope .map-drawer-close:hover { background: rgba(216,182,101,0.14); color: #F4EFE7; }
+.cine-scope .map-drawer-close:hover { background: rgba(198,154,75,0.14); color: #F4EFE7; }
 
 .cine-scope .map-drawer-body {
   flex: 1;
@@ -2311,7 +2980,7 @@ body.cine-intro-open { overflow: hidden; }
 @media (max-width: 767px) { .cine-scope .tool-row { min-height: 44px; } }
 .cine-scope .tool-row .ctl-svg { width: 18px; height: 18px; flex: none; color: #C69A4B; }
 .cine-scope .tool-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cine-scope .tool-row:hover:not(:disabled) { background: rgba(216,182,101,0.13); border-color: rgba(216,182,101,0.34); }
+.cine-scope .tool-row:hover:not(:disabled) { background: rgba(198,154,75,0.13); border-color: rgba(198,154,75,0.34); }
 .cine-scope .tool-row:focus-visible { outline: 2px solid var(--cine-gold-1, #C69A4B); outline-offset: 1px; }
 .cine-scope .tool-row:disabled { opacity: 0.38; cursor: not-allowed; }
 
@@ -2362,8 +3031,17 @@ body.cine-intro-open { overflow: hidden; }
   text-overflow: ellipsis;
   transition: background-color .15s ease, color .15s ease;
 }
-.cine-scope .map-drawer .map-type-btn.active { background: var(--cine-gold-1, #C69A4B); color: #0B0E12; }
-.cine-scope .map-drawer .map-type-btn:hover:not(.active) { color: #F4EFE7; background: rgba(216,182,101,0.1); }
+/* DESIGN-SYSTEM CONSOLIDATION (Phase 1): was a solid gold fill/dark-text
+   active state -- the drawer's own version of the same "casino gold"
+   pattern map.html's inline .chip-opt/.hometype-card/.currency-opt/
+   .map-type-btn (the floating overlay variant) all had. Converted to the
+   identical smoked-champagne glass recipe used everywhere else. */
+.cine-scope .map-drawer .map-type-btn.active {
+  background-image: linear-gradient(180deg, rgba(224,190,130,.22), rgba(224,190,130,.07));
+  background-color: rgba(20,22,30,.68);
+  color: #F2ECDD;
+}
+.cine-scope .map-drawer .map-type-btn:hover:not(.active) { color: #F4EFE7; background: rgba(198,154,75,0.1); }
 .cine-scope .map-drawer .map-type-btn:focus-visible { outline: 2px solid var(--cine-gold-1, #C69A4B); outline-offset: -2px; }
 
 /* =========================================================================
@@ -2564,7 +3242,7 @@ body.cine-intro-open { overflow: hidden; }
   gap: 14px;
   padding: 30px 28px;
   border-radius: 20px;
-  border: 1px dashed rgba(216, 182, 101, 0.30);
+  border: 1px dashed rgba(198, 154, 75, 0.30);
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.24));
 }
 .cine-scope .home-rail-empty-glyph { font-size: 26px; color: var(--cine-gold-2, #D4AF60); opacity: .85; }
@@ -2592,6 +3270,6 @@ body.cine-intro-open { overflow: hidden; }
 .cine-scope .home-rail-empty-cta.is-quiet {
   background: transparent;
   color: var(--cine-gold-2, #D4AF60);
-  border: 1px solid rgba(216, 182, 101, 0.42);
+  border: 1px solid rgba(198, 154, 75, 0.42);
 }
 .cine-scope .home-rail-empty-cta:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
