@@ -82,6 +82,47 @@ import { createAudioController } from './audio-controller.js';
     try { sessionStorage.setItem(SEEN_KEY, '1'); } catch (_err) { /* private mode -- non-fatal, intro just re-shows next load */ }
   }
 
+  // ---- Mobile radial orbit ------------------------------------------
+  // Only 3-4 of the 10 platform pillars are ever visible at once on
+  // mobile, positioned at fixed top/right/bottom/left slots around the
+  // Enter ring (see .cine-mobile-orbit-chip[data-slot] in cinematic.css).
+  // This assigns which 4 chips currently hold those slots and, before
+  // Enter is pressed, slowly cycles which 4 they are -- a calm "orbital
+  // drift" rather than the desktop's ten-at-once diagram. Entirely
+  // inert on desktop (mobileChips is still queried, but nothing here
+  // renders unless the <=899px breakpoint's CSS is active).
+  const MOBILE_SLOT_ORDER = ['top', 'right', 'bottom', 'left'];
+  const mobileChips = Array.prototype.slice.call(overlay.querySelectorAll('.cine-mobile-orbit-chip'));
+  const isMobileViewport = window.matchMedia('(max-width: 899px)');
+  let mobileOrbitCycle = 0;
+  let mobileOrbitTimer = null;
+
+  function applyMobileOrbitCycle() {
+    if (!mobileChips.length) return;
+    mobileChips.forEach((chip) => chip.removeAttribute('data-slot'));
+    MOBILE_SLOT_ORDER.forEach((slot, slotIndex) => {
+      const chipIndex = (mobileOrbitCycle * MOBILE_SLOT_ORDER.length + slotIndex) % mobileChips.length;
+      mobileChips[chipIndex].setAttribute('data-slot', slot);
+    });
+  }
+
+  function startMobileOrbitDrift() {
+    applyMobileOrbitCycle();
+    // Reduced motion / desktop: one static, correctly-assigned set of 4
+    // slots is enough -- no reason to add a recurring timer that would
+    // just reassign the same kind of thing again with no visible change
+    // in reduced motion, or run pointlessly off-screen on desktop.
+    if (reduceMotion || !isMobileViewport.matches) return;
+    mobileOrbitTimer = window.setInterval(() => {
+      mobileOrbitCycle += 1;
+      applyMobileOrbitCycle();
+    }, 5800);
+  }
+
+  function stopMobileOrbitDrift() {
+    if (mobileOrbitTimer) { window.clearInterval(mobileOrbitTimer); mobileOrbitTimer = null; }
+  }
+
   // ---- Cinematic reveal sequence -----------------------------------
   // Passive scenes (dark -> line -> portal -> points -> core) run once
   // on load and end WAITING for the user -- nothing here ever
@@ -119,6 +160,7 @@ import { createAudioController } from './audio-controller.js';
       // the ring to fully drawn instantly).
       addScene('core');
       drawEnterRing(0);
+      startMobileOrbitDrift();
       return;
     }
     let t = 0;
@@ -128,6 +170,7 @@ import { createAudioController } from './audio-controller.js';
     window.setTimeout(() => {
       addScene('core');
       drawEnterRing(600);
+      startMobileOrbitDrift();
     }, (t += PASSIVE_TIMINGS.points));
   }
 
@@ -140,20 +183,35 @@ import { createAudioController } from './audio-controller.js';
     window.setTimeout(() => { overlay.hidden = true; }, fadeMs);
   }
 
-  // Scenes 07-08: ring reacts, then the ecosystem unfolds from the
-  // center, THEN the existing exit fade runs -- see the is-entering/
-  // is-expanded rules in cinematic.css for what each stage animates.
-  // Reduced motion collapses this to instant opacity reveals (no flying
-  // pillars, no long orbital construction), per spec.
+  // Scenes 07-09: ring reacts (entering) -> the ecosystem unfolds from
+  // the center (expanded) -> ONE controlled orbital sweep (orbit-sweep)
+  // -> the forward-depth Enter exit (exiting-depth) -> the existing exit
+  // fade (fadeAndHide) -- see the matching is-* rules in cinematic.css
+  // for what each stage animates. Classes are additive/never removed
+  // (matching runIntroSequence's own pattern), so by the time
+  // is-exiting-depth lands, every earlier scene class is still present
+  // too; cinematic.css's source order (not extra JS bookkeeping) is what
+  // makes the later stage's animation win where two rules could
+  // otherwise apply to the same element. Reduced motion collapses this
+  // to instant opacity reveals (no flying pillars, no orbit, no depth
+  // flight), per spec -- every setTimeout below still fires so the DOM
+  // ends in the same state regardless of motion preference, just with
+  // all delays zeroed and cinematic.css's own reduced-motion overrides
+  // stripping the animations back to instant.
   function runExpansionThenExit() {
     if (ringDrawRaf) cancelAnimationFrame(ringDrawRaf);
+    stopMobileOrbitDrift();
     addScene('entering');
-    const t1 = reduceMotion ? 0 : 480;
     window.setTimeout(() => {
       addScene('expanded');
-      const t2 = reduceMotion ? 0 : 1500;
-      window.setTimeout(fadeAndHide, t2);
-    }, t1);
+      window.setTimeout(() => {
+        addScene('orbit-sweep');
+        window.setTimeout(() => {
+          addScene('exiting-depth');
+          window.setTimeout(fadeAndHide, reduceMotion ? 0 : 950);
+        }, reduceMotion ? 0 : 1650);
+      }, reduceMotion ? 0 : 900);
+    }, reduceMotion ? 0 : 480);
   }
 
   function enter() {
@@ -175,6 +233,7 @@ import { createAudioController } from './audio-controller.js';
     markSeen();
     audio.startFromUserGesture();
     if (ringDrawRaf) cancelAnimationFrame(ringDrawRaf);
+    stopMobileOrbitDrift();
     fadeAndHide();
   }
 

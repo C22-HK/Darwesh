@@ -87,8 +87,8 @@
         '</span>' +
       '</button>' +
     '</nav>' +
-    '<div class="dmnav-backdrop" id="dmnavBackdrop"></div>' +
-    '<div class="dmnav-panel" id="dmnavPanel" role="menu" aria-hidden="true" aria-label="More navigation">' +
+    '<div class="dmnav-backdrop md:hidden" id="dmnavBackdrop"></div>' +
+    '<div class="dmnav-panel md:hidden" id="dmnavPanel" role="menu" aria-hidden="true" aria-label="More navigation">' +
       '<a class="dmnav-row" href="services.html" role="menuitem">' +
         '<span class="dmnav-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></span>' +
         '<span class="dmnav-row-label" data-i18n="nav.services">Services</span>' +

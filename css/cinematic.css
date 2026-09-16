@@ -722,6 +722,21 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
  * ========================================================================= */
 
 #cine-intro {
+  /* Entry-only color reconciliation -- shadows the shared --cine-bg-0/1,
+     --cine-gold-1/2 and --cine-text-primary tokens for every descendant
+     of the entry overlay ONLY (CSS custom properties cascade down the
+     DOM tree, not sideways), matching the requested restrained family:
+     Deep Obsidian / Warm Graphite / Warm Ivory / Smoked Champagne /
+     Champagne Highlight. login.html, signup.html, OTP feedback and every
+     other .cine-scope consumer (Home accents, Map, Admin) never sit
+     inside #cine-intro, so they keep the original global values
+     untouched -- this never edits the site-wide token definitions
+     themselves (see the :root block near the top of this file). */
+  --cine-bg-0: #090B0D;
+  --cine-bg-1: #141514;
+  --cine-gold-1: #C8A66A;
+  --cine-gold-2: #D9BC83;
+  --cine-text-primary: #F3EFE7;
   position: fixed;
   inset: 0;
   z-index: 10000;
@@ -737,7 +752,7 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 1000px 700px at 50% 20%, rgba(198, 154, 75, 0.08), transparent 60%),
+    radial-gradient(ellipse 1000px 700px at 50% 20%, rgba(200, 166, 106, 0.08), transparent 60%),
     radial-gradient(ellipse 800px 600px at 80% 90%, rgba(93, 72, 43, 0.06), transparent 55%);
   pointer-events: none;
   /* Scene 01 "total darkness" keeps only a bare trace of this glow
@@ -762,7 +777,7 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(180deg, transparent 78%, rgba(198,154,75,.05) 92%, transparent 100%),
+    linear-gradient(180deg, transparent 78%, rgba(200,166,106,.05) 92%, transparent 100%),
     radial-gradient(ellipse 620px 900px at -6% 55%, rgba(60,54,44,.5), transparent 60%),
     radial-gradient(ellipse 620px 900px at 106% 55%, rgba(60,54,44,.5), transparent 60%),
     linear-gradient(180deg, rgba(10,11,13,.7) 0%, transparent 22%);
@@ -785,8 +800,8 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
   position: absolute;
   top: 0; bottom: 0; right: 0;
   width: 1.5px;
-  background: linear-gradient(180deg, transparent, rgba(198,154,75,.95) 30%, rgba(198,154,75,.95) 70%, transparent);
-  box-shadow: 0 0 12px rgba(198,154,75,.5);
+  background: linear-gradient(180deg, transparent, rgba(200,166,106,.95) 30%, rgba(200,166,106,.95) 70%, transparent);
+  box-shadow: 0 0 12px rgba(200,166,106,.5);
   opacity: 0;
   z-index: 5;
   pointer-events: none;
@@ -818,8 +833,8 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
 .cine-scene-point {
   position: absolute; top: 50%; left: 50%;
   width: 3px; height: 3px; border-radius: 999px;
-  background: rgba(198, 154, 75, .9);
-  box-shadow: 0 0 6px rgba(198, 154, 75, .6);
+  background: rgba(200, 166, 106, .9);
+  box-shadow: 0 0 6px rgba(200, 166, 106, .6);
   opacity: 0;
   transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
   transition: opacity 450ms ease var(--d, 0ms), transform 650ms cubic-bezier(.16,.84,.24,1) var(--d, 0ms);
@@ -833,26 +848,6 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
 }
 #cine-intro[data-leaving="true"] { opacity: 0; pointer-events: none; }
 #cine-intro[hidden] { display: none; }
-/* Side editorial micro-copy -- desktop only, low-opacity, purely
-   decorative (aria-hidden in markup), echoing the reference's thin
-   architectural captions along the outer edges. */
-.cine-intro-sidecopy {
-  position: absolute;
-  top: 50%; transform: translateY(-50%);
-  writing-mode: vertical-rl;
-  font-family: 'IBM Plex Sans', sans-serif;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  color: rgba(243, 237, 227, 0.22);
-  pointer-events: none;
-  opacity: 0;
-}
-#cine-intro.is-core .cine-intro-sidecopy { animation: cine-fade-up 900ms var(--ease-enter, ease-out) 900ms forwards; }
-.cine-intro-sidecopy--start { inset-inline-start: 3%; }
-.cine-intro-sidecopy--end { inset-inline-end: 3%; transform: translateY(-50%) rotate(180deg); }
-@media (max-width: 1099px) { .cine-intro-sidecopy { display: none; } }
 
 /* Background scroll stays locked only while the overlay is actually up
  * -- removed the instant Enter fires, never left dangling. */
@@ -875,6 +870,38 @@ body.cine-intro-open { overflow: hidden; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---- Orbit-once sweep -------------------------------------------------
+ * After the pillars have flown out to their resting positions (the
+ * existing per-pillar reveal above), this wrapper performs ONE controlled
+ * orbital rotation before settling -- a full 0->360deg turn so it ends
+ * exactly at the already-correct layout (360deg is visually identical to
+ * 0deg), never a partial swing that would leave anything askew. Rotating
+ * the SVG lines/nodes and the text pillars together as one rigid group
+ * (rather than only the dots) keeps every connecting line perfectly
+ * attached to its label throughout the sweep -- the two are laid out in
+ * separate DOM trees (see index.html's own comment on why), so only a
+ * shared parent transform can move them as a single coherent orbit.
+ * transform-origin matches the SVG's own center point (700,450 of its
+ * 1400x900 viewBox, i.e. the geometric middle of the stage). Delayed via
+ * js/intro-entry.js's own timeline (a separate `is-orbit-sweep` class),
+ * not a CSS animation-delay, so its exact start can be tuned alongside
+ * the rest of the post-Enter sequence in one place. */
+.cine-orbit-ecosystem {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+}
+#cine-intro.is-orbit-sweep .cine-orbit-ecosystem {
+  animation: cine-ecosystem-orbit-sweep 1.7s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes cine-ecosystem-orbit-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cine-intro.is-orbit-sweep .cine-orbit-ecosystem { animation: none; }
 }
 
 .cine-orbit-lines {
@@ -903,9 +930,9 @@ body.cine-intro-open { overflow: hidden; }
    (post-Enter), then draw in cascade: inner arc first, mid second,
    outer ring last, matching the spec's explicit ordering. Rotation
    itself only starts once each ring has actually appeared. */
-.cine-orbit-ring { fill: none; stroke: rgba(198, 154, 75, 0.13); stroke-width: 1; transform-origin: 700px 450px; opacity: 0; }
-.cine-orbit-ring--mid { stroke: rgba(198, 154, 75, 0.16); }
-.cine-orbit-ring--inner { stroke: rgba(198, 154, 75, 0.2); }
+.cine-orbit-ring { fill: none; stroke: rgba(200, 166, 106, 0.13); stroke-width: 1; transform-origin: 700px 450px; opacity: 0; }
+.cine-orbit-ring--mid { stroke: rgba(200, 166, 106, 0.16); }
+.cine-orbit-ring--inner { stroke: rgba(200, 166, 106, 0.2); }
 #cine-intro.is-expanded .cine-orbit-ring--inner { opacity: 1; transition: opacity 450ms ease 500ms; animation: cine-orbit-drift 24s linear infinite 950ms; }
 #cine-intro.is-expanded .cine-orbit-ring--mid { opacity: 1; transition: opacity 450ms ease 680ms; animation: cine-orbit-drift 34s linear infinite reverse 1130ms; }
 #cine-intro.is-expanded .cine-orbit-ring--outer { opacity: 1; transition: opacity 450ms ease 860ms; animation: cine-orbit-drift 46s linear infinite 1310ms; }
@@ -913,7 +940,7 @@ body.cine-intro-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .cine-orbit-ring, #cine-intro.is-expanded .cine-orbit-ring { animation: none; opacity: 1; transition: none; } }
 .cine-orbit-path {
   fill: none;
-  stroke: rgba(198, 154, 75, 0.3);
+  stroke: rgba(200, 166, 106, 0.3);
   stroke-width: 1.25;
   opacity: 0;
 }
@@ -926,7 +953,7 @@ body.cine-intro-open { overflow: hidden; }
 .cine-orbit-node {
   r: 3.5;
   fill: none;
-  stroke: rgba(198, 154, 75, 0.85);
+  stroke: rgba(200, 166, 106, 0.85);
   stroke-width: 1.25;
   opacity: 0;
 }
@@ -1007,8 +1034,8 @@ body.cine-intro-open { overflow: hidden; }
   border-radius: 999px;
   display: flex; align-items: center; justify-content: center;
   background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.07), rgba(255,255,255,.01) 62%);
-  border: 1px solid rgba(198, 154, 75, .3);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 10px -5px rgba(198, 154, 75, .4);
+  border: 1px solid rgba(200, 166, 106, .3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 0 10px -5px rgba(200, 166, 106, .4);
   color: rgba(243, 238, 229, .78);
   opacity: 0;
   transform: scale(.6);
@@ -1030,7 +1057,7 @@ body.cine-intro-open { overflow: hidden; }
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: rgba(198, 154, 75, 0.85);
+  color: rgba(200, 166, 106, 0.85);
   font-variant-numeric: tabular-nums;
 }
 .cine-orbit-pillar-text { display: flex; flex-direction: column; gap: 2px; opacity: 0; transition: opacity 450ms cubic-bezier(.16,.84,.24,1); }
@@ -1060,8 +1087,8 @@ body.cine-intro-open { overflow: hidden; }
 .cine-orbit-pillar:hover { transform: translate(var(--fly-x, 0px), calc(-50% - 2px)); }
 #cine-intro.is-expanded .cine-orbit-pillar:hover { transform: translateY(calc(-50% - 2px)); }
 .cine-orbit-pillar:hover .cine-symbol-ring {
-  border-color: rgba(221, 189, 123, .6);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 16px -4px rgba(198, 154, 75, .55);
+  border-color: rgba(217, 188, 131, .6);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 16px -4px rgba(200, 166, 106, .55);
   color: #F3EEE5;
 }
 .cine-orbit-pillar:hover .cine-orbit-label { color: #F3EEE5; }
@@ -1109,62 +1136,93 @@ body.cine-intro-open { overflow: hidden; }
   .cine-intro-mark { font-size: clamp(28px, 8vw, 34px); }
   .cine-intro-statement { max-width: 280px; font-size: 13.5px; line-height: 1.5; }
   .cine-enter-wrap { width: 146px; height: 146px; }
-  .cine-enter-btn { border-color: rgba(215, 180, 115, .5); }
+  .cine-enter-btn { border-color: rgba(200, 166, 106, .5); }
   .cine-enter-btn:hover { transform: scale(1.012); }
 }
 
-/* ---- Mobile pillar carousel -------------------------------------------
+/* ---- Mobile radial orbit -----------------------------------------------
    Dedicated mobile composition (spec: "Do NOT shrink the desktop orbital
-   scene"), not the 10-item two-column diagram hidden above. A native
-   horizontally-scrollable, scroll-snap row -- real swipe/drag for free
-   from the platform, no gesture JS to write or risk breaking. Shows
-   ~3-4 chips at once at this width; a small IntersectionObserver (see
-   index.html) toggles .is-focused on whichever chip is nearest center,
-   giving the "current item slightly stronger" read the spec asks for. */
+   scene into a tiny phone... a true compact radial/orbital composition,
+   only 3-4 nodes visible at once, never a rectangular carousel"), not the
+   10-item two-column diagram hidden above and not the previous
+   horizontal scroll-snap row. .cine-mobile-orbit-cluster (see index.html)
+   wraps the Enter ring together with this orbit so the 4 radial nodes
+   can be positioned relative to Enter's own center; on desktop the
+   cluster carries no special styling and this orbit stays display:none.
+   WHICH 4 of the 10 chips occupy the top/right/bottom/left slots is
+   entirely decided by js/intro-entry.js's mobile-orbit cycle, which sets
+   a `data-slot` attribute per chip -- CSS only positions/transitions
+   whichever slot value it currently finds; a chip with no data-slot sits
+   centered, scaled down and invisible, ready to fly out next cycle. */
 .cine-mobile-orbit { display: none; }
 @media (max-width: 899px) {
-  .cine-mobile-orbit {
-    display: flex; gap: 10px; width: 100%; max-width: 440px;
-    overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
-    padding-inline: calc(50% - 64px);
+  .cine-mobile-orbit-cluster {
+    position: relative;
+    width: min(300px, 82vw);
+    min-height: 250px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-block-start: 4px;
-    /* Mobile's own scaled-down "ecosystem expansion" -- only ~2-3 chips
-       are ever visible at once in this scroll-snap row (spec: "Do NOT
-       try to send 10 elements to all four edges on mobile... 3-4 at
-       once"), so the group fades/rises in together on is-expanded
-       rather than each chip flying out individually. */
-    opacity: 0; transform: translateY(14px);
-    transition: opacity 550ms ease, transform 550ms cubic-bezier(.16,.84,.24,1);
   }
-  #cine-intro.is-expanded .cine-mobile-orbit { opacity: 1; transform: translateY(0); }
-  @media (prefers-reduced-motion: reduce) {
-    .cine-mobile-orbit { transition: none; transform: none; }
+  .cine-mobile-orbit {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transform-origin: 50% 50%;
   }
-  .cine-mobile-orbit::-webkit-scrollbar { display: none; }
+  #cine-intro.is-core .cine-mobile-orbit { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 640ms forwards; }
   .cine-mobile-orbit-chip {
-    flex: none; scroll-snap-align: center;
-    width: 108px; display: flex; flex-direction: column; align-items: center; gap: 3px;
-    padding: 10px 6px; border-radius: 16px;
-    background: rgba(198, 154, 75, .025);
-    border: 1px solid rgba(198, 154, 75, .14);
-    opacity: .5; transform: scale(.9);
-    transition: opacity 240ms ease, transform 240ms ease, border-color 240ms ease;
+    position: absolute;
+    top: 50%; left: 50%;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    width: 76px;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.55);
+    transition: transform 1100ms cubic-bezier(.2,.8,.2,1), opacity 700ms ease;
   }
-  .cine-mobile-orbit-chip.is-focused { opacity: 1; transform: scale(1); border-color: rgba(198, 154, 75, .4); background: rgba(198, 154, 75, .05); }
-  /* The mobile chip's own symbol ring is always visible once its parent
-     .cine-mobile-orbit fades in as a group (see the base rule further
-     up) -- it doesn't get the desktop pillar's independent per-symbol
-     stagger, matching "the active symbol becomes slightly stronger"
-     (handled by .is-focused above) rather than each mobile icon
-     animating in on its own. */
-  .cine-mobile-orbit-chip .cine-symbol-ring { opacity: 1; transform: scale(1); transition: none; width: 26px; height: 26px; margin-block-end: 1px; }
-  .cine-mobile-orbit-chip .cine-symbol-ring svg { width: 13px; height: 13px; }
-  .cine-mobile-orbit-chip.is-focused .cine-symbol-ring { border-color: rgba(221, 189, 123, .55); color: #F3EEE5; }
-  .cine-mobile-orbit-num { font-family: 'IBM Plex Sans', sans-serif; font-size: 9.5px; font-weight: 700; color: rgba(198, 154, 75, .85); }
-  .cine-mobile-orbit-title { font-family: 'Inter', sans-serif; font-size: 11.5px; font-weight: 600; color: var(--cine-text-primary); text-align: center; white-space: nowrap; }
-  .cine-mobile-orbit-desc { font-family: 'Inter', sans-serif; font-size: 9px; color: rgba(243, 237, 227, .42); text-align: center; white-space: nowrap; }
+  .cine-mobile-orbit-chip[data-slot="top"]    { opacity: 1; transform: translate(-50%, -50%) translateY(-112px); }
+  .cine-mobile-orbit-chip[data-slot="right"]  { opacity: 1; transform: translate(-50%, -50%) translateX(102px); }
+  .cine-mobile-orbit-chip[data-slot="bottom"] { opacity: 1; transform: translate(-50%, -50%) translateY(112px); }
+  .cine-mobile-orbit-chip[data-slot="left"]   { opacity: 1; transform: translate(-50%, -50%) translateX(-102px); }
+  [dir="rtl"] .cine-mobile-orbit-chip[data-slot="right"] { transform: translate(-50%, -50%) translateX(-102px); }
+  [dir="rtl"] .cine-mobile-orbit-chip[data-slot="left"]  { transform: translate(-50%, -50%) translateX(102px); }
+  .cine-mobile-orbit-chip .cine-symbol-ring { opacity: 1; transform: scale(1); transition: none; width: 30px; height: 30px; margin-block-end: 1px; }
+  .cine-mobile-orbit-chip .cine-symbol-ring svg { width: 14px; height: 14px; }
+  /* A 76px radial chip has room for one short line only -- the eyebrow
+     number and the descriptor line (both fine on desktop's wide column
+     layout) would just wrap or collide here, so both stay hidden; the
+     symbol + title alone match the spec's "micro-logo, short title,
+     tiny glass ring, no big panels". */
+  .cine-mobile-orbit-num,
+  .cine-mobile-orbit-desc { display: none; }
+  .cine-mobile-orbit-title { font-family: 'Inter', sans-serif; font-size: 10.5px; font-weight: 600; color: var(--cine-text-primary); text-align: center; white-space: nowrap; }
+  /* Scene 07b's "quicker" mobile echo of the desktop orbit-once sweep --
+     the whole visible ring spins one full turn (same 0->360 shape,
+     shorter duration), while any currently-hidden chip (no data-slot
+     yet) fades up to a low ghost opacity so the full ecosystem visibly
+     "joins the motion" rather than appearing to be pulled from nowhere
+     at the exit. */
+  #cine-intro.is-orbit-sweep .cine-mobile-orbit { animation: cine-mobile-orbit-spin 950ms cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes cine-mobile-orbit-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  #cine-intro.is-orbit-sweep .cine-mobile-orbit-chip:not([data-slot]) {
+    opacity: .32;
+    transform: translate(-50%, -50%) scale(.7);
+    transition: opacity 300ms ease, transform 300ms ease;
+  }
+  /* Placed AFTER the orbit-sweep rule above so source order (both
+     selectors share the same #id.class .class specificity) resolves in
+     favor of the depth-exit animation once is-exiting-depth also
+     lands -- both classes are present simultaneously by then, since
+     scene classes are additive/never removed. */
+  #cine-intro.is-exiting-depth .cine-mobile-orbit {
+    animation: cine-depth-nodes-exit 1300ms cubic-bezier(.16,.84,.24,1) forwards;
+  }
   @media (prefers-reduced-motion: reduce) {
     .cine-mobile-orbit-chip { transition: none; }
+    #cine-intro.is-orbit-sweep .cine-mobile-orbit { animation: none; }
   }
 }
 
@@ -1239,10 +1297,10 @@ body.cine-intro-open { overflow: hidden; }
    (a real click always passes through a hover/focus state first on
    pointer devices; touch gets the brighten+glow which is the primary
    cue there). One outward pulse ring, not an explosion. */
-#cine-intro.is-entering .cine-enter-btn { border-color: rgba(198, 154, 75, .9); background: radial-gradient(circle, rgba(198,154,75,.12), rgba(198,154,75,.02) 70%); }
+#cine-intro.is-entering .cine-enter-btn { border-color: rgba(200, 166, 106, .9); background: radial-gradient(circle, rgba(200,166,106,.12), rgba(200,166,106,.02) 70%); }
 #cine-intro.is-entering .cine-enter-wrap::after {
   content: ''; position: absolute; inset: -8px; border-radius: 999px;
-  border: 1px solid rgba(198, 154, 75, .5);
+  border: 1px solid rgba(200, 166, 106, .5);
   animation: cine-pulse-out 600ms cubic-bezier(.16,.84,.24,1) forwards;
   pointer-events: none;
 }
@@ -1254,7 +1312,7 @@ body.cine-intro-open { overflow: hidden; }
   height: 100%;
   border-radius: 999px;
   background: transparent;
-  border: 1px solid rgba(198, 154, 75, 0.4);
+  border: 1px solid rgba(200, 166, 106, 0.4);
   color: var(--cine-text-primary);
   font-family: 'IBM Plex Sans', sans-serif;
   font-size: 11px;
@@ -1270,8 +1328,8 @@ body.cine-intro-open { overflow: hidden; }
   transition: border-color var(--motion-standard, 300ms) var(--ease-premium, ease), transform var(--motion-standard, 300ms) var(--ease-premium, ease), background-color var(--motion-standard, 300ms) var(--ease-premium, ease);
 }
 .cine-enter-btn:hover {
-  border-color: rgba(198, 154, 75, 0.85);
-  background: radial-gradient(circle, rgba(198, 154, 75, 0.1), rgba(198, 154, 75, 0.02) 70%);
+  border-color: rgba(200, 166, 106, 0.85);
+  background: radial-gradient(circle, rgba(200, 166, 106, 0.1), rgba(200, 166, 106, 0.02) 70%);
   transform: scale(1.015);
 }
 .cine-enter-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cine-bg-0), 0 0 0 4px var(--cine-gold-1); }
@@ -1314,13 +1372,110 @@ body.cine-intro-open { overflow: hidden; }
 }
 #cine-intro.is-core .cine-intro-hint { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 760ms forwards; }
 
+/* Mobile-only helper copy, replacing (not duplicating) the shared
+   .cine-intro-hint above on touch -- see the max-width:899px block
+   further up for the display:none swap between the two. */
+.cine-mobile-tap-hint {
+  display: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--cine-text-secondary);
+  opacity: 0;
+  margin-block-start: 2px;
+}
+@media (max-width: 899px) {
+  .cine-intro-hint { display: none; }
+  .cine-mobile-tap-hint { display: block; }
+  #cine-intro.is-core .cine-mobile-tap-hint { animation: cine-fade-up var(--motion-slow, 700ms) var(--ease-enter, ease-out) 760ms forwards; }
+}
+
+/* ---- Forward-depth Enter exit ------------------------------------------
+ * Scene 07b: once the orbit sweep settles, activating Enter no longer
+ * just fades the overlay -- the ecosystem itself pulls in, then
+ * accelerates toward the viewer (scale + blur + fade) while the Enter
+ * ring expands like a portal opening, and only THEN does the whole
+ * overlay dissolve (the existing data-leaving fade in js/intro-entry.js's
+ * fadeAndHide(), fired near the end of this sequence -- reusing that one
+ * opacity transition rather than adding a second competing one on
+ * #cine-intro itself). Deliberately does not touch index.html's actual
+ * Home markup/CSS underneath (out of scope: "Do NOT touch Home") -- the
+ * "Home appears" beat is approximated entirely by this dissolve, not by
+ * animating Home's own elements in.
+ *
+ * Positioned here, AFTER every #cine-intro.is-core reveal rule above --
+ * each of eyebrow/mark/statement/hint/sidecopy/enter-wrap was given its
+ * own `animation: cine-fade-up ... forwards` there, and a forwards-held
+ * animation keeps controlling that element's animated properties
+ * (opacity, transform) indefinitely -- a later plain `opacity`/
+ * `transition` declaration on the SAME property cannot override it, only
+ * an explicit `animation: none` (or a competing `animation` value) can.
+ * Since is-core is never removed (scene classes are additive) and this
+ * selector shares is-core's exact specificity, only SOURCE ORDER decides
+ * which one wins -- hence this block has to come after, not just carry
+ * `animation: none`. */
+#cine-intro.is-exiting-depth .cine-orbit-ecosystem {
+  animation: cine-depth-nodes-exit 1300ms cubic-bezier(.16,.84,.24,1) forwards;
+}
+@keyframes cine-depth-nodes-exit {
+  0%   { transform: scale(1); opacity: 1; filter: blur(0px); }
+  22%  { transform: scale(.93); opacity: 1; filter: blur(0px); }
+  100% { transform: scale(1.7); opacity: 0; filter: blur(3px); }
+}
+#cine-intro.is-exiting-depth .cine-intro-eyebrow,
+#cine-intro.is-exiting-depth .cine-intro-mark,
+#cine-intro.is-exiting-depth .cine-intro-statement,
+#cine-intro.is-exiting-depth .cine-intro-hint,
+#cine-intro.is-exiting-depth .cine-mobile-tap-hint {
+  animation: none;
+  transition: opacity 380ms ease;
+  opacity: 0;
+}
+#cine-intro.is-exiting-depth .cine-enter-btn {
+  transition: border-color 200ms ease, background-color 200ms ease;
+  border-color: var(--cine-gold-2);
+  background: radial-gradient(circle, rgba(200,166,106,.22), rgba(200,166,106,.04) 70%);
+}
+#cine-intro.is-exiting-depth .cine-enter-ring circle { stroke: var(--cine-gold-2); }
+#cine-intro.is-exiting-depth .cine-enter-wrap {
+  animation: cine-enter-portal-expand 1300ms cubic-bezier(.16,.84,.24,1) forwards;
+}
+@keyframes cine-enter-portal-expand {
+  0%   { transform: scale(1); opacity: 1; }
+  28%  { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #cine-intro.is-exiting-depth .cine-orbit-ecosystem,
+  #cine-intro.is-exiting-depth .cine-mobile-orbit,
+  #cine-intro.is-exiting-depth .cine-enter-wrap {
+    animation: none !important;
+  }
+  #cine-intro.is-exiting-depth .cine-intro-eyebrow,
+  #cine-intro.is-exiting-depth .cine-intro-mark,
+  #cine-intro.is-exiting-depth .cine-intro-statement,
+  #cine-intro.is-exiting-depth .cine-intro-hint,
+  #cine-intro.is-exiting-depth .cine-mobile-tap-hint {
+    transition: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cine-intro-eyebrow, .cine-intro-mark, .cine-intro-statement, .cine-enter-wrap, .cine-intro-hint, .cine-intro-logo,
-  .cine-intro-sidecopy, .cine-mobile-orbit-chip {
+  .cine-mobile-orbit, .cine-mobile-tap-hint {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;
   }
+  /* .cine-mobile-orbit-chip is deliberately NOT in the blanket rule above
+     -- forcing opacity:1 on every chip would also reveal the 6 unslotted
+     ones (each still centered/stacked, since a "simple opacity reveal"
+     under reduced motion means no sliding, not "show all 10 at once").
+     Only its transition is suppressed here so the 4 real slot positions
+     resolve instantly instead of animating in; opacity per chip still
+     comes from the ordinary [data-slot] rules above (1 for the 4
+     assigned slots, 0 for the rest). */
+  .cine-mobile-orbit-chip { transition: none !important; }
   #cine-intro { transition: opacity 150ms linear; }
 }
 
@@ -1343,7 +1498,7 @@ body.cine-intro-open { overflow: hidden; }
   cursor: pointer;
   transition: border-color var(--motion-fast, 180ms) var(--ease-premium, ease), color var(--motion-fast, 180ms) var(--ease-premium, ease);
 }
-.cine-audio-toggle:hover { border-color: rgba(198, 154, 75, 0.6); color: var(--cine-gold-2); }
+.cine-audio-toggle:hover { border-color: rgba(200, 166, 106, 0.6); color: var(--cine-gold-2); }
 .cine-audio-toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--cine-bg-0), 0 0 0 4px var(--cine-gold-1); }
 .cine-audio-toggle[hidden] { display: none; }
 
@@ -1977,6 +2132,28 @@ html[dir="rtl"] .cine-scope .dmnav-row-chevron { transform: scaleX(-1); }
 @media (max-width: 767px) and (prefers-reduced-motion: reduce) { .cine-scope .dmnav-backdrop { transition: none; } }
 } /* end @media (max-width: 767px) -- mobile bottom nav */
 
+/* Bug fix: .dmnav-panel/.dmnav-backdrop carry NO styling at all outside
+ * the @media (max-width: 767px) block above -- unlike .dmnav-bar, whose
+ * own base `display:flex` only exists inside that same block (so the
+ * markup's `md:hidden` utility is left free to hide it above 767px, per
+ * that rule's own comment), the panel/backdrop's closed-state
+ * `opacity:0/visibility:hidden/pointer-events:none` ALSO only existed
+ * inside the mobile block, and they carried no `md:hidden` class in the
+ * markup to fall back on. Result: on desktop they rendered as bare,
+ * unstyled, static-flow <div>s -- the panel's first two `.dmnav-row`
+ * links ("Services", "Challenge" + their chevrons) appeared as stray
+ * text at the top-left of every page. js/site-mobile-nav.js now also
+ * adds `md:hidden` to both elements (matching .dmnav-bar's markup), but
+ * this explicit, unconditional rule is the real fix -- it holds even if
+ * the Tailwind utility CSS is ever missing/delayed/blocked, rather than
+ * depending on a same-specificity utility class racing nothing. */
+@media (min-width: 768px) {
+  .cine-scope .dmnav-panel,
+  .cine-scope .dmnav-backdrop {
+    display: none !important;
+  }
+}
+
 /* js/site-header.js's desktop nav links and js/site-mobile-nav.js's
    bottom-nav items are plain <a> tags styled with Tailwind color
    utilities, not one of this file's own named components -- Tailwind's
@@ -2341,7 +2518,7 @@ html[dir="rtl"] .cine-scope .dmnav-row-chevron { transform: scaleX(-1); }
 }
 .cine-intro-skip:hover,
 .cine-intro-skip:focus-visible { color: rgba(243, 237, 227, 0.92); }
-.cine-intro-skip:focus-visible { outline: 1px solid rgba(201, 162, 39, 0.7); outline-offset: 3px; }
+.cine-intro-skip:focus-visible { outline: 1px solid rgba(200, 166, 106, 0.7); outline-offset: 3px; } /* was rgba(201,162,39,.7) -- too mustard/saturated for the Entry palette */
 
 /* =====================================================================
  * MAP CONTROLS + APPROXIMATE-LOCATION UX
