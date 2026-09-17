@@ -24,6 +24,14 @@
 // FAVORITES. js/rail-favorites.js -- the 'buy-'+id convention, shared
 // with every other surface on the site (unchanged).
 import { createFavoritesController } from './rail-favorites.js';
+// Inline SVG icons (currentColor, sized 1em) instead of Material Symbols
+// ligature text -- see js/dw-icons.js's header comment for why: that font
+// depends on fonts.googleapis.com and renders an empty box when it can't
+// load. dwIcon() outputs a full <svg>, so the call sites below drop the
+// `material-symbols-outlined` class (nothing left for it to style) and
+// keep every existing `text-[Npx]` size class as-is, since the svg is
+// sized in `em` and inherits it.
+import { dwIcon } from './dw-icons.js';
 
 const PAGE_SIZE = 12;
 const PROPERTY_TYPES = ['house', 'villa', 'apartment', 'land', 'building', 'office', 'shop', 'commercialProperty'];
@@ -112,7 +120,7 @@ export function mountPropertyDiscovery(root, opts) {
 
     <section class="pd-search-surface">
       <div class="pd-search-row glass-spatial">
-        <span class="material-symbols-outlined pd-search-icon" aria-hidden="true">search</span>
+        <span class="dw-icon pd-search-icon" aria-hidden="true">${dwIcon('search')}</span>
         <input id="pdSearchInput" class="pd-search-input" type="text" data-i18n-placeholder-manual="discover.searchPlaceholder" placeholder="Search city, neighborhood or property" aria-label="${trf('discover.searchPlaceholder', 'Search city, neighborhood or property', {})}"/>
       </div>
       <div class="pd-controls-row">
@@ -148,17 +156,17 @@ export function mountPropertyDiscovery(root, opts) {
           <option value="1">1+</option><option value="2">2+</option><option value="3">3+</option><option value="4">4+</option><option value="5">5+</option>
         </select>
         <button id="pdMoreFiltersBtn" type="button" class="pd-btn-outline glass-light" aria-controls="pdFilterDrawer">
-          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">tune</span>
+          <span class="dw-icon text-[18px]" aria-hidden="true">${dwIcon('tune')}</span>
           <span data-i18n="discover.moreFilters">More Filters</span>
         </button>
       </div>
       <div class="pd-actions-row">
         <a id="pdMapLink" class="pd-btn-ghost glass-light" href="map.html?type=sale">
-          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">map</span>
+          <span class="dw-icon text-[18px]" aria-hidden="true">${dwIcon('map')}</span>
           <span data-i18n="buy.viewOnMap">View on Map</span>
         </a>
         <button id="pdSaveSearchBtn" type="button" class="pd-btn-ghost glass-light">
-          <span class="material-symbols-outlined text-[18px]" aria-hidden="true">bookmark_add</span>
+          <span class="dw-icon text-[18px]" aria-hidden="true">${dwIcon('bookmark_add')}</span>
           <span data-i18n="map.saveSearch">Save Search</span>
         </button>
         <select id="pdSortFilter" class="pd-select glass-light pd-sort-select" aria-label="${trf('discover.sortLabel', 'Sort', {})}">
@@ -184,13 +192,13 @@ export function mountPropertyDiscovery(root, opts) {
     <section id="pdGrid" class="pd-grid" data-density="${density}" data-mobile-density="${mobileDensity}" aria-live="polite"></section>
 
     <div id="pdEmptyState" class="pd-state hidden">
-      <span class="material-symbols-outlined pd-state-icon" aria-hidden="true">search_off</span>
+      <span class="dw-icon pd-state-icon" aria-hidden="true">${dwIcon('search_off')}</span>
       <h2 class="pd-state-title" data-i18n="discover.emptyTitle">No properties match yet</h2>
       <p class="pd-state-body" data-i18n="discover.emptyBody">Try a different city, price range or property type.</p>
     </div>
     <p id="pdNoLocalMatches" class="pd-state-inline hidden" data-i18n="rent.noLocalMatches">No loaded listings match these filters yet. Try Load More or adjust your filters.</p>
     <div id="pdErrorState" class="pd-state hidden">
-      <span class="material-symbols-outlined pd-state-icon pd-state-icon--error" aria-hidden="true">error</span>
+      <span class="dw-icon pd-state-icon pd-state-icon--error" aria-hidden="true">${dwIcon('error')}</span>
       <h2 class="pd-state-title" data-i18n="discover.errorTitle">Couldn't load listings</h2>
       <p class="pd-state-body" data-i18n="discover.errorBody">Please check your connection and try again.</p>
       <button id="pdRetryBtn" type="button" class="pd-btn-primary" data-i18n="common.retry">Retry</button>
@@ -198,7 +206,7 @@ export function mountPropertyDiscovery(root, opts) {
 
     <div class="pd-pagination">
       <button id="pdLoadMoreBtn" type="button" class="pd-btn-outline glass-light hidden">
-        <span id="pdLoadMoreSpinner" class="hidden material-symbols-outlined text-[18px] animate-spin" aria-hidden="true">progress_activity</span>
+        <span id="pdLoadMoreSpinner" class="hidden dw-icon text-[18px] animate-spin" aria-hidden="true">${dwIcon('progress_activity')}</span>
         <span data-i18n="rent.loadMore">Load More</span>
       </button>
       <p id="pdExhaustedNote" class="pd-exhausted-note hidden" data-i18n="rent.allLoaded">You've reached the end of the list.</p>
@@ -208,7 +216,7 @@ export function mountPropertyDiscovery(root, opts) {
       <div class="pd-drawer-panel glass-spatial">
         <div class="pd-drawer-head">
           <h3 class="pd-drawer-title" data-i18n="common.filters">Filters</h3>
-          <button id="pdFilterCloseBtn" type="button" class="pd-drawer-close" aria-label="Close"><span class="material-symbols-outlined">close</span></button>
+          <button id="pdFilterCloseBtn" type="button" class="pd-drawer-close" aria-label="Close"><span class="dw-icon">${dwIcon('close')}</span></button>
         </div>
         <div class="pd-drawer-grid">
           <div>
@@ -386,7 +394,7 @@ export function mountPropertyDiscovery(root, opts) {
 
   function showToast(msg, icon) {
     const el = $('pdToast');
-    el.innerHTML = `${icon ? `<span class="material-symbols-outlined text-[18px]">${icon}</span>` : ''}<span>${msg}</span>`;
+    el.innerHTML = `${icon ? `<span class="dw-icon text-[18px]">${dwIcon(icon)}</span>` : ''}<span>${msg}</span>`;
     el.classList.add('show');
     clearTimeout(showToast._t);
     showToast._t = setTimeout(() => el.classList.remove('show'), 2600);
@@ -404,16 +412,16 @@ export function mountPropertyDiscovery(root, opts) {
 
   function card(l) {
     const badge = l.verified ? `<div class="pd-verified-badge">
-        <span class="material-symbols-outlined" aria-hidden="true">verified</span>
+        <span class="dw-icon" aria-hidden="true">${dwIcon('verified')}</span>
         <span>${esc(tr('common.verified', 'Verified'))}</span>
       </div>` : '';
     const favActive = fav.isFavorite(l.id);
     const favLabel = favActive ? tr('discover.removeFavoriteAria', 'Remove from favorites') : tr('discover.saveFavoriteAria', 'Save to favorites');
     const favBtn = `<button type="button" onclick="event.preventDefault(); event.stopPropagation(); window.__pdToggleFavorite('${l.id}');" class="pd-fav-btn ${favActive ? 'is-active' : ''}" aria-label="${esc(favLabel)}">
-        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' ${favActive ? 1 : 0};" aria-hidden="true">favorite</span>
+        <span class="dw-icon" aria-hidden="true">${dwIcon('favorite', { filled: favActive })}</span>
       </button>`;
     const img = l.img ? esc(l.img) : null;
-    const noImage = `<span class="material-symbols-outlined text-[32px]" aria-hidden="true">home_work</span><span class="font-body-md text-[11px] px-3 text-center">${listingNoImageLabel()}</span>`;
+    const noImage = `<span class="dw-icon text-[32px]" aria-hidden="true">${dwIcon('home_work')}</span><span class="font-body-md text-[11px] px-3 text-center">${listingNoImageLabel()}</span>`;
     return `
     <a href="listing.html?id=${encodeURIComponent(l.id)}" class="pd-card glass-spatial relative overflow-hidden group block">
       <div class="pd-card-media relative overflow-hidden">
@@ -426,12 +434,12 @@ export function mountPropertyDiscovery(root, opts) {
       </div>
       <div class="pd-card-body">
         <h3 class="pd-card-title">${esc(l.title)}</h3>
-        <p class="pd-card-loc"><span class="material-symbols-outlined text-[15px]" aria-hidden="true">location_on</span>${l.address ? esc(l.address) + ', ' : ''}${esc(cityLabel(l.city))}</p>
+        <p class="pd-card-loc"><span class="dw-icon text-[15px]" aria-hidden="true">${dwIcon('location_on')}</span>${l.address ? esc(l.address) + ', ' : ''}${esc(cityLabel(l.city))}</p>
         <div class="pd-card-foot">
           <div class="pd-card-meta">
-            <span><span class="material-symbols-outlined text-[16px]" aria-hidden="true">bed</span>${l.beds}</span>
-            <span><span class="material-symbols-outlined text-[16px]" aria-hidden="true">bathtub</span>${l.baths}</span>
-            <span><span class="material-symbols-outlined text-[16px]" aria-hidden="true">square_foot</span>${l.sqft}m²</span>
+            <span><span class="dw-icon text-[16px]" aria-hidden="true">${dwIcon('bed')}</span>${l.beds}</span>
+            <span><span class="dw-icon text-[16px]" aria-hidden="true">${dwIcon('bathtub')}</span>${l.baths}</span>
+            <span><span class="dw-icon text-[16px]" aria-hidden="true">${dwIcon('square_foot')}</span>${l.sqft}m²</span>
           </div>
           <span class="pd-card-price-wrap">
             <span class="pd-card-price">${fmtPrice(l)}</span>

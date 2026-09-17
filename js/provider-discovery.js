@@ -28,6 +28,13 @@
 // contact detail because nothing here ever fetches one.
 import { SERVICE_CATALOG, getService } from './service-catalog.js';
 import { renderEmptyState, renderErrorState } from './profile-shell.js';
+// Inline SVG icons (currentColor, 1em) for Professional Network's own
+// markup below -- see js/dw-icons.js's header comment. The OLD `card()`
+// render function further down (service.html's single-role default,
+// never used by build.html/renovate.html once they pass their own
+// cardRenderer) is intentionally left on Material Symbols -- out of
+// scope for this pass.
+import { dwIcon } from './dw-icons.js';
 
 function tr(key, fallback) { return (window.t && window.t(key)) || fallback; }
 function trf(key, fallback, vars) {
@@ -98,7 +105,7 @@ export function mountProviderDiscovery(root, opts) {
     <div class="svc-toolbar mb-5" role="group" aria-label="${esc(tr('pd.filtersLabel', 'Filter professionals'))}">
       <input class="ps-input svc-city-input" type="text" maxlength="100" autocomplete="off" data-pd="city"/>
       <button type="button" class="svc-filter-chip" data-pd="verified" aria-pressed="false">
-        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">verified</span>
+        <span class="dw-icon text-[16px]" aria-hidden="true">${dwIcon('verified')}</span>
         <span data-pd="verifiedLabel"></span>
       </button>
       ${showRoleChips ? `<div class="flex flex-wrap gap-2" data-pd="roles" role="group" aria-label="${esc(tr('pd.roleLabel', 'Filter by profession'))}"></div>` : ''}
@@ -233,7 +240,7 @@ export function mountProviderDiscovery(root, opts) {
       // city, saying it back is more useful than a generic line.
       const narrowed = all.length > 0;
       renderEmptyState(q('empty'), {
-        icon: services[0].fallbackIcon,
+        icon: dwIcon(services[0].fallbackIcon) || services[0].fallbackIcon,
         title: narrowed
           ? (cityFilter
             ? trf('pd.emptyCity', 'No professionals match "{city}" yet.', { city: cityFilter })
@@ -278,7 +285,8 @@ export function mountProviderDiscovery(root, opts) {
       hide(q('grid'));
       renderErrorState(q('error'), {
         message: tr('svc.loadError', "Couldn't load providers. Please check your connection and try again."),
-        onRetry: load
+        onRetry: load,
+        icon: dwIcon('error')
       });
       show(q('error'));
     }
@@ -320,9 +328,9 @@ function professionalNetworkCard(p, svc) {
   const specialties = Array.isArray(p.specialties) ? p.specialties.filter(Boolean).slice(0, 3) : [];
   const avatar = isSafeHttpUrl(p.photoOrLogoUrl)
     ? `<div class="pn-avatar" style="background-image:url('${esc(p.photoOrLogoUrl)}')"></div>`
-    : `<div class="pn-avatar pn-avatar--fallback"><span class="material-symbols-outlined" aria-hidden="true">${esc(svc.fallbackIcon)}</span></div>`;
+    : `<div class="pn-avatar pn-avatar--fallback"><span class="dw-icon" aria-hidden="true">${dwIcon(svc.fallbackIcon)}</span></div>`;
   const badge = p.verified === true
-    ? `<span class="pn-badge"><span class="material-symbols-outlined text-[12px]" aria-hidden="true">verified</span>${esc(tr('rp.verified', 'Verified'))}</span>` : '';
+    ? `<span class="pn-badge"><span class="dw-icon text-[12px]" aria-hidden="true">${dwIcon('verified')}</span>${esc(tr('rp.verified', 'Verified'))}</span>` : '';
   const years = typeof p.experienceYears === 'number' && p.experienceYears > 0
     ? `<span class="pn-years">${esc(trf('pd.years', '{n} years experience', { n: p.experienceYears }))}</span>` : '';
   // Two parallel chip renderings, toggled by CSS per density -- not a
@@ -341,14 +349,14 @@ function professionalNetworkCard(p, svc) {
             ${badge}
           </div>
           <p class="pn-card-role">${esc(tr(svc.titleKey, svc.title))}</p>
-          ${place ? `<p class="pn-card-place"><span class="material-symbols-outlined text-[13px]" aria-hidden="true">location_on</span>${place}</p>` : ''}
+          ${place ? `<p class="pn-card-place"><span class="dw-icon text-[13px]" aria-hidden="true">${dwIcon('location_on')}</span>${place}</p>` : ''}
         </div>
       </div>
       ${years || specialties.length ? `<div class="pn-card-foot">
         ${years}
         ${specialties.length ? `<div class="pn-card-chips">${chipsFull}${chipsSummary}</div>` : ''}
       </div>` : ''}
-      <span class="pn-card-cta">${esc(tr('network.viewProfile', 'View Profile'))}<span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span></span>
+      <span class="pn-card-cta">${esc(tr('network.viewProfile', 'View Profile'))}<span class="dw-icon text-[16px]" aria-hidden="true">${dwIcon('arrow_forward')}</span></span>
     </a>`;
 }
 

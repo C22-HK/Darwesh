@@ -76,29 +76,46 @@ export function renderSkeletonRows(container, count, heightPx = 56) {
   }
 }
 
+// `icon` is normally a Material Symbols ligature name (the long-standing
+// contract every other caller of this shared component still uses). A
+// caller may instead pass pre-rendered inline-SVG markup (a string
+// starting with '<svg') to sidestep that font entirely -- see
+// js/provider-discovery.js's calls, which do this so Property Discovery /
+// Professional Network's empty & error states never show an empty box
+// when fonts.googleapis.com is unreachable. Every other existing caller
+// keeps passing a plain icon name and renders exactly as before.
+function iconMarkup(icon, extraClass) {
+  return icon.trim().startsWith('<svg')
+    ? `<span class="dw-icon ${extraClass}" aria-hidden="true">${icon}</span>`
+    : `<span class="material-symbols-outlined ${extraClass}" aria-hidden="true">${icon}</span>`;
+}
+
 export function renderEmptyState(container, { icon = 'inbox', title, hint }) {
   container.innerHTML = `
     <div class="ps-empty">
-      <span class="material-symbols-outlined text-[32px] text-on-surface-variant opacity-60" aria-hidden="true">${icon}</span>
+      ${iconMarkup(icon, 'text-[32px] text-on-surface-variant opacity-60')}
       <p class="font-body-md text-[14px] text-on-surface font-medium mt-3">${title}</p>
       ${hint ? `<p class="font-body-md text-[13px] text-on-surface-variant mt-1">${hint}</p>` : ''}
     </div>
   `;
 }
 
-export function renderErrorState(container, { message, onRetry }) {
+export function renderErrorState(container, { message, onRetry, icon = 'error' }) {
   container.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'ps-empty';
   wrap.innerHTML = `
-    <span class="material-symbols-outlined text-[32px] text-error opacity-80" aria-hidden="true">error</span>
+    ${iconMarkup(icon, 'text-[32px] text-error opacity-80')}
     <p class="font-body-md text-[14px] text-on-surface font-medium mt-3">${message}</p>
   `;
   if (onRetry) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'ps-btn mt-4 border border-outline-variant rounded-full px-4 py-2 font-label-caps text-label-caps text-on-surface hover:bg-surface-container transition-colors';
-    btn.textContent = 'Retry';
+    // Was a bare 'Retry' literal -- never translated regardless of the
+    // active language, unlike every other error state in the codebase
+    // (e.g. js/admin-map.js's tr('admin.entity.retry','Retry')).
+    btn.textContent = (window.t && window.t('common.retry')) || 'Retry';
     btn.addEventListener('click', onRetry);
     wrap.appendChild(btn);
   }
