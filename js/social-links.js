@@ -8,10 +8,7 @@
 //   Facebook   https://www.facebook.com/share/1DXgmDgqMj/?mibextid=wwXIfr
 //   Instagram  https://www.instagram.com/darwesh.group?igsi=ZGZ2MHVkdjFxbWYx&utm_source=qr
 //   TikTok     https://www.tiktok.com/@darwesh.group1?_r=1&_t=ZS-997ylcT8S0K
-// (about.html also links a Threads profile. Threads is not one of the six
-// platforms this registry's consumers were asked to support, so it is
-// deliberately left out here -- adding it later is a one-line addition,
-// not a redesign.)
+//   Threads    https://www.threads.com/@darwesh.group?igshid=NTc4MTIwNjQ2YQ==
 //
 // No official YouTube, LinkedIn, or X (Twitter) profile exists anywhere
 // in this codebase. Their entries below carry url: null on purpose --
@@ -38,6 +35,12 @@ export const SOCIAL_LINKS = [
     label: 'Facebook',
     handle: null,
     url: 'https://www.facebook.com/share/1DXgmDgqMj/?mibextid=wwXIfr',
+  },
+  {
+    key: 'threads',
+    label: 'Threads',
+    handle: '@darwesh.group',
+    url: 'https://www.threads.com/@darwesh.group?igshid=NTc4MTIwNjQ2YQ==',
   },
   { key: 'youtube', label: 'YouTube', handle: null, url: null },
   { key: 'linkedin', label: 'LinkedIn', handle: null, url: null },
