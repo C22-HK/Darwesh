@@ -1187,6 +1187,220 @@ html[lang="tr"] .cine-scope .lang-option[data-lang="tr"] {
  * `.md\:hidden{display:none}` utility, so it would otherwise always win
  * and leave the bar visible above 768px regardless of that class.
  * ------------------------------------------------------------------------ */
+/* ---- Shared Liquid Glass mode selector -- Buy|Rent|All (Property
+ * Discovery) and Build|Renovate|All (Professional Network) both use this
+ * ONE component, and the same three reusable glass "levels" (glass-light/
+ * glass-spatial/glass-hero, defined here) back every glass surface in
+ * both systems' CSS files (css/property-discovery.css,
+ * css/professional-network.css). Real material, not `rgba()+blur`: each
+ * level layers a translucent tint, a top specular streak (::before), an
+ * inset top/bottom edge-light split (bright top border, dark bottom
+ * border -- light entering from above), and a soft outer shadow, so the
+ * surface reads as glass with depth rather than a flat tinted rectangle.
+ * ---- */
+.cine-scope .glass-light,
+.cine-scope .glass-spatial,
+.cine-scope .glass-hero {
+  position: relative;
+  isolation: isolate;
+}
+.cine-scope .glass-light::before,
+.cine-scope .glass-spatial::before,
+.cine-scope .glass-hero::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; z-index: 1;
+}
+
+/* Level 1 -- chips, verified badges, filter pills: a thin, quiet film. */
+.cine-scope .glass-light {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014));
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-block-end-color: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 6px 14px -6px rgba(0, 0, 0, 0.30);
+}
+.cine-scope .glass-light::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 60%);
+}
+
+/* Level 2 -- search bar, mode switch, cards, filter drawer: the primary
+ * material. Same recipe .dmnav-bar proved on Home's mobile nav, applied
+ * generically. */
+.cine-scope .glass-spatial {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.062), rgba(255, 255, 255, 0.02) 55%, rgba(255, 255, 255, 0.009));
+  backdrop-filter: blur(26px) saturate(150%) contrast(103%);
+  -webkit-backdrop-filter: blur(26px) saturate(150%) contrast(103%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-block-start-color: rgba(255, 255, 255, 0.18);
+  border-block-end-color: rgba(0, 0, 0, 0.26);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 24px 52px -18px rgba(0, 0, 0, 0.52), 0 6px 16px -6px rgba(0, 0, 0, 0.30);
+}
+.cine-scope .glass-spatial::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0.022) 22%, transparent 48%);
+}
+/* Asymmetric optical fleck -- a faint warm reflection on only PART of the
+ * top-end edge and a cooler counter-glow low on the opposite corner, so the
+ * surface reads as a physical curved object catching light unevenly rather
+ * than a flat tinted rectangle lit head-on. Kept very low-opacity: this is
+ * meant to be felt more than seen. */
+.cine-scope .glass-spatial::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; z-index: 1;
+  background:
+    radial-gradient(140px 70px at 86% 4%, rgba(224, 190, 130, 0.12), transparent 70%),
+    radial-gradient(120px 90px at 6% 100%, rgba(140, 170, 200, 0.05), transparent 72%);
+}
+
+/* Level 3 -- the selected mode segment / a single focal interaction only.
+ * Warm champagne light actually entering the material, not a solid fill. */
+.cine-scope .glass-hero {
+  background-image: linear-gradient(165deg, var(--ps-color-gold-glass-1) 0%, var(--ps-color-gold-glass-2) 65%, rgba(224, 190, 130, 0.05) 100%);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid var(--ps-color-gold-glass-border);
+  border-block-start-color: rgba(242, 224, 186, 0.55);
+  box-shadow: 0 0 0 1px rgba(224, 190, 130, 0.06), 0 0 20px var(--ps-color-gold-glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.20), 0 10px 26px -10px rgba(0, 0, 0, 0.4);
+}
+.cine-scope .glass-hero::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.04) 30%, transparent 55%);
+}
+
+.cine-scope .dw-mode-switch {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 999px;
+}
+.cine-scope .dw-mode-switch-btn {
+  position: relative;
+  padding-inline: 22px;
+  min-height: 42px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 13px; font-weight: 600;
+  color: var(--ps-color-on-surface-variant);
+  transition: color var(--motion-standard, 320ms) var(--ease-premium, ease),
+              background-color var(--motion-standard, 320ms) var(--ease-premium, ease),
+              border-color var(--motion-standard, 320ms) var(--ease-premium, ease),
+              box-shadow var(--motion-standard, 320ms) var(--ease-premium, ease),
+              transform var(--motion-fast, 180ms) var(--ease-premium, ease);
+}
+.cine-scope .dw-mode-switch-btn:hover { color: var(--ps-color-on-surface); background-color: rgba(255, 255, 255, 0.035); }
+.cine-scope .dw-mode-switch-btn:active { transform: scale(0.97); }
+.cine-scope .dw-mode-switch-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .dw-mode-switch-btn.is-active {
+  color: var(--ps-color-gold-glass-text);
+  background-image: linear-gradient(165deg, var(--ps-color-gold-glass-1) 0%, var(--ps-color-gold-glass-2) 70%);
+  border-color: var(--ps-color-gold-glass-border);
+  box-shadow: 0 0 14px var(--ps-color-gold-glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .dw-mode-switch-btn { transition: none; }
+}
+
+/* ---- Shared View Density control -- Property Discovery and Professional
+ * Network both use this ONE small component to switch the desktop grid
+ * between 3/4/5 columns. Deliberately subordinate to .dw-mode-switch: half
+ * the touch target, icon-only, no visible label chrome at rest -- it must
+ * read as a quiet utility, not a second mode selector. Desktop only (see
+ * each page's own CSS for the >=1200px reveal + tablet/mobile hide). ---- */
+.cine-scope .dw-density-switch {
+  display: none;
+  align-items: stretch;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+}
+.cine-scope .dw-density-switch-btn {
+  position: relative;
+  width: 28px; height: 24px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ps-color-on-surface-variant);
+  transition: color var(--motion-fast, 180ms) var(--ease-premium, ease),
+              background-color var(--motion-fast, 180ms) var(--ease-premium, ease),
+              border-color var(--motion-fast, 180ms) var(--ease-premium, ease),
+              box-shadow var(--motion-fast, 180ms) var(--ease-premium, ease);
+}
+.cine-scope .dw-density-switch-btn svg { display: block; }
+.cine-scope .dw-density-switch-btn:hover { color: var(--ps-color-on-surface); background-color: rgba(255, 255, 255, 0.045); }
+.cine-scope .dw-density-switch-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .dw-density-switch-btn.is-active {
+  color: var(--ps-color-gold-glass-text);
+  background-image: linear-gradient(165deg, var(--ps-color-gold-glass-1) 0%, var(--ps-color-gold-glass-2) 72%);
+  border-color: var(--ps-color-gold-glass-border);
+  box-shadow: 0 0 8px var(--ps-color-gold-glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .dw-density-switch-btn { transition: none; }
+}
+/* Desktop-only, per spec: tablet is a fixed 2-column layout, so a 3/4/5
+ * chooser has nothing to choose between there or on mobile (which has its
+ * own, separate 2/3 chooser below) -- it would just be visual noise. */
+@media (min-width: 1200px) {
+  .cine-scope .dw-density-switch { display: inline-flex; }
+}
+
+/* ---- Mobile View Density (2/3 columns) -- deliberately a smaller, quieter
+ * sibling of .dw-density-switch above, not a shrunk copy: half the touch
+ * target, tighter padding, no label text. Property Discovery and
+ * Professional Network both use this. Mobile-only (<640px); tablet stays a
+ * fixed 2 columns with no chooser, matching .dw-density-switch's own
+ * desktop-only reveal immediately above. ---- */
+.cine-scope .dw-density-switch-sm {
+  display: none;
+  align-items: stretch;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+}
+.cine-scope .dw-density-switch-sm-btn {
+  position: relative;
+  width: 22px; height: 20px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ps-color-on-surface-variant);
+  transition: color var(--motion-fast, 180ms) var(--ease-premium, ease),
+              background-color var(--motion-fast, 180ms) var(--ease-premium, ease),
+              border-color var(--motion-fast, 180ms) var(--ease-premium, ease),
+              box-shadow var(--motion-fast, 180ms) var(--ease-premium, ease);
+}
+.cine-scope .dw-density-switch-sm-btn svg { display: block; }
+.cine-scope .dw-density-switch-sm-btn:hover { color: var(--ps-color-on-surface); background-color: rgba(255, 255, 255, 0.045); }
+.cine-scope .dw-density-switch-sm-btn:focus-visible { outline: none; box-shadow: var(--ps-focus-ring); }
+.cine-scope .dw-density-switch-sm-btn.is-active {
+  color: var(--ps-color-gold-glass-text);
+  background-image: linear-gradient(165deg, var(--ps-color-gold-glass-1) 0%, var(--ps-color-gold-glass-2) 72%);
+  border-color: var(--ps-color-gold-glass-border);
+  box-shadow: 0 0 6px var(--ps-color-gold-glass-glow), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .dw-density-switch-sm-btn { transition: none; }
+}
+@media (max-width: 639px) {
+  .cine-scope .dw-density-switch-sm { display: inline-flex; }
+}
+
+/* Sticky/floating placement on mobile (Property Discovery + Professional
+ * Network both use this) -- stays reachable while the results feed
+ * scrolls, without duplicating the fixed-bottom real estate the
+ * bottom-nav (.dmnav-bar) already owns. */
+@media (max-width: 767px) {
+  .cine-scope .dw-mode-switch-sticky {
+    position: sticky; top: calc(76px + 10px); z-index: 20;
+    margin-inline: auto; width: fit-content;
+  }
+}
+
 @media (max-width: 767px) {
 .cine-scope .dmnav-bar {
   position: fixed;

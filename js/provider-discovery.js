@@ -96,11 +96,10 @@ export function mountProviderDiscovery(root, opts) {
 
   root.innerHTML = `
     <div class="svc-toolbar mb-5" role="group" aria-label="${esc(tr('pd.filtersLabel', 'Filter professionals'))}">
-      <input class="ps-input svc-city-input" type="text" maxlength="100" autocomplete="off"
-             data-pd="city" data-i18n-placeholder="svc.filterCityPlaceholder" placeholder="Filter by city"/>
+      <input class="ps-input svc-city-input" type="text" maxlength="100" autocomplete="off" data-pd="city"/>
       <button type="button" class="svc-filter-chip" data-pd="verified" aria-pressed="false">
         <span class="material-symbols-outlined text-[16px]" aria-hidden="true">verified</span>
-        <span data-i18n="svc.verifiedOnly">Verified only</span>
+        <span data-pd="verifiedLabel"></span>
       </button>
       ${showRoleChips ? `<div class="flex flex-wrap gap-2" data-pd="roles" role="group" aria-label="${esc(tr('pd.roleLabel', 'Filter by profession'))}"></div>` : ''}
       ${showProviderTypes ? `<div class="flex flex-wrap gap-2" data-pd="ptypes" role="group" aria-label="${esc(tr('pd.providerTypeLabel', 'Filter by provider type'))}"></div>` : ''}
@@ -119,6 +118,23 @@ export function mountProviderDiscovery(root, opts) {
   const q = (name) => root.querySelector(`[data-pd="${name}"]`);
   const show = (n) => n && n.classList.remove('hidden');
   const hide = (n) => n && n.classList.add('hidden');
+
+  // Set directly from tr() rather than via data-i18n-placeholder/data-i18n:
+  // this toolbar is built well after the page's own DOMContentLoaded
+  // translation pass (it waits on a dynamic Firestore-SDK import first),
+  // and js/i18n.js has no re-scan/MutationObserver mechanism -- a
+  // data-i18n* attribute on markup injected this late is simply never
+  // picked up, so the city placeholder and "Verified only" label stayed
+  // permanently English regardless of the active language. Re-applied on
+  // every darwesh:langchange too, for the same reason.
+  function applyToolbarI18n() {
+    q('city').placeholder = tr('svc.filterCityPlaceholder', 'Filter by city');
+    q('city').setAttribute('aria-label', tr('svc.filterCityPlaceholder', 'Filter by city'));
+    const label = q('verifiedLabel');
+    if (label) label.textContent = tr('svc.verifiedOnly', 'Verified only');
+  }
+  applyToolbarI18n();
+  document.addEventListener('darwesh:langchange', applyToolbarI18n);
 
   if (showRoleChips) {
     const wrap = q('roles');
@@ -229,7 +245,8 @@ export function mountProviderDiscovery(root, opts) {
       return;
     }
     hide(q('empty'));
-    q('grid').innerHTML = shown.map(card).join('');
+    const renderCard = opts.cardRenderer || card;
+    q('grid').innerHTML = shown.map((p) => renderCard(p, catalogByType(p.serviceType))).join('');
     show(q('grid'));
   }
 
@@ -282,4 +299,231 @@ export function mountProviderDiscovery(root, opts) {
   document.addEventListener('darwesh:langchange', () => { if (all.length) render(); });
 
   load();
+}
+
+// ---------------------------------------------------------------------
+// Professional Network card -- redesigned from scratch for build.html /
+// renovate.html (this pass). The median real provider has only a name,
+// a role and maybe a city (see the completion report's field-population
+// audit): photo, bio and years-experience are all optional at signup and
+// commonly blank. The OLD card (`card()` above, still used unchanged by
+// service.html) gave every provider a full-width 16:9 media block, which
+// read as a large empty rectangle whenever there was no photo -- exactly
+// what this card avoids. Media is now a small fixed-size avatar tile
+// that only ever occupies its own corner: a real photo fills it, a
+// missing one gets the role's own icon on a tinted glass tile, so a
+// no-photo card still reads as complete, not broken.
+// ---------------------------------------------------------------------
+function professionalNetworkCard(p, svc) {
+  const name = esc(p.displayName || p.companyName || '');
+  const place = [p.city, p.district].filter(Boolean).map(esc).join(' · ');
+  const specialties = Array.isArray(p.specialties) ? p.specialties.filter(Boolean).slice(0, 3) : [];
+  const avatar = isSafeHttpUrl(p.photoOrLogoUrl)
+    ? `<div class="pn-avatar" style="background-image:url('${esc(p.photoOrLogoUrl)}')"></div>`
+    : `<div class="pn-avatar pn-avatar--fallback"><span class="material-symbols-outlined" aria-hidden="true">${esc(svc.fallbackIcon)}</span></div>`;
+  const badge = p.verified === true
+    ? `<span class="pn-badge"><span class="material-symbols-outlined text-[12px]" aria-hidden="true">verified</span>${esc(tr('rp.verified', 'Verified'))}</span>` : '';
+  const years = typeof p.experienceYears === 'number' && p.experienceYears > 0
+    ? `<span class="pn-years">${esc(trf('pd.years', '{n} years experience', { n: p.experienceYears }))}</span>` : '';
+  // Two parallel chip renderings, toggled by CSS per density -- not a
+  // re-render. Mobile Compact (3-column) shows a "+N skills" summary
+  // instead of individual chips (data is never dropped, only summarized);
+  // every other density shows .pn-chips-full and hides the summary.
+  const chipsFull = specialties.length ? `<div class="pn-chips-full">${specialties.map((s) => `<span class="pn-chip">${esc(s)}</span>`).join('')}</div>` : '';
+  const chipsSummary = specialties.length ? `<span class="pn-chip-summary">${esc(trf('network.skillsCount', '+{n} skills', { n: specialties.length }))}</span>` : '';
+  return `
+    <a class="pn-card glass-spatial" href="${esc(svc.profileHref)}?id=${encodeURIComponent(p.id)}">
+      <div class="pn-card-top">
+        ${avatar}
+        <div class="pn-card-id">
+          <div class="pn-card-name-row">
+            <p class="pn-card-name">${name}</p>
+            ${badge}
+          </div>
+          <p class="pn-card-role">${esc(tr(svc.titleKey, svc.title))}</p>
+          ${place ? `<p class="pn-card-place"><span class="material-symbols-outlined text-[13px]" aria-hidden="true">location_on</span>${place}</p>` : ''}
+        </div>
+      </div>
+      ${years || specialties.length ? `<div class="pn-card-foot">
+        ${years}
+        ${specialties.length ? `<div class="pn-card-chips">${chipsFull}${chipsSummary}</div>` : ''}
+      </div>` : ''}
+      <span class="pn-card-cta">${esc(tr('network.viewProfile', 'View Profile'))}<span class="material-symbols-outlined text-[16px]" aria-hidden="true">arrow_forward</span></span>
+    </a>`;
+}
+
+const PN_DENSITIES = [3, 4, 5];
+const PN_DENSITY_KEY = 'darwesh_professional_density';
+function readPnDensity() {
+  try {
+    const v = Number(localStorage.getItem(PN_DENSITY_KEY));
+    if (PN_DENSITIES.includes(v)) return v;
+  } catch { /* localStorage unavailable -- fall through to default */ }
+  return 4;
+}
+function writePnDensity(v) {
+  try { localStorage.setItem(PN_DENSITY_KEY, String(v)); } catch { /* best-effort only */ }
+}
+function pnDensityGlyph(n) {
+  const total = 18, gap = n === 3 ? 3.2 : n === 4 ? 2.4 : 1.8;
+  const barW = (total - gap * (n - 1)) / n;
+  let x = 0;
+  const rects = [];
+  for (let i = 0; i < n; i++) {
+    rects.push(`<rect x="${x.toFixed(2)}" y="2" width="${barW.toFixed(2)}" height="10" rx="1.1"/>`);
+    x += barW + gap;
+  }
+  return `<svg viewBox="0 0 18 14" width="15" height="12" fill="currentColor" aria-hidden="true">${rects.join('')}</svg>`;
+}
+
+// Mobile's own 2/3 chooser -- separate control, separate storage key, and a
+// visibly smaller glyph than pnDensityGlyph() above (see js/property-
+// discovery.js's identical pattern for the property-side twin of this).
+const PN_MOBILE_DENSITIES = [2, 3];
+const PN_MOBILE_DENSITY_KEY = 'darwesh_professional_mobile_density';
+function readPnMobileDensity() {
+  try {
+    const v = Number(localStorage.getItem(PN_MOBILE_DENSITY_KEY));
+    if (PN_MOBILE_DENSITIES.includes(v)) return v;
+  } catch { /* localStorage unavailable -- fall through to default */ }
+  return 2;
+}
+function writePnMobileDensity(v) {
+  try { localStorage.setItem(PN_MOBILE_DENSITY_KEY, String(v)); } catch { /* best-effort only */ }
+}
+function pnDensityGlyphSmall(n) {
+  const total = 13, gap = n === 2 ? 2.4 : 1.6;
+  const barW = (total - gap * (n - 1)) / n;
+  let x = 0;
+  const rects = [];
+  for (let i = 0; i < n; i++) {
+    rects.push(`<rect x="${x.toFixed(2)}" y="2" width="${barW.toFixed(2)}" height="8" rx="0.9"/>`);
+    x += barW + gap;
+  }
+  return `<svg viewBox="0 0 13 12" width="11" height="10" fill="currentColor" aria-hidden="true">${rects.join('')}</svg>`;
+}
+
+/**
+ * Professional Network -- the shared Build|Renovate|All experience.
+ * Wraps mountProviderDiscovery() (query/pagination/loading/empty/error
+ * logic entirely unchanged) with a Liquid Glass mode selector above it.
+ * Switching modes re-mounts the same proven module into the same inner
+ * container with a different `services` set -- never a second query
+ * engine, never new state to keep in sync.
+ *
+ * @param {HTMLElement} root
+ * @param {object} opts
+ * @param {'build'|'renovate'} opts.defaultMode
+ * @param {Record<'build'|'renovate'|'all', string[]>} opts.modeServices
+ * @param {Record<'build'|'renovate'|'all', {key:string, fallback:string}>} opts.modeEmpty
+ */
+export function mountProfessionalNetwork(root, opts) {
+  if (!root) return;
+  const MODES = ['all', 'build', 'renovate'];
+  const p = new URLSearchParams(window.location.search);
+  const urlMode = p.get('mode');
+  let mode = MODES.includes(urlMode) ? urlMode : opts.defaultMode;
+  let density = readPnDensity();
+  let mobileDensity = readPnMobileDensity();
+
+  root.innerHTML = `
+    <section class="pn-hero">
+      <p class="pn-eyebrow">${esc(tr('network.eyebrow', 'Darwesh Professional Network'))}</p>
+      <h1 class="pn-headline">${esc(tr('network.headline', 'Build better. Transform beautifully.'))}</h1>
+      <p class="pn-subhead">${esc(tr('network.subhead', 'Verified engineers, designers and tradespeople for every stage of your project.'))}</p>
+      <div class="pn-mode-row">
+        <div class="dw-mode-switch glass-spatial" role="tablist" aria-label="${esc(tr('network.modeLabel', 'Network mode'))}">
+          <button type="button" class="dw-mode-switch-btn" data-mode="all" role="tab" aria-selected="false">${esc(tr('network.modeAll', 'All'))}</button>
+          <button type="button" class="dw-mode-switch-btn" data-mode="build" role="tab" aria-selected="false">${esc(tr('network.modeBuild', 'Build'))}</button>
+          <button type="button" class="dw-mode-switch-btn" data-mode="renovate" role="tab" aria-selected="false">${esc(tr('network.modeRenovate', 'Renovate'))}</button>
+        </div>
+      </div>
+      ${(opts.ctas || []).length ? `<div class="pn-cta-row">${opts.ctas.map((c) => `<a class="pn-cta-link" href="${esc(c.href)}">${esc(tr(c.key, c.fallback))}</a>`).join('')}</div>` : ''}
+    </section>
+    <section class="pn-body">
+      <div class="pn-toolbar-row">
+        <div id="pnDensitySwitch" class="dw-density-switch glass-light" role="group" aria-label="${esc(trf('discover.densityLabel', 'View density', {}))}">
+          <button type="button" class="dw-density-switch-btn ${density === 3 ? 'is-active' : ''}" data-density="3" aria-pressed="${density === 3}" title="${esc(trf('discover.densitySpacious', 'Spacious', {}))}" aria-label="${esc(trf('discover.densitySpacious', 'Spacious', {}))}">${pnDensityGlyph(3)}</button>
+          <button type="button" class="dw-density-switch-btn ${density === 4 ? 'is-active' : ''}" data-density="4" aria-pressed="${density === 4}" title="${esc(trf('discover.densityBalanced', 'Balanced', {}))}" aria-label="${esc(trf('discover.densityBalanced', 'Balanced', {}))}">${pnDensityGlyph(4)}</button>
+          <button type="button" class="dw-density-switch-btn ${density === 5 ? 'is-active' : ''}" data-density="5" aria-pressed="${density === 5}" title="${esc(trf('discover.densityCompact', 'Compact', {}))}" aria-label="${esc(trf('discover.densityCompact', 'Compact', {}))}">${pnDensityGlyph(5)}</button>
+        </div>
+        <div id="pnMobileDensitySwitch" class="dw-density-switch-sm glass-light" role="group" aria-label="${esc(trf('discover.densityLabel', 'View density', {}))}">
+          <button type="button" class="dw-density-switch-sm-btn ${mobileDensity === 2 ? 'is-active' : ''}" data-mobile-density="2" aria-pressed="${mobileDensity === 2}" title="${esc(trf('discover.densityBalanced', 'Balanced', {}))}" aria-label="${esc(trf('discover.densityBalanced', 'Balanced', {}))}">${pnDensityGlyphSmall(2)}</button>
+          <button type="button" class="dw-density-switch-sm-btn ${mobileDensity === 3 ? 'is-active' : ''}" data-mobile-density="3" aria-pressed="${mobileDensity === 3}" title="${esc(trf('discover.densityCompact', 'Compact', {}))}" aria-label="${esc(trf('discover.densityCompact', 'Compact', {}))}">${pnDensityGlyphSmall(3)}</button>
+        </div>
+      </div>
+      <div id="pnInner"></div>
+    </section>
+  `;
+
+  const inner = root.querySelector('#pnInner');
+
+  // mountProviderDiscovery() owns its own grid markup (shared unchanged
+  // with service.html) -- rather than reach into that engine, this tags
+  // the grid elements it creates from the outside, after each (re)mount,
+  // with a class only this page's CSS reads plus the current density.
+  function applyDensityToGrids() {
+    inner.querySelectorAll('[data-pd="loading"], [data-pd="grid"]').forEach((el) => {
+      el.classList.add('pn-grid');
+      el.dataset.density = String(density);
+      el.dataset.mobileDensity = String(mobileDensity);
+    });
+  }
+
+  function setMode(newMode) {
+    mode = MODES.includes(newMode) ? newMode : mode;
+    root.querySelectorAll('.dw-mode-switch-btn').forEach((b) => {
+      const active = b.dataset.mode === mode;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-selected', String(active));
+    });
+    const qs = new URLSearchParams(window.location.search);
+    if (mode === opts.defaultMode) qs.delete('mode'); else qs.set('mode', mode);
+    const s = qs.toString();
+    history.replaceState(null, '', window.location.pathname + (s ? '?' + s : ''));
+    mountProviderDiscovery(inner, {
+      services: opts.modeServices[mode],
+      cardRenderer: professionalNetworkCard,
+      emptyTitleKey: (opts.modeEmpty[mode] || {}).key,
+      emptyTitleFallback: (opts.modeEmpty[mode] || {}).fallback
+    });
+    applyDensityToGrids();
+  }
+
+  root.querySelectorAll('.dw-mode-switch-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setMode(btn.dataset.mode));
+  });
+
+  // ---- View density (desktop-only 3/4/5 grid, persisted locally) --------
+  function setDensity(newDensity) {
+    density = PN_DENSITIES.includes(newDensity) ? newDensity : density;
+    applyDensityToGrids();
+    root.querySelectorAll('.dw-density-switch-btn').forEach((b) => {
+      const active = Number(b.dataset.density) === density;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    });
+    writePnDensity(density);
+  }
+  root.querySelectorAll('.dw-density-switch-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setDensity(Number(btn.dataset.density)));
+  });
+
+  // ---- View density (mobile-only 2/3 grid, independent of the desktop
+  // 3/4/5 preference above -- own storage key, own control). ---------------
+  function setMobileDensity(newDensity) {
+    mobileDensity = PN_MOBILE_DENSITIES.includes(newDensity) ? newDensity : mobileDensity;
+    applyDensityToGrids();
+    root.querySelectorAll('.dw-density-switch-sm-btn').forEach((b) => {
+      const active = Number(b.dataset.mobileDensity) === mobileDensity;
+      b.classList.toggle('is-active', active);
+      b.setAttribute('aria-pressed', String(active));
+    });
+    writePnMobileDensity(mobileDensity);
+  }
+  root.querySelectorAll('.dw-density-switch-sm-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setMobileDensity(Number(btn.dataset.mobileDensity)));
+  });
+
+  setMode(mode);
 }

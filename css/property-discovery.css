@@ -1,0 +1,416 @@
+/* Darwesh Group -- Property Discovery (buy.html / rent.html shared engine).
+   PRESENTATION LAYER ONLY -- see js/property-discovery.js for the engine
+   this skins (query/pagination/favorites/URL state all untouched by this
+   pass). Spatial Graphite environment, warm ivory type, restrained
+   champagne accents, real Liquid Glass material (see the glass-light /
+   glass-spatial / glass-hero levels defined in css/cinematic.css, which
+   this file builds on rather than re-implementing).
+
+   GRID DENSITY. Desktop (>=1200px) grid column count is user-selectable
+   (3/4/5 via #pdDensitySwitch, persisted to localStorage -- see
+   readDensity()/setDensity() in js/property-discovery.js) and applied as
+   a `data-density` attribute on #pdGrid. 4 columns is the default/base
+   card design below; [data-density="3"]/[data-density="5"] attribute
+   selectors carry the deltas rather than three independent card
+   implementations. Tablet is a fixed 2 columns and mobile a fixed 1 --
+   neither is density-selectable, per spec. */
+
+.cine-scope .pd-hero {
+  max-width: 1280px; margin-inline: auto;
+  padding-block: clamp(2rem, 4.2vw, 3rem) 0.25rem;
+  padding-inline: 20px;
+  text-align: center;
+}
+.cine-scope .pd-eyebrow {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--cine-gold-2);
+  margin-bottom: 8px;
+}
+.cine-scope .pd-headline {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: clamp(32px, 3.6vw, 46px); font-weight: 700; line-height: 1.08;
+  color: var(--ps-color-on-surface);
+  text-wrap: balance;
+  margin-bottom: 8px;
+}
+.cine-scope .pd-subhead {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 16px; color: var(--ps-color-on-surface-variant);
+  max-width: 46ch; margin-inline: auto;
+}
+.cine-scope .pd-mode-row { display: flex; justify-content: center; margin-top: 18px; }
+
+.cine-scope .pd-search-surface {
+  max-width: 1280px; margin: 18px auto 0; padding-inline: 20px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.cine-scope .pd-search-row {
+  border-radius: var(--radius-lg, 16px);
+}
+.cine-scope .pd-search-icon {
+  position: absolute; inset-inline-start: 16px; top: 50%; transform: translateY(-50%);
+  color: var(--ps-color-outline); font-size: 19px; pointer-events: none; z-index: 2;
+}
+.cine-scope .pd-search-input {
+  position: relative; z-index: 2;
+  width: 100%; background: transparent; border: none; outline: none;
+  padding-block: 15px; padding-inline: 46px 18px;
+  font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px;
+  color: var(--ps-color-on-surface);
+}
+.cine-scope .pd-search-input::placeholder { color: var(--ps-color-on-surface-variant); }
+.cine-scope .pd-search-row:focus-within { border-block-end-color: var(--cine-gold-1); }
+
+.cine-scope .pd-controls-row, .cine-scope .pd-actions-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.cine-scope .pd-select, .cine-scope .pd-price-input {
+  position: relative; z-index: 2;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 500;
+  color: var(--ps-color-on-surface);
+  min-height: 40px;
+}
+.cine-scope .pd-select { border-radius: var(--radius-lg, 16px); }
+.cine-scope .pd-select:focus, .cine-scope .pd-price-input:focus { outline: none; }
+.cine-scope .pd-price-group {
+  display: flex; align-items: center; gap: 4px;
+  padding-inline: 6px;
+  border-radius: var(--radius-lg, 16px);
+}
+.cine-scope .pd-price-group .pd-price-input { width: 68px; padding-inline: 8px; min-height: 36px; }
+.cine-scope .pd-price-sep { color: var(--ps-color-outline); position: relative; z-index: 2; }
+.cine-scope .pd-sort-select { margin-inline-start: auto; }
+
+.cine-scope .pd-btn-outline, .cine-scope .pd-btn-ghost, .cine-scope .pd-btn-primary {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; padding: 9px 16px; min-height: 40px;
+  font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 600;
+  transition: color var(--motion-fast,180ms) var(--ease-premium,ease), background-color var(--motion-fast,180ms) var(--ease-premium,ease);
+}
+.cine-scope .pd-btn-outline { color: var(--ps-color-on-surface); }
+.cine-scope .pd-btn-outline:hover { background-color: rgba(255,255,255,0.05); }
+.cine-scope .pd-btn-ghost { color: var(--cine-gold-2); }
+.cine-scope .pd-btn-ghost:hover { color: var(--cine-gold-1); background-color: rgba(255,255,255,0.035); }
+.cine-scope .pd-btn-primary { background: var(--ps-color-secondary); color: var(--ps-color-on-secondary); border: 1px solid transparent; z-index: 2; }
+.cine-scope .pd-btn-primary:hover { filter: brightness(1.06); }
+
+/* ---- Result count + View Density control share one row, directly above
+ * the grid, so density is legible as "a property of these results" and
+ * not a second navigation control. ---- */
+.cine-scope .pd-toolbar-row {
+  max-width: 1280px; margin: 20px auto 10px; padding-inline: 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.cine-scope .pd-result-count {
+  font-family: 'Inter', system-ui, sans-serif; font-size: 12px; color: var(--ps-color-on-surface-variant);
+}
+
+/* Mobile default is 2 columns (data-mobile-density="2"), matching Property
+ * Discovery's new marketplace-tile mobile card below -- NOT the old
+ * single full-width card. [data-mobile-density="3"] (also mobile-only,
+ * see the max-width:639px gate a few rules down) is the user's optional
+ * Compact choice; tablet (>=640px) and desktop (>=1200px) each override
+ * this unconditionally, independent of the mobile-density attribute. */
+.cine-scope .pd-grid {
+  max-width: 1280px; margin-inline: auto; padding-inline: 20px;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px;
+  padding-bottom: 8px;
+}
+@media (min-width: 640px) { .cine-scope .pd-grid { grid-template-columns: repeat(2, 1fr); gap: 18px; } }
+@media (min-width: 1200px) {
+  .cine-scope .pd-grid[data-density="3"] { grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .cine-scope .pd-grid[data-density="4"] { grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .cine-scope .pd-grid[data-density="5"] { grid-template-columns: repeat(5, 1fr); gap: 15px; }
+}
+@media (max-width: 639px) {
+  .cine-scope .pd-grid[data-mobile-density="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+}
+/* Very narrow phones can't safely hold 3 compact tiles -- fall back to 2
+ * regardless of the stored preference, per spec. */
+@media (max-width: 374px) {
+  .cine-scope .pd-grid[data-mobile-density="3"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+}
+
+/* ---- Card -- the image visually merges into the glass body via a
+ * gradient wash at the seam (.pd-card::after) rather than reading as two
+ * stacked rectangles. Base rules below are the 4-column/Balanced card --
+ * the new Darwesh default -- with [data-density="3"]/"5" carrying the
+ * Spacious/Compact deltas rather than three parallel card definitions. ---- */
+.cine-scope .pd-card {
+  display: block;
+  /* Grid items default to min-width:auto, floored at their content's
+   * min-content size -- and .pd-card-title's white-space:nowrap (for its
+   * ellipsis truncation) has no soft wrap points, so its min-content
+   * equals its full unwrapped width. Without this, an unusually long
+   * listing title silently grows the card (and the grid track, and the
+   * page) past the viewport instead of truncating. */
+  min-width: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  transition: transform var(--motion-standard,320ms) var(--ease-premium,ease), box-shadow var(--motion-standard,320ms) var(--ease-premium,ease);
+}
+.cine-scope .pd-card:hover, .cine-scope .pd-card:focus-visible { transform: translateY(-5px); outline: none; }
+.cine-scope .pd-card:hover .pd-card-media img { transform: scale(1.035); }
+.cine-scope .pd-card-media { position: relative; aspect-ratio: 16/10; width: 100%; background: var(--ps-color-surface-container); overflow: hidden; }
+.cine-scope .pd-card-media img { transition: transform 700ms var(--ease-premium, ease); }
+.cine-scope .pd-card-media::after {
+  content: ''; position: absolute; inset-inline: 0; inset-block-end: -1px; height: 40%;
+  background: linear-gradient(180deg, transparent, var(--ps-color-surface-container-lowest) 92%);
+  pointer-events: none;
+}
+.cine-scope .pd-card-media-fallback {
+  color: var(--ps-color-on-surface-variant);
+  position: relative;
+}
+.cine-scope .pd-card-media-fallback::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(52% 60% at 50% 42%, rgba(198,154,75,0.14), transparent 72%);
+}
+.cine-scope .pd-card-media-fallback .material-symbols-outlined { position: relative; opacity: 0.55; }
+.cine-scope .pd-card-media-fallback span:last-child { position: relative; opacity: 0.8; }
+
+.cine-scope .pd-card-state {
+  position: absolute; inset-block-end: 12px; inset-inline-start: 12px; z-index: 10;
+  padding: 4px 10px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid transparent;
+}
+.cine-scope .pd-card-state::before { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; }
+.cine-scope .pd-card-state--sale { color: var(--cine-gold-2); border-color: rgba(198,154,75,0.35); }
+.cine-scope .pd-card-state--sale::before { background: linear-gradient(180deg, rgba(198,154,75,0.28), rgba(198,154,75,0.09)); }
+.cine-scope .pd-card-state--rent { color: #8FE3B3; border-color: rgba(107,217,154,0.35); }
+.cine-scope .pd-card-state--rent::before { background: linear-gradient(180deg, rgba(107,217,154,0.24), rgba(107,217,154,0.07)); }
+
+.cine-scope .pd-fav-btn {
+  position: absolute; top: 9px; inset-inline-start: 9px; z-index: 10;
+  width: 30px; height: 30px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+  background-image: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.05));
+  border: 1px solid rgba(255,255,255,0.16);
+  transition: transform var(--motion-fast,180ms) var(--ease-premium,ease);
+}
+.cine-scope .pd-fav-btn:hover { transform: scale(1.08); }
+.cine-scope .pd-fav-btn .material-symbols-outlined { position: relative; z-index: 2; font-size: 16px; }
+.cine-scope .pd-fav-btn.is-active .material-symbols-outlined { color: var(--cine-gold-2); }
+
+.cine-scope .pd-verified-badge {
+  position: absolute; top: 9px; inset-inline-end: 9px; z-index: 10;
+  display: flex; align-items: center; gap: 3px;
+  padding: 4px 8px; border-radius: 999px;
+  font-size: 9.5px; font-weight: 700; color: var(--cine-gold-2);
+  backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+  background-image: linear-gradient(180deg, rgba(198,154,75,0.24), rgba(198,154,75,0.08));
+  border: 1px solid rgba(198,154,75,0.32);
+}
+.cine-scope .pd-verified-badge .material-symbols-outlined { position: relative; font-size: 11.5px; }
+.cine-scope .pd-verified-badge span:last-child { position: relative; }
+
+.cine-scope .pd-card-body { padding: 14px; background: var(--ps-color-surface-container-lowest); }
+.cine-scope .pd-card-title {
+  font-family: 'Inter', system-ui, sans-serif; font-size: 17px; font-weight: 600;
+  color: var(--ps-color-on-surface); line-height: 1.26; margin-bottom: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cine-scope .pd-card-loc {
+  font-family: 'Inter', system-ui, sans-serif; font-size: 12.5px; font-weight: 400; color: var(--ps-color-on-surface-variant);
+  display: flex; align-items: center; gap: 4px; margin-bottom: 10px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cine-scope .pd-card-loc .material-symbols-outlined { flex: none; font-size: 14px; }
+.cine-scope .pd-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.07); }
+.cine-scope .pd-card-meta { display: flex; gap: 9px; color: var(--ps-color-on-surface-variant); font-size: 11.5px; font-weight: 500; }
+.cine-scope .pd-card-meta span { display: flex; align-items: center; gap: 4px; }
+.cine-scope .pd-card-meta .material-symbols-outlined { font-size: 14px; opacity: 0.75; }
+.cine-scope .pd-card-price-wrap { display: flex; align-items: center; gap: 5px; flex: none; }
+.cine-scope .pd-card-price { font-family: 'Inter', system-ui, sans-serif; font-size: 14.5px; font-weight: 700; color: var(--ps-color-secondary); }
+.cine-scope .pd-card-arrow {
+  flex: none; width: 19px; height: 19px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--cine-gold-2);
+  transition: transform var(--motion-fast,180ms) var(--ease-premium,ease), background-color var(--motion-fast,180ms) var(--ease-premium,ease);
+}
+.cine-scope .pd-card-arrow svg { width: 11px; height: 11px; }
+[dir="rtl"] .cine-scope .pd-card-arrow svg { transform: scaleX(-1); }
+.cine-scope .pd-card:hover .pd-card-arrow { background-color: rgba(198,154,75,0.14); transform: translateX(2px); }
+[dir="rtl"] .cine-scope .pd-card:hover .pd-card-arrow { transform: translateX(-2px); }
+
+/* ---- Density 3 -- Spacious: richer image, more breathing room, close to
+ * the original premium proportions this system launched with. ---- */
+@media (min-width: 1200px) {
+  .cine-scope .pd-grid[data-density="3"] .pd-card { border-radius: 22px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-media { aspect-ratio: 4/3; }
+  .cine-scope .pd-grid[data-density="3"] .pd-fav-btn { width: 32px; height: 32px; top: 10px; inset-inline-start: 10px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-fav-btn .material-symbols-outlined { font-size: 17px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-verified-badge { top: 10px; inset-inline-end: 10px; padding: 4px 9px; font-size: 10px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-body { padding: 16px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-title { font-size: 18px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-loc { font-size: 13px; margin-bottom: 13px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-foot { padding-top: 12px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-meta { gap: 11px; font-size: 12px; }
+  .cine-scope .pd-grid[data-density="3"] .pd-card-price { font-size: 15.5px; }
+}
+
+/* ---- Density 5 -- Compact: a genuine compact marketplace card. Lower
+ * image, tighter everything, but every data point (beds/baths/area/price)
+ * stays on the card -- nothing important is dropped, only compressed. ---- */
+@media (min-width: 1200px) {
+  .cine-scope .pd-grid[data-density="5"] .pd-card { border-radius: 18px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-media { aspect-ratio: 16/9; }
+  .cine-scope .pd-grid[data-density="5"] .pd-fav-btn { width: 26px; height: 26px; top: 8px; inset-inline-start: 8px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-fav-btn .material-symbols-outlined { font-size: 14px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-verified-badge { top: 8px; inset-inline-end: 8px; padding: 3px 7px; font-size: 8.5px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-verified-badge .material-symbols-outlined { font-size: 10px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-state { inset-block-end: 8px; inset-inline-start: 8px; padding: 3px 8px; font-size: 9px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-body { padding: 10px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-title { font-size: 14.5px; margin-bottom: 2px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-loc { font-size: 11px; margin-bottom: 7px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-loc .material-symbols-outlined { font-size: 12px; }
+  /* Stacked, not squeezed: at 5-column width there isn't room for three
+   * metrics AND the price on one row without either overflowing (and
+   * being silently clipped by .pd-card's overflow:hidden) or shrinking
+   * the price into illegibility. Metadata and price get their own full-
+   * width rows instead -- still compact, never cut off. */
+  .cine-scope .pd-grid[data-density="5"] .pd-card-foot { flex-direction: column; align-items: flex-start; padding-top: 7px; gap: 5px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-meta { gap: 6px; font-size: 10px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-price-wrap { width: 100%; justify-content: space-between; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-meta .material-symbols-outlined { font-size: 12px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-price { font-size: 13px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-arrow { width: 16px; height: 16px; }
+  .cine-scope .pd-grid[data-density="5"] .pd-card-arrow svg { width: 9px; height: 9px; }
+}
+
+.cine-scope .pd-card--skeleton .pd-card-body { display: flex; flex-direction: column; gap: 8px; }
+
+.cine-scope .pd-state {
+  max-width: 1280px; margin-inline: auto; padding: 52px 20px; text-align: center;
+}
+.cine-scope .pd-state-icon { font-size: 34px; color: var(--ps-color-outline); margin-bottom: 10px; display: block; }
+.cine-scope .pd-state-icon--error { color: var(--ps-color-error); }
+.cine-scope .pd-state-title { font-family: 'Inter', system-ui, sans-serif; font-size: 16.5px; font-weight: 600; color: var(--ps-color-on-surface); margin-bottom: 6px; }
+.cine-scope .pd-state-body { font-family: 'Inter', system-ui, sans-serif; font-size: 13.5px; color: var(--ps-color-on-surface-variant); max-width: 42ch; margin-inline: auto; margin-bottom: 14px; }
+.cine-scope .pd-state-inline { text-align: center; padding-block: 36px; color: var(--ps-color-on-surface-variant); font-size: 13px; }
+
+.cine-scope .pd-pagination { max-width: 1280px; margin-inline: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding-block: 28px 52px; }
+.cine-scope .pd-exhausted-note { font-family: 'Inter', system-ui, sans-serif; font-size: 12px; color: var(--ps-color-on-surface-variant); }
+
+.cine-scope .pd-drawer { position: fixed; inset: 0; z-index: 70; background: rgba(0,0,0,0.55); align-items: flex-end; justify-content: center; }
+@media (min-width: 640px) { .cine-scope .pd-drawer { align-items: flex-start; padding-top: 80px; padding-inline: 14px; } }
+.cine-scope .pd-drawer:not(.hidden) { display: flex; }
+.cine-scope .pd-drawer-panel {
+  width: 100%; max-width: 560px; max-height: 82vh; overflow-y: auto;
+  border-radius: 22px 22px 0 0;
+  padding: 20px;
+}
+@media (min-width: 640px) { .cine-scope .pd-drawer-panel { border-radius: 20px; max-height: 80vh; } }
+.cine-scope .pd-drawer-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.cine-scope .pd-drawer-title { font-family: 'Inter', system-ui, sans-serif; font-size: 15.5px; font-weight: 600; color: var(--ps-color-on-surface); }
+.cine-scope .pd-drawer-close { position: relative; z-index: 2; padding: 6px; border-radius: 999px; color: var(--ps-color-on-surface-variant); }
+.cine-scope .pd-drawer-close:hover { background: rgba(255,255,255,0.06); }
+.cine-scope .pd-drawer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cine-scope .pd-drawer-label { font-family: 'Inter', system-ui, sans-serif; font-size: 11px; font-weight: 600; color: var(--ps-color-on-surface-variant); display: block; margin-bottom: 5px; }
+.cine-scope .pd-drawer-grid .pd-select { width: 100%; }
+.cine-scope .pd-drawer-checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 14px; padding-top: 2px; }
+.cine-scope .pd-check { display: flex; align-items: center; gap: 8px; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; color: var(--ps-color-on-surface); }
+.cine-scope .pd-drawer-actions { display: flex; gap: 10px; margin-top: 16px; }
+.cine-scope .pd-drawer-actions .flex-1 { flex: 1 1 auto; justify-content: center; }
+
+.cine-scope .pd-toast {
+  position: fixed; bottom: 6.5rem; left: 50%; transform: translateX(-50%) translateY(10px);
+  background: #17150F; color: #F2EEE5; border: 1px solid #5D482B; padding: 10px 20px; border-radius: 999px;
+  font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+  opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 1100;
+  display: flex; align-items: center; gap: 8px; white-space: nowrap;
+}
+.cine-scope .pd-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (min-width: 768px) { .cine-scope .pd-toast { bottom: 1.5rem; } }
+
+/* ---- Mobile: dedicated compact card, tightened rhythm ------------------- */
+@media (max-width: 767px) {
+  .cine-scope .pd-hero { padding-block: 22px 4px; }
+  .cine-scope .pd-headline { font-size: clamp(30px, 8.6vw, 34px); line-height: 1.06; }
+  .cine-scope .pd-subhead { font-size: 14.5px; }
+  .cine-scope .pd-mode-row { margin-top: 16px; }
+
+  .cine-scope .pd-search-surface { margin-top: 16px; gap: 10px; }
+  .cine-scope .pd-controls-row { flex-wrap: wrap; gap: 8px; }
+  .cine-scope .pd-select, .cine-scope .pd-price-group { flex: 1 1 45%; }
+  .cine-scope .pd-sort-select { margin-inline-start: 0; flex: 1 1 100%; }
+  .cine-scope .pd-actions-row { justify-content: space-between; gap: 6px; }
+  .cine-scope .pd-btn-outline span:last-child,
+  .cine-scope .pd-btn-ghost span:last-child { font-size: 11.5px; }
+
+  .cine-scope .pd-toolbar-row { margin-block: 20px 10px; }
+  .cine-scope .pd-pagination { padding-block: 22px 40px; }
+}
+
+/* ---- True mobile (<640px, the 360/390/430 phone range): a genuine
+ * marketplace-tile card at 2 columns by default -- not the old
+ * one-full-width-card-at-a-time layout, and not the desktop card scaled
+ * down. [data-mobile-density="3"] (Compact, user-selected via
+ * #pdMobileDensitySwitch) carries the deltas for an even smaller tile;
+ * see the <375px fallback near .pd-grid's own rules above, which forces
+ * 3 back down to 2 on phones too narrow to hold it safely. ---- */
+@media (max-width: 639px) {
+  .cine-scope .pd-grid { padding-inline: 16px; }
+  .cine-scope .pd-toolbar-row { padding-inline: 16px; }
+
+  .cine-scope .pd-card { border-radius: 17px; }
+  .cine-scope .pd-card-media { aspect-ratio: 4/3; height: auto; }
+  .cine-scope .pd-card-body { padding: 10px; }
+  .cine-scope .pd-card-title {
+    white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    font-size: 14.5px; font-weight: 600; line-height: 1.25; margin-bottom: 3px;
+  }
+  .cine-scope .pd-card-loc { font-size: 11.5px; margin-bottom: 6px; }
+  .cine-scope .pd-card-loc .material-symbols-outlined { font-size: 13px; }
+  /* Stacked, not squeezed -- same fix as desktop's 5-column tier: a
+   * beds/baths/area row alongside the price has no room at this width
+   * without either overflowing (silently clipped by .pd-card's own
+   * overflow:hidden) or shrinking the price into illegibility. */
+  .cine-scope .pd-card-foot { flex-direction: column; align-items: flex-start; padding-top: 8px; gap: 5px; }
+  .cine-scope .pd-card-meta { gap: 6px; font-size: 10.5px; }
+  .cine-scope .pd-card-meta .material-symbols-outlined { font-size: 12px; }
+  .cine-scope .pd-card-price-wrap { width: 100%; justify-content: space-between; }
+  .cine-scope .pd-card-price { font-size: 14.5px; font-weight: 700; }
+  .cine-scope .pd-card-arrow { width: 16px; height: 16px; }
+  .cine-scope .pd-card-arrow svg { width: 9px; height: 9px; }
+  .cine-scope .pd-fav-btn { width: 33px; height: 33px; top: 8px; inset-inline-start: 8px; }
+  .cine-scope .pd-fav-btn .material-symbols-outlined { font-size: 16px; }
+  .cine-scope .pd-verified-badge { top: 8px; inset-inline-end: 8px; padding: 3px 7px; font-size: 8.5px; }
+  .cine-scope .pd-verified-badge .material-symbols-outlined { font-size: 10px; }
+
+  /* Compact (3-column, optional): much smaller image, only the most
+   * important metadata, verified collapses to an icon-only dot, favorite
+   * stays a real 32px touch target even though the card itself is tiny --
+   * nothing here deletes data, mountPropertyDiscovery() still renders it
+   * all, this only chooses what stays visible at this density. */
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card { border-radius: 14px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-media { aspect-ratio: 1/1; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-body { padding: 7px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-title { font-size: 12px; line-height: 1.2; margin-bottom: 2px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-loc { display: none; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-foot { gap: 3px; padding-top: 5px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-meta { gap: 4px; font-size: 9px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-meta .material-symbols-outlined { font-size: 10px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-meta span:nth-child(3) { display: none; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-price { font-size: 12px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-arrow { width: 14px; height: 14px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-card-arrow svg { width: 8px; height: 8px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-fav-btn { width: 32px; height: 32px; top: 6px; inset-inline-start: 6px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-fav-btn .material-symbols-outlined { font-size: 13px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-verified-badge { top: 6px; inset-inline-end: 6px; padding: 4px; border-radius: 999px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-verified-badge .material-symbols-outlined { font-size: 10px; }
+  .cine-scope .pd-grid[data-mobile-density="3"] .pd-verified-badge span:last-child { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-scope .pd-card, .cine-scope .pd-card-media img, .cine-scope .pd-card-arrow, .cine-scope .pd-fav-btn, .cine-scope .dw-mode-switch-btn { transition: none; }
+}
