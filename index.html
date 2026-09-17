@@ -176,19 +176,38 @@ violation reporting. -->
 <span class="w-answer" aria-hidden="true"></span>
 </section>
 
-<!-- Quick discovery band -- now holds the real, honest stat strip
-     (loadHeroStats() below, unchanged) and the fuller trust statement,
-     the two hero elements that didn't fit the new clean 6-item centered
-     hero order. Kept here rather than deleted: both are real, previously
-     approved content/functionality, just no longer inside the hero's
-     first viewport. -->
+<!-- Quick discovery band -- holds the real, honest stat strip
+     (loadHeroStats() below, unchanged for the 3 wired stats) and the
+     fuller trust statement. Deliberately NOT a panel/card: no background,
+     border, blur or box-shadow here (removed -- see css/home-world.css's
+     .w-quickstart rule) -- the numbers, labels and paragraph sit directly
+     on the page's own graphite background, the same way the hero above it
+     does. Unique Visitors / Total Views have no real backend counter yet
+     (see docs/admin-data-foundation-schema.md's Visitor Analytics
+     proposal, never implemented) -- shown as honest placeholders with a
+     "Coming soon" note, never a fabricated number. -->
 <section class="cine-reveal max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop w-quickstart">
 <div class="w-stats" id="heroStats" aria-live="polite" data-flow="support" style="--fs:.07">
 <div class="w-stat"><span class="w-stat-num is-loading" id="heroStatListings">&mdash;</span><span class="w-stat-label" data-i18n="index.heroStatListings">Active Listings</span></div>
 <div class="w-stat"><span class="w-stat-num is-loading" id="heroStatCities">&mdash;</span><span class="w-stat-label" data-i18n="index.heroStatCities">Cities Covered</span></div>
 <div class="w-stat"><span class="w-stat-num is-loading" id="heroStatVerified">&mdash;</span><span class="w-stat-label" data-i18n="index.heroStatVerified">Verified Listings</span></div>
+<div class="w-stat w-stat--unavailable"><span class="w-stat-num" aria-hidden="true">&mdash;</span><span class="w-stat-label" data-i18n="index.heroStatVisitors">Unique Visitors</span><span class="w-stat-note" data-i18n="index.heroStatComingSoon">Coming soon</span></div>
+<div class="w-stat w-stat--unavailable"><span class="w-stat-num" aria-hidden="true">&mdash;</span><span class="w-stat-label" data-i18n="index.heroStatViews">Total Views</span><span class="w-stat-note" data-i18n="index.heroStatComingSoon">Coming soon</span></div>
+</div>
+<!-- Mobile-only quiet utility rows for the same 2 not-yet-real metrics --
+     desktop keeps the .w-stat--unavailable tiles above (untouched); mobile
+     hides those and shows this instead, so the un-real numbers never read
+     as major statistics on the cramped viewport (see css/home-world.css's
+     mobile .w-stats-mini rules). Never shown on desktop. -->
+<div class="w-stats-mini">
+<div class="w-stats-mini-row"><span class="w-stats-mini-label" data-i18n="index.heroStatVisitorsAnalytics">Visitor analytics</span><span class="w-stats-mini-sep" aria-hidden="true">&mdash;</span><span class="w-stats-mini-soon" data-i18n="index.heroStatSoon">Soon</span></div>
+<div class="w-stats-mini-row"><span class="w-stats-mini-label" data-i18n="index.heroStatViewsAnalytics">Views analytics</span><span class="w-stats-mini-sep" aria-hidden="true">&mdash;</span><span class="w-stats-mini-soon" data-i18n="index.heroStatSoon">Soon</span></div>
 </div>
 <p class="w-hero-value-statement" data-i18n="index.heroValueStatement">One intelligent ecosystem bringing property, companies, professionals, creators and innovators together — reducing fraud, creating opportunity, and delivering real value for everyone.</p>
+<!-- Mobile-only short version of the same trust statement -- desktop keeps
+     the fuller paragraph above (untouched); mobile hides that one and
+     shows this instead (see css/home-world.css's mobile rules). -->
+<p class="w-hero-value-statement-short" data-i18n="index.heroValueStatementShort">One trusted ecosystem for property, professionals and real value.</p>
 </section>
 </section>
 
@@ -1210,13 +1229,90 @@ document.addEventListener('darwesh:langchange', () => { renderFastSaleGrid(); re
 // has resolved successfully. On error it keeps the em-dash rather than
 // showing 0 or a stale value, exactly like the rest of this page's real
 // data guards.
+//
+// COUNT-UP ANIMATION. Purely presentational, layered on top of the real
+// values above -- it never invents a target. statTargets only gets an
+// entry once its query has actually resolved; tryRunStatsAnimation()
+// only counts up ids that are both armed (section scrolled into view)
+// AND present in statTargets, so whichever arrives last -- the scroll or
+// the network response -- is what starts the animation. Unique
+// Visitors/Total Views are never added to STAT_COUNT_IDS, so this code
+// never touches their "Coming soon" markup.
 // ---------------------------------------------------------------------
+const STAT_COUNT_IDS = ['heroStatListings', 'heroStatCities', 'heroStatVerified'];
+const statTargets = {};
+const statCounted = new Set();
+let statsAnimationArmed = false;
+const prefersReducedMotionStats = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+function easeOutCubicStat(t) { return 1 - Math.pow(1 - t, 3); }
+
+function animateHeroStat(id, target) {
+  if (statCounted.has(id)) return;
+  statCounted.add(id);
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('is-loading');
+  if (prefersReducedMotionStats) {
+    el.textContent = target.toLocaleString();
+    return;
+  }
+  const DURATION_MS = 1000; // within the 900-1200ms band
+  const start = performance.now();
+  // #heroStats is aria-live="polite" so its own real-value assignment is
+  // announced once (the existing, approved behavior). A ~60fps count-up
+  // would otherwise fire dozens of announcements for the same stat, so
+  // the region is muted for the duration of the tween and restored right
+  // after the final, real value is in place.
+  const heroStatsRegion = document.getElementById('heroStats');
+  const restoreLive = heroStatsRegion ? (heroStatsRegion.getAttribute('aria-live') || 'polite') : null;
+  if (heroStatsRegion) heroStatsRegion.setAttribute('aria-live', 'off');
+  function tick(now) {
+    const progress = Math.min(1, (now - start) / DURATION_MS);
+    const eased = easeOutCubicStat(progress);
+    el.textContent = Math.round(target * eased).toLocaleString();
+    if (progress < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      el.textContent = target.toLocaleString();
+      if (heroStatsRegion) heroStatsRegion.setAttribute('aria-live', restoreLive);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+function tryRunStatsAnimation() {
+  if (!statsAnimationArmed) return;
+  STAT_COUNT_IDS.forEach((id) => {
+    if (Object.prototype.hasOwnProperty.call(statTargets, id) && !statCounted.has(id)) {
+      animateHeroStat(id, statTargets[id]);
+    }
+  });
+}
+
+(function armStatsCountUpOnScrollIntoView() {
+  const heroStatsEl = document.getElementById('heroStats');
+  if (!heroStatsEl) return;
+  if (!('IntersectionObserver' in window)) {
+    // No IO support: treat as armed immediately -- loadHeroStats() below
+    // will still gate the actual reveal on its own real data arriving.
+    statsAnimationArmed = true;
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.3) {
+        statsAnimationArmed = true;
+        tryRunStatsAnimation();
+        io.disconnect(); // run at most once per page load
+        break;
+      }
+    }
+  }, { threshold: [0, 0.3, 0.35, 0.4, 1] });
+  io.observe(heroStatsEl);
+})();
+
 async function loadHeroStats() {
-  const els = {
-    listings: document.getElementById('heroStatListings'),
-    cities: document.getElementById('heroStatCities'),
-    verified: document.getElementById('heroStatVerified'),
-  };
   try {
     const [{ db, getCountFromServer }, storeMod] = await Promise.all([
       import('./js/firebase-init.js'),
@@ -1233,9 +1329,11 @@ async function loadHeroStats() {
     ]);
     const activeCount = activeSnap.data().count;
     const citiesWithListings = citySnaps.filter((s) => s.data().count > 0).length;
-    if (els.listings) { els.listings.textContent = activeCount.toLocaleString(); els.listings.classList.remove('is-loading'); }
-    if (els.cities) { els.cities.textContent = String(citiesWithListings); els.cities.classList.remove('is-loading'); }
-    if (els.verified) { els.verified.textContent = verifiedSnap.data().count.toLocaleString(); els.verified.classList.remove('is-loading'); }
+    const verifiedCount = verifiedSnap.data().count;
+    statTargets.heroStatListings = activeCount;
+    statTargets.heroStatCities = citiesWithListings;
+    statTargets.heroStatVerified = verifiedCount;
+    tryRunStatsAnimation();
   } catch (e) {
     // Leave the em-dash placeholders in place -- an unreachable Firestore
     // is not the same fact as "zero listings" (same reasoning as
