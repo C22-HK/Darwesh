@@ -960,6 +960,46 @@ body.world .w-quickstart {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 30px 60px -30px rgba(0,0,0,.6);
 }
 
+/* Stats -> Social -> Intent rhythm. AUDIT (measured live via
+   getBoundingClientRect(), not section boxes):
+   Gap A (Stats -> Social) was 126px desktop / 94px mobile, made of two
+   pieces: (1) the Social <section>'s own Tailwind `mt-10 md:mt-16` utility
+   (40px/64px, a real adjacent-section margin -- Social is a plain
+   <section>, not a `.mv` sibling, so it never adopted the shared overlap
+   formula) and (2) ~54px/62px of orbit self-centering INSIDE .so-stage
+   (stage height minus tile height, halved -- carousel geometry, never
+   touched here, only measured to separate it from (1)). Only (1) is
+   adjustable within this task's scope.
+   Gap B (Social -> Intent) was actually NEGATIVE on desktop (-35px, real
+   overlap) and undersized on mobile (24px against a 44-60px target).
+   Root cause: .w-intent-section never got its own adjacent-pair override
+   for this boundary (unlike its own City Discovery boundary, fixed
+   earlier) -- it still uses the generic, unscoped `.mv` formula
+   (margin-block-start: calc(var(--w-air-m) * -1.4) desktop /
+   calc(var(--w-air-s) * -1) mobile, in the shared rule + the max-width:
+   767px block later in this file). That generic pull-up assumes every
+   sibling donates the same padding-based overlap room every other `.mv`
+   pair does -- Social isn't a `.mv` section and doesn't, so the formula
+   overshoots straight into Intent's own visible eyebrow text.
+   Fix: two scoped adjacent-sibling overrides, layered on the EXISTING
+   formulas via calc() (never replacing them with new ones), targeting
+   only this one Stats->Social->Intent chain -- no other section's
+   spacing changes. */
+body.world .w-quickstart + section {
+  margin-top: 1.375rem; /* 22px -- was the plain 4rem (64px) Tailwind utility */
+}
+body.world .w-quickstart + section + .w-intent-section {
+  margin-block-start: calc(var(--w-air-m) * -1.4 + clamp(6.5rem, 7.7vw, 7.5rem));
+}
+@media (max-width: 767px) {
+  body.world .w-quickstart + section {
+    margin-top: 0.375rem; /* 6px -- was the plain 2.5rem (40px) Tailwind utility */
+  }
+  body.world .w-quickstart + section + .w-intent-section {
+    margin-block-start: calc(var(--w-air-s) * -1 + clamp(1.5rem, 7vw, 2rem));
+  }
+}
+
 /* ---- Property-type chips: quick, functional entry points into the real
    map.html filter (?types=house etc., the same URL param map.html's own
    readUrlStateIntoFilters() already reads for its Home Type drawer) --
@@ -1797,6 +1837,33 @@ body.world .home-bottomnav {
      that the row visibly continues off-screen, inviting a swipe. Every
      card keeps its full content (image, icon, title, sentence, arrow)
      inside itself; nothing is tracked or toggled by JS. */
+  /* Real fix for the fixed .dmnav-bar visually sitting over the first
+     card's text/CTA on ordinary touch scroll (the scroll-margin rule
+     below only ever helped assisted/keyboard scrolling, not this).
+     ROOT CAUSE, measured live via getBoundingClientRect() at 390x844:
+     at the natural resting point where the row has just fully scrolled
+     into view (row's own bottom edge flush with the viewport bottom --
+     not a contrived edge case, the first moment a user sees the whole
+     row), the first card's .w-intent-body sat ~49px INTO the nav's
+     reserved zone (10px offset + 76px height = 86px, from
+     css/cinematic.css .dmnav-bar).
+     A first pass also added trailing space after the row and shrank the
+     heading-to-row gap; measurement showed the heading-gap shrink is a
+     dead end for this metric (it shifts the row AND everything after it,
+     including City, up together -- net zero for the row's position
+     relative to the viewport), and the row's own trailing padding, while
+     it DOES help clearance, does so only by pushing City's negative
+     margin-pull-up target later -- i.e. it is the SAME thing as growing
+     the Intent->City gap, 1px for 1px. Since that gap must stay exactly
+     at its approved ~88-96px, that lever is unusable and has been
+     reverted. The ONLY lever left that moves the card's actual text
+     without touching City's position, the heading's position, or the
+     card's own outer size is the CARD's own padding-bottom: it reserves
+     more of the card's FIXED height below the text (justify-content:
+     flex-end packs the icon/title/description/arrow group against this
+     edge), so the group shifts up inside the same-size card -- image,
+     border-radius, hover lift, everything else about the card is
+     unchanged, only where the text sits inside it moves. */
   body.world .w-intent-row {
     --intent-gutter: clamp(1.25rem, 4vw, 4.5rem);
     overflow-x: auto; scroll-snap-type: x mandatory;
@@ -1810,6 +1877,14 @@ body.world .home-bottomnav {
   body.world .w-intent-card {
     flex: 0 0 73vw; scroll-snap-align: center;
     height: clamp(215px, 50vw, 235px);
+    padding-bottom: calc(1.1rem + 72px); /* was 1.1rem -- +72px, see note above */
+    /* Bottom-nav safety clearance: guarantees that any ASSISTED scroll
+       landing on a card (Tab/keyboard focus, in-page anchor jump,
+       assistive-tech scrollIntoView) never rests with the card's own
+       text/CTA behind the fixed .dmnav-bar. Secondary/additive guard --
+       does not by itself fix ordinary free-scroll/touch overlap, which
+       the padding-bottom above does. */
+    scroll-margin-block-end: calc(86px + env(safe-area-inset-bottom, 0px) + 14px);
   }
   body.world .mv.w-intent-section { padding-block: clamp(3rem, 12vw, 3.5rem); }
   body.world .w-intent-heading { font-size: clamp(1.75rem, 7vw, 2.125rem); }
