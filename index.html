@@ -316,11 +316,23 @@ violation reporting. -->
      it is now a real Quick Sale rail (listings.quickSale == true, set by
      the owner in sell.html or an admin in admin.html) -- see
      loadFastSaleListings() below. A listing card keeps an edge because a
-     listing IS a discrete object; nothing around it does. -->
-<section class="mv w-stage" data-cine3d="cards">
+     listing IS a discrete object; nothing around it does.
+
+     VISUAL REDESIGN (this pass): Quick Sale now reads as its own
+     fast-moving "deal list" rather than a fourth copy of the Premium/
+     Affordable/Rent photo-card rails just below it. The differentiation is
+     structural, not just a badge-color swap: quickSaleCard() (see the
+     script block) renders a compact HORIZONTAL ticket -- small square
+     thumbnail + a thin gold accent edge, title/city/price/meta packed into
+     one short row -- instead of the tall vertical photo card every other
+     rail uses, so more listings preview at once and the rail reads as a
+     scannable list of live opportunities. w-quicksale-section (below) adds
+     only a faint atmosphere glow + a decorative pulse dot next to the
+     heading (aria-hidden, no new copy) -- no spacing, no new claims. -->
+<section class="mv w-stage w-quicksale-section" data-cine3d="cards">
 <div class="mv-in">
 <div style="max-width:44rem;display:flex;flex-direction:column;gap:.7rem;margin-bottom:var(--w-air-s)">
-<h2 class="w-h2" data-flow="lead" data-i18n="index.fastSaleTitle">Quick Sale</h2>
+<h2 class="w-h2 w-quicksale-heading" data-flow="lead"><span class="w-quicksale-pulse" aria-hidden="true"></span><span data-i18n="index.fastSaleTitle">Quick Sale</span></h2>
 <p class="w-body" data-flow="support" data-i18n="index.fastSaleSubtitle">Properties available for fast sale.</p>
 </div>
 <div class="w-rail-nav">
@@ -607,6 +619,20 @@ const RAIL_BADGE = {
   affordable: { key: 'index.affordableBadge', fallback: 'Affordable' },
   rent: { key: 'index.rentBadge', fallback: 'For Rent' },
 };
+// Quick Sale's own compact meta row -- beds + baths only, never sqft. A
+// SEPARATE function from railMetaRow() (never edited -- Premium/
+// Affordable/Rent keep their full beds/baths/sqft row exactly as-is).
+// The ticket's content column is much narrower than those rails' cards,
+// and the full 3-stat row was measured to push the price off the edge of
+// the card (clipped by the card's own overflow:hidden) at the compact
+// widths this design targets -- real data, just fewer stats shown so the
+// price (the one figure that must never be cut off) always has room.
+function quickSaleMetaRow(l) {
+  const items = [];
+  if (Number.isFinite(l.beds)) items.push(`<span class="flex items-center gap-1"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 18v-6h20v6"/><path d="M2 12V7M22 18v2M2 18v2"/><path d="M6 12V9h5v3"/></svg>${l.beds}</span>`);
+  if (Number.isFinite(l.baths)) items.push(`<span class="flex items-center gap-1"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M5 12V5a2 2 0 0 1 4 0"/><path d="M6 19l-1 2M18 19l1 2"/></svg>${l.baths}</span>`);
+  return items.join('');
+}
 function railMetaRow(l) {
   const items = [];
   if (Number.isFinite(l.beds)) items.push(`<span class="font-data-mono text-data-mono flex items-center gap-1"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v-6h20v6"/><path d="M2 12V7M22 18v2M2 18v2"/><path d="M6 12V9h5v3"/></svg></span>${l.beds}</span>`);
@@ -673,12 +699,18 @@ function railPropertyCard(l, kind) {
     </a>`;
 }
 
-// Quick Sale card -- same markup/classes as featuredCard (same design,
-// per the request), plus the Quick Sale badge. Image handling is now the
-// shared, honest one: listingImageUrl() returns the listing's own photo or
-// null, and homePropertyMedia() draws a neutral "no property image
-// available" placeholder rather than any stock photo, so this card can
-// never show a building that isn't the property.
+// Quick Sale card -- REDESIGNED (this pass) as a compact horizontal
+// "deal ticket" instead of reusing the tall vertical photo card every
+// other Home rail uses (Property Rails, and this card's own prior
+// version). Same real fields, same honest image handling
+// (listingImageUrl()/homePropertyMedia() -- a listing's own photo or a
+// neutral placeholder, never a stock substitute), same route
+// (listing.html?id=), same favorite button/logic (railFavoriteBtn()) --
+// only the visual anatomy changes: a small square thumbnail, a thin gold
+// "ticket stub" edge, and everything else in one tight row, so the rail
+// reads as a scannable list of live opportunities rather than a fourth
+// photo-card gallery. New classes (.home-quicksale-*, css/cinematic.css)
+// so Property Rails' .home-property-card is completely untouched.
 //
 // An earlier version of this card read ONLY `l.photoUrls[0]`, on the theory
 // that `photoUrls` (written by sell.html's uploader from a seller's real
@@ -695,41 +727,49 @@ function quickSaleCard(l) {
   const rawImg = listingImageUrl(l);
   const img = rawImg ? escapeHtml(rawImg) : null;
   const cityLabelText = (window.cityLabel && window.cityLabel(l.city)) || l.city || '';
-  const verifiedBadge = l.verified ? `
-    <div class="home-property-badge absolute top-4 end-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
-      <span aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 2.4 2.1 3.2-.3.6 3.1 2.7 1.7-1.4 2.9 1.4 2.9-2.7 1.7-.6 3.1-3.2-.3L12 21l-2.4-2.1-3.2.3-.6-3.1L3.1 14l1.4-2.9L3.1 8.2l2.7-1.7.6-3.1 3.2.3z"/><path d="m9 12 2 2 4-4"/></svg></span>
-      <span class="font-label-caps text-label-caps text-[11px]">${(window.t && window.t('common.verified')) || 'Verified'}</span>
-    </div>` : '';
-  const quickSaleBadge = `
-    <div class="home-property-badge absolute top-4 start-4 backdrop-blur-sm px-3 py-1 flex items-center gap-1">
-      <span class="font-label-caps text-label-caps text-[11px]">${(window.t && window.t('index.quickSaleBadge')) || 'Quick Sale'}</span>
-    </div>`;
+  const verifiedMark = l.verified ? `
+    <span class="home-quicksale-verified" aria-label="${(window.t && window.t('common.verified')) || 'Verified'}" title="${(window.t && window.t('common.verified')) || 'Verified'}">
+      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 2.4 2.1 3.2-.3.6 3.1 2.7 1.7-1.4 2.9 1.4 2.9-2.7 1.7-.6 3.1-3.2-.3L12 21l-2.4-2.1-3.2.3-.6-3.1L3.1 14l1.4-2.9L3.1 8.2l2.7-1.7.6-3.1 3.2.3z"/><path d="m9 12 2 2 4-4"/></svg>
+    </span>` : '';
+  const meta = quickSaleMetaRow(l);
   const media = homePropertyMedia(img, l.title || l.address);
   return `
-    <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-property-card cine-card-reveal flex-none w-[320px] md:w-[380px] snap-start relative overflow-hidden group block">
-      <div class="home-property-media relative h-48 w-full overflow-hidden">
+    <a href="listing.html?id=${encodeURIComponent(l.id)}" class="home-quicksale-card cine-card-reveal flex-none snap-start relative overflow-hidden group block" style="flex:0 0 clamp(292px,27vw,352px);width:clamp(292px,27vw,352px)">
+      <div class="home-quicksale-media relative flex-none overflow-hidden">
         ${media}
-        ${quickSaleBadge}
-        ${verifiedBadge}
+        <span class="home-quicksale-bolt" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg>
+        </span>
+        ${railFavoriteBtn(l)}
       </div>
-      <div class="p-5">
-        <h3 class="home-property-title font-headline-md text-[18px] leading-tight mb-1.5">${escapeHtml(l.title || l.address)}</h3>
-        <p class="home-property-meta font-body-md text-body-md mb-4 flex items-center gap-1.5">
-          <span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a7 7 0 1 1 14 0c0 5.5-7 10-7 10Z"/><circle cx="12" cy="11" r="2.5"/></svg></span> ${l.address ? escapeHtml(l.address) + ', ' : ''}${escapeHtml(cityLabelText)}
+      <div class="home-quicksale-body flex flex-col justify-center min-w-0">
+        <h3 class="home-quicksale-title flex items-start gap-1.5">
+          <span class="home-quicksale-title-text">${escapeHtml(l.title || l.address)}</span>${verifiedMark}
+        </h3>
+        <p class="home-quicksale-loc truncate">
+          ${escapeHtml(cityLabelText)}${l.address ? ' · ' + escapeHtml(l.address) : ''}
         </p>
-        <div class="home-property-divider flex justify-between items-center mb-4 pb-4 border-b">
-          <div class="home-property-meta flex gap-4">
-            <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v-6h20v6"/><path d="M2 12V7M22 18v2M2 18v2"/><path d="M6 12V9h5v3"/></svg></span> ${l.beds ?? 0}</span>
-            <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M5 12V5a2 2 0 0 1 4 0"/><path d="M6 19l-1 2M18 19l1 2"/></svg></span> ${l.baths ?? 0}</span>
-            <span class="font-data-mono text-data-mono flex items-center gap-1.5"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v16h16"/><path d="M4 14h6v6"/><path d="m4 4 16 16"/></svg></span> ${l.sqft ?? 0}m²</span>
-          </div>
-        </div>
-        <div class="flex justify-between items-center">
-          <span class="home-property-price font-headline-md text-headline-md">${fmtFeaturedPrice(l)}</span>
-          <span class="home-property-cta font-label-caps text-label-caps">${(window.t && window.t('common.details')) || 'Details'}</span>
+        <div class="home-quicksale-foot flex items-center justify-between gap-2">
+          <div class="home-quicksale-meta flex items-center gap-2.5">${meta}</div>
+          <span class="home-quicksale-price flex items-center gap-1 flex-none">${fmtFeaturedPrice(l)}<svg class="home-quicksale-arrow" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></span>
         </div>
       </div>
     </a>`;
+}
+
+// Compact horizontal skeleton matching the ticket shape above -- the
+// shared .home-property-card skeleton (tall photo card) would flash a
+// mismatched shape between "loading" and "ready" if reused here.
+function quickSaleSkeletonRow() {
+  return `
+    <div class="home-quicksale-card flex-none snap-start" style="flex:0 0 clamp(292px,27vw,352px);width:clamp(292px,27vw,352px)" aria-hidden="true">
+      <div class="home-quicksale-media relative flex-none overflow-hidden"><div class="ds-skeleton" style="position:absolute;inset:0"></div></div>
+      <div class="home-quicksale-body flex flex-col justify-center min-w-0 gap-2">
+        <div class="ds-skeleton h-4 w-4/5"></div>
+        <div class="ds-skeleton h-3 w-3/5"></div>
+        <div class="ds-skeleton h-3 w-2/5"></div>
+      </div>
+    </div>`;
 }
 
 // One render routine, parametrized per rail (grid id, current listings/
@@ -746,7 +786,11 @@ function renderPropertyRail(opts) {
   if (!grid) return;
 
   if (opts.state === 'loading') {
-    grid.innerHTML = Array.from({ length: 3 }, () => `
+    // skeletonRenderer lets a rail supply a loading shape that matches its
+    // OWN real card (see quickSaleSkeletonRow()) instead of always this
+    // tall-photo-card default, which is still exactly what Premium/
+    // Affordable/Rent get since none of them pass the option.
+    const skeleton = opts.skeletonRenderer || (() => `
       <div class="home-property-card flex-none w-[320px] md:w-[380px] snap-start overflow-hidden" aria-hidden="true">
         <div class="ds-skeleton h-48 w-full"></div>
         <div class="p-5 space-y-3">
@@ -754,7 +798,8 @@ function renderPropertyRail(opts) {
           <div class="ds-skeleton h-4 w-1/2"></div>
           <div class="ds-skeleton h-4 w-2/3"></div>
         </div>
-      </div>`).join('');
+      </div>`);
+    grid.innerHTML = Array.from({ length: 3 }, skeleton).join('');
     return;
   }
 
@@ -830,8 +875,10 @@ function renderFastSaleGrid() {
     gridId: 'fastSaleGrid', state: fastSaleState, listings: fastSaleListings,
     leftBtn: 'fastSaleLeftBtn', rightBtn: 'fastSaleRightBtn',
     cardRenderer: quickSaleCard,
+    skeletonRenderer: quickSaleSkeletonRow,
     emptyKey: 'index.noQuickSaleYet',
     emptyDefault: 'No Quick Sale properties available right now.',
+    compactEmpty: true,
     retry: () => { fastSaleState = 'loading'; renderFastSaleGrid(); loadFastSaleListings(); },
   });
 }
@@ -1068,6 +1115,17 @@ function renderRentGrid() {
 // map.html's 'buy-' + id doc-id prefix under users/{uid}/favorites), so a
 // heart saved here already shows saved on buy.html/map.html/account.html
 // and vice versa. This rail previously had no favorite button at all.
+//
+// AUDIT FIX (this pass): findRailListing()/renderAllRailGrids() never
+// knew about fastSaleListings/renderFastSaleGrid, even though
+// quickSaleCard() has always called the same railFavoriteBtn()/
+// toggleRailFavorite() as Premium/Affordable/Rent. Concretely this meant
+// favoriting a Quick Sale card optimistically flipped the heart, then
+// toggleRailFavorite()'s `else if (l)` (l = findRailListing(id),
+// undefined for a Quick Sale listing) silently skipped the actual
+// Firestore setDoc -- the save never persisted, with no error shown.
+// Both fixes below are additive (one more `||` clause, one more call)
+// and change nothing about how Premium/Affordable/Rent already behave.
 let railFavAuth = null, railFavDb = null, railFavFns = null;
 let favoriteIds = new Set();
 let favoritePending = new Set();
@@ -1075,9 +1133,10 @@ let favoritePending = new Set();
 function findRailListing(id) {
   return (premiumListings || []).find(l => l.id === id)
     || (affordableListings || []).find(l => l.id === id)
-    || (rentListings || []).find(l => l.id === id);
+    || (rentListings || []).find(l => l.id === id)
+    || (fastSaleListings || []).find(l => l.id === id);
 }
-function renderAllRailGrids() { renderPremiumGrid(); renderAffordableGrid(); renderRentGrid(); }
+function renderAllRailGrids() { renderFastSaleGrid(); renderPremiumGrid(); renderAffordableGrid(); renderRentGrid(); }
 
 async function initRailFavorites() {
   const [{ auth, db, getDocs, setDoc, deleteDoc }, authMod, storeMod] = await Promise.all([
