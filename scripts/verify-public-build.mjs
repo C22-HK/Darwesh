@@ -60,6 +60,27 @@ const REQUIRED = [
   'js/firebase-init.js',
 ];
 
+// Mirror of APPROVED_PAGES in scripts/build-public.mjs. Duplicated on
+// purpose: this file is the independent check on the builder, so it has
+// to carry its own copy of the expectation rather than import the
+// builder's and agree with itself by construction. A page reaching
+// dist/ that is not listed here fails the deploy -- that is what stops
+// an unreleased draft (scan.html today) from going live because a glob
+// picked it up.
+const APPROVED_PAGES = new Set([
+  'about.html', 'account.html', 'add-work.html', 'admin.html',
+  'agent-dashboard.html', 'agent.html', 'arena-challenge.html', 'arena.html',
+  'build.html', 'buy.html', 'cleaning.html', 'customer.html',
+  'design.html', 'designer.html', 'engineer.html', 'index.html',
+  'insights.html', 'installments.html', 'landscaping.html', 'lawyer.html',
+  'listing.html', 'login.html', 'maintenance.html', 'mam-ai.html',
+  'map.html', 'offer.html', 'office.html', 'org-projects.html',
+  'organization.html', 'project.html', 'projects.html', 'promo.html',
+  'renovate.html', 'rent.html', 'reset-password.html', 'sell.html',
+  'service.html', 'services.html', 'signup-professional.html', 'signup.html',
+  'verify.html', 'work.html',
+]);
+
 if (!fs.existsSync(OUT)) {
   console.error('FAIL: dist/ does not exist. Run scripts/build-public.mjs first.');
   process.exit(1);
@@ -103,6 +124,12 @@ for (const rel of files) {
   }
 }
 
+// Any page in dist/ must be one someone approved for publication.
+const unapprovedPages = files.filter(
+  (f) => f.endsWith('.html') && !f.includes('/') && !APPROVED_PAGES.has(f)
+);
+const missingPages = [...APPROVED_PAGES].filter((p) => !fs.existsSync(path.join(OUT, p)));
+
 const missing = REQUIRED.filter((r) => !fs.existsSync(path.join(OUT, r)));
 
 let failed = false;
@@ -111,6 +138,20 @@ if (violations.length) {
   failed = true;
   console.error(`\nFAIL: ${violations.length} prohibited file(s) in dist/:`);
   for (const v of violations) console.error(`  - ${v}`);
+}
+
+if (unapprovedPages.length) {
+  failed = true;
+  console.error(`\nFAIL: ${unapprovedPages.length} page(s) in dist/ are not approved for publication:`);
+  for (const p of unapprovedPages) console.error(`  - ${p}`);
+  console.error('\n  Add the page to APPROVED_PAGES in scripts/build-public.mjs AND');
+  console.error('  scripts/verify-public-build.mjs to publish it deliberately.');
+}
+
+if (missingPages.length) {
+  failed = true;
+  console.error(`\nFAIL: ${missingPages.length} approved page(s) missing from dist/:`);
+  for (const p of missingPages) console.error(`  - ${p}`);
 }
 
 if (missing.length) {
