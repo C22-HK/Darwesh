@@ -147,3 +147,23 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # A clean artifact and a successful deployment do not prove the live
+      # site serves that artifact -- run #259 was green on both while
+      # darweshgroup.com still returned backend/app/main.py, because the
+      # domain was being served from somewhere other than the artifact.
+      # This closes that gap by fetching the real site and failing if any
+      # private material comes back. Checks the deployed URL plus both
+      # production hostnames.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Pages can take a moment to propagate after deploy-pages reports
+      # success; give it a short grace period before asserting.
+      - name: Wait for propagation
+        run: sleep 30
+
+      - name: Assert production serves no private files
+        run: node scripts/check-production-exposure.mjs
