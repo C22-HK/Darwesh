@@ -98,37 +98,43 @@ jobs:
 
           echo "mapsApiKeyPresent=$mapsApiKeyPresent"
 
-      # Matches Jekyll's own default exclusions (the ones classic
-      # GitHub Pages "deploy from a branch" mode already applies today
-      # with no .nojekyll file present in this repo) -- dotfiles/dot-
-      # directories and node_modules are removed from this disposable
-      # runner checkout before it becomes the published artifact, so
-      # Actions-based deployment serves the same set of top-level
-      # content classic Pages already does, not more. This intentionally
-      # does NOT newly exclude anything else (docs/*.md, backend/,
-      # firestore.rules, etc.) that classic Pages currently serves --
-      # changing that is a separate decision, not something to fold into
-      # "wire up the maps key" silently.
-      - name: Remove dev-only/VCS files before publishing (parity with classic Pages' Jekyll defaults)
-        run: rm -rf .git .github .claude node_modules
+      # Builds dist/ from an explicit allowlist of public browser assets.
+      # This replaces the previous approach of publishing the whole
+      # checkout minus a few deletions. That inversion is the point: a
+      # newly added private file is now excluded by default, instead of
+      # shipping until someone remembered to add a matching delete. See
+      # scripts/build-public.mjs for the allowlist itself.
+      #
+      # Runs AFTER the maps-config step on purpose -- the builder copies
+      # js/ off the filesystem, so the generated js/maps-config.js is
+      # picked up and lands in dist/js/maps-config.js.
+      - name: Build public site (allowlist -> dist/)
+        run: node scripts/build-public.mjs
 
-      # Hard-fails the deploy (rather than silently publishing without a
-      # map) if the previous steps somehow didn't leave js/maps-config.js
-      # in place for upload-pages-artifact to package -- this is what
-      # answers "is the file actually present in the artifact" for
-      # certain, instead of inferring it from earlier steps having run.
-      - name: Verify js/maps-config.js will be included in the published artifact
+      # Independent re-check of what the builder actually produced. Fails
+      # the deploy if any private material reached dist/ (backend source,
+      # internal *.md, Firebase rules, key material), and equally if a
+      # required-but-unlinked public file is missing -- CNAME (which binds
+      # the custom domain) and js/i18n/{ku,ar,tr}.js (loaded by string
+      # concatenation, so invisible to static analysis) are the ones that
+      # would otherwise fail silently in production.
+      - name: Verify public build contains no private files
+        run: node scripts/verify-public-build.mjs
+
+      - name: Confirm maps config reached the artifact
         run: |
-          if [ ! -f js/maps-config.js ]; then
-            echo "::error::js/maps-config.js is missing right before packaging the Pages artifact -- refusing to deploy. This means an earlier step in this job failed silently; check the 'Generate js/maps-config.js' step's output above."
+          if [ ! -f dist/js/maps-config.js ]; then
+            echo "::error::dist/js/maps-config.js is missing right before packaging the Pages artifact -- refusing to deploy. Check the 'Generate js/maps-config.js' step above."
             exit 1
           fi
-          echo "js/maps-config.js present, $(wc -c < js/maps-config.js | tr -d ' ') bytes -- will be included in the Pages artifact."
+          echo "dist/js/maps-config.js present, $(wc -c < dist/js/maps-config.js | tr -d ' ') bytes."
+          echo "- \`dist/js/maps-config.js\` in artifact: **true**" >> "$GITHUB_STEP_SUMMARY"
+          echo "- files published: **$(find dist -type f | wc -l | tr -d ' ')**" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: dist
 
   deploy:
     name: Deploy to GitHub Pages

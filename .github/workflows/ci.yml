@@ -49,6 +49,25 @@ jobs:
       - name: Run static checks (JS syntax, i18n coverage, links, duplicate IDs)
         run: node scripts/ci-checks.js
 
+  public-build:
+    name: Public build isolation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # Runs the same allowlist build deploy-pages.yml publishes, then
+      # asserts the result carries no private material and nothing the
+      # site needs went missing. Running it here as well as at deploy
+      # time means a change that would leak backend source or internal
+      # documentation fails on the pull request, rather than at the
+      # moment it would have gone live.
+      - name: Build public site
+        run: node scripts/build-public.mjs
+      - name: Assert no private files in public build
+        run: node scripts/verify-public-build.mjs
+
   backend:
     name: Backend lint + test
     runs-on: ubuntu-latest
